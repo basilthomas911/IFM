@@ -2,7 +2,7 @@ using System.Text.Json;
 using TomasAI.IFM.UI.Rust.Bridge.Net;
 public unsafe class LiveWorkflowDeliveryTests
 {
- [Fact] public void New_backend_workflow_is_delivered_to_the_live_bridge_without_history_reload()
+ [LiveWorkflowDeliveryFact] public void New_backend_workflow_is_delivered_to_the_live_bridge_without_history_reload()
  {
   using var http=new HttpClient{Timeout=TimeSpan.FromSeconds(5)};Assert.True(http.GetAsync("http://localhost:22543/health/launch-ready").GetAwaiter().GetResult().IsSuccessStatusCode);
   var previous=Environment.GetEnvironmentVariable("IFM_RUST_UI_MODE");Environment.SetEnvironmentVariable("IFM_RUST_UI_MODE","live");
@@ -30,6 +30,15 @@ public unsafe class LiveWorkflowDeliveryTests
   finally{Assert.Equal(0,api.Destroy(handle));Environment.SetEnvironmentVariable("IFM_RUST_UI_MODE",previous);}
  }
  static JsonElement Read(ApiV1 api,ulong handle){for(int attempt=0;attempt<300;attempt++){int n;api.Copy(handle,0,null,0,&n);if(n==0){Thread.Sleep(100);continue;}var bytes=new byte[n];fixed(byte* p=bytes){if(api.Copy(handle,0,p,n,&n)!=0)continue;}using var doc=JsonDocument.Parse(MessagePack.MessagePackSerializer.ConvertToJson(bytes,BridgeWire.Options));return doc.RootElement.Clone();}throw new InvalidOperationException("Live snapshot unavailable");}
+}
+/// <summary>Requires a running Development backend and a genuine new business signal during the observation window.</summary>
+public sealed class LiveWorkflowDeliveryFactAttribute : FactAttribute
+{
+ public LiveWorkflowDeliveryFactAttribute()
+ {
+  if (Environment.GetEnvironmentVariable("IFM_RUN_LIVE_WORKFLOW_DELIVERY") != "1")
+   Skip = "Set IFM_RUN_LIVE_WORKFLOW_DELIVERY=1 during market hours with Development running; this test waits for a genuine new workflow and does not manufacture one.";
+ }
 }
 static class WorkflowDeliveryEvidence
 {

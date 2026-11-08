@@ -15,11 +15,13 @@ public static class MarketDataImportStreamFence
             await transaction.ExecuteAsync("""
                 INSERT INTO event_stream_id (eventstream) VALUES ($1)
                 ON CONFLICT (eventstream) DO NOTHING;
-                """, [stream], token).ConfigureAwait(false);
+                """, [stream], token)
+            .ConfigureAwait(false);
             var head = await transaction.QueryAsync("""
                 SELECT eventstreamid, currentversion FROM event_stream_id
                 WHERE eventstream = $1 FOR UPDATE;
-                """, [stream], row => (Id: row.GetInt64(0), Version: row.GetInt64(1)), token).ConfigureAwait(false);
+                """, [stream], row => (Id: row.GetInt64(0), Version: row.GetInt64(1)), token)
+            .ConfigureAwait(false);
             var (id, version) = head.Single();
             var pending = await transaction.ScalarAsync("""
                 SELECT EXISTS (
@@ -30,7 +32,8 @@ public static class MarketDataImportStreamFence
                         OR projection.outcome IS NULL
                         OR projection.outcome NOT IN ('Completed', 'AlreadyCompleted', 'Superseded'))
                 );
-                """, [id, projector], token).ConfigureAwait(false);
+                """, [id, projector], token)
+            .ConfigureAwait(false);
             if (pending is true)
                 throw new InvalidOperationException($"MarketData import requires completed CRUD projection for stream {stream}.");
             versions.Add(stream, version);

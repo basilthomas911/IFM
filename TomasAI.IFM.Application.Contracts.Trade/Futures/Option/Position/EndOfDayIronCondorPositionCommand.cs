@@ -15,6 +15,11 @@ public sealed record EndOfDayIronCondorPositionCommand : TimedPositionCommand, I
     /// <summary>Gets the explicit ended exchange value date.</summary>
     [Key(5)] public DateOnly ValueDate { get; init; }
 
+    /// <summary>Optional committed mark used to recover a missed historical close without changing current position state.</summary>
+    [Key(6)] public StrategyPositionSnapshot? HistoricalSnapshot { get; init; }
+    /// <summary>Global source-event identity for the supplied historical mark; verified in the commit transaction.</summary>
+    [Key(7)] public long HistoricalSourceEventId { get; init; }
+
     /// <summary>Retains the complete business identity so a retry cannot change the position, date or close boundary.</summary>
     ICommand ICommandRetryIdentity.ForRetryIdentity() => this;
 }

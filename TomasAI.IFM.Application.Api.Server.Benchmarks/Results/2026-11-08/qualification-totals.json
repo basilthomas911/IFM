@@ -1,0 +1,21 @@
+{
+  "NormalSuites": {
+    "Passed": 5982,
+    "Failed": 0,
+    "ReportedSkipped": 6
+  },
+  "AdditionalOptIn": {
+    "Passed": 1,
+    "Failed": 0,
+    "CoveredPreviouslySkipped": "Maximum_scope_sustained_pricing_and_one_hundred_runtime_reconstructions",
+    "Results": "E:\\IFM\\BenchmarkArtifacts\\ApiServerPerformance\\20261107\\tests\\sustained-pricing-final.trx"
+  },
+  "DistinctFinalCoverage": {
+    "Passed": 5983,
+    "Failed": 0,
+    "Unexecuted": 5
+  },
+  "BenchmarkCases": 94,
+  "BenchmarkPairs": 47,
+  "ActiveMarketAcceptance": "Not executed: closed authoritative session; see final report for remaining end-to-end qualification boundaries."
+}

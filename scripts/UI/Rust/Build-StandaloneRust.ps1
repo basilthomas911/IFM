@@ -1,11 +1,12 @@
 param(
     [switch]$DebugBuild,
-    [ValidateSet('Development','Release')][string]$Profile='Release',
+    [ValidateSet('Development','Release')][string]$Profile='Development',
     [ValidateRange(1,64)][int]$Jobs=4,
     [string]$OutputDirectory='.artifacts/standalone-rust-ui/app'
 )
 $ErrorActionPreference = 'Stop'
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '../../..')).Path
+& (Join-Path $repoRoot 'scripts/Development/Initialize-RustBuildTarget.ps1') -ProjectDirectory (Join-Path $repoRoot 'TomasAI.IFM.UI.Rust.eGui')
 Push-Location $repoRoot
 $priorTargetFlags = $env:CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS
 try {
@@ -28,6 +29,9 @@ try {
     # Rust crate names cannot contain dots. Assign the requested Windows artifact
     # name when packaging; no managed assemblies or config secrets are copied.
     Copy-Item -LiteralPath "TomasAI.IFM.UI.Rust.eGui/target/x86_64-pc-windows-msvc/$profileDirectory/ifm-ui-egui.exe" -Destination (Join-Path $output 'TomasAI.IFM.UI.Rust.eGui.exe')
+    $sourceSymbols = "TomasAI.IFM.UI.Rust.eGui/target/x86_64-pc-windows-msvc/$profileDirectory/ifm_ui_egui.pdb"
+    if (!(Test-Path -LiteralPath $sourceSymbols)) { throw 'Full-debug Rust UI PDB is missing.' }
+    Copy-Item -LiteralPath $sourceSymbols -Destination (Join-Path $output 'ifm_ui_egui.pdb')
     & python 'TomasAI.IFM.UI.Rust.eGui/tools/audit_package.py' (Join-Path $output 'TomasAI.IFM.UI.Rust.eGui.exe') (Join-Path $output 'package-audit.json')
     if ($LASTEXITCODE -ne 0) { throw 'Standalone executable dependency audit failed' }
     Write-Output (Join-Path $output 'TomasAI.IFM.UI.Rust.eGui.exe')

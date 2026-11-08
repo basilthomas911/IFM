@@ -7,6 +7,21 @@ namespace TomasAI.IFM.Application.MarketData.UnitTests;
 
 public sealed class TradeFeedRecoveryServiceTests
 {
+    [Fact]
+    public async Task Unchanged_restore_preserves_intent_revision_and_explicit_enable_still_persists()
+    {
+        var store = new Store(); var runtime = new Runtime();
+        var service = new TradeFeedRecoveryService(store, runtime);
+        Assert.True(await service.LoadAsync(Trade.Format(), Date, true, default));
+        var original = Assert.Single(await store.ReadAsync(Date, default));
+        Assert.True(await service.LoadAsync(Trade.Format(), Date, false, default));
+        Assert.Equal(original, Assert.Single(await store.ReadAsync(Date, default)));
+        Assert.Equal(1, store.Saves);
+        Assert.Equal(4, runtime.Active.Count);
+        Assert.True(await service.LoadAsync(Trade.Format(), Date, true, default));
+        Assert.Equal(2, store.Saves);
+        Assert.Equal(4, runtime.Active.Count);
+    }
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -84,8 +99,9 @@ public sealed class TradeFeedRecoveryServiceTests
     {
         readonly Dictionary<(string,DateOnly),TradeFeedRecoveryRegistration> rows=[];
         public bool FailSave;
+        public int Saves;
         public Task<TradeFeedRecoveryRegistration[]> ReadAsync(DateOnly date,CancellationToken token)=>Task.FromResult(rows.Values.Where(row=>row.ValueDate==date).ToArray());
-        public Task SaveAsync(TradeFeedRecoveryRegistration row,CancellationToken token) { if(FailSave)throw new IOException("database down"); rows[(row.TradeId,row.ValueDate)]=row;return Task.CompletedTask; }
+        public Task SaveAsync(TradeFeedRecoveryRegistration row,CancellationToken token) { if(FailSave)throw new IOException("database down"); Saves++; rows[(row.TradeId,row.ValueDate)]=row;return Task.CompletedTask; }
         public Task RemoveAsync(string trade,DateOnly date,CancellationToken token){rows.Remove((trade,date));return Task.CompletedTask;}
         public Task CloseAsync(DateOnly date,CancellationToken token){foreach(var key in rows.Keys.Where(key=>key.Item2<=date).ToArray())rows.Remove(key);return Task.CompletedTask;}
     }

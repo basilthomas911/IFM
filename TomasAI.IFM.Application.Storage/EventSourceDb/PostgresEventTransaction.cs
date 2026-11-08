@@ -62,7 +62,8 @@ public sealed class PostgresEventTransaction(
             var started = Stopwatch.GetTimestamp();
             try
             {
-                var result = await ExecuteAttemptAsync(operation, cancellationToken).ConfigureAwait(false);
+                var result = await ExecuteAttemptAsync(operation, cancellationToken)
+            .ConfigureAwait(false);
                 trace?.SetTag("financial.transaction.outcome", "committed");
                 FinancialTelemetry.Transaction(Stopwatch.GetElapsedTime(started).TotalMilliseconds, "committed"); return result;
             }
@@ -73,7 +74,8 @@ public sealed class PostgresEventTransaction(
                 FinancialTelemetry.Transaction(Stopwatch.GetElapsedTime(started).TotalMilliseconds, "rolled_back_retry");
                 trace?.SetTag("financial.transaction.outcome", "rolled_back_retry");
                 FinancialTelemetry.Retry();
-                await Task.Delay(TimeSpan.FromMilliseconds(10 * (attempt + 1)), cancellationToken).ConfigureAwait(false);
+                await Task.Delay(TimeSpan.FromMilliseconds(10 * (attempt + 1)), cancellationToken)
+            .ConfigureAwait(false);
             }
             catch (Exception error)
             {
@@ -97,9 +99,11 @@ public sealed class PostgresEventTransaction(
         var connection = new PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(connectionString);
         await using var connectionDisposal = connection.ConfigureAwait(false);
         using (FinancialTelemetry.ActivitySource.StartActivity("financial.transaction.open_connection"))
-            await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+            await connection.OpenAsync(cancellationToken)
+            .ConfigureAwait(false);
         using var beginTrace = FinancialTelemetry.ActivitySource.StartActivity("financial.transaction.begin");
-        var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken).ConfigureAwait(false);
+        var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken)
+            .ConfigureAwait(false);
         await using var transactionDisposal = transaction.ConfigureAwait(false);
         beginTrace?.Stop();
         var enlisted = new EnlistedEventTransaction(connection, transaction, eventLogCodec, eventLogSqlLayout, queryTimeout);
@@ -108,11 +112,14 @@ public sealed class PostgresEventTransaction(
         {
             // Limit lock/provider waits; caller cancellation can impose a stricter operation deadline.
             using (FinancialTelemetry.ActivitySource.StartActivity("financial.transaction.configure"))
-                await enlisted.ConfigureTimeoutAsync(null, cancellationToken).ConfigureAwait(false);
+                await enlisted.ConfigureTimeoutAsync(null, cancellationToken)
+            .ConfigureAwait(false);
             using (FinancialTelemetry.ActivitySource.StartActivity("financial.transaction.apply"))
-                result = await operation(enlisted, cancellationToken).ConfigureAwait(false);
+                result = await operation(enlisted, cancellationToken)
+            .ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
-            await enlisted.ConfigureTimeoutAsync(null, cancellationToken).ConfigureAwait(false);
+            await enlisted.ConfigureTimeoutAsync(null, cancellationToken)
+            .ConfigureAwait(false);
         }
         catch
         {
@@ -120,7 +127,8 @@ public sealed class PostgresEventTransaction(
             try
             {
                 using var rollbackTrace = FinancialTelemetry.ActivitySource.StartActivity("financial.transaction.rollback");
-                await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+                await transaction.RollbackAsync(CancellationToken.None)
+            .ConfigureAwait(false);
             }
             catch { /* Preserve the original database failure; cleanup is best effort. */ }
             throw;
@@ -132,7 +140,8 @@ public sealed class PostgresEventTransaction(
         try
         {
             using var commitTrace = FinancialTelemetry.ActivitySource.StartActivity("financial.transaction.commit");
-            await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+            await transaction.CommitAsync(cancellationToken)
+            .ConfigureAwait(false);
         }
         catch (PostgresException)
         {

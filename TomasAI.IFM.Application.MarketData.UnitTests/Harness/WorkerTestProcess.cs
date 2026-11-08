@@ -22,13 +22,18 @@ internal static class WorkerTestProcess
 
     private static string BuildAssembly(string project)
     {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName,
-            "TomasAI.IFM.Application.MarketData.Host.Worker", "TomasAI.IFM.Application.MarketData.Host.Worker.csproj")))
-            directory = directory.Parent;
-        if (directory is null) throw new DirectoryNotFoundException("Cannot locate the Market Data worker project.");
         var configuration = typeof(WorkerTestProcess).Assembly.GetCustomAttribute<AssemblyConfigurationAttribute>()!.Configuration;
-        return RequireAssembly(Path.Combine(directory.FullName, project, "bin", configuration, "net10.0", project + ".dll"));
+        // --artifacts-path puts sibling executables outside the source checkout.
+        var sibling = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", project, configuration.ToLowerInvariant(), project + ".dll"));
+        if (File.Exists(sibling)) return RequireAssembly(sibling);
+        return RequireAssembly(Path.Combine(RepositoryRoot(), project, "bin", configuration, "net10.0", project + ".dll"));
+    }
+
+    internal static string RepositoryRoot([System.Runtime.CompilerServices.CallerFilePath] string source = "")
+    {
+        var directory = new DirectoryInfo(Path.GetDirectoryName(source)!);
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "TomasAI.IFM.sln"))) directory = directory.Parent;
+        return directory?.FullName ?? throw new DirectoryNotFoundException("Cannot locate the Market Data source checkout.");
     }
 
     private static string RequireAssembly(string path)

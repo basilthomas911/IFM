@@ -26,6 +26,58 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.TradeDb;
 public sealed class PostgresTradeFlowTests(PostgresTradePlanFixture fixture)
 {
     [Fact]
+    public async Task Historical_eod_requires_committed_mark_and_preserves_closed_current_and_routes()
+    {
+        await fixture.Transactions.ExecuteOnceAsync((db,ct)=>db.ExecuteAsync(TradeSchemaSql.Create,[],ct));
+        var settings=new DbConnectionSettings().Add(TradeDbContext.TradeDbConnection,fixture.Connection,"System.Data.Postgres");
+        var context=new TradeDbContext(settings,Mock.Of<IDbContextFactory>(),Mock.Of<ISequenceIdGenerator>(),NullLogger<DbProvider>.Instance);
+        var source=Mock.Of<TomasAI.IFM.Application.Storage.IEventSourceActorDbContext>(
+            value=>value.ProviderName=="System.Data.Postgres" && value.ConnectionString==fixture.Connection);
+        var id=StrategyPositionId.Create(new(Random.Shared.Next(60000000,70000000),1,1,1),TradeStrategyKind.IronCondor);
+        var date=new DateOnly(2026,10,26); var at=new DateTime(2026,10,26,1,0,0,DateTimeKind.Utc);
+        var mark=new StrategyPositionSnapshot { Id=id,StrategyKind=TradeStrategyKind.IronCondor,IsOpen=true,
+            Phase=StrategyPositionPhase.MarkToMarket,PositionSequence=10,HistoryPositionSequence=1,
+            ValueDate=date,AsOfUtc=at,HistoryAsOfUtc=at,LastMarketObservationUtc=at,
+            ContractCashMultiplier=50,OpeningCommission=0,OpeningValueDate=date,
+            Legs=[new() { TradeLegId=Guid.NewGuid(),ContractId="historical-ES",SignedQuantity=1,OpeningPrice=2,CurrentPrice=3,CashMultiplier=50 }] };
+        var current=mark with { Phase=StrategyPositionPhase.Close,PositionSequence=100,HistoryPositionSequence=100,
+            IsOpen=false,ValueDate=new(2026,11,6),AsOfUtc=at.AddDays(11),HistoryAsOfUtc=at.AddDays(11) };
+        var command=new TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position.EndOfDayIronCondorPositionCommand {
+            CommandId=Guid.NewGuid(),EntityId=id,ValueDate=date,
+            Subject=new(ActorType.Command,"FuturesIronCondorTradePositionCommand","EndOfDayIronCondorPosition",id.Format()),
+            EffectiveAtUtc=TomasAI.IFM.Domain.MarketData.Shared.FuturesTradingValueDate.GetSessionEndUtc(date).UtcDateTime,
+            HistoricalSnapshot=mark };
+        var original=new TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position.IronCondorPositionChangedEvent {
+            Id=Guid.NewGuid(),CommandId=Guid.NewGuid(),EntityId=id,PositionSnapshot=mark,ReceivedOn=at };
+        await fixture.Transactions.ExecuteOnceAsync(async (db,ct)=> {
+            await db.AppendAsync(command.StreamId,original.CommandId,original,0,ct);
+            await context.ProjectPositionAsync(db,mark,ct);
+            await context.ProjectPositionAsync(db,current,ct);
+            return true;
+        });
+        var sourceId=await fixture.Transactions.ExecuteOnceAsync((db,ct)=>db.ScalarAsync(
+            "SELECT e.eventversion FROM event_log e JOIN event_stream_id s USING(eventstreamid) WHERE s.eventstream=$1 AND e.streamversion=1;",[command.StreamId],ct));
+        command=command with { HistoricalSourceEventId=Convert.ToInt64(sourceId) };
+        var sealedHistory=TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Command.HistoricalPositionEndOfDay.Seal(mark,current,date,command.EffectiveAtUtc);
+        TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position.IronCondorPositionChangedEvent Fact()=>new() {
+            CommandId=command.CommandId,EntityId=id,PositionSnapshot=current,HistoricalSourceEventId=command.HistoricalSourceEventId,
+            HistoricalEndOfDay=sealedHistory,ReceivedOn=DateTime.UtcNow };
+        var forged=command with { HistoricalSnapshot=mark with { UnrealizedPnl=999 } };
+        Func<Task> reject=()=>TomasAI.IFM.Domain.Trade.Persistence.TradeAtomicPersistence.CommitAsync(forged,
+            new TomasAI.IFM.Shared.EventSourcing.DomainEventCollection([Fact()]),1,source,context,fixture.Transactions);
+        await reject.Should().ThrowAsync<InvalidOperationException>();
+        await TomasAI.IFM.Domain.Trade.Persistence.TradeAtomicPersistence.CommitAsync(command,
+            new TomasAI.IFM.Shared.EventSourcing.DomainEventCollection([Fact()]),1,source,context,fixture.Transactions);
+        var saved=await context.GetStrategyPositionAsync(id);
+        saved!.IsOpen.Should().BeFalse(); saved.PositionSequence.Should().Be(100);
+        var history=await context.GetStrategyPositionHistoryAsync(id.PositionId,at.AddHours(-1),at.AddDays(12),100);
+        history.Items.Should().HaveCount(2);
+        history.Items.Should().ContainSingle(p=>p.Phase==StrategyPositionPhase.EndOfDay);
+        (await context.GetOpenPositionRoutesAsync("historical-ES")).Should().BeEmpty();
+        (await fixture.EventCountAsync(command.StreamId)).Should().Be(2,"forged source must roll back the event append");
+    }
+
+    [Fact]
     public async Task Stored_option_trade_lookup_binds_ordinary_values_and_filters_both_keys()
     {
         await fixture.Transactions.ExecuteOnceAsync((db, ct) => db.ExecuteAsync(TradeSchemaSql.Create, [], ct));

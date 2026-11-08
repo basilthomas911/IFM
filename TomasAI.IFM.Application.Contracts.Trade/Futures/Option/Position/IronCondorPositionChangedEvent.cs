@@ -13,4 +13,8 @@ public sealed record IronCondorPositionChangedEvent : PositionChangedEvent
     [Key(9)] public bool IsRealtimeMarketObservation { get; init; }
     /// <summary>Identifies the committed Trade fact used by an explicit legacy currency repair.</summary>
     [Key(10)] public long? CurrencyEvidenceEventId { get; init; }
+    /// <summary>Historical EOD read-model correction; PositionSnapshot still contains the complete current state.</summary>
+    [Key(11)] public StrategyPositionSnapshot? HistoricalEndOfDay { get; init; }
+    /// <summary>Committed mark from which the historical close was calculated.</summary>
+    [Key(12)] public long HistoricalSourceEventId { get; init; }
 }

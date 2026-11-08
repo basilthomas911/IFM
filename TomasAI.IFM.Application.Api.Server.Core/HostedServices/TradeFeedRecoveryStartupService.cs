@@ -33,6 +33,8 @@ public sealed class TradeFeedRecoveryStartupService(IMarketDataApi market, IFutu
                 using var budget = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
                 budget.CancelAfter(TimeSpan.FromMinutes(2));
                 Exception? last = null;
+                var receipts = new System.Collections.Concurrent.ConcurrentDictionary<string, (DateTimeOffset Updated, string Contracts)>();
+                string? generation = null;
                 try
                 {
                     while (true)
@@ -42,23 +44,41 @@ public sealed class TradeFeedRecoveryStartupService(IMarketDataApi market, IFutu
                             if (sessions.Current.ActiveValueDate != date) break;
                             var status = await market.GetBackendStatusAsync(budget.Token).WaitAsync(budget.Token);
                             if (!status.Ready || status.ValueDate != date) throw new InvalidOperationException("Market data session is not ready for trade restoration.");
+                            var currentGeneration = Generation(status);
+                            if (generation != currentGeneration) { receipts.Clear(); generation = currentGeneration; }
                             var rows = await market.ReadTradeFeedRecoveryAsync(date.Value, budget.Token).WaitAsync(budget.Token);
-                            List<Exception> failures = [];
-                            foreach (var row in rows)
+                            var unresolved = new System.Collections.Concurrent.ConcurrentDictionary<string, Exception>();
+                            await Parallel.ForEachAsync(rows.GroupBy(row => row.TradeId, StringComparer.Ordinal).Select(group => group.MaxBy(row => row.UpdatedAtUtc)!), new ParallelOptions { MaxDegreeOfParallelism = 4, CancellationToken = budget.Token }, async (row, token) =>
                             {
+                                var receipt = (row.UpdatedAtUtc, ContractMembership(row.OptionContracts));
+                                if (receipts.TryGetValue(row.TradeId, out var accepted) && accepted == receipt) return;
                                 try
                                 {
-                                    var restored = await market.LoadTradeFeedRecoveryAsync(row.TradeId, date.Value, budget.Token).WaitAsync(budget.Token);
-                                    if (!restored && (await market.ReadTradeFeedRecoveryAsync(date.Value, budget.Token).WaitAsync(budget.Token)).Any(current => current.TradeId == row.TradeId))
-                                        throw new InvalidOperationException("Saved trade feed is still waiting for its active session: " + row.TradeId);
+                                    if (await market.LoadTradeFeedRecoveryAsync(row.TradeId, date.Value, token).WaitAsync(token))
+                                        receipts[row.TradeId] = receipt;
+                                    else unresolved[row.TradeId] = new InvalidOperationException("Saved trade feed is still waiting for its active session: " + row.TradeId);
                                 }
                                 catch (Exception error) when (!budget.IsCancellationRequested)
                                 {
-                                    failures.Add(error);
+                                    unresolved[row.TradeId] = error;
                                     logger.LogWarning(error, "Saved trade restoration will retry; TradeId={TradeId}", row.TradeId);
                                 }
+                            }).ConfigureAwait(false);
+                            if (unresolved.Count != 0)
+                            {
+                                // One refresh per pass distinguishes deleted registrations from retryable failures.
+                                var active = await market.ReadTradeFeedRecoveryAsync(date.Value, budget.Token).WaitAsync(budget.Token);
+                                var failures = unresolved.Where(pair => active.Any(row => row.TradeId == pair.Key)).Select(pair => pair.Value).ToArray();
+                                if (failures.Length != 0) throw new AggregateException("Some saved trade feeds could not be restored.", failures);
+                                if (active.Any(row => !receipts.TryGetValue(row.TradeId, out var receipt)
+                                    || receipt != (row.UpdatedAtUtc, ContractMembership(row.OptionContracts))))
+                                    throw new InvalidOperationException("Saved trade registrations changed during restoration; retrying the current set.");
+                                rows = active;
                             }
-                            if (failures.Count != 0) throw new AggregateException("Some saved trade feeds could not be restored.", failures);
+                            var verified = await market.GetBackendStatusAsync(budget.Token).WaitAsync(budget.Token);
+                            if (!verified.Ready || verified.ValueDate != date || Generation(verified) != generation)
+                                throw new InvalidOperationException("Market data generation changed during saved trade restoration.");
+                            if (sessions.Current.ActiveValueDate != date) break;
                             Volatile.Write(ref restoration, new(date.Value, Current!.StartedUtc, true, rows.Select(row => row.TradeId).ToArray()));
                             logger.LogInformation("Trade feed recovery registrations processed; Count={Count}; ValueDate={ValueDate}", rows.Length, date);
                             break;
@@ -110,4 +130,10 @@ public sealed class TradeFeedRecoveryStartupService(IMarketDataApi market, IFutu
             }
         }
     }
+
+    static string ContractMembership(string[] contracts) => string.Join('\n', contracts.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal));
+
+    static string Generation(MarketDataBackendStatus status) => status.HostInstanceId.ToString("N") + "/" +
+        string.Join("/", status.Datasets.Where(dataset => dataset.Role == "Options").OrderBy(dataset => dataset.Dataset, StringComparer.Ordinal)
+            .Select(dataset => $"{dataset.Dataset}:{dataset.WorkerInstanceId:N}:{dataset.GenerationId:N}"));
 }

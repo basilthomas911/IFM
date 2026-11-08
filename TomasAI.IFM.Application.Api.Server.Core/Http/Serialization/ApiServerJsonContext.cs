@@ -13,6 +13,8 @@ namespace TomasAI.IFM.Application.Api.Server.Core.Http.Serialization;
 [JsonSerializable(typeof(SupervisorRuntimeSnapshot))]
 [JsonSerializable(typeof(LivePipelineHealthSnapshot))]
 [JsonSerializable(typeof(MarketDataOperationsHealthReadModel))]
+[JsonSerializable(typeof(TomasAI.IFM.Application.Api.Server.Core.Http.Endpoints.ActorHealthReadViews.Summary))]
+[JsonSerializable(typeof(TomasAI.IFM.Application.Api.Server.Core.Http.Endpoints.ActorHealthReadViews.Page<SupervisorActorSnapshot>))]
 public sealed partial class ApiServerJsonContext : JsonSerializerContext;
 
 internal static class ApiServerJson

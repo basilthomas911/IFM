@@ -142,9 +142,9 @@ public sealed class IntrinsicTimeStrategyWorkflowStorageTests(TradeDbFixture fix
 
         var actualWorkflow = await fixture.TradeDb.GetIntrinsicTimeStrategyWorkflowAsync(workflowId);
         var actualActive = await fixture.TradeDb.GetActiveIntrinsicTimeStrategyWorkflowAsync(entityId);
-        var actualAttempts = await fixture.TradeDb.GetIntrinsicTimeStrategyWorkflowStartAttemptsAsync(entityId, DateTime.MaxValue, 10);
+        var actualAttempts = await fixture.TradeDb.GetIntrinsicTimeStrategyWorkflowStartAttemptsAsync(entityId, DateTime.SpecifyKind(DateTime.MaxValue, DateTimeKind.Utc), 10);
         var actualTimeline = await fixture.TradeDb.GetIntrinsicTimeStrategyWorkflowTimelineAsync(workflowId, 0, 10);
-        var actualEntityHistory = await fixture.TradeDb.GetIntrinsicTimeStrategyWorkflowsByEntityAsync(entityId, DateTime.MaxValue, 10);
+        var actualEntityHistory = await fixture.TradeDb.GetIntrinsicTimeStrategyWorkflowsByEntityAsync(entityId, DateTime.SpecifyKind(DateTime.MaxValue, DateTimeKind.Utc), 10);
         var actualStatusHistory = await fixture.TradeDb.GetIntrinsicTimeStrategyWorkflowsByStatusAsync(
             StrategyWorkflowStatus.Running,
             DateOnly.FromDateTime(startedAtUtc),

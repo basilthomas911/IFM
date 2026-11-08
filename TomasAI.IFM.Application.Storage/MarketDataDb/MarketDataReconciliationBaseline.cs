@@ -17,9 +17,11 @@ public sealed class MarketDataReconciliationBaseline(IPostgresEventTransaction t
     public static async Task<bool> IsCapturedAsync(IEventSourceActorDbContext database, CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
-        var stream = await database.GetEventStreamIdFromDbAsync(BaselineStream).WaitAsync(token).ConfigureAwait(false);
+        var stream = await database.GetEventStreamIdFromDbAsync(BaselineStream).WaitAsync(token)
+            .ConfigureAwait(false);
         return stream is not null &&
-            await database.GetCommittedStreamVersionAsync(stream.EventStreamId, token).ConfigureAwait(false) > 0;
+            await database.GetCommittedStreamVersionAsync(stream.EventStreamId, token)
+            .ConfigureAwait(false) > 0;
     }
 
     /// <summary>Appends a baseline once. The caller must first stop and drain all legacy MarketData writers.</summary>
@@ -35,10 +37,12 @@ public sealed class MarketDataReconciliationBaseline(IPostgresEventTransaction t
                     market_data.economic_calendar_country_code, market_data.yield_curve_rates,
                     market_data.yield_curve_rate_by_date, market_data.yield_curve_rate_year
                     IN SHARE ROW EXCLUSIVE MODE;
-                """, [], token).ConfigureAwait(false);
+                """, [], token)
+            .ConfigureAwait(false);
             if (await transaction.ScalarAsync(
                     "SELECT currentversion FROM event_stream_id WHERE eventstream = $1 AND currentversion > 0;",
-                    [BaselineStream], token).ConfigureAwait(false) is not null)
+                    [BaselineStream], token)
+            .ConfigureAwait(false) is not null)
                 return false;
 
             var calendar = await transaction.QueryAsync("""
@@ -62,7 +66,8 @@ public sealed class MarketDataReconciliationBaseline(IPostgresEventTransaction t
             var baselineId = Guid.NewGuid();
             var capturedAt = DateTime.UtcNow;
 
-            var calendarHeads = await ReadHeadsAsync(transaction, AddEconomicCalendarCommand.Actor, token).ConfigureAwait(false);
+            var calendarHeads = await ReadHeadsAsync(transaction, AddEconomicCalendarCommand.Actor, token)
+            .ConfigureAwait(false);
             foreach (var key in calendarHeads.Keys.Union(calendarKeys.Keys, StringComparer.Ordinal))
             {
                 var subject = new ActorSubject(ActorType.Event, EconomicCalendarAddedEvent.Actor, "StateSnapshotted", key);
@@ -72,10 +77,12 @@ public sealed class MarketDataReconciliationBaseline(IPostgresEventTransaction t
                         Id = Guid.NewGuid(), CommandId = baselineId, Subject = subject, AggregateId = key,
                         ReceivedOn = capturedAt, EventSource = nameof(MarketDataReconciliationBaseline),
                         Entries = calendarKeys.GetValueOrDefault(key) ?? new Dictionary<EconomicCalendarId, EconomicCalendarReadModel>()
-                    }, calendarHeads.GetValueOrDefault(key), token).ConfigureAwait(false);
+                    }, calendarHeads.GetValueOrDefault(key), token)
+            .ConfigureAwait(false);
             }
 
-            var yieldHeads = await ReadHeadsAsync(transaction, AddYieldCurveRateCommand.Actor, token).ConfigureAwait(false);
+            var yieldHeads = await ReadHeadsAsync(transaction, AddYieldCurveRateCommand.Actor, token)
+            .ConfigureAwait(false);
             foreach (var key in yieldHeads.Keys.Union(yieldKeys.Keys, StringComparer.Ordinal))
             {
                 var rates = yieldKeys.GetValueOrDefault(key) ?? [];
@@ -86,7 +93,8 @@ public sealed class MarketDataReconciliationBaseline(IPostgresEventTransaction t
                         Id = Guid.NewGuid(), CommandId = baselineId, Subject = subject, AggregateId = key,
                         ReceivedOn = capturedAt, EventSource = nameof(MarketDataReconciliationBaseline),
                         ValueDates = rates.Select(rate => rate.ValueDate).ToArray(), BaselineRates = rates
-                    }, yieldHeads.GetValueOrDefault(key), token).ConfigureAwait(false);
+                    }, yieldHeads.GetValueOrDefault(key), token)
+            .ConfigureAwait(false);
             }
 
             await transaction.AppendAsync(BaselineStream, baselineId, new MarketDataReconciliationBaselineEvent
@@ -94,7 +102,8 @@ public sealed class MarketDataReconciliationBaseline(IPostgresEventTransaction t
                 Id = baselineId, CommandId = baselineId, Subject = new(ActorType.Event, "MarketDataMigration", "PostgresBaseline", "v1"),
                 ReceivedOn = capturedAt, CalendarRows = calendar.Count, YieldCurveRows = curves.Count,
                 EventSource = nameof(MarketDataReconciliationBaseline)
-            }, 0, token).ConfigureAwait(false);
+            }, 0, token)
+            .ConfigureAwait(false);
             return true;
         }, cancellationToken);
     }

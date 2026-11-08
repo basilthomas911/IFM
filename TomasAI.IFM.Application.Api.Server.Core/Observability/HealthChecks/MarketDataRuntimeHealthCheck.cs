@@ -16,7 +16,7 @@ public sealed class MarketDataRuntimeHealthCheck(
     IFuturesMarketSessionAuthority marketSessionAuthority,
     IFuturesExchangeBusinessCalendar businessCalendar,
     TimeProvider timeProvider,
-    DatasetWorkerCurrentValues? supervisedValues = null) : IHealthCheck
+    DatasetWorkerCurrentValues? supervisedValues = null, BackendDiagnosticReads? diagnostics = null) : IHealthCheck
 {
     public Task<HealthCheckResult> CheckHealthAsync(
         HealthCheckContext context,
@@ -306,7 +306,7 @@ public sealed class MarketDataRuntimeHealthCheck(
     {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         deadline.CancelAfter(TimeSpan.FromSeconds(3));
-        var status = await api.GetBackendStatusAsync(deadline.Token).ConfigureAwait(false);
+        var status = await (diagnostics?.StatusAsync(deadline.Token) ?? api.GetBackendStatusAsync(deadline.Token)).ConfigureAwait(false);
         var futures = status.Datasets.Where(x => x.Role == "Futures").ToArray();
         var plannedClosed = marketSessionAuthority.Current.ActiveValueDate is null;
         var healthy = status.Ready && (plannedClosed || futures.Length > 0 && futures.All(x => x.Healthy && x.Lifecycle == "Healthy") && api.IsDatabentoFeedUp());

@@ -1,0 +1,93 @@
+[
+  {
+    "Suite": "storage-acceptance-final",
+    "Results": "E:\\IFM\\BenchmarkArtifacts\\ApiServerPerformance\\20261107\\tests\\storage-acceptance-final.trx",
+    "Passed": 830,
+    "Failed": 0,
+    "Skipped": 0
+  },
+  {
+    "Suite": "rerun-TomasAI.IFM.Application.MarketData.UnitTests",
+    "Results": "E:\\IFM\\BenchmarkArtifacts\\ApiServerPerformance\\20261107\\tests\\rerun-TomasAI.IFM.Application.MarketData.UnitTests.trx",
+    "Passed": 842,
+    "Failed": 0,
+    "Skipped": 5
+  },
+  {
+    "Suite": "rerun-TomasAI.IFM.Domain.Application.Actor.UnitTests",
+    "Results": "E:\\IFM\\BenchmarkArtifacts\\ApiServerPerformance\\20261107\\tests\\rerun-TomasAI.IFM.Domain.Application.Actor.UnitTests.trx",
+    "Passed": 91,
+    "Failed": 0,
+    "Skipped": 0
+  },
+  {
+    "Suite": "rerun-TomasAI.IFM.Domain.MarketData.Analytics.BDDTests",
+    "Results": "E:\\IFM\\BenchmarkArtifacts\\ApiServerPerformance\\20261107\\tests\\rerun-TomasAI.IFM.Domain.MarketData.Analytics.BDDTests.trx",
+    "Passed": 479,
+    "Failed": 0,
+    "Skipped": 0
+  },
+  {
+    "Suite": "rerun-TomasAI.IFM.Domain.MarketData.Analytics.IntegrationTests",
+    "Results": "E:\\IFM\\BenchmarkArtifacts\\ApiServerPerformance\\20261107\\tests\\rerun-TomasAI.IFM.Domain.MarketData.Analytics.IntegrationTests.trx",
+    "Passed": 48,
+    "Failed": 0,
+    "Skipped": 1
+  },
+  {
+    "Suite": "rerun-TomasAI.IFM.Domain.MarketData.Analytics.UnitTests",
+    "Results": "E:\\IFM\\BenchmarkArtifacts\\ApiServerPerformance\\20261107\\tests\\rerun-TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.trx",
+    "Passed": 1289,
+    "Failed": 0,
+    "Skipped": 0
+  },
+  {
+    "Suite": "rerun-TomasAI.IFM.Domain.Trade.BDDTests",
+    "Results": "E:\\IFM\\BenchmarkArtifacts\\ApiServerPerformance\\20261107\\tests\\rerun-TomasAI.IFM.Domain.Trade.BDDTests.trx",
+    "Passed": 49,
+    "Failed": 0,
+    "Skipped": 0
+  },
+  {
+    "Suite": "rerun-TomasAI.IFM.Domain.Trade.UnitTests",
+    "Results": "E:\\IFM\\BenchmarkArtifacts\\ApiServerPerformance\\20261107\\tests\\rerun-TomasAI.IFM.Domain.Trade.UnitTests.trx",
+    "Passed": 1712,
+    "Failed": 0,
+    "Skipped": 0
+  },
+  {
+    "Suite": "rerun-TomasAI.IFM.Framework.Messaging.Nats.IntegratedTests",
+    "Results": "E:\\IFM\\BenchmarkArtifacts\\ApiServerPerformance\\20261107\\tests\\rerun-TomasAI.IFM.Framework.Messaging.Nats.IntegratedTests.trx",
+    "Passed": 62,
+    "Failed": 0,
+    "Skipped": 0
+  },
+  {
+    "Suite": "rerun-TomasAI.IFM.Framework.Messaging.Nats.UnitTests",
+    "Results": "E:\\IFM\\BenchmarkArtifacts\\ApiServerPerformance\\20261107\\tests\\rerun-TomasAI.IFM.Framework.Messaging.Nats.UnitTests.trx",
+    "Passed": 131,
+    "Failed": 0,
+    "Skipped": 0
+  },
+  {
+    "Suite": "rerun-TomasAI.IFM.Shared.UnitTests",
+    "Results": "E:\\IFM\\BenchmarkArtifacts\\ApiServerPerformance\\20261107\\tests\\rerun-TomasAI.IFM.Shared.UnitTests.trx",
+    "Passed": 347,
+    "Failed": 0,
+    "Skipped": 0
+  },
+  {
+    "Suite": "ui-performance-rerun",
+    "Results": "E:\\IFM\\BenchmarkArtifacts\\ApiServerPerformance\\20261107\\tests\\ui-performance-rerun.trx",
+    "Passed": 63,
+    "Failed": 0,
+    "Skipped": 0
+  },
+  {
+    "Suite": "startup-complete-rerun",
+    "Results": "E:\\IFM\\BenchmarkArtifacts\\ApiServerPerformance\\20261107\\tests\\startup-complete-rerun.trx",
+    "Passed": 39,
+    "Failed": 0,
+    "Skipped": 0
+  }
+]

@@ -24,9 +24,11 @@ namespace TomasAI.IFM.LivePipeline.IntegrationTests;
 public sealed class StoredBollingerRestoreTests
 {
     [Theory]
-    [InlineData(TimeFrameType.FifteenSeconds)]
-    [InlineData(TimeFrameType.OneMinute)]
-    public async Task Fast_frame_startup_passes_original_history_to_all_accumulators_once(TimeFrameType frame)
+    [InlineData(TimeFrameType.FifteenSeconds, false)]
+    [InlineData(TimeFrameType.OneMinute, false)]
+    [InlineData(TimeFrameType.FifteenSeconds, true)]
+    [InlineData(TimeFrameType.OneMinute, true)]
+    public async Task Fast_frame_startup_retries_only_unfinished_accumulators(TimeFrameType frame, bool failMacdOnce)
     {
         const string contract = "ES20261218";
         var date = new DateOnly(2026, 11, 6);
@@ -71,12 +73,15 @@ public sealed class StoredBollingerRestoreTests
         actors.RequestAsync<StartFuturesRsiSignalCommand, FuturesRsiSignalEntityId>(Arg.Any<StartFuturesRsiSignalCommand>(), Arg.Any<CancellationToken>()).Returns(accepted);
         actors.RequestAsync<StartFuturesAdxSignalCommand, FuturesAdxSignalEntityId>(Arg.Any<StartFuturesAdxSignalCommand>(), Arg.Any<CancellationToken>()).Returns(accepted);
         actors.RequestAsync<StartFuturesAtrSignalCommand, FuturesAtrSignalEntityId>(Arg.Any<StartFuturesAtrSignalCommand>(), Arg.Any<CancellationToken>()).Returns(accepted);
-        actors.RequestAsync<StartFuturesMacdSignalCommand, FuturesMacdSignalEntityId>(Arg.Any<StartFuturesMacdSignalCommand>(), Arg.Any<CancellationToken>()).Returns(accepted);
+        var macdCalls = 0;
+        actors.RequestAsync<StartFuturesMacdSignalCommand, FuturesMacdSignalEntityId>(Arg.Any<StartFuturesMacdSignalCommand>(), Arg.Any<CancellationToken>())
+            .Returns(_ => { if (Interlocked.Increment(ref macdCalls) == 1 && failMacdOnce) throw new IOException("injected MACD failure"); return accepted; });
         var market = Substitute.For<IMarketDataApi>();
         var reader = new StoredSessionIndicatorSeedReader(databases, calendar, clock, NullLogger<StoredSessionIndicatorSeedReader>.Instance, market);
         var warmup = new StoredSessionIndicatorWarmup(reader, actors, market, databases, calendar, clock,
             NullLogger<StoredSessionIndicatorWarmup>.Instance);
 
+        Assert.Equal(!failMacdOnce, await warmup.WarmShortFrameAsync(contract, date, frame, default));
         Assert.True(await warmup.WarmShortFrameAsync(contract, date, frame, default));
         Assert.True(await warmup.WarmShortFrameAsync(contract, date, frame, default));
 
@@ -87,7 +92,7 @@ public sealed class StoredBollingerRestoreTests
             Arg.Is<StartFuturesAdxSignalCommand>(command => command.HistoricalSeed!.SequenceEqual(bars)), Arg.Any<CancellationToken>());
         await actors.Received(1).RequestAsync<StartFuturesAtrSignalCommand, FuturesAtrSignalEntityId>(
             Arg.Is<StartFuturesAtrSignalCommand>(command => command.HistoricalSeed!.SequenceEqual(bars)), Arg.Any<CancellationToken>());
-        await actors.Received(1).RequestAsync<StartFuturesMacdSignalCommand, FuturesMacdSignalEntityId>(
+        await actors.Received(failMacdOnce ? 2 : 1).RequestAsync<StartFuturesMacdSignalCommand, FuturesMacdSignalEntityId>(
             Arg.Is<StartFuturesMacdSignalCommand>(command => command.HistoricalSeed!.SequenceEqual(bars)), Arg.Any<CancellationToken>());
     }
 
@@ -104,10 +109,16 @@ public sealed class StoredBollingerRestoreTests
             .Returns(call => { call[1] = new FuturesContractV3ReadModel { ContractId = "ES20261218" }; return true; });
         var databases = Substitute.For<IDbContextFactory>();
         var oneHour = new TaskCompletionSource<FuturesAdxSignalReadModel?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var atr = new TaskCompletionSource<FuturesAtrSignalReadModel?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var macd = new TaskCompletionSource<FuturesMacdSignalReadModel?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var rsi = new TaskCompletionSource<FuturesRsiSignalReadModel?>(TaskCreationOptions.RunContinuationsAsynchronously);
         var fourHours = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var db = databases.MarketDataDb;
         db.GetLastFuturesAdxSignalAsync("ES20261218", Arg.Any<DateOnly>(),
             TimeFrameType.OneHour, 14, Arg.Any<CancellationToken>()).Returns(oneHour.Task);
+        db.GetLastFuturesAtrSignalAsync("ES20261218", Arg.Any<DateOnly>(), TimeFrameType.OneHour, 14, Arg.Any<CancellationToken>()).Returns(atr.Task);
+        db.GetLastFuturesMacdSignalAsync("ES20261218", Arg.Any<DateOnly>(), TimeFrameType.OneHour, 9, 12, 26, Arg.Any<CancellationToken>()).Returns(macd.Task);
+        db.GetLastFuturesRsiSignalAsync("ES20261218", Arg.Any<DateOnly>(), TimeFrameType.OneHour, 14, Arg.Any<CancellationToken>()).Returns(rsi.Task);
         db.GetLastFuturesAdxSignalAsync("ES20261218", Arg.Any<DateOnly>(),
             TimeFrameType.FourHours, 14, Arg.Any<CancellationToken>()).Returns(_ =>
         {
@@ -127,6 +138,9 @@ public sealed class StoredBollingerRestoreTests
         finally
         {
             oneHour.TrySetException(new InvalidOperationException("Simulated restore failure."));
+            atr.TrySetException(new InvalidOperationException("Simulated restore failure."));
+            macd.TrySetException(new InvalidOperationException("Simulated restore failure."));
+            rsi.TrySetException(new InvalidOperationException("Simulated restore failure."));
         }
         Assert.False(await attempt);
     }

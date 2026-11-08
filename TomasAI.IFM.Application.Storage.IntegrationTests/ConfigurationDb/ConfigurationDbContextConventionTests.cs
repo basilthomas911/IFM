@@ -177,7 +177,7 @@ public sealed class ConfigurationDbContextConventionTests
     {
         var source = File.ReadAllText(Path.Combine(GetFolder(), "ConfigurationDbContext.cs"));
         var signatures = System.Text.RegularExpressions.Regex.Matches(source,
-            @"public\s+(?:async\s+)?[^\n(]+?\b(?<name>\w+Async)\((?<parameters>[^)]*)\)");
+            @"public\s+(?:async\s+)?(?:[^\n(]|\([^\n)]*\))+?\b(?<name>\w+Async)\((?<parameters>[^)]*)\)");
         var methods = typeof(ConfigurationDbContext).GetMethods(
             BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
             .Where(static method => !method.IsSpecialName).ToArray();
@@ -240,7 +240,7 @@ public sealed class ConfigurationDbContextConventionTests
 
     private static string FindRepositoryRoot()
     {
-        for (var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        for (var directory = new DirectoryInfo(DbContextConventionSource.RepositoryRoot);
              directory is not null;
              directory = directory.Parent)
         {

@@ -232,7 +232,8 @@ sealed class ActorThreadV2(
                     var handlerStarted = ActorRuntimeMetrics.StartHandler();
                     var verb = message!.Subject.Verb;
                     var outcome = "Succeeded";
-                    var suppressRoutineInformation = _informationLoggingPolicy.SuppressesRoutineInformation(threadId, verb);
+                    var informationEnabled = _logger.IsEnabled(LogLevel.Information);
+                    var suppressRoutineInformation = !informationEnabled || !_informationLoggingPolicy.SelectRoutineInformation(threadId, verb);
                     var informationEntryLogged = false;
                     if (!suppressRoutineInformation)
                     {
@@ -350,6 +351,7 @@ sealed class ActorThreadV2(
                             if (!informationEntryLogged)
                             {
                                 ActorMessageProcessingLog.Entry(_logger, threadId, verb, message!.Subject, nameof(ProcessMailboxAsync));
+                                informationEntryLogged = true;
                             }
                             _supervisor.RuntimeContext?.RecordFailure(
                                 threadId.MailboxId, threadId, message?.Subject.Verb ?? string.Empty,
@@ -364,8 +366,15 @@ sealed class ActorThreadV2(
                                 message?.SourceGenerationId ?? Guid.Empty, message!.Subject);
                         _metricsState.RecordMessageCompleted();
                         ActorRuntimeMetrics.RecordHandler(handlerStarted, threadId.ActorType);
-                        if (!suppressRoutineInformation || !string.Equals(outcome, "Succeeded", StringComparison.Ordinal))
+                        var slowInformation = informationEnabled && suppressRoutineInformation
+                            && _informationLoggingPolicy.CapturesSlowInformation(threadId, verb, loggingStarted);
+                        if (!suppressRoutineInformation || slowInformation || !string.Equals(outcome, "Succeeded", StringComparison.Ordinal))
+                        {
+                            if (!informationEntryLogged)
+                                ActorMessageProcessingLog.Entry(_logger, threadId, verb, message!.Subject, nameof(ProcessMailboxAsync));
                             ActorMessageProcessingLog.Exit(_logger, threadId, verb, outcome, loggingStarted, message!.Subject, nameof(ProcessMailboxAsync));
+                        }
+                        else if (informationEnabled) _informationLoggingPolicy.RecordSuppressedSuccess(threadId);
                     }
 
                     processed++;

@@ -64,6 +64,8 @@ lto = false
 codegen-units = 256
 
 [profile.release]
+strip = "none"
+debug = 2
 panic = "unwind"
 opt-level = 3
 lto = "thin"
@@ -75,3 +77,13 @@ codegen-units = 1
 async-nats = { path = "vendor/async-nats" }
 databento = { path = "vendor/databento" }
 dbn = { path = "vendor/dbn" }
+
+# Retain full source, type and variable information in all build configurations.
+[profile.dev]
+debug = 2
+strip = "none"
+
+# Retain full source, type and variable information in all build configurations.
+[profile.test]
+debug = 2
+strip = "none"

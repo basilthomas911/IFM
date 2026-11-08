@@ -16,6 +16,99 @@ namespace TomasAI.IFM.Domain.Trade.UnitTests.TradeFlow;
 public sealed class TradeRealtimePipelineTests
 {
     [Fact]
+    public void Indexed_expiry_preserves_renewal_exact_deadline_and_removed_generation_fencing()
+    {
+        var clock = new ExpiryClock();
+        var registry = new TradeRealtimeCacheRegistry(clock);
+        var date = new DateOnly(2026, 11, 7);
+        var trade = new EstablishedTradeDefinition { Id = new(101, 701, 1901, 1501), StrategyKind = TradeStrategyKind.IronCondor,
+            Legs = [new() { TradeLegId = Guid.NewGuid(), ContractId = "expiry" }] };
+        var cache = registry.Register(trade, date);
+        var quote = new FuturesOptionTickDataV2ReadModel("expiry", date, 1, new(12, 0), 10, 9, 11, 1, 1, .2, 5000, .4, .01, 12, -3, .1)
+        { SourceGeneration = Guid.NewGuid(), ObservedAtUtc = clock.Now, ValidUntilUtc = clock.Now.AddSeconds(5) };
+        registry.Apply(quote); Assert.Empty(registry.Expire());
+        clock.Now = quote.ValidUntilUtc;
+        registry.Expire(); // Equality must not drop the schedule or spin if still fresh at the boundary.
+        clock.Now = quote.ValidUntilUtc.AddTicks(1);
+        registry.Expire();
+        Assert.Equal("Stale", cache.Read().Legs[0].QuoteStatus);
+        Assert.Empty(registry.Expire());
+        registry.Apply(quote with { TickId = 2, ObservationRevision = 2, ObservedAtUtc = clock.Now, ValidUntilUtc = clock.Now.AddSeconds(10) });
+        Assert.Empty(registry.Expire());
+        registry.Remove(trade.Id);
+        var replacement = registry.Register(trade, date);
+        clock.Now = clock.Now.AddMinutes(1);
+        Assert.Empty(registry.Expire());
+        Assert.Equal(0, replacement.Read().SnapshotRevision);
+    }
+
+    [Fact]
+    public void Quote_renewal_postpones_expiry_and_burst_deadlines_publish_each_trade_once()
+    {
+        var clock = new ExpiryClock();
+        var registry = new TradeRealtimeCacheRegistry(clock);
+        var date = new DateOnly(2026, 11, 7);
+        for (var index = 0; index < 64; index++)
+        {
+            registry.Register(new EstablishedTradeDefinition { Id = new(101, 701, 1901, index + 1501),
+                StrategyKind = TradeStrategyKind.IronCondor,
+                Legs = [new() { TradeLegId = Guid.NewGuid(), ContractId = "burst" }] }, date);
+        }
+        var quote = new FuturesOptionTickDataV2ReadModel("burst", date, 1, new(12, 0), 10, 9, 11, 1, 1, .2, 5000, .4, .01, 12, -3, .1)
+        { SourceGeneration = Guid.NewGuid(), ObservedAtUtc = clock.Now, ValidUntilUtc = clock.Now.AddSeconds(5) };
+        registry.Apply(quote); registry.Expire();
+        clock.Now = clock.Now.AddSeconds(4);
+        registry.Apply(quote with { TickId = 2, ObservationRevision = 2, ObservedAtUtc = clock.Now, ValidUntilUtc = clock.Now.AddSeconds(10) });
+        clock.Now = clock.Now.AddSeconds(2); Assert.Empty(registry.Expire());
+        clock.Now = clock.Now.AddSeconds(11);
+        var expired = registry.Expire();
+        Assert.Equal(64, expired.Length);
+        Assert.Equal(64, expired.Select(snapshot => snapshot.TradeId).Distinct().Count());
+        Assert.Empty(registry.Expire());
+    }
+
+    [Fact]
+    public void Dense_expiry_preserves_blocked_renewed_and_replaced_trade_deadlines()
+    {
+        var clock = new ExpiryClock();
+        var registry = new TradeRealtimeCacheRegistry(clock);
+        var date = new DateOnly(2026, 11, 7);
+        var ids = new List<TradeEntityId>();
+        for (var index = 0; index < 128; index++)
+        {
+            var trade = new EstablishedTradeDefinition { Id = new(101, 701, 1901, 1501 + index),
+                StrategyKind = TradeStrategyKind.IronCondor,
+                Legs = [new() { TradeLegId = Guid.NewGuid(), ContractId = "dense-" + index }] };
+            ids.Add(trade.Id);
+            registry.Register(trade, date);
+            var quote = new FuturesOptionTickDataV2ReadModel("dense-" + index, date, 1, new(12, 0), 10, 9, 11, 1, 1, .2, 5000, .4, .01, 12, -3, .1)
+            { SourceGeneration = Guid.NewGuid(), ObservedAtUtc = clock.Now, ValidUntilUtc = clock.Now.AddSeconds(index == 127 ? 60 : 5) };
+            registry.Apply(quote);
+        }
+        Assert.Empty(registry.Expire());
+        registry.Remove(ids[126]);
+        var replacement = registry.Register(new EstablishedTradeDefinition { Id = ids[126],
+            StrategyKind = TradeStrategyKind.IronCondor, Legs = [new() { ContractId = "replacement" }] }, date);
+        clock.Now = clock.Now.AddSeconds(6);
+        var blocked = new HashSet<TradeEntityId> { ids[0] };
+        var expired = registry.Expire(blocked);
+        Assert.Equal(125, expired.Length);
+        Assert.DoesNotContain(expired, value => blocked.Contains(value.TradeId) || value.TradeId == ids[126] || value.TradeId == ids[127]);
+        Assert.Equal(0, replacement.Read().SnapshotRevision);
+        Assert.Empty(registry.Expire(blocked));
+        Assert.Equal(ids[0], Assert.Single(registry.Expire()).TradeId);
+        clock.Now = clock.Now.AddSeconds(60);
+        Assert.Equal(ids[127], Assert.Single(registry.Expire()).TradeId);
+        Assert.Empty(registry.Expire());
+    }
+
+    sealed class ExpiryClock : TimeProvider
+    {
+        public DateTimeOffset Now { get; set; } = new(2026, 11, 7, 12, 0, 0, TimeSpan.Zero);
+        public override DateTimeOffset GetUtcNow() => Now;
+    }
+
+    [Fact]
     public void Live_position_and_plan_publications_both_include_backend_history_valuation()
     {
         var date = new DateOnly(2026, 10, 23);

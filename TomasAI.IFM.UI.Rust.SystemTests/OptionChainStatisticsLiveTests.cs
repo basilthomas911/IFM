@@ -5,7 +5,7 @@ using TomasAI.IFM.UI.Rust.Bridge.Net;
 
 public sealed class OptionChainStatisticsLiveTests
 {
-    [Fact]
+    [LiveOptionChainFact]
     public unsafe void Live_option_chain_publishes_dated_volume_and_open_interest_without_order_mutations()
     {
         using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(3) };
@@ -38,7 +38,8 @@ public sealed class OptionChainStatisticsLiveTests
                 var row = current.Result.Rows.SingleOrDefault(x=>x.Fields.GetValueOrDefault("kind")=="market");
                 if (row is not null)
                 {
-                    using var chain = JsonDocument.Parse(row.Fields["data"]);
+                    Assert.NotNull(row.Data);
+                    using var chain = JsonDocument.Parse(MessagePack.MessagePackSerializer.ConvertToJson(row.Data, BridgeWire.Options));
                     var contracts = chain.RootElement.GetProperty("contracts").EnumerateArray().ToArray();
                     var volume = contracts.Count(x=>x.GetProperty("volume").ValueKind==JsonValueKind.Number);
                     var interest = contracts.Count(x=>x.GetProperty("openInterest").ValueKind==JsonValueKind.Number);
@@ -72,7 +73,7 @@ public sealed class OptionChainStatisticsLiveTests
         finally { api.Base.Destroy(handle);Environment.SetEnvironmentVariable("IFM_RUST_UI_MODE",previous); }
     }
 
-    [Fact]
+    [LiveOptionChainFact]
     public unsafe void Live_market_selection_chain_survives_repeated_reads_with_background_cache_owners()
     {
         using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
@@ -140,5 +141,15 @@ public sealed class OptionChainStatisticsLiveTests
             Thread.Sleep(100);
         }
         throw new TimeoutException("No acknowledgement for "+action);
+    }
+}
+
+/// <summary>Provider-backed qualification is explicit; ordinary UI verification uses deterministic fixtures.</summary>
+public sealed class LiveOptionChainFactAttribute : FactAttribute
+{
+    public LiveOptionChainFactAttribute()
+    {
+        if (Environment.GetEnvironmentVariable("IFM_RUN_LIVE_OPTION_CHAIN") != "1")
+            Skip = "Set IFM_RUN_LIVE_OPTION_CHAIN=1 with Development and the provider-backed option chain available.";
     }
 }

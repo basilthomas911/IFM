@@ -23,7 +23,28 @@ public static class StrategyPositionHistoryProjection
             opening = EnrichPosition(opening, trade);
         }
         return trade with { OpeningPositionSnapshot = opening, OpeningHistoryValuation = new(date, expiry.DayNumber - date.DayNumber,
-            trade.Legs.Select(l => Math.Abs(l.SignedQuantity)).DefaultIfEmpty(0).Min(), trade.OpeningValue, trade.OpeningCommission) };
+            trade.Legs.Select(l => Math.Abs(l.SignedQuantity)).DefaultIfEmpty(0).Min(), trade.OpeningValue, trade.OpeningCommission) {
+            RealizedPnl = opening?.HistoryValuation?.RealizedPnl,
+            TotalCommission = opening?.HistoryValuation?.TotalCommission,
+            NetPnl = opening?.HistoryValuation?.NetPnl,
+            PeriodPnl = opening?.HistoryValuation?.NetPnl } };
+    }
+
+    /// <summary>Values the complete chronological history as non-overlapping net changes, including commissions exactly once.</summary>
+    public static StrategyPositionSnapshot[] EnrichHistory(IEnumerable<StrategyPositionSnapshot> history, EstablishedTradeDefinition trade)
+    {
+        var valued = history.Select(position => EnrichPosition(position, trade)).ToArray();
+        decimal? previous = EnrichTrade(trade).OpeningHistoryValuation?.NetPnl;
+        var result = new Dictionary<StrategyPositionSnapshot,StrategyPositionSnapshot>();
+        foreach (var position in valued.OrderBy(p=>p.ValueDate).ThenBy(p=>p.AsOfUtc).ThenBy(p=>p.PositionSequence)) {
+            var current = position.HistoryValuation?.NetPnl;
+            var change = position.Phase == StrategyPositionPhase.Open ? current
+                : current is not null && previous is not null ? current - previous : null;
+            result[position] = position.HistoryValuation is { } valuation
+                ? position with { HistoryValuation = valuation with { PeriodPnl=change } } : position;
+            previous = current;
+        }
+        return valued.Select(position=>result[position]).ToArray();
     }
 
     public static StrategyPositionSnapshot EnrichPosition(StrategyPositionSnapshot position, EstablishedTradeDefinition trade)
@@ -36,9 +57,19 @@ public static class StrategyPositionHistoryProjection
         var date = position.ValueDate != default ? position.ValueDate
             : TomasAI.IFM.Domain.MarketData.Shared.FuturesTradingValueDate.GetOperational(new DateTimeOffset(DateTime.SpecifyKind(position.AsOfUtc, DateTimeKind.Utc)));
         var quantity = position.Legs.Select(leg => Math.Abs(leg.SignedQuantity)).DefaultIfEmpty(0).Min();
+        // Point P&L is already quantity-weighted. Convert once using captured
+        // contract evidence, and keep lifetime commissions independent of sessions.
+        var multiplier = position.ContractCashMultiplier;
+        decimal? realized = multiplier is > 0 ? checked(position.RealizedPnl * multiplier.Value) : null;
+        decimal? totalCommission = position.OpeningCommission is >= 0 && position.ClosingFills.All(fill => fill.Commission >= 0)
+            ? checked(position.OpeningCommission.Value + position.ClosingFills.Sum(fill => fill.Commission)) : null;
+        decimal? net = multiplier is > 0 && totalCommission is not null
+            ? checked((position.RealizedPnl + position.UnrealizedPnl) * multiplier.Value - totalCommission.Value) : null;
         return position with { StrategyKind = trade.StrategyKind, HistoryValuation = new(date, expiry.DayNumber - date.DayNumber, quantity,
             position.Phase == StrategyPositionPhase.Open ? trade.OpeningValue
                 : quantity > 0 ? position.Legs.Sum(leg => leg.CurrentPrice * leg.SignedQuantity) / quantity : 0m,
-            position.Phase == StrategyPositionPhase.Open ? trade.OpeningCommission : 0m) };
+            position.Phase == StrategyPositionPhase.Open ? trade.OpeningCommission
+                : position.Phase == StrategyPositionPhase.Close ? position.ClosingFills.Sum(fill => fill.Commission) : 0m) {
+            RealizedPnl = realized, TotalCommission = totalCommission, NetPnl = net } };
     }
 }

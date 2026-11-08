@@ -1,0 +1,52 @@
+[
+  {
+    "Role": "api",
+    "ProcessId": 127280,
+    "StartedAtUtc": "2026-11-08T18:11:19.5817482+00:00",
+    "HostPath": "C:\\repos\\IFM\\TomasAI.IFM.Application.Api.Server\\bin\\Debug\\net10.0\\TomasAI.IFM.Application.Api.Server.exe",
+    "EntryAssemblyPath": null,
+    "Ownership": "Owned",
+    "SessionId": "d912b8a956d34d5fb4163c8c12250fca",
+    "LocksRepositoryOutput": true
+  },
+  {
+    "Role": "manager",
+    "ProcessId": 111548,
+    "StartedAtUtc": "2026-11-08T18:11:17.937291+00:00",
+    "HostPath": "C:\\Program Files\\dotnet\\dotnet.exe",
+    "EntryAssemblyPath": "C:\\repos\\IFM\\.artifacts\\rust-marketdata-development\\Manager\\IFMServerManager.dll",
+    "Ownership": "Owned",
+    "SessionId": "d912b8a956d34d5fb4163c8c12250fca",
+    "LocksRepositoryOutput": true
+  },
+  {
+    "Role": "market-data",
+    "ProcessId": 131696,
+    "StartedAtUtc": "2026-11-08T18:11:19.5360536+00:00",
+    "HostPath": "C:\\repos\\IFM\\.artifacts\\rust-marketdata-package\\Debug\\TomasAI.IFM.Application.MarketData.Host.exe",
+    "EntryAssemblyPath": null,
+    "Ownership": "Owned",
+    "SessionId": "d912b8a956d34d5fb4163c8c12250fca",
+    "LocksRepositoryOutput": true
+  },
+  {
+    "Role": "scheduler",
+    "ProcessId": 125760,
+    "StartedAtUtc": "2026-11-08T18:11:19.6007036+00:00",
+    "HostPath": "C:\\repos\\IFM\\.artifacts\\scheduled-tasks\\development\\Host\\TomasAI.IFM.Application.ServerManager.SchedulerHost.exe",
+    "EntryAssemblyPath": null,
+    "Ownership": "Owned",
+    "SessionId": "d912b8a956d34d5fb4163c8c12250fca",
+    "LocksRepositoryOutput": true
+  },
+  {
+    "Role": "ui",
+    "ProcessId": 30816,
+    "StartedAtUtc": "2026-11-08T18:11:29.5172912+00:00",
+    "HostPath": "C:\\repos\\IFM\\.artifacts\\standalone-rust-ui\\app\\TomasAI.IFM.UI.Rust.eGui.exe",
+    "EntryAssemblyPath": null,
+    "Ownership": "Owned",
+    "SessionId": "d912b8a956d34d5fb4163c8c12250fca",
+    "LocksRepositoryOutput": true
+  }
+]

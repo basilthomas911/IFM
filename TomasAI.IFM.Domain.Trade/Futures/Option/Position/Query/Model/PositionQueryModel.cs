@@ -27,7 +27,9 @@ internal static class PositionQueryModel
         while (query.LoadAll && pagingState is { Length: > 0 });
         var trade = await tradeDb.GetEstablishedTradeAsync(query.PositionId.Trade, cancellationToken).ConfigureAwait(false);
         if (trade is not null && trade.StrategyKind == strategyKind)
-            positions = positions.Select(p => StrategyPositionHistoryProjection.EnrichPosition(p, trade)).ToList();
+            positions = query.LoadAll && query.FromUtc <= trade.EstablishedAtUtc
+                ? StrategyPositionHistoryProjection.EnrichHistory(positions,trade).ToList()
+                : positions.Select(p => StrategyPositionHistoryProjection.EnrichPosition(p, trade)).ToList();
         return positions.ToArray();
     }
 }

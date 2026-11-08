@@ -1,0 +1,11 @@
+{
+  "configuration": "Debug",
+  "nativeProfile": "development",
+  "nativeSha256": "7e9f157a8d665276b0f5b9a589f4ac2e4ca824df8a2d7d29f0198561ff9c6e57",
+  "nativeBytes": 18009600,
+  "nativeSymbols": "ifm_market_data_native.pdb",
+  "nativeSymbolsSha256": "c268b78662b25b28317db81b7ca9e887365049045e6eed4948fd0fda2cd332a1",
+  "nativeSymbolsBytes": 209514496,
+  "host": "TomasAI.IFM.Application.MarketData.Host.exe",
+  "productionAccepted": false
+}

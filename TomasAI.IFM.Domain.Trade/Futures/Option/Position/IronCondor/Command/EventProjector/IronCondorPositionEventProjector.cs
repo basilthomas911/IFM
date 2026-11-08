@@ -42,6 +42,9 @@ public sealed class IronCondorPositionEventProjector : ConventionalEventProjecto
     /// <param name = "changed">The committed position event.</param><returns>The history or financial projection operation.</returns>
     async Task ProjectAsync(IronCondorPositionChangedEvent changed)
     {
+        // Historical reconciliation was committed with its source event. Never
+        // re-dispatch old lifecycle notifications or reopen pricing routes.
+        if (changed.HistoricalEndOfDay is not null) return;
         if (changed.PositionSnapshot.Phase == StrategyPositionPhase.MarkToMarket)
         {
             // This mark was already delivered to the live view.

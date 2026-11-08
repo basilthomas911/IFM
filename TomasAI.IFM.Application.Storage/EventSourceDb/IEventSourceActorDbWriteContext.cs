@@ -11,6 +11,11 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb;
 /// </summary>
 public interface IEventSourceActorDbWriteContext
 {
+    /// <summary>Atomically indexes a full-state sidecar checkpoint at the authoritative source revision.</summary>
+    Task<bool> SaveAggregateCheckpointAsync(string stream, string sidecar, long sourceRevision, IEvent snapshot, CancellationToken cancellationToken);
+    /// <summary>Appends a source transition and full-state checkpoint under one optimistic source fence.</summary>
+    Task<bool> SaveAggregateSourceWithCheckpointAsync(string stream, long expectedRevision, IEvent source, IEvent checkpoint, CancellationToken cancellationToken);
+
     /// <summary>Attempts a durable insertion of supplied command audit facts.</summary>
     /// <param name="envelope">The encoded command audit facts.</param>
     /// <param name="cancellationToken">The cancellation token.</param>

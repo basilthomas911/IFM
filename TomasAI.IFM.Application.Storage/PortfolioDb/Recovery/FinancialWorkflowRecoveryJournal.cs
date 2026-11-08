@@ -23,7 +23,8 @@ public sealed class FinancialWorkflowRecoveryJournal(IPostgresEventTransaction t
         {
             var rows = await (db.QueryAsync(PortfolioDbSql.Financial.FinancialWorkflowRecoveryJournal.With01, [afterStreamId, exactStream], r => (Stream: r.GetInt64(0), Event: r.IsDBNull(1) ? null :
                     new EventLogReadModel(r.GetInt64(0), r.GetString(1), r.GetString(2), r.GetInt64(3), r.GetFieldValue<byte[]>(4),
-                        r.GetGuid(5), r.GetString(6), r.GetInt64(7))), ct)).ConfigureAwait(false);
+                        r.GetGuid(5), r.GetString(6), r.GetInt64(7))), ct))
+            .ConfigureAwait(false);
             var snapshots = new List<WorkflowStrategyStateUpdatedEvent>(rows.Count);
             var invalid = new List<long>();
             foreach (var row in rows)

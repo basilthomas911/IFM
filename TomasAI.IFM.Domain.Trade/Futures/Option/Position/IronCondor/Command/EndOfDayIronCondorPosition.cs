@@ -45,6 +45,18 @@ public static class EndOfDayIronCondorPosition
         /// <returns>True when the transition is accepted.</returns>
         internal bool Compute(IronCondorPositionCommandState state, out PositionChange positionChange)
         {
+            if (command.HistoricalSnapshot is { } historical) {
+                try {
+                    if (command.HistoricalSourceEventId <= 0 || state.PositionSnapshot is not { } current)
+                        throw new InvalidOperationException("POSITION.HISTORY.INVALID_SOURCE;Committed source and current state are required.");
+                    _ = HistoricalPositionEndOfDay.Seal(historical,current,command.ValueDate,command.EffectiveAtUtc);
+                    positionChange = new(true,current,null,null);
+                    return true;
+                } catch (InvalidOperationException error) {
+                    positionChange = new(false,null,"POSITION.HISTORY.INVALID_SOURCE",error.Message);
+                    return false;
+                }
+            }
             var positionDecision = IronCondorPositionTransition.Compute(state.PositionSnapshot, machine => command.ValueDate == default ? machine.EndOfDay(command.EffectiveAtUtc) : machine.EndOfDay(command.ValueDate, command.EffectiveAtUtc));
             positionChange = new(positionDecision.Accepted, positionDecision.Value, positionDecision.Code, positionDecision.Detail);
             return positionChange.Accepted;
@@ -60,7 +72,10 @@ public static class EndOfDayIronCondorPosition
             Subject = new(ActorType.Event, "FuturesIronCondorTradePositionEvent", IronCondorPositionChangedEvent.Verb, command.EntityId.Format()),
             ReceivedOn = DateTime.UtcNow,
             EntityId = command.EntityId,
-            PositionSnapshot = positionSnapshot
+            PositionSnapshot = positionSnapshot,
+            HistoricalEndOfDay = command.HistoricalSnapshot is { } mark
+                ? HistoricalPositionEndOfDay.Seal(mark,positionSnapshot,command.ValueDate,command.EffectiveAtUtc) : null,
+            HistoricalSourceEventId = command.HistoricalSourceEventId
         };
     }
 }

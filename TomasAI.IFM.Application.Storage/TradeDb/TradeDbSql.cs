@@ -1725,7 +1725,20 @@ LIMIT $3;
         """;
 
     internal const string ContextStatement4 = "SELECT payload FROM trade.trade_order WHERE portfolioId=$1 AND fundId=$2 AND orderId=$3 ORDER BY revision DESC LIMIT 1;";
-    internal const string ContextStatement5 = "SELECT payload FROM trade.established_trade_history WHERE portfolioId=$1 AND fundId=$2 AND strategyKind=$3 AND establishedAtUtc>=$4 AND establishedAtUtc<=$5;";
+    /// <summary>Reads an ordered, bounded first page of established-trade evidence.</summary>
+    internal const string GetEstablishedTradeHistoryFirstPage = """
+        SELECT payload, establishedAtUtc, orderId, tradeId, evidenceRevision FROM trade.established_trade_history
+        WHERE portfolioId=$1 AND fundId=$2 AND strategyKind=$3 AND establishedAtUtc >= $4 AND establishedAtUtc <= $5
+        ORDER BY establishedAtUtc DESC, orderId, tradeId, evidenceRevision DESC LIMIT $6;
+        """;
+    /// <summary>Continues established history using the complete stable ordering key.</summary>
+    internal const string EstablishedTradeHistoryNextPage = """
+        SELECT payload, establishedAtUtc, orderId, tradeId, evidenceRevision FROM trade.established_trade_history
+        WHERE portfolioId=$1 AND fundId=$2 AND strategyKind=$3 AND establishedAtUtc >= $4 AND establishedAtUtc <= $5
+          AND (establishedAtUtc < $6 OR (establishedAtUtc = $6 AND
+            (orderId > $7 OR (orderId = $7 AND (tradeId > $8 OR (tradeId = $8 AND evidenceRevision < $9))))))
+        ORDER BY establishedAtUtc DESC, orderId, tradeId, evidenceRevision DESC LIMIT $10;
+        """;
     internal const string HelperStatement6 = "SELECT payload,payload_sha256 FROM trade.market_condition_assessment_by_profile WHERE market_profile_id=$1 AND instrument_root=$2 AND target_horizon=$3 AND evaluated_at_utc<$4 ORDER BY evaluated_at_utc DESC,workflow_id LIMIT $5;";
     internal const string HelperStatement7 = "WITH inserted AS (INSERT INTO trade.risk_management_invocation (workflow_id,invocation_id,revision,payload,content_hash) VALUES ($1,$2,$3,$4,$5) ON CONFLICT(workflow_id,invocation_id,revision) DO NOTHING RETURNING 1) SELECT EXISTS(SELECT 1 FROM inserted);";
     internal const string HelperStatement8 = "SELECT content_hash FROM trade.risk_management_invocation WHERE workflow_id=$1 AND invocation_id=$2 AND revision=$3;";

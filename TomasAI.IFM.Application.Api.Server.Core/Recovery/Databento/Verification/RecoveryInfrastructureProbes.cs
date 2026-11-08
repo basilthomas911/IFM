@@ -47,7 +47,7 @@ public sealed class NatsRecoveryInfrastructureProbe(
 }
 
 /// <summary>Checks an isolated expiring Redis write/read and removes the probe key.</summary>
-public sealed class RedisRecoveryInfrastructureProbe(IConnectionMultiplexer connection)
+public sealed class RedisRecoveryInfrastructureProbe(TomasAI.IFM.Application.Api.Server.Core.HostedServices.RedisConnectionStartup connections)
     : IRecoveryInfrastructureProbe
 {
     public string Name => "Redis";
@@ -56,6 +56,7 @@ public sealed class RedisRecoveryInfrastructureProbe(IConnectionMultiplexer conn
     public async Task<RecoveryProbeResult> CheckAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        var connection = await connections.GetAsync(cancellationToken).ConfigureAwait(false);
         var database = connection.GetDatabase();
         var key = (RedisKey)("ifm:recovery:probe:" + Guid.NewGuid().ToString("N"));
         var value = Guid.NewGuid().ToString("N");

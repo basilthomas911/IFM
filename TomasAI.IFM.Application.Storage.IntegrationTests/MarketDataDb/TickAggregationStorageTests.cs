@@ -2,7 +2,7 @@ using System;
 using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
-using TomasAI.IFM.Application.Storage.MarketDataDb;
+using TomasAI.IFM.Application.Storage.TradeTickQuoteDb;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
 using TomasAI.IFM.Framework.Storage.Extensions;
@@ -33,13 +33,13 @@ public sealed class TickAggregationStorageTests(MarketDataFixture fixture) : ICl
             (short)1, wrapper
         ];
 
-        await fixture.DevDatabase
-            .UseTest(MarketDataDbCql.InsertTickQuoteData)
+        await fixture.TickDatabase
+            .UseTest(TradeTickQuoteDbCql.InsertTickQuoteData)
             .SetParameters((object)values)
             .ExecuteCommandAsync();
 
         Assert.Same(wrapper, values[20]);
-        var rows = await fixture.DevDatabase
+        var rows = await fixture.TickDatabase
             .UseTest("SELECT JSON quote_data FROM tick_quote_data WHERE asset_type_id=? AND contract_id=? AND value_date=? AND aggregation_time=? AND sequence_id=?;")
             .SetParameters((object)new object[] {
                 (sbyte)AssetTypeId.Futures, contractId, valueDate,
@@ -57,8 +57,8 @@ public sealed class TickAggregationStorageTests(MarketDataFixture fixture) : ICl
         var timestamp = new DateTime(2026, 8, 7, 20, 15, 30, DateTimeKind.Utc);
         var payload = new byte[] { 0, 0, 0, 0 }; // Valid CQL binary encoding of an empty list.
 
-        await fixture.DevDatabase
-            .UseTest(MarketDataDbCql.InsertTickQuoteData)
+        await fixture.TickDatabase
+            .UseTest(TradeTickQuoteDbCql.InsertTickQuoteData)
             .SetParameters((object)new object?[] {
                 (sbyte)AssetTypeId.Futures, contractId, valueDate,
                 TimeOnly.FromDateTime(timestamp), 4L, timestamp, timestamp.Ticks,
@@ -68,7 +68,7 @@ public sealed class TickAggregationStorageTests(MarketDataFixture fixture) : ICl
                 (short)0, payload })
             .ExecuteCommandAsync();
 
-        var jsonRows = await fixture.DevDatabase
+        var jsonRows = await fixture.TickDatabase
             .UseTest("SELECT JSON quote_data FROM tick_quote_data WHERE asset_type_id=? AND contract_id=? AND value_date=? AND aggregation_time=? AND sequence_id=?;")
             .SetParameters((object)new object[] {
                 (sbyte)AssetTypeId.Futures, contractId, valueDate,
@@ -130,9 +130,9 @@ public sealed class TickAggregationStorageTests(MarketDataFixture fixture) : ICl
             QuoteData = new FuturesTickQuoteDataSegment(quotes, (ushort)count)
         };
 
-        await fixture.DevDatabase.InsertTickQuoteDataAsync(quote);
+        await fixture.TickDatabase.InsertTickQuoteDataAsync(quote);
 
-        var jsonRows = await fixture.DevDatabase
+        var jsonRows = await fixture.TickDatabase
             .UseTest("SELECT JSON quote_data FROM tick_quote_data WHERE asset_type_id=? AND contract_id=? AND value_date=? AND aggregation_time=? AND sequence_id=?;")
             .SetParameters((object)new object[] {
                 (sbyte)assetType, contractId, valueDate,
@@ -183,9 +183,9 @@ public sealed class TickAggregationStorageTests(MarketDataFixture fixture) : ICl
             QuoteData = new FuturesTickQuoteDataSegment(quotes, (ushort)count)
         };
 
-        await fixture.DevDatabase.InsertTickQuoteDataAsync(quote);
+        await fixture.TickDatabase.InsertTickQuoteDataAsync(quote);
 
-        var jsonRows = await fixture.DevDatabase
+        var jsonRows = await fixture.TickDatabase
             .UseTest("SELECT JSON quote_data FROM tick_quote_data WHERE asset_type_id=? AND contract_id=? AND value_date=? AND aggregation_time=? AND sequence_id=?;")
             .SetParameters((object)new object[] {
                 (sbyte)AssetTypeId.Futures, contractId, valueDate,
@@ -252,25 +252,25 @@ public sealed class TickAggregationStorageTests(MarketDataFixture fixture) : ICl
             QuoteData = new FuturesTickQuoteDataSegment(quotes, 2)
         };
 
-        await fixture.DevDatabase.InsertTickTradeDataAsync(trade);
-        await fixture.DevDatabase.InsertTickQuoteDataAsync(quote);
+        await fixture.TickDatabase.InsertTickTradeDataAsync(trade);
+        await fixture.TickDatabase.InsertTickQuoteDataAsync(quote);
 
-        var tradeRows = await fixture.DevDatabase
+        var tradeRows = await fixture.TickDatabase
             .UseTest("SELECT sequence_id FROM tick_trade_data WHERE asset_type_id=? AND contract_id=? AND value_date>=? AND value_date<=?;")
             .SetParameters((object)new object[] { (sbyte)AssetTypeId.Futures, contractId, valueDate, valueDate })
             .ExecuteQueryImmutableAsync(static row => row.GetLong(0));
-        var quoteRows = await fixture.DevDatabase
+        var quoteRows = await fixture.TickDatabase
             .UseTest("SELECT sequence_id, quote_count FROM tick_quote_data WHERE asset_type_id=? AND contract_id=? AND value_date>=? AND value_date<=?;")
             .SetParameters((object)new object[] { (sbyte)AssetTypeId.Futures, contractId, valueDate, valueDate })
             .ExecuteQueryImmutableAsync(static row => new QuoteResult(row.GetLong(0), row.GetShort(1)));
         var startTime = TimeOnly.FromDateTime(timestamp.AddSeconds(-1));
         var endTime = TimeOnly.FromDateTime(timestamp.AddSeconds(1));
-        var intradayTrades = await fixture.DevDatabase
+        var intradayTrades = await fixture.TickDatabase
             .UseTest("SELECT sequence_id FROM tick_trade_data WHERE asset_type_id=? AND contract_id=? AND value_date=? AND aggregation_time>=? AND aggregation_time<=?;")
             .SetParameters((object)new object[] {
                 (sbyte)AssetTypeId.Futures, contractId, valueDate, startTime, endTime })
             .ExecuteQueryImmutableAsync(static row => row.GetLong(0));
-        var exactQuotes = await fixture.DevDatabase
+        var exactQuotes = await fixture.TickDatabase
             .UseTest("SELECT sequence_id FROM tick_quote_data WHERE asset_type_id=? AND contract_id=? AND (value_date, aggregation_time)>=(?, ?) AND (value_date, aggregation_time)<=(?, ?);")
             .SetParameters((object)new object[] {
                 (sbyte)AssetTypeId.Futures, contractId,

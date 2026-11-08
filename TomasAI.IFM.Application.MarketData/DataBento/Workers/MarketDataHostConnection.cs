@@ -40,7 +40,14 @@ public sealed class MarketDataHostConnection : IAsyncDisposable
     /// <summary>Recovery owns its deadline in Host; RPC must not introduce a competing timer.</summary>
     public static bool IsRecoveryRequest(string path) => path is "api/RecoverMarketDataAsync" or "api/RepairOptionObservationsAsync"
         || path.EndsWith("/reset", StringComparison.Ordinal);
-    public async Task<T> PostAsync<T>(string path, object request, CancellationToken token, Guid? operationId = null)
+    public Task<T> PostAsync<T>(string path, object request, CancellationToken token, Guid? operationId = null)
+        => PostCoreAsync<T>(path, request, null, token, operationId);
+
+    /// <summary>Sends an independently owned existing-protocol payload without serializing it again.</summary>
+    internal Task<T> PostSerializedAsync<T>(string path, byte[] payload, CancellationToken token, Guid? operationId = null)
+        => PostCoreAsync<T>(path, null, payload, token, operationId);
+
+    async Task<T> PostCoreAsync<T>(string path, object? request, byte[]? payload, CancellationToken token, Guid? operationId)
     {
         var id = operationId ?? Guid.NewGuid();
         using var trace = path.Contains("Option", StringComparison.Ordinal) || path.Contains("TradeFeedRecovery", StringComparison.Ordinal)
@@ -56,7 +63,7 @@ public sealed class MarketDataHostConnection : IAsyncDisposable
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
         if (!recovery) deadline.CancelAfter(budget);
         var client = await GetClientAsync(deadline.Token).ConfigureAwait(false);
-        var body = MessagePackSerializer.Serialize(request.GetType(), request, Serialization, deadline.Token);
+        var body = payload ?? MessagePackSerializer.Serialize(request!.GetType(), request, Serialization, deadline.Token);
         var reply = await client.RequestAsync<MarketDataHostRequest, MarketDataHostReply>(ControlSubject(path),
             new(path, body, id, recovery ? DateTime.MaxValue : DateTime.UtcNow.Add(budget)),
             headers: global::TomasAI.IFM.Framework.Messaging.Nats.NatsActorTrace.Headers(),

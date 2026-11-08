@@ -68,6 +68,27 @@ internal static class TradeAtomicPersistence
                         }
                         await writer.ProjectMonitoringLimitsAsync(transaction, limits.TradeLimits, limits.SpreadLimits, ct).ConfigureAwait(false);
                         break;
+                    case IronCondorPositionChangedEvent { HistoricalEndOfDay: { } historical } repaired:
+                        if (command is not EndOfDayIronCondorPositionCommand { HistoricalSnapshot: { } supplied } recovery)
+                            throw new InvalidOperationException("POSITION.HISTORY.INVALID_COMMAND");
+                        var rows = await transaction.QueryAsync("""
+                            SELECT e.eventversion,n.eventtypename,e.streamversion,e.eventpayload
+                            FROM event_log e JOIN event_name_id n ON n.eventnameid=e.eventnameid
+                            WHERE e.eventversion=$1 AND e.eventstreamid=(SELECT eventstreamid FROM event_stream_id WHERE eventstream=$2);
+                            """, [repaired.HistoricalSourceEventId,command.StreamId], row => new TomasAI.IFM.Shared.EventSourcing.ViewModels.EventStreamReadModel {
+                                EventVersion=row.GetInt64(0),EventTypeName=row.GetString(1),StreamVersion=row.GetInt64(2),EventData=row.GetFieldValue<byte[]>(3)
+                            },ct).ConfigureAwait(false);
+                        if (rows.SingleOrDefault()?.ToDomainEvent() is not IronCondorPositionChangedEvent original
+                            || !TomasAI.IFM.Framework.Serialization.MessagePackBinarySerializer.Shared.Serialize(original.PositionSnapshot).AsSpan()
+                                .SequenceEqual(TomasAI.IFM.Framework.Serialization.MessagePackBinarySerializer.Shared.Serialize(supplied)))
+                            throw new InvalidOperationException("POSITION.HISTORY.SOURCE_MISMATCH");
+                        var verified = TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Command.HistoricalPositionEndOfDay
+                            .Seal(original.PositionSnapshot,repaired.PositionSnapshot,recovery.ValueDate,recovery.EffectiveAtUtc);
+                        if (!TomasAI.IFM.Framework.Serialization.MessagePackBinarySerializer.Shared.Serialize(verified).AsSpan()
+                            .SequenceEqual(TomasAI.IFM.Framework.Serialization.MessagePackBinarySerializer.Shared.Serialize(historical)))
+                            throw new InvalidOperationException("POSITION.HISTORY.SNAPSHOT_MISMATCH");
+                        await writer.ProjectPositionHistoryAsync(transaction,historical,original.PositionSnapshot.PositionSequence,ct).ConfigureAwait(false);
+                        break;
                     case PositionChangedEvent position:
                         await writer.ProjectPositionAsync(transaction, position.PositionSnapshot, ct).ConfigureAwait(false);
                         break;

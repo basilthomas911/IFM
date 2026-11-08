@@ -1,0 +1,14 @@
+{
+  "ExactBeforeAfterMatch": true,
+  "Position": "1901:1501",
+  "Closed": true,
+  "UniqueCloseFills": 4,
+  "HistoryRows": 18,
+  "CashMultiplier": "50",
+  "RealizedDollars": "-347.50",
+  "TotalCommissionsDollars": "5.20",
+  "NetDollars": "-352.70",
+  "FundOrder701Status": "Closed",
+  "FinancialPostingCount": 95,
+  "Note": "All Fund/order/trade payload hashes, allocation versions, close mappings and posting hashes match the captured baseline."
+}

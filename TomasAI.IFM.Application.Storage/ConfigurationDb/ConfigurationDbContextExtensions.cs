@@ -1,3 +1,12 @@
+using TomasAI.IFM.Application.EventSourcing;
+using TomasAI.IFM.Shared.EventModelActor;
+using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
+using TomasAI.IFM.Domain.Reference.Shared.Lookups;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.TradeSelection;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RiskManagement;
+using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Framework.Storage.Postgres;
 using System.Text.Json;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery;
@@ -22,6 +31,13 @@ internal static class ConfigurationDbContextExtensions
 {
     extension(ConfigurationDbContext context)
     {
+        /// <summary>Rejects a missing argument before creating a database command.</summary>
+        internal void RequireStorageArgument([System.Diagnostics.CodeAnalysis.NotNull] object? value, string name)
+            => ArgumentNullException.ThrowIfNull(value, name);
+        /// <summary>Requires a concrete authenticated principal or key.</summary>
+        internal void RequireStorageText(string? value, string name)
+            => ArgumentException.ThrowIfNullOrWhiteSpace(value, name);
+
         /// <summary>Deserializes and verifies the stored Regime Discovery payload and returns its resolved version.</summary>
         /// <param name = "row">The row.</param>
         /// <returns>The resolve result.</returns>
@@ -265,6 +281,122 @@ internal static class ConfigurationDbContextExtensions
         }
 
         internal object?[] BindProjection(IBindValue? values) => values?.Bind() is object?[] parameters ? parameters : [];
+            /// <summary>Executes repository preparation under the owning context or caller transaction.</summary>
+        internal async Task<string> InsertStrategyCatalogDraftCoreAsync(NpgsqlConnection connection, NpgsqlTransaction transaction,
+            StrategyCatalogDefinition definition, int expectedPreviousVersion, string createdBy, CancellationToken cancellationToken)
+        {
+            var d = Canonicalize(definition);
+            var hash = CanonicalContentHash(d);
+            var json = JsonSerializer.Serialize(d, JsonOptions);
+            await context.CatalogWriteLock(connection, transaction, cancellationToken)
+                .ConfigureAwait(false);
+            var latest = await context.Scalar(connection, transaction, ConfigurationDbSql.GetLatestStrategyCatalogVersion, cancellationToken, new CatalogIdentity((short)d.Key.Kind, d.Key.Id))
+                .ConfigureAwait(false);
+            if (Convert.ToInt32(latest, System.Globalization.CultureInfo.InvariantCulture) != expectedPreviousVersion)
+                throw new InvalidOperationException("Catalog authoring conflict: expected previous version does not match.");
+            var code = await context.Scalar(connection, transaction, ConfigurationDbSql.GetStrategyCatalogIdentityCode, cancellationToken, new CatalogIdentity((short)d.Key.Kind, d.Key.Id))
+                .ConfigureAwait(false);
+            if (code is string existing && !string.Equals(existing, d.Code, StringComparison.Ordinal))
+                throw new InvalidOperationException("Catalog identity code is immutable.");
+            // Exact dependencies must exist even for drafts. They need not be published until publication.
+            foreach (var key in Dependencies(d))
+                if (await context.ReadCatalog(connection, transaction, key, true, cancellationToken)
+                .ConfigureAwait(false)is null)
+                    throw new InvalidOperationException($"Missing catalog dependency: {key}.");
+            if (d.Key.Kind == StrategyCatalogKind.ParameterSet)
+            {
+                var schema = await context.ReadCatalog(connection, transaction, d.Parent!, true, cancellationToken)
+                .ConfigureAwait(false);
+                ValidateParameters(ReadShape(schema!.Definition.Settings), d.Settings);
+            }
+
+            await context.MaterializeCatalogDraftAsync(connection, transaction, d, hash, json, DateTime.UtcNow.CatalogNow(), createdBy, cancellationToken)
+                .ConfigureAwait(false);
+            return hash;
+        }
+        /// <summary>Executes repository preparation under the owning context or caller transaction.</summary>
+        internal async Task MaterializeCatalogDraftAsync(NpgsqlConnection connection, NpgsqlTransaction transaction,
+            StrategyCatalogDefinition d, string hash, string json, DateTime now, string principal, CancellationToken token)
+        {
+            await context.Execute(connection, transaction, ConfigurationDbSql.InsertStrategyCatalogIdentity, token, new InsertCatalogIdentity((short)d.Key.Kind, d.Key.Id, d.Code, now, principal))
+                .ConfigureAwait(false);
+            await context.Execute(connection, transaction, ConfigurationDbSql.InsertStrategyCatalogVersion, token, new InsertCatalogVersion(json, hash, now, principal))
+                .ConfigureAwait(false);
+            foreach (var child in ConfigurationSchemaSql.StrategyCatalog.Children)
+                await context.Execute(connection, transaction, ConfigurationDbSql.InsertStrategyCatalogChildren(child), token, new TextValue(json))
+                .ConfigureAwait(false);
+            await context.Execute(connection, transaction, ConfigurationDbSql.SealStrategyCatalogVersion, token, new CatalogVersion((short)d.Key.Kind, d.Key.Id, d.Key.Version))
+                .ConfigureAwait(false);
+        }
+        /// <summary>Executes repository preparation under the owning context or caller transaction.</summary>
+        internal async Task PublishStrategyCatalogCoreAsync(NpgsqlConnection connection, NpgsqlTransaction transaction,
+            CatalogKey key, string expectedContentHash, DateTime effectiveFromUtc, string publishedBy, CancellationToken cancellationToken)
+        {
+            await context.Execute(connection, transaction, ConfigurationDbSql.AcquireParameterWriterLock, cancellationToken)
+                .ConfigureAwait(false);
+            await context.CatalogWriteLock(connection, transaction, cancellationToken)
+                .ConfigureAwait(false);
+            var graph = await context.LoadCatalogGraph(connection, transaction, key, effectiveFromUtc, true, cancellationToken)
+                .ConfigureAwait(false);
+            var root = graph[key];
+            if (root.Status != CatalogLifecycleStatus.Draft || !string.Equals(root.ContentHash, expectedContentHash, StringComparison.Ordinal))
+                throw new InvalidOperationException("Publish requires the exact Draft content hash.");
+            await context.ValidateCatalogGraph(connection, transaction, graph, effectiveFromUtc, cancellationToken)
+                .ConfigureAwait(false);
+            var count = await context.Execute(connection, transaction, ConfigurationDbSql.PublishStrategyCatalog, cancellationToken, new PublishCatalog((short)key.Kind, key.Id, key.Version, effectiveFromUtc, publishedBy, expectedContentHash))
+                .ConfigureAwait(false);
+            if (count != 1)
+                throw new InvalidOperationException("Catalog publication conflict.");
+            await context.Execute(connection, transaction, ConfigurationDbSql.TypedCatalog.AdvanceRevisionFence, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        /// <summary>Executes repository preparation under the owning context or caller transaction.</summary>
+        internal async Task RetireStrategyCatalogCoreAsync(NpgsqlConnection connection, NpgsqlTransaction transaction,
+            CatalogKey key, string expectedContentHash, DateTime retiredAtUtc, string retiredBy, CancellationToken cancellationToken)
+        {
+            await context.Execute(connection, transaction, ConfigurationDbSql.AcquireParameterWriterLock, cancellationToken)
+                .ConfigureAwait(false);
+            await context.CatalogWriteLock(connection, transaction, cancellationToken)
+                .ConfigureAwait(false);
+            var current = await context.ReadCatalog(connection, transaction, key, true, cancellationToken)
+                .ConfigureAwait(false);
+            if (current is null || current.Status != CatalogLifecycleStatus.Published || !string.Equals(current.ContentHash, expectedContentHash, StringComparison.Ordinal) || retiredAtUtc < current.EffectiveFromUtc)
+                throw new InvalidOperationException("Retire requires the exact Published version and a timestamp at or after publication.");
+            await context.Execute(connection, transaction, ConfigurationDbSql.RetireStrategyCatalog, cancellationToken, new RetireCatalog((short)key.Kind, key.Id, key.Version, retiredAtUtc, retiredBy))
+                .ConfigureAwait(false);
+            await context.Execute(connection, transaction, ConfigurationDbSql.TypedCatalog.AdvanceRevisionFence, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        /// <summary>Executes repository preparation under the owning context or caller transaction.</summary>
+        internal async Task MaterializeCatalogVersionAsync(NpgsqlConnection connection, NpgsqlTransaction transaction,
+            StoredStrategyCatalogDefinition accepted, StoredStrategyCatalogDefinition? previous, CancellationToken token)
+        {
+            var definition = Canonicalize(accepted.Definition);
+            var key = definition.Key;
+            if (previous is null)
+            {
+                var json = JsonSerializer.Serialize(definition, JsonOptions);
+                await context.MaterializeCatalogDraftAsync(connection, transaction, definition, accepted.ContentHash, json,
+                    accepted.CreatedUtc, accepted.CreatedBy, token)
+                .ConfigureAwait(false);
+            }
+            if (accepted.EffectiveFromUtc is { } effective && (previous is null || previous.Status == CatalogLifecycleStatus.Draft))
+            {
+                var count = await context.Execute(connection, transaction, ConfigurationDbSql.PublishStrategyCatalog, token,
+                    new PublishCatalog((short)key.Kind, key.Id, key.Version, effective, accepted.PublishedBy!, accepted.ContentHash))
+                .ConfigureAwait(false);
+                if (count != 1)
+                    throw new InvalidDataException("Accepted catalog publication could not be materialized.");
+            }
+            if (accepted.RetiredAtUtc is { } retired && (previous is null || previous.Status != CatalogLifecycleStatus.Retired))
+            {
+                var count = await context.Execute(connection, transaction, ConfigurationDbSql.RetireStrategyCatalog, token,
+                    new RetireCatalog((short)key.Kind, key.Id, key.Version, retired, accepted.RetiredBy!))
+                .ConfigureAwait(false);
+                if (count != 1)
+                    throw new InvalidDataException("Accepted catalog retirement could not be materialized.");
+            }
+        }
     }
 
     extension(VolatilitySeriesDefinition definition)
@@ -295,4 +427,62 @@ internal static class ConfigurationDbContextExtensions
         /// <returns>The catalog now result.</returns>
         internal DateTime CatalogNow() => new(timestamp.Ticks / 10 * 10, DateTimeKind.Utc);
     }
+    extension(IEnlistedPostgresTransaction transaction)
+    {
+    internal async Task WriteTypedValueAsync(ParameterSetValue value, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(transaction);
+        ArgumentNullException.ThrowIfNull(value);
+        if (value.SetId == Guid.Empty || value.Version < 1) throw new ArgumentException("Parameter identity and version are required", nameof(value));
+        // Freeze mutable child arrays before hashing or binding them.
+        value = ParameterValueCodec.Snapshot(value);
+        var rows = ParameterValueMapping.Write(value);
+        var hash = ParameterValueCodec.Hash(value);
+        await transaction.ExecuteAsync(ConfigurationDbSql.TypedParameters.Lock, [value.SetId.ToString("D")], cancellationToken)
+            .ConfigureAwait(false);
+        var existing = await transaction.ScalarAsync(ConfigurationDbSql.TypedParameters.Hash,
+            [value.SetId, value.Version], cancellationToken)
+            .ConfigureAwait(false);
+        if (existing is not null)
+        {
+            if (!string.Equals((string)existing, hash, StringComparison.Ordinal)) throw new InvalidOperationException("PARAM.IMMUTABLE_CONTENT_CONFLICT");
+            // Verify rows as well: a header alone is not proof that the projection is complete.
+            await transaction.ReadTypedValueAsync( value.SetId, value.Version, cancellationToken)
+            .ConfigureAwait(false);
+            return;
+        }
+        await transaction.ExecuteAsync(ConfigurationDbSql.TypedParameters.InsertHeader,
+            [value.SetId, value.Version, value.ComponentCode, value.SchemaVersion, hash, ParameterValueCodec.Codec], cancellationToken)
+            .ConfigureAwait(false);
+        foreach (var row in rows)
+            await transaction.ExecuteAsync(ConfigurationDbSql.TypedParameters.Insert(row.Table),
+                [value.SetId, value.Version, row.Path, row.ParentPath, row.Ordinal, ..row.Values], cancellationToken)
+            .ConfigureAwait(false);
+    }
+    internal async Task<ParameterSetValue?> ReadTypedValueAsync(Guid setId, int version, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(transaction);
+        var headers = await transaction.QueryAsync(ConfigurationDbSql.TypedParameters.ReadHeader, [setId, version],
+            reader => (Component: reader.GetString(0), Schema: reader.GetInt32(1), Hash: reader.GetString(2), Codec: reader.GetString(3)), cancellationToken)
+            .ConfigureAwait(false);
+        if (headers.Count == 0) return null;
+        var header = headers.Single();
+        if (header.Codec != ParameterValueCodec.Codec) throw new InvalidOperationException("PARAM.CODEC_UNSUPPORTED");
+        var rows = new List<ParameterValueMapping.Row>();
+        foreach (var table in ParameterValueMapping.TablesFor(header.Component))
+        {
+            var batch = await transaction.QueryAsync(ConfigurationDbSql.TypedParameters.Read(table), [setId, version],
+                reader => new ParameterValueMapping.Row(table, reader.GetString(0), reader.IsDBNull(1) ? null : reader.GetString(1), reader.GetInt32(2),
+                    Enumerable.Range(0, table.Columns.Count).Select(index => reader.IsDBNull(index + 3) ? null : reader.GetValue(index + 3)).ToArray()), cancellationToken)
+            .ConfigureAwait(false);
+            rows.AddRange(batch);
+        }
+        var value = ParameterValueMapping.Read(header.Component, rows);
+        if (value.SetId != setId || value.Version != version || value.SchemaVersion != header.Schema ||
+            !string.Equals(ParameterValueCodec.Hash(value), header.Hash, StringComparison.Ordinal))
+            throw new InvalidOperationException("PARAM.PROJECTION_CONTENT_MISMATCH");
+        return value;
+    }
+    }
+
 }

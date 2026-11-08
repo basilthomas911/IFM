@@ -544,3 +544,18 @@ internal readonly record struct GetCheckpointEventLogByIdentity(long stream, str
 {
     public object Bind() => Values(Bigint(stream), identities);
 }
+
+internal readonly record struct AggregateWindowParameters(
+        string Stream, string Sidecar, long Through, long MaximumCheckpointRevision, long ReplayAfter) : IBindValue
+    {
+        public object Bind() => BindValues.Values(Stream, Sidecar, Through, MaximumCheckpointRevision, ReplayAfter);
+    }
+
+internal readonly record struct AggregateFindParameters(string Stream, Guid? CommandId) : IBindValue
+    {
+        public object Bind() => CommandId is { } id ? BindValues.Values(Stream, id) : BindValues.Values(Stream);
+    }
+internal readonly record struct ConcernWindowParameters(string Concern, string Legacy, string[] Identities, bool UseCheckpoint) : IBindValue
+    {
+        public object Bind() => BindValues.Values(Concern, Legacy, Identities, UseCheckpoint);
+    }

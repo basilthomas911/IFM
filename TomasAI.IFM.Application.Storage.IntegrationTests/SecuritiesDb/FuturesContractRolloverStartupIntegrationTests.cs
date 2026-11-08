@@ -396,7 +396,7 @@ public sealed class FuturesContractRolloverStartupIntegrationTests(
             foreach (var contract in existing)
                 await fixture.Db.DeleteFuturesContractAsync(contract.ContractId);
             await fixture.Db.Database
-                .Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteFuturesContractRollover)}", SecuritiesDbCql.DeleteFuturesContractRollover)
+                .Use("ResetRolloverFixture", "DELETE FROM securities.futures_contract_rollover WHERE symbol=$1;")
                 .SetParameters(new DeleteFuturesContractRollover(symbol))
                 .ExecuteCommandAsync();
         }

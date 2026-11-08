@@ -5,6 +5,7 @@ $ErrorActionPreference='Stop'
 $repoRoot=(Resolve-Path (Join-Path $PSScriptRoot '../../..')).Path
 & (Join-Path $repoRoot 'scripts/Build/Initialize-DotNetEnvironment.ps1')
 & "$PSScriptRoot/Generate-UiCatalog.ps1"
+& (Join-Path $repoRoot 'scripts/Development/Initialize-RustBuildTarget.ps1') -ProjectDirectory (Join-Path $repoRoot 'TomasAI.IFM.UI.Rust')
 Push-Location $repoRoot
 try {
  $output=Join-Path $repoRoot '.artifacts/rust-ui/app'
@@ -21,7 +22,9 @@ try {
  @{TradeBroker=@{AccountAlias=$desktopConfig.TradeBroker.AccountAlias;Environment=$desktopConfig.TradeBroker.Environment;Emulator=@{AccountAlias=$desktopConfig.TradeBroker.Emulator.AccountAlias}};SupervisorControl=$desktopConfig.SupervisorControl;MarketDataOperationsHealth=$desktopConfig.MarketDataOperationsHealth;AppSettings=@{NatsServerUri=$desktopConfig.AppSettings.NatsServerUri}} | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath "$output/managed/ui-client.Development.json" -Encoding UTF8
  $profile=if($Release){'release'}else{'debug'}
  Copy-Item -LiteralPath "TomasAI.IFM.UI.Rust/target/$profile/ifm-ui-rust.exe" -Destination "$output/ifm-ui-rust.exe"
- $symbols="TomasAI.IFM.UI.Rust/target/$profile/ifm_ui_rust.pdb";if(Test-Path $symbols){Copy-Item -LiteralPath $symbols -Destination "$output/ifm_ui_rust.pdb"}
+ $symbols="TomasAI.IFM.UI.Rust/target/$profile/ifm_ui_rust.pdb"
+ if(!(Test-Path -LiteralPath $symbols)){throw 'Full-debug Rust UI PDB is missing.'}
+ Copy-Item -LiteralPath $symbols -Destination "$output/ifm_ui_rust.pdb"
  if($Run){if($Live){$env:IFM_RUST_UI_MODE='live'}else{Remove-Item Env:IFM_RUST_UI_MODE -ErrorAction SilentlyContinue};Start-Process -FilePath "$output/ifm-ui-rust.exe" -WorkingDirectory $output}
 }finally{Pop-Location}
 

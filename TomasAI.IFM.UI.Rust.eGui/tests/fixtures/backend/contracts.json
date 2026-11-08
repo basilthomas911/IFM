@@ -142108,6 +142108,30 @@
     "enumValues": null,
     "members": [
       {
+        "name": "CorrectedLegs",
+        "index": 6,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Trade.Shared.TradeLegDefinition[]"
+      },
+      {
+        "name": "ExpectedEvidenceRevision",
+        "index": 7,
+        "mapKey": null,
+        "type": "System.Int32"
+      },
+      {
+        "name": "ReconciliationReason",
+        "index": 8,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "ReconciliationEvidence",
+        "index": 9,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
         "name": "AmendmentId",
         "index": 4,
         "mapKey": null,
@@ -142819,6 +142843,18 @@
         "index": 5,
         "mapKey": null,
         "type": "System.DateOnly"
+      },
+      {
+        "name": "HistoricalSnapshot",
+        "index": 6,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Trade.Shared.StrategyPositionSnapshot"
+      },
+      {
+        "name": "HistoricalSourceEventId",
+        "index": 7,
+        "mapKey": null,
+        "type": "System.Int64"
       },
       {
         "name": "EffectiveAtUtc",
@@ -143789,6 +143825,18 @@
         "index": 10,
         "mapKey": null,
         "type": "System.Nullable\u00601[System.Int64]"
+      },
+      {
+        "name": "HistoricalEndOfDay",
+        "index": 11,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Trade.Shared.StrategyPositionSnapshot"
+      },
+      {
+        "name": "HistoricalSourceEventId",
+        "index": 12,
+        "mapKey": null,
+        "type": "System.Int64"
       },
       {
         "name": "Subject",
@@ -175449,6 +175497,30 @@
         "index": 4,
         "mapKey": null,
         "type": "System.Decimal"
+      },
+      {
+        "name": "RealizedPnl",
+        "index": 5,
+        "mapKey": null,
+        "type": "System.Nullable\u00601[System.Decimal]"
+      },
+      {
+        "name": "TotalCommission",
+        "index": 6,
+        "mapKey": null,
+        "type": "System.Nullable\u00601[System.Decimal]"
+      },
+      {
+        "name": "NetPnl",
+        "index": 7,
+        "mapKey": null,
+        "type": "System.Nullable\u00601[System.Decimal]"
+      },
+      {
+        "name": "PeriodPnl",
+        "index": 8,
+        "mapKey": null,
+        "type": "System.Nullable\u00601[System.Decimal]"
       }
     ],
     "actor": null,

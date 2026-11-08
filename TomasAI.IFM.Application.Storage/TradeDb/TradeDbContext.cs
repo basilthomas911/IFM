@@ -60,6 +60,20 @@ public sealed class TradeDbContext(IDbConnectionSettings connectionSettings, IDb
     /// <inheritdoc/>
     public Task ProjectTradeAsync(EventSourceDb.IEnlistedPostgresTransaction transaction, EstablishedTradeDefinition trade, CancellationToken token = default) => TradeDbContextExtensions.TradeFlowProjectTradeAsync(transaction, trade, token);
     /// <inheritdoc/>
+    public async Task ProjectPositionHistoryAsync(EventSourceDb.IEnlistedPostgresTransaction transaction,
+        StrategyPositionSnapshot position, long expectedProjectionSequence, CancellationToken token = default)
+    {
+        var changed = await transaction.ScalarAsync("""
+            UPDATE trade.strategy_position_history SET phase='EndOfDay',payload=$4,projection_sequence=$5
+            WHERE positionid=$1 AND asofutc=$2 AND positionsequence=$3
+                AND phase='MarkToMarket' AND projection_sequence=$6 RETURNING positionid;
+            """, [position.Id.PositionId,position.HistoryAsOfUtc,position.HistoryPositionSequence,
+                MessagePackBinarySerializer.Shared.Serialize(position),position.PositionSequence,expectedProjectionSequence],token)
+            .ConfigureAwait(false);
+        if (changed is null) throw new InvalidOperationException("POSITION.HISTORY.CONFLICT;Expected daily mark is unavailable or already finalized.");
+    }
+
+    /// <inheritdoc/>
     public Task ProjectPositionAsync(EventSourceDb.IEnlistedPostgresTransaction transaction, StrategyPositionSnapshot position, CancellationToken token = default) => TradeDbContextExtensions.TradeFlowProjectPositionAsync(transaction, position, token);
     internal readonly ISequenceIdGenerator _sequenceIdGenerator = IsArgumentNull.Set(sequenceIdGenerator);
     /// <summary>
@@ -1189,7 +1203,7 @@ public sealed class TradeDbContext(IDbConnectionSettings connectionSettings, IDb
     public Task<QueryPage<RiskHistoryRow>> GetRiskHistoryAsync(int portfolio, int fund, DateOnly date, int size, byte[]? cursor, CancellationToken token = default)
     {
         portfolio.RequireHistoryScope(fund, date, size, 100, "Invalid Risk history scope.");
-        return this.NativeTransaction().ExecuteOnceAsync((db,ct)=>TradeDbContextExtensions.RiskReadHistoryAsync(db,portfolio,fund,date,size,cursor,ct),token);
+        return this.NativeTransaction().ExecuteOnceAsync((db,ct)=>db.RiskReadHistoryAsync(portfolio,fund,date,size,cursor,ct),token);
     }
 
     /// <inheritdoc/>
@@ -1232,9 +1246,8 @@ public sealed class TradeDbContext(IDbConnectionSettings connectionSettings, IDb
     public Task<QueryPage<EstablishedTradeDefinition>> GetEstablishedTradesAsync(int portfolioId, int fundId, TradeStrategyKind strategyKind, DateTime fromUtc, DateTime toUtc, int pageSize, byte[]? pagingState = null, CancellationToken token = default)
     {
         portfolioId.RequireUtcHistoryScope(fundId, fromUtc, toUtc, pageSize);
-        return this.Use("TradeFlow.Trade.History.Get", TradeDbSql.ContextStatement5)
-            .SetParameters(new TradeDbValues([portfolioId, fundId, strategyKind.ToString(), fromUtc, toUtc]))
-            .ExecutePageAsync(row => MessagePackBinarySerializer.Shared.Deserialize<EstablishedTradeDefinition>(row.GetBytes(0)), pageSize, pagingState, token);
+        return this.NativeTransaction().ExecuteOnceAsync((db, ct) => db.TradeReadEstablishedHistoryAsync(
+            portfolioId, fundId, strategyKind, fromUtc, toUtc, pageSize, pagingState, ct), token);
     }
 
     /// <inheritdoc/>

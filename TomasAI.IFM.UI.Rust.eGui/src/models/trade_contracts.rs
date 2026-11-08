@@ -34033,6 +34033,16 @@ pub struct IronCondorPositionChangedEvent {
         alias = "CurrencyEvidenceEventId"
     )]
     pub currency_evidence_event_id: Option<i64>,
+    /// C# HistoricalEndOfDay, wire slot 11.
+    #[serde(default, rename = "historicalEndOfDay", alias = "HistoricalEndOfDay")]
+    pub historical_end_of_day: Option<Box<StrategyPositionSnapshot>>,
+    /// C# HistoricalSourceEventId, wire slot 12.
+    #[serde(
+        default,
+        rename = "historicalSourceEventId",
+        alias = "HistoricalSourceEventId"
+    )]
+    pub historical_source_event_id: Option<i64>,
 }
 impl FromBackend for IronCondorPositionChangedEvent {
     const KIND: &'static str =
@@ -34077,6 +34087,16 @@ impl FromBackend for IronCondorPositionChangedEvent {
             .map_err(|error| {
                 format!("IronCondorPositionChangedEvent.CurrencyEvidenceEventId: {error}")
             })?,
+            historical_end_of_day: FromBackend::from_backend(fields.get(11).unwrap_or(&Value::Nil))
+                .map_err(|error| {
+                    format!("IronCondorPositionChangedEvent.HistoricalEndOfDay: {error}")
+                })?,
+            historical_source_event_id: FromBackend::from_backend(
+                fields.get(12).unwrap_or(&Value::Nil),
+            )
+            .map_err(|error| {
+                format!("IronCondorPositionChangedEvent.HistoricalSourceEventId: {error}")
+            })?,
         })
     }
 }
@@ -34104,6 +34124,20 @@ impl PresentationRecord for IronCondorPositionChangedEvent {
             "currencyEvidenceEventId",
             &FieldValue {
                 value: &self.currency_evidence_event_id,
+                mode: child_mode,
+            },
+        )?;
+        map.serialize_entry(
+            "historicalEndOfDay",
+            &FieldValue {
+                value: &self.historical_end_of_day,
+                mode: child_mode,
+            },
+        )?;
+        map.serialize_entry(
+            "historicalSourceEventId",
+            &FieldValue {
+                value: &self.historical_source_event_id,
                 mode: child_mode,
             },
         )?;
@@ -34209,6 +34243,14 @@ impl BackendRecord for IronCondorPositionChangedEvent {
             "CurrencyEvidenceEventId",
             &BackendDocument(&self.currency_evidence_event_id),
         )?;
+        map.serialize_entry(
+            "HistoricalEndOfDay",
+            &BackendDocument(&self.historical_end_of_day),
+        )?;
+        map.serialize_entry(
+            "HistoricalSourceEventId",
+            &BackendDocument(&self.historical_source_event_id),
+        )?;
         map.serialize_entry("Subject", &BackendDocument(&self.subject))?;
         map.serialize_entry("Id", &BackendDocument(&self.id))?;
         map.serialize_entry("EntityId", &BackendDocument(&self.entity_id))?;
@@ -34233,6 +34275,9 @@ impl Cells for IronCondorPositionChangedEvent {
             }
             "currencyEvidenceEventId" | "CurrencyEvidenceEventId" => {
                 self.currency_evidence_event_id.scalar_cell()
+            }
+            "historicalSourceEventId" | "HistoricalSourceEventId" => {
+                self.historical_source_event_id.scalar_cell()
             }
             "id" | "Id" => self.id.scalar_cell(),
             "eventId" | "EventId" => self.event_id.scalar_cell(),
@@ -37471,6 +37516,18 @@ pub struct StrategyPositionHistoryValuation {
     /// C# Commission, wire slot 4.
     #[serde(default, rename = "commission", alias = "Commission")]
     pub commission: Option<DecimalText>,
+    /// C# RealizedPnl, wire slot 5.
+    #[serde(default, rename = "realizedPnl", alias = "RealizedPnl")]
+    pub realized_pnl: Option<DecimalText>,
+    /// C# TotalCommission, wire slot 6.
+    #[serde(default, rename = "totalCommission", alias = "TotalCommission")]
+    pub total_commission: Option<DecimalText>,
+    /// C# NetPnl, wire slot 7.
+    #[serde(default, rename = "netPnl", alias = "NetPnl")]
+    pub net_pnl: Option<DecimalText>,
+    /// C# PeriodPnl, wire slot 8.
+    #[serde(default, rename = "periodPnl", alias = "PeriodPnl")]
+    pub period_pnl: Option<DecimalText>,
 }
 impl FromBackend for StrategyPositionHistoryValuation {
     const KIND: &'static str = "TomasAI.IFM.Domain.Trade.Shared.StrategyPositionHistoryValuation";
@@ -37494,6 +37551,17 @@ impl FromBackend for StrategyPositionHistoryValuation {
                 .map_err(|error| format!("StrategyPositionHistoryValuation.NetPrice: {error}"))?,
             commission: FromBackend::from_backend(fields.get(4).unwrap_or(&Value::Nil))
                 .map_err(|error| format!("StrategyPositionHistoryValuation.Commission: {error}"))?,
+            realized_pnl: FromBackend::from_backend(fields.get(5).unwrap_or(&Value::Nil)).map_err(
+                |error| format!("StrategyPositionHistoryValuation.RealizedPnl: {error}"),
+            )?,
+            total_commission: FromBackend::from_backend(fields.get(6).unwrap_or(&Value::Nil))
+                .map_err(|error| {
+                    format!("StrategyPositionHistoryValuation.TotalCommission: {error}")
+                })?,
+            net_pnl: FromBackend::from_backend(fields.get(7).unwrap_or(&Value::Nil))
+                .map_err(|error| format!("StrategyPositionHistoryValuation.NetPnl: {error}"))?,
+            period_pnl: FromBackend::from_backend(fields.get(8).unwrap_or(&Value::Nil))
+                .map_err(|error| format!("StrategyPositionHistoryValuation.PeriodPnl: {error}"))?,
         })
     }
 }
@@ -37545,6 +37613,34 @@ impl PresentationRecord for StrategyPositionHistoryValuation {
                 mode: child_mode,
             },
         )?;
+        map.serialize_entry(
+            "realizedPnl",
+            &FieldValue {
+                value: &self.realized_pnl,
+                mode: child_mode,
+            },
+        )?;
+        map.serialize_entry(
+            "totalCommission",
+            &FieldValue {
+                value: &self.total_commission,
+                mode: child_mode,
+            },
+        )?;
+        map.serialize_entry(
+            "netPnl",
+            &FieldValue {
+                value: &self.net_pnl,
+                mode: child_mode,
+            },
+        )?;
+        map.serialize_entry(
+            "periodPnl",
+            &FieldValue {
+                value: &self.period_pnl,
+                mode: child_mode,
+            },
+        )?;
         self.serialize_extras(&mut map)?;
         map.end()
     }
@@ -37581,6 +37677,10 @@ impl BackendRecord for StrategyPositionHistoryValuation {
         map.serialize_entry("Quantity", &BackendDocument(&self.quantity))?;
         map.serialize_entry("NetPrice", &BackendDocument(&self.net_price))?;
         map.serialize_entry("Commission", &BackendDocument(&self.commission))?;
+        map.serialize_entry("RealizedPnl", &BackendDocument(&self.realized_pnl))?;
+        map.serialize_entry("TotalCommission", &BackendDocument(&self.total_commission))?;
+        map.serialize_entry("NetPnl", &BackendDocument(&self.net_pnl))?;
+        map.serialize_entry("PeriodPnl", &BackendDocument(&self.period_pnl))?;
         map.end()
     }
 }
@@ -37593,6 +37693,10 @@ impl Cells for StrategyPositionHistoryValuation {
             "quantity" | "Quantity" => self.quantity.scalar_cell(),
             "netPrice" | "NetPrice" => self.net_price.scalar_cell(),
             "commission" | "Commission" => self.commission.scalar_cell(),
+            "realizedPnl" | "RealizedPnl" => self.realized_pnl.scalar_cell(),
+            "totalCommission" | "TotalCommission" => self.total_commission.scalar_cell(),
+            "netPnl" | "NetPnl" => self.net_pnl.scalar_cell(),
+            "periodPnl" | "PeriodPnl" => self.period_pnl.scalar_cell(),
             _ => Cell::Missing,
         }
     }
@@ -54910,6 +55014,18 @@ pub const CONTRACT_FIELDS: &[(&str, &str, usize, &str)] = &[
     ),
     (
         "TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position.IronCondorPositionChangedEvent",
+        "HistoricalEndOfDay",
+        11,
+        "TomasAI.IFM.Domain.Trade.Shared.StrategyPositionSnapshot",
+    ),
+    (
+        "TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position.IronCondorPositionChangedEvent",
+        "HistoricalSourceEventId",
+        12,
+        "System.Int64",
+    ),
+    (
+        "TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position.IronCondorPositionChangedEvent",
         "Subject",
         0,
         "TomasAI.IFM.Shared.EventModelActor.ActorSubject",
@@ -55603,6 +55719,30 @@ pub const CONTRACT_FIELDS: &[(&str, &str, usize, &str)] = &[
         "Commission",
         4,
         "System.Decimal",
+    ),
+    (
+        "TomasAI.IFM.Domain.Trade.Shared.StrategyPositionHistoryValuation",
+        "RealizedPnl",
+        5,
+        "System.Nullable`1[System.Decimal]",
+    ),
+    (
+        "TomasAI.IFM.Domain.Trade.Shared.StrategyPositionHistoryValuation",
+        "TotalCommission",
+        6,
+        "System.Nullable`1[System.Decimal]",
+    ),
+    (
+        "TomasAI.IFM.Domain.Trade.Shared.StrategyPositionHistoryValuation",
+        "NetPnl",
+        7,
+        "System.Nullable`1[System.Decimal]",
+    ),
+    (
+        "TomasAI.IFM.Domain.Trade.Shared.StrategyPositionHistoryValuation",
+        "PeriodPnl",
+        8,
+        "System.Nullable`1[System.Decimal]",
     ),
     (
         "TomasAI.IFM.Domain.Trade.Shared.StrategyPositionId",

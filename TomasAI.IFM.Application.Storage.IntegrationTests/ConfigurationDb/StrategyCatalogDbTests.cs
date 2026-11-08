@@ -30,10 +30,10 @@ public sealed class StrategyCatalogDbTests(MarketConditionConfigurationDbFixture
     static readonly CatalogCapability[] ValidatorCapabilities = [new("validator", "fixture", 1)];
     static DateTime Now => DateTime.UtcNow.CatalogNow();
 
-    static ConfigurationDbContext Context(bool supported = true, IStrategyCatalogReferences? references = null)
+    ConfigurationDbContext Context(bool supported = true, IStrategyCatalogReferences? references = null)
     {
         var settings = new DbConnectionSettings().Add(ConfigurationDbContext.ConfigurationDbConnection,
-            Environment.GetEnvironmentVariable("IFM_POSTGRES_CONFIGURATION_TEST_CONNECTION") ?? "Host=localhost;Port=5432;Database=ifm-configuration-integration-tests", "System.Data.Postgres");
+            fixture.Context.ConnectionString, "System.Data.Postgres");
         var validators = new[] { "evaluator", "data", "builder", "risk", "validator" }
             .Select(role => (IStrategyCatalogCapabilityValidator)new FixtureValidator(new(role, "fixture", 1)));
         return new(settings, Substitute.For<IDbContextFactory>(), Substitute.For<ILogger<DbProvider>>(),

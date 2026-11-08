@@ -197,16 +197,13 @@ public sealed class SecuritiesDbContext(IDbConnectionSettings connectionSettings
     public async Task<IReadOnlyList<OptionPricingConvention?>> GetManyAsync(
         IReadOnlyList<(string ContractId, string Version)> identities, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(identities);
+        this.ValidateConventionBatch(identities);
         cancellationToken.ThrowIfCancellationRequested();
         var result = new OptionPricingConvention?[identities.Count];
         HashSet<(string ContractId, string Version)>? uncached = null;
         for (var index = 0; index < identities.Count; index++)
         {
             var identity = identities[index];
-            if (string.IsNullOrWhiteSpace(identity.ContractId) || identity.ContractId.Length > 128
-                || string.IsNullOrWhiteSpace(identity.Version) || identity.Version.Length > 128)
-                throw new ArgumentException("Exact reference version is required.", nameof(identities));
             if (referenceVersions.TryGetCompleted(identity, out var cached))
                 result[index] = cached?.Convention;
             else
@@ -226,7 +223,8 @@ public sealed class SecuritiesDbContext(IDbConnectionSettings connectionSettings
                 JOIN securities.securities_reference_version v USING (contract_id, version);
                 """, [missing.Select(key => key.ContractId).ToArray(), missing.Select(key => key.Version).ToArray()],
                 row => (Key: (row.GetString(0), row.GetString(1)), Digest: row.GetString(2),
-                    Published: row.GetBoolean(3), Payload: row.GetFieldValue<byte[]>(4)), token), cancellationToken).ConfigureAwait(false);
+                    Published: row.GetBoolean(3), Payload: row.GetFieldValue<byte[]>(4)), token), cancellationToken)
+            .ConfigureAwait(false);
             foreach (var row in rows)
             {
                 var decoded = this.DecodeReferenceVersion(row.Digest, row.Published, row.Payload);
@@ -315,6 +313,9 @@ public sealed class SecuritiesDbContext(IDbConnectionSettings connectionSettings
         DateTime? staleOperationCutoffUtc = null)
     {
         this.ValidateBackfillParameters(batchSize, staleOperationCutoffUtc);
+        if (string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
+            return await this.RebuildNativeSymbolProjectionsAsync(cancellationToken)
+                .ConfigureAwait(false);
 
         var db = DbFactory.SecuritiesDb;
         if (staleOperationCutoffUtc is { } verifiedInactiveCutoffUtc)
@@ -1121,40 +1122,10 @@ public sealed class SecuritiesDbContext(IDbConnectionSettings connectionSettings
         CancellationToken cancellationToken = default)
     {
         symbol = this.ValidateAndNormalizeExpiryRange(symbol, fromExpiry, throughExpiry);
-        var state = await ReadExpiryStateAsync(symbol, cancellationToken).ConfigureAwait(false);
-        return await ReadExpiriesAsync(symbol, fromExpiry, throughExpiry, state, cancellationToken).ConfigureAwait(false);
-    }
-
-    Task<OptionExpiryCalendarState?> ReadExpiryStateAsync(string symbol, CancellationToken token)
-        => DbFactory.SecuritiesDb
-            .Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetOptionContractExpiryCalendarState)}",
-                string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal)
-                    ? SecuritiesDbSql.GetOptionContractExpiryCalendarState : SecuritiesDbCql.GetOptionContractExpiryCalendarState)
-            .SetParameters(new GetOptionContractExpiryCalendarState(symbol))
-            .ExecuteSingleAsync(MapToOptionExpiryCalendarState!, token);
-
-    async Task<IReadOnlyList<OptionContractExpiryReadModel>> ReadExpiriesAsync(
-        string symbol, DateOnly fromExpiry, DateOnly throughExpiry, OptionExpiryCalendarState? state, CancellationToken cancellationToken)
-    {
-        if (state is null || fromExpiry > state.CoverageThrough || throughExpiry < state.CoverageFrom)
-            return [];
-        var effectiveFromExpiry = fromExpiry < state.CoverageFrom ? state.CoverageFrom : fromExpiry;
-        var effectiveThroughExpiry = throughExpiry > state.CoverageThrough
-            ? state.CoverageThrough
-            : throughExpiry;
-        var rows = (await (DbFactory.SecuritiesDb
-            .Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetOptionContractExpiries)}",
-                string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ? SecuritiesDbSql.GetOptionContractExpiries : SecuritiesDbCql.GetOptionContractExpiries)
-            .SetParameters(new GetOptionContractExpiries(symbol, state.Generation, effectiveFromExpiry,
-                state.CoverageThrough))
-            .ExecuteQueryAsync(MapToOptionContractExpiry!, cancellationToken))
-                .ConfigureAwait(false)).ToArray();
-        var nearestAfter = rows.Where(row => row.ExpiryDate > effectiveThroughExpiry)
-            .Select(row => row.ExpiryDate).OrderBy(date => date).FirstOrDefault();
-        return rows.Where(row => !string.IsNullOrWhiteSpace(row.ContractId)
-                                 && (row.ExpiryDate <= effectiveThroughExpiry
-                                 || nearestAfter != default && row.ExpiryDate == nearestAfter))
-            .DistinctBy(row => (row.ContractId, row.ExpiryDate, row.ProviderRoot)).ToArray();
+        var state = await this.ReadExpiryStateAsync(symbol, cancellationToken)
+            .ConfigureAwait(false);
+        return await this.ReadExpiriesAsync(symbol, fromExpiry, throughExpiry, state, cancellationToken)
+            .ConfigureAwait(false);
     }
 
     public async Task<IReadOnlyList<CachedOptionContractDefinitionReadModel>> GetCachedOptionContractDefinitionsAsync(
@@ -1163,7 +1134,8 @@ public sealed class SecuritiesDbContext(IDbConnectionSettings connectionSettings
     {
         symbol = this.ValidateAndNormalizeCachedDefinitionQuery(symbol, underlyingContractId);
         var db = DbFactory.SecuritiesDb;
-        var state = await ReadExpiryStateAsync(symbol, cancellationToken).ConfigureAwait(false);
+        var state = await this.ReadExpiryStateAsync(symbol, cancellationToken)
+            .ConfigureAwait(false);
         if (state is null || expiryDate < state.CoverageFrom || expiryDate > state.CoverageThrough) return [];
         var roots = (providerRoots ?? []).ToHashSet(StringComparer.OrdinalIgnoreCase);
         // The published generation is checked on every call. Only its immutable payload partition is cached.
@@ -1174,15 +1146,8 @@ public sealed class SecuritiesDbContext(IDbConnectionSettings connectionSettings
                 .ExecuteQueryAsync(MapToCachedOptionContractDefinition!, token))
                 .ConfigureAwait(false)).ToArray(), cancellationToken)
             .ConfigureAwait(false) ?? [];
-        return FilterDefinitions(rows, underlyingContractId, roots).ToArray();
+        return rows.FilterDefinitions(underlyingContractId, roots).ToArray();
     }
-
-    static IEnumerable<CachedOptionContractDefinitionReadModel> FilterDefinitions(
-        IEnumerable<CachedOptionContractDefinitionReadModel?> rows, string underlyingContractId, HashSet<string> roots)
-        => rows.Where(row => row is not null
-                            && string.Equals(row.UnderlyingContractId, underlyingContractId, StringComparison.OrdinalIgnoreCase)
-                            && (roots.Count == 0 || roots.Contains(row.ProviderRoot)))
-            .Select(row => row!).DistinctBy(row => row.Definition.ContractId);
 
     /// <inheritdoc />
     public async IAsyncEnumerable<CachedOptionContractDefinitionReadModel> ReadPublishedOptionDefinitionsAsync(
@@ -1190,11 +1155,13 @@ public sealed class SecuritiesDbContext(IDbConnectionSettings connectionSettings
         IReadOnlyCollection<string>? providerRoots = null,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumExpiries);
+        this.ValidateMaximumDefinitionExpiries(maximumExpiries);
         symbol = this.ValidateAndNormalizeExpiryRange(symbol, first, last);
-        var state = await ReadExpiryStateAsync(symbol, cancellationToken).ConfigureAwait(false);
+        var state = await this.ReadExpiryStateAsync(symbol, cancellationToken)
+            .ConfigureAwait(false);
         if (state is null) yield break;
-        var expiries = await ReadExpiriesAsync(symbol, first, last, state, cancellationToken).ConfigureAwait(false);
+        var expiries = await this.ReadExpiriesAsync(symbol, first, last, state, cancellationToken)
+            .ConfigureAwait(false);
         if (expiries.Count > maximumExpiries)
             throw new InvalidDataException("Raw option expiry capacity exceeded.");
 
@@ -1219,9 +1186,10 @@ public sealed class SecuritiesDbContext(IDbConnectionSettings connectionSettings
                 cached.Add(group.Key, partition!);
         var missing = groups.Select(group => group.Key).Where(expiry => !cached.ContainsKey(expiry)).ToArray();
         var roots = (providerRoots ?? []).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        await using var cold = ReadDefinitionPartitionsAsync(symbol, state.Generation, missing, cancellationToken)
+        await using var cold = this.ReadDefinitionPartitionsAsync(symbol, state.Generation, missing, cancellationToken)
             .GetAsyncEnumerator(cancellationToken);
-        var more = await cold.MoveNextAsync().ConfigureAwait(false);
+        var more = await cold.MoveNextAsync()
+            .ConfigureAwait(false);
 
         foreach (var group in groups)
         {
@@ -1232,28 +1200,15 @@ public sealed class SecuritiesDbContext(IDbConnectionSettings connectionSettings
                 while (more && cold.Current.ExpiryDate == group.Key)
                 {
                     partition.Add(cold.Current);
-                    more = await cold.MoveNextAsync().ConfigureAwait(false);
+                    more = await cold.MoveNextAsync()
+            .ConfigureAwait(false);
                 }
                 rows = partition.ToArray();
                 definitionPartitions.RememberCompleted((symbol, state.Generation, group.Key), rows);
             }
             foreach (var (_, underlying) in group)
-                foreach (var row in FilterDefinitions(rows, underlying, roots))
+                foreach (var row in rows.FilterDefinitions(underlying, roots))
                     yield return row;
-        }
-    }
-
-    async IAsyncEnumerable<CachedOptionContractDefinitionReadModel> ReadDefinitionPartitionsAsync(
-        string symbol, Guid generation, DateOnly[] expiries,
-        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken token)
-    {
-        if (expiries.Length == 0) yield break;
-        await foreach (var row in DbFactory.SecuritiesDb
-            .Use(nameof(SecuritiesDbSql.GetCachedOptionDefinitionPartitions), SecuritiesDbSql.GetCachedOptionDefinitionPartitions)
-            .SetParameters(new GetCachedOptionDefinitionPartitions(symbol, generation, expiries))
-            .ExecuteStreamAsync(MapToCachedOptionContractDefinition!, token).ConfigureAwait(false))
-        {
-            if (row is not null) yield return row;
         }
     }
 

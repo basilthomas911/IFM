@@ -122,7 +122,7 @@ public sealed class EventSourceActorDbContextConventionTests
         Assert.DoesNotContain(dependencies, assembly => assembly.Name!.StartsWith("TomasAI.IFM.Domain.", StringComparison.Ordinal)
             && !assembly.Name.EndsWith(".Shared", StringComparison.Ordinal));
         Assert.DoesNotContain(dependencies, assembly => assembly.Name == "TomasAI.IFM.Framework.Storage.Benchmarks");
-        Assert.Equal("TomasAI.IFM.Application.EventSourcing",
+        Assert.Equal("TomasAI.IFM.Application.EventSourcing.Persistence",
             typeof(TomasAI.IFM.Application.EventSourcing.Repository.BaseEventSourceActorRepository).Assembly.GetName().Name);
         Assert.True(typeof(ICommandAuditLogger).IsAssignableFrom(
             typeof(TomasAI.IFM.Application.EventSourcing.Command.CommandAuditCoordinator)));
@@ -133,7 +133,7 @@ public sealed class EventSourceActorDbContextConventionTests
 
     private static string FindRepositoryRoot()
     {
-        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
+        for (var directory = new DirectoryInfo(DbContextConventionSource.RepositoryRoot); directory is not null; directory = directory.Parent)
             if (File.Exists(Path.Combine(directory.FullName, "TomasAI.IFM.sln"))) return directory.FullName;
         throw new DirectoryNotFoundException("Could not locate the repository root.");
     }

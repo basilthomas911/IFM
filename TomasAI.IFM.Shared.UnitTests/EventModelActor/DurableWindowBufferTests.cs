@@ -35,18 +35,27 @@ public sealed class DurableWindowBufferTests
     [Fact]
     public async Task Continuous_arrivals_do_not_extend_the_first_item_deadline()
     {
-        var firstCommit = new TaskCompletionSource<long>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var stopwatch = Stopwatch.StartNew();
-        await using var buffer = Create(256, 4096, TimeSpan.FromMilliseconds(40), _ => firstCommit.TrySetResult(stopwatch.ElapsedMilliseconds));
+        var firstCommit = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        await using var buffer = Create(100000, 1000000, TimeSpan.FromMilliseconds(40), _ => firstCommit.TrySetResult());
         var writes = new List<Task> { buffer.SubmitAsync(0, 1).AsTask() };
-        for (var index = 1; index < 20; index++)
-        {
-            await Task.Delay(5);
-            writes.Add(buffer.SubmitAsync(index, 1).AsTask());
-        }
-        var committedAt = await firstCommit.Task.WaitAsync(TimeSpan.FromSeconds(1));
-        committedAt.Should().BeLessThan(90);
+        using var arrivals = new CancellationTokenSource();
+        var producer = ProduceAsync();
+        try { await firstCommit.Task.WaitAsync(TimeSpan.FromSeconds(5)); }
+        finally { await arrivals.CancelAsync(); await producer; }
         await Task.WhenAll(writes);
+
+        async Task ProduceAsync()
+        {
+            try
+            {
+                for (var index = 1; !arrivals.IsCancellationRequested; index++)
+                {
+                    await Task.Delay(5, arrivals.Token);
+                    writes.Add(buffer.SubmitAsync(index, 1).AsTask());
+                }
+            }
+            catch (OperationCanceledException) when (arrivals.IsCancellationRequested) { }
+        }
     }
 
     [Fact]

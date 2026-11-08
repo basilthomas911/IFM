@@ -1,3 +1,4 @@
+
 using System.Globalization;
 
 namespace TomasAI.IFM.Application.Storage.TradePlanDb;
@@ -21,4 +22,30 @@ internal static class TradePlanDbSql
     internal const string UpdateScalars = "UPDATE trade_plan.iron_condor_trade_plan SET sequenceId=$1,actionDate=$2,tradeDate=$3,maturityDate=$4,tradeType=$5,actionType=$6,actionSubType=$7,actionState=$8,actionReason=$9,tradePnl=$10,forwardLossRatio=$11,lossProbability=$12,mScore=$13,maxProfit=$14,maxLoss=$15,minProfitTarget=$16,dailyProfitTarget=$17,assetPrice=$18,assetStdDev=$19,assetMean=$20,assetPriceChange=$21,marketTrend=$22,marketVolatility=$23,marketDirection=$24,volatilityPrice=$25,tradeRisk=$26,fiftyDayMA=$27,fiveDayXMA=$28,putOTMProbability=$29,callOTMProbability=$30,shortPutGamma=$31,shortCallGamma=$32,gammaRisk=$33,netPrice=$34,forwardPrice=$35,forwardDelta=$36,stopLossLimit=$37,trendType=$38,trendStrength=$39,rsi=$40,rsiSlope=$41,tdi=$42,tdiStrength=$43,createdOn=$44,createdBy=$45,sourceEventId=$46,positionSequence=$47,routeGeneration=$48,calculationVersion=$49,inputStatus=$50,actionDateTime=$51,dailyPnl=$52,dailyLoss=$53,dailyLossLimit=$54,lossHeadroom=$55,forwardDailyPnl=$56,forwardLoss=$57,forwardLossHeadroom=$58,projectedPositionValueChange=$59,estimatedExitCommission=$60,estimatedExitSlippage=$61,estimatedExitCosts=$62,putSpreadPrice=$63,callSpreadPrice=$64,combinedSpreadPrice=$65,putForwardPrice=$66,callForwardPrice=$67,combinedForwardPrice=$68,currentPositionValue=$69,forwardPositionValue=$70,estimatedCloseValue=$71,netDelta=$72,netGamma=$73,netVega=$74,netTheta=$75,underlyingPrice=$76,distanceToShortPut=$77,distanceToShortCall=$78,timeToExpiryDays=$79,scenarioHorizonSeconds=$80,scenarioUnderlyingPrice=$81,scenarioUnderlyingMove=$82,scenarioVolatilityShift=$83,scenarioKind=$84,pricingModelVersion=$85,oldestQuoteAtUtc=$86,riskValidUntilUtc=$87,calculationStatus=$88,exitRecommended=$89,exitReason=$90,quantity=$91,contractMultiplier=$92,currency=$93,riskParameterSetId=$94,riskParameterSetVersion=$95,riskParameterSetHash=$96,snapshotPayload=$97 WHERE portfolioId=$98 AND fundId=$99 AND orderId=$100 AND tradeId=$101 AND positionId=$102 AND valueDate=$103 AND planRevision=$104;";
     internal const string LockExitWorkflowBaseline = "LOCK TABLE trade_plan.position_exit_workflow IN SHARE MODE;";
     internal const string ReadExitWorkflowBaseline = "SELECT payload FROM trade_plan.position_exit_workflow ORDER BY portfolioid,fundid,orderid,tradeid,positionid,valuedate,updatedatutc,exitdecisionid,stagerevision;";
+}
+
+
+
+/// <summary>Looks up committed source facts by their owning stream and exact command identity.</summary>
+public static class ExitWorkflowEvidenceSql
+{
+    public const string ReadCommitted = """
+        SELECT e.eventstreamid,n.eventname,n.eventtypename,e.eventversion,e.eventpayload,
+               e.commandid,e.eventtimestamp::text,e.streamversion
+        FROM event_stream_id s
+        JOIN event_log e ON e.eventstreamid=s.eventstreamid
+        JOIN event_name_id n ON n.eventnameid=e.eventnameid
+        WHERE s.eventstream=$1 AND e.commandid=$2
+        ORDER BY e.streamversion DESC
+        LIMIT 2;
+        """;
+
+    public const string ReadLatestOwnerSource = """
+        SELECT e.eventstreamid,n.eventname,n.eventtypename,e.eventversion,e.eventpayload,
+               e.commandid,e.eventtimestamp::text,e.streamversion
+        FROM event_stream_id s
+        JOIN event_log e ON e.eventstreamid=s.eventstreamid AND e.streamversion=s.currentversion
+        JOIN event_name_id n ON n.eventnameid=e.eventnameid
+        WHERE s.eventstream=$1;
+        """;
 }

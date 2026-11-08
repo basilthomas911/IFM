@@ -1,0 +1,114 @@
+using System.Collections.Concurrent;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Domain.Trade.Shared.Trade.Realtime;
+
+namespace TomasAI.IFM.Application.Api.Server.Benchmarks.Baselines;
+
+/// <summary>Host-owned bounded cache, shared by pricing ingress, position monitoring and read-only queries.</summary>
+public sealed class ApiServerPerformanceExpiryBaseline(TimeProvider clock)
+{
+    readonly object gate = new();
+    readonly ConcurrentDictionary<TradeEntityId, ApiServerPerformanceTradeCacheBaseline> trades = new();
+    readonly ConcurrentDictionary<string, ApiServerPerformanceTradeCacheBaseline[]> publishedRoutes = new(StringComparer.Ordinal);
+    ApiServerPerformanceTradeCacheBaseline[]? residentSnapshot;
+    readonly Dictionary<string, HashSet<TradeEntityId>> routes = new(StringComparer.Ordinal);
+    readonly ConcurrentDictionary<TradeEntityId, (long RouteGeneration, long PositionSequence)> publications = new();
+    /// <summary>Captures current trade evidence without changing the publication throttle.</summary>
+    public TradeRealtimeSnapshot[] CaptureRecoveryObservations() => trades.Values.Select(cache => cache.Read()).ToArray();
+    /// <summary>Records only completed downstream sends, never attempted publication.</summary>
+    public void RecordPublication(TradeRealtimeSnapshot snapshot)
+    {
+        using var mutation = TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.EnterMutation();
+        if (snapshot.Position is not { } position) return;
+        publications.AddOrUpdate(snapshot.TradeId, (position.RouteGeneration, position.PositionSequence), (_, previous) =>
+            position.RouteGeneration > previous.RouteGeneration ? (position.RouteGeneration, position.PositionSequence)
+                : position.RouteGeneration == previous.RouteGeneration ? (previous.RouteGeneration, Math.Max(previous.PositionSequence, position.PositionSequence)) : previous);
+    }
+    public bool HasPublishedPosition(TradeEntityId trade, long generation, long sequence) => publications.TryGetValue(trade, out var published)
+        && published.RouteGeneration == generation && published.PositionSequence >= sequence;
+    public ApiServerPerformanceTradeCacheBaseline Register(EstablishedTradeDefinition trade, DateOnly date)
+    {
+        using var mutation = TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.EnterMutation();
+        lock (gate)
+        {
+            if (trades.TryGetValue(trade.Id, out var current))
+            {
+                var snapshot = current.Read();
+                if (snapshot.ValueDate > date || snapshot.ValueDate == date && (snapshot.CompositionVersion > trade.EvidenceRevision
+                    || snapshot.CompositionVersion == trade.EvidenceRevision
+                        && snapshot.Legs.Select(leg => leg.Definition).SequenceEqual(trade.Legs))) return current;
+            }
+            Remove(trade.Id);
+            if (trades.Count >= 4096) throw new InvalidOperationException("Trade realtime cache capacity exceeded.");
+            var cache = new ApiServerPerformanceTradeCacheBaseline(trade, date, clock);
+            trades[trade.Id] = cache;
+            Volatile.Write(ref residentSnapshot, null);
+            foreach (var leg in trade.Legs)
+            {
+                if (!routes.TryGetValue(leg.ContractId, out var ids)) routes[leg.ContractId] = ids = [];
+                ids.Add(trade.Id);
+                publishedRoutes[leg.ContractId] = ids.Select(id => trades[id]).ToArray();
+            }
+            return cache;
+        }
+    }
+    public ApiServerPerformanceTradeCacheBaseline? Find(TradeEntityId id)
+    {
+        return trades.GetValueOrDefault(id);
+    }
+    public TradeRealtimeSnapshot[] Expire()
+    {
+        using var mutation = TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.EnterMutation();
+        var all = Volatile.Read(ref residentSnapshot);
+        if (all is null)
+            lock (gate)
+            {
+                all = residentSnapshot ?? trades.Values.ToArray();
+                Volatile.Write(ref residentSnapshot, all);
+            }
+        List<TradeRealtimeSnapshot>? expired = null;
+        foreach (var cache in all)
+            if (cache.Expire()) (expired ??= []).Add(cache.ReadForPublication());
+        return expired?.ToArray() ?? [];
+    }
+    public TradeRealtimeSnapshot[] Apply(FuturesOptionTickDataV2ReadModel observation)
+    {
+        using var mutation = TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.EnterMutation();
+        if (!publishedRoutes.TryGetValue(observation.ContractId, out var interested)) return [];
+        TradeRealtimeSnapshot[]? changed = null;
+        var count = 0;
+        foreach (var cache in interested)
+            if (cache.Apply(observation))
+            {
+                changed ??= new TradeRealtimeSnapshot[interested.Length];
+                changed[count++] = cache.ReadForPublication();
+            }
+        if (changed is null) return [];
+        if (count != changed.Length) Array.Resize(ref changed, count);
+        return changed;
+    }
+    public void Remove(TradeEntityId id)
+    {
+        using var mutation = TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.EnterMutation();
+        publications.TryRemove(id, out _);
+        lock (gate)
+        {
+            if (!trades.TryRemove(id, out var cache)) return;
+            cache.Retire();
+            Volatile.Write(ref residentSnapshot, null);
+            foreach (var leg in cache.Read().Legs)
+                if (routes.TryGetValue(leg.Definition.ContractId, out var ids))
+                {
+                    ids.Remove(id);
+                    if (ids.Count == 0)
+                    {
+                        routes.Remove(leg.Definition.ContractId);
+                        publishedRoutes.TryRemove(leg.Definition.ContractId, out _);
+                    }
+                    else publishedRoutes[leg.Definition.ContractId] = ids.Select(key => trades[key]).ToArray();
+                }
+        }
+    }
+}
+

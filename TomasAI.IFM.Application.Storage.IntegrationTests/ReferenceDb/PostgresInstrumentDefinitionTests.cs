@@ -33,9 +33,11 @@ public sealed class PostgresInstrumentDefinitionTests(PostgresTradePlanFixture f
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(90));
         var token = timeout.Token;
         var logger = Substitute.For<ILogger<DbProvider>>();
-        var settings = new DbConnectionSettings().Add(ReferenceDbContext.ReferenceDbConnection, isolated.Connection, "System.Data.Postgres");
+        var settings = new DbConnectionSettings().Add(ReferenceDbContext.ReferenceDbConnection, isolated.Connection, "System.Data.Postgres")
+            .Add(TomasAI.IFM.Application.Storage.EventSourceDb.EventSourceActorDbContext.EventSourceActorDbConnection, isolated.Connection, "System.Data.Postgres");
         try
         {
+            await new TomasAI.IFM.Application.Storage.EventSourceDb.Schema.EventSourceSchemaDb(settings, logger).CreateAllAsync();
             await new ReferenceSchemaDb(settings, logger).CreateAllAsync();
             long next = 0;
             var ids = Substitute.For<ISequenceIdGenerator>();
@@ -56,6 +58,7 @@ public sealed class PostgresInstrumentDefinitionTests(PostgresTradePlanFixture f
                 """);
             var first = new InstrumentDefinitionSnapshot(Guid.NewGuid(), DateTime.UtcNow, 1, ["GLBX.MDP3"]);
             await store.InsertAsync(first.Id, 0, row, token);
+            await store.IndexSelectionAsync(InstrumentDefinitionSelectionMapper.Map(first.Id, 0, row), token);
             Assert.Null(await store.GetSnapshotAsync(token));
             var product = new TradeStrategyProduct(TradeStrategyFamilyType.FuturesOption, "ZR", "USD", "XCBT");
             await store.PublishAsync(first, [product], token);
@@ -72,6 +75,7 @@ public sealed class PostgresInstrumentDefinitionTests(PostgresTradePlanFixture f
             Assert.Empty((await catalog.GetAsync(TradeStrategyFamilyType.Futures, token)).Value!);
             var second = first with { Id = Guid.NewGuid() };
             await store.InsertAsync(second.Id, 128, row, token);
+            await store.IndexSelectionAsync(InstrumentDefinitionSelectionMapper.Map(second.Id, 128, row), token);
             Assert.Equal(first.Id, (await restarted.GetSnapshotAsync(token))!.Id);
             await store.PublishAsync(second, [product, product with { Family = TradeStrategyFamilyType.Futures }], token);
             Assert.Equal(second.Id, (await restarted.GetSnapshotAsync(token))!.Id);

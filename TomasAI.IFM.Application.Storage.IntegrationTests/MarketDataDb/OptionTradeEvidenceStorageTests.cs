@@ -19,25 +19,17 @@ public sealed class OptionTradeEvidenceStorageTests
     [Fact]
     public async Task Failed_pricing_source_is_retained_once_across_retry_restart_and_conflicting_duplicate()
     {
-        var keyspace = "ifm_trade_" + Guid.NewGuid().ToString("N");
+        await using var infrastructure = new TomasAI.IFM.IntegrationTesting.IsolatedIntegrationInfrastructure("optiontradeevidence", includeCql: false);
+        await infrastructure.StartAsync();
         var logger = Substitute.For<ILogger<DbProvider>>();
-        var settings = new DbConnectionSettings()
-            .Add("admin", "Contact Points=localhost;Port=9042;Default Keyspace=system", "System.Data.ScyllaDb")
-            .Add("test", $"Contact Points=localhost;Port=9042;Default Keyspace={keyspace}", "System.Data.ScyllaDb");
-        var admin = new Db(settings["admin"], logger);
+        var settings = new DbConnectionSettings().Add("test", infrastructure.PostgresConnectionString, "System.Data.Postgres");
         using var deadline = new CancellationTokenSource(TimeSpan.FromMinutes(2));
         var token = deadline.Token;
-        await admin.Use("TradeEvidence.Create", $"CREATE KEYSPACE {keyspace} WITH replication = {{'class':'SimpleStrategy','replication_factor':1}};").ExecuteCommandAsync(token);
-        try
-        {
-            var db = new Db(settings["test"], logger);
-            var contextSettings = new DbConnectionSettings().Add(
-                MarketDataDbContext.MarketDataDbConnection,
-                settings["test"].ConnectionString,
-                settings["test"].ProviderName);
-            await new MarketDataSchemaDb(contextSettings, logger)
-                .CreateAsync(["option_trade_evidence"], token);
-            var store = MarketDataDbContextTestFactory.Create(settings["test"]);
+        var contextSettings = new DbConnectionSettings().Add(MarketDataDbContext.MarketDataDbConnection,
+            infrastructure.PostgresConnectionString, "System.Data.Postgres");
+        await new MarketDataSchemaDb(contextSettings, logger).CreateAllAsync();
+        var db = new Db(settings["test"], logger);
+        var store = MarketDataDbContextTestFactory.Create(settings["test"]);
             var source = new OptionTradeSource("GLBX.MDP3", 1, 42, "ES20261218C6500.5", new(2026, 9, 19),
                 12.5m, 2, 99, 1789812345678900123, 1789812345678910456, Guid.NewGuid(), "fixture");
             var original = new OptionTradeEvidence(source, null, null, DateTimeOffset.UtcNow, null,
@@ -57,14 +49,9 @@ public sealed class OptionTradeEvidenceStorageTests
             await Assert.ThrowsAsync<InvalidOperationException>(() => restarted.WriteAsync(original with
             { Source = source with { Price = 13 } }, token).AsTask());
             Assert.Equal(original, await restarted.ReadAsync(source.ContractId, source.ValueDate, source.Identity, token));
-            var count = await db.Use("TradeEvidence.Count", "SELECT count(*) FROM option_trade_evidence;")
+            var count = await db.Use("TradeEvidence.Count", "SELECT count(*) FROM market_data.option_trade_evidence;")
                 .ExecuteQueryAsync(row => row.GetLong(0), token);
             Assert.Equal(1, Assert.Single(count));
-        }
-        finally
-        {
-            await admin.Use("TradeEvidence.Drop", $"DROP KEYSPACE IF EXISTS {keyspace};").ExecuteCommandAsync(CancellationToken.None);
-        }
     }
     sealed class Db(IDbConnectionSetting setting, ILogger<DbProvider> logger) : ObjectDataRepository<Db>(setting, logger)
     { public override IObjectRepository Database => this; }

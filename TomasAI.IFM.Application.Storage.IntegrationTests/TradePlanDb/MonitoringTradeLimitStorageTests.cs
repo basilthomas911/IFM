@@ -17,7 +17,8 @@ using Xunit;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.TradePlanDb;
 
-public sealed class MonitoringTradeLimitStorageTests
+[Collection("PostgreSQL plan atomicity")]
+public sealed class MonitoringTradeLimitStorageTests(PostgresTradePlanFixture fixture)
 {
     [Theory]
     [InlineData(0)]
@@ -25,11 +26,10 @@ public sealed class MonitoringTradeLimitStorageTests
     [InlineData(2)]
     public async Task Every_insert_overload_preserves_the_negative_currency_loss_limit(int overload)
     {
-        var connection = Environment.GetEnvironmentVariable("IFM_TEST_TRADE_PLAN_CONNECTION")
-            ?? throw new InvalidOperationException("A disposable IFM_TEST_TRADE_PLAN_CONNECTION must be provided.");
-        var settings = new DbConnectionSettings().Add(TradeDbContext.TradeDbConnection, connection, "System.Data.ScyllaDb");
+        var connection = fixture.Connection;
+        var settings = new DbConnectionSettings().Add(TradeDbContext.TradeDbConnection, connection, "System.Data.Postgres");
         var logger = Substitute.For<ILogger<DbProvider>>();
-        await new TradeSchemaDb(settings, logger).CreateAsync(["trade_limit", "trade_type_limit"]);
+        await new TradeSchemaDb(settings, logger).CreateAllAsync();
         var factory = Substitute.For<IDbContextFactory>();
         var database = new TradeDbContext(settings, factory, Substitute.For<ISequenceIdGenerator>(), logger);
         factory.TradeDb.Returns(database);

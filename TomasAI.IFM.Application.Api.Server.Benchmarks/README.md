@@ -1,5 +1,17 @@
 # API-server hot-path optimization measurements
 
+The twenty-path November qualification is documented in the [final report](../TomasAI.IFM.Application.Api.Server.Core/Docs/Api-Server-Performance-Final-Report-2026-11-08.md) and [implementation plan](../TomasAI.IFM.Application.Api.Server.Core/Docs/Api-Server-Performance-Implementation-Plan-v1.0.md).
+
+## 2026-11-08 qualification
+
+Completed 94 BenchmarkDotNet cases / [47 paired comparisons](Results/2026-11-08/comparisons.md), 5,983 passing correctness tests, zero failures and all five actor-convention audits. Five opt-in/platform cases remain unexecuted. [Qualification totals](Results/2026-11-08/qualification-totals.json), [allocation/GC/contention CSV](Results/2026-11-08/comparison.csv), [CPU/memory/p99 resource probes](Results/2026-11-08/resource-medians.csv) and [evidence hashes](Results/2026-11-08/evidence-manifest.json) are published alongside individual generated tables. Large raw evidence remains on E:.
+
+Examples: 300k-row recorded seed reader 444.7→190.9 ms; EMA 64-bar PostgreSQL persistence 949.4→398.9 ms; saved-trade restoration at 128 trades 1,834.3→318.2 ms. These fixture measurements exclude the I/O identified in the report and cannot be added together. Dense expiry bursts, fast console overhead, revision bookkeeping and retained pooled memory have explicit tradeoffs; the full report includes regressions rather than claiming every path improved.
+
+Development API, Rust Host, eGui 0.1.0 and scheduler are restored with source-debugging symbols. Closed-session datasets are healthy/idle; aggregate live readiness is Inactive/Degraded. Active-market workflow/fresh-quote acceptance and sustained whole-host mixed-workload certification are not claimed. Financial records for the settled historical position are unchanged.
+
+## Archived 2026-10-16 measurements
+
 Measured on 2026-10-16 against frozen reference implementations from commit `51075e3eb`. The production changes are in the API health checks, shared realtime snapshot calculations, trade-cache registry, and actor completion observer. These are ten measured opportunities in the inspected paths, not a claim that a whole-server profiler ranked every API operation.
 
 ## Results

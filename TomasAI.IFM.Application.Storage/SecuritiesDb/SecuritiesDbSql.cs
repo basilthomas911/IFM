@@ -3,6 +3,50 @@ namespace TomasAI.IFM.Application.Storage.SecuritiesDb;
 /// <summary>Native PostgreSQL option-definition queries with explicit deterministic ordering.</summary>
 internal static class SecuritiesDbSql
 {
+    /// <summary>Reads native reconciliation keys without CQL projection journals.</summary>
+    internal const string GetFuturesContractProjectionSourceKeys = "SELECT symbol, rollover, onTheRun, lastTradeDate, contractId FROM securities.futures_contract;";
+
+    /// <summary>Reads native reconciliation keys without CQL projection journals.</summary>
+    internal const string GetFuturesContractProjectionTargetKeys = "SELECT symbol, rollover, onTheRun, lastTradeDate, contractId FROM securities.futures_contract_by_symbol;";
+
+    /// <summary>Reads native reconciliation keys without CQL projection journals.</summary>
+    internal const string GetFuturesOptionContractProjectionSourceKeys = "SELECT symbol, contractMonth, optionType, strikePrice, contractId FROM securities.futures_option_contract;";
+
+    /// <summary>Reads native reconciliation keys without CQL projection journals.</summary>
+    internal const string GetFuturesOptionContractProjectionTargetKeys = "SELECT symbol, contractMonth, optionType, strikePrice, contractId FROM securities.futures_option_contract_by_symbol;";
+
+
+    /// <summary>Fences catalog CRUD and projection reads/writes for one atomic rebuild.</summary>
+    internal const string LockSymbolProjectionRebuild = """
+        LOCK TABLE securities.futures_contract, securities.futures_option_contract,
+            securities.futures_contract_by_symbol, securities.futures_option_contract_by_symbol
+            IN SHARE ROW EXCLUSIVE MODE;
+        """;
+
+    /// <summary>Rejects ambiguous canonical IDs before modifying either projection.</summary>
+    internal const string HasAmbiguousCanonicalContractIds = """
+        SELECT EXISTS (SELECT contractId FROM securities.futures_contract GROUP BY contractId HAVING count(*) > 1)
+            OR EXISTS (SELECT contractId FROM securities.futures_option_contract GROUP BY contractId HAVING count(*) > 1);
+        """;
+
+    /// <summary>Clears only derived catalog rows inside the rebuild transaction.</summary>
+    internal const string ClearSymbolProjections = """
+        DELETE FROM securities.futures_contract_by_symbol;
+        DELETE FROM securities.futures_option_contract_by_symbol;
+        """;
+
+    /// <summary>Rebuilds the futures symbol projection, preserving the exact reference payload.</summary>
+    internal const string RebuildFuturesSymbolProjection = """
+        INSERT INTO securities.futures_contract_by_symbol (contractId, description, symbol, localSymbol, securityType, currency, exchange, multiplier, lastTradeDate, onTheRun, rollover, referencePayload)
+        SELECT contractId, description, symbol, localSymbol, securityType, currency, exchange, multiplier, lastTradeDate, onTheRun, rollover, referencePayload FROM securities.futures_contract;
+        """;
+
+    /// <summary>Rebuilds the option symbol projection, preserving the exact reference payload.</summary>
+    internal const string RebuildOptionSymbolProjection = """
+        INSERT INTO securities.futures_option_contract_by_symbol (contractId, description, symbol, localSymbol, securityType, currency, exchange, multiplier, contractMonth, strikePrice, optionType, referencePayload)
+        SELECT contractId, description, symbol, localSymbol, securityType, currency, exchange, multiplier, contractMonth, strikePrice, optionType, referencePayload FROM securities.futures_option_contract;
+        """;
+
     public const string GetNativeOptionContractsPage = """
         SELECT contractId AS "ContractId", description AS "Description", symbol AS "Symbol", localSymbol AS "LocalSymbol", securityType AS "SecurityType", currency AS "Currency", exchange AS "Exchange", multiplier AS "Multiplier", contractMonth AS "ContractMonth", strikePrice AS "StrikePrice", optionType AS "OptionType", referencePayload AS "ReferencePayload" FROM securities.futures_option_contract_by_symbol WHERE symbol = $1
           AND ($2::date IS NULL OR (contractMonth,optionType COLLATE "C",strikePrice,contractId COLLATE "C") > ($2,$3,$4,$5))
@@ -98,7 +142,7 @@ internal static class SecuritiesDbSql
 
     /// <summary>Native PostgreSQL securities persistence.</summary>
     public const string GetRolloverFuturesContracts = """
-        SELECT contractId AS "ContractId", description AS "Description", symbol AS "Symbol", localSymbol AS "LocalSymbol", securityType AS "SecurityType", currency AS "Currency", exchange AS "Exchange", multiplier AS "Multiplier", lastTradeDate AS "LastTradeDate", onTheRun AS "OnTheRun", rollover AS "Rollover", referencePayload AS "ReferencePayload" FROM securities.futures_contract_by_symbol WHERE symbol = $1 AND rollover = true ORDER BY lastTradeDate DESC, contractId;
+        SELECT contractId AS "ContractId", description AS "Description", symbol AS "Symbol", localSymbol AS "LocalSymbol", securityType AS "SecurityType", currency AS "Currency", exchange AS "Exchange", multiplier AS "Multiplier", lastTradeDate AS "LastTradeDate", onTheRun AS "OnTheRun", rollover AS "Rollover", referencePayload AS "ReferencePayload" FROM securities.futures_contract_by_symbol WHERE symbol = $1 AND rollover = true ORDER BY onTheRun DESC, lastTradeDate ASC, contractId;
         """;
 
     /// <summary>Native PostgreSQL securities persistence.</summary>

@@ -15,31 +15,22 @@ using Xunit;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.TradeDb;
 
-public sealed class TradeFlowStorageFixture
+public sealed class TradeFlowStorageFixture : IDisposable
 {
+    readonly TomasAI.IFM.IntegrationTesting.IsolatedIntegrationInfrastructure infrastructure = new("storage-trade-flow", includeCql: false);
     public TradeFlowStorageFixture()
     {
+        infrastructure.StartAsync().GetAwaiter().GetResult();
         var settings = new DbConnectionSettings().Add(
             TradeDbContext.TradeDbConnection,
-            LegacyStorageFixtureIsolation.Scylla("ifm_storage_legacy_trade_flow"),
-            "System.Data.ScyllaDb");
+            infrastructure.PostgresConnectionString,
+            "System.Data.Postgres");
         var contexts = new Dictionary<Type, TradeDbContext>();
         var resolver = new DbContextResolver(type => contexts[type]);
         var logger = Substitute.For<ILogger<DbProvider>>();
         var factory = new DbContextFactory(resolver);
 
         var schema = new TradeSchemaDb(settings, logger);
-        schema.RecreateAsync([
-            "trade_order",
-            "order_execution",
-            "order_execution_fill",
-            "established_trade",
-            "established_trade_history",
-            "strategy_position_current",
-            "strategy_position_history",
-            "open_position_route",
-            "open_position_route_recovery"
-        ]).GetAwaiter().GetResult();
         schema.CreateAllAsync().GetAwaiter().GetResult();
         contexts.Add(typeof(IObjectRepository<TradeDbContext>), new TradeDbContext(
             settings,
@@ -50,6 +41,7 @@ public sealed class TradeFlowStorageFixture
     }
 
     public TradeDbContext TradeDb { get; }
+    public void Dispose() => infrastructure.DisposeAsync().AsTask().GetAwaiter().GetResult();
 }
 
 public sealed class TradeFlowStorageTests(TradeFlowStorageFixture fixture)
@@ -76,7 +68,8 @@ public sealed class TradeFlowStorageTests(TradeFlowStorageFixture fixture)
             ContractId = $"ES-{suffix}",
             AssetFamily = TradeAssetFamily.Futures,
             SignedQuantity = 1,
-            ContractKey = $"ES-{suffix}"
+            ContractKey = $"ES-{suffix}",
+            CashMultiplier = 50m
         };
         var component = new TradeOrderComponentDefinition
         {
@@ -133,7 +126,7 @@ public sealed class TradeFlowStorageTests(TradeFlowStorageFixture fixture)
             Status = EstablishedTradeStatus.Open,
             Legs = [leg],
             OriginalFills = [fill],
-            OpeningValue = 5_000m,
+            OpeningValue = 250_000m,
             OpeningCommission = 1.25m,
             EstablishedAtUtc = now,
             EvidenceRevision = 1
@@ -150,17 +143,23 @@ public sealed class TradeFlowStorageTests(TradeFlowStorageFixture fixture)
                 TradeLegId = legId,
                 ContractId = leg.ContractId,
                 SignedQuantity = 1,
+                CashMultiplier = 50m,
                 OpeningPrice = 5_000m,
                 CurrentPrice = 5_000m,
                 LastSourceSequence = 1,
                 LastPriceAtUtc = now
             }],
-            MarketValue = 5_000m,
+            MarketValue = 250_000m,
+            ValueDate = trade.TradeDate!.Value,
+            OpeningValueDate = trade.TradeDate,
+            OpeningCommission = 1.25m,
+            ContractCashMultiplier = 50m,
+            DailyPnl = -1.25m,
             AsOfUtc = now,
             IsOpen = true
         };
 
-        await fixture.TradeDb.UpsertTradeOrderAsync(order);
+        await fixture.TradeDb.UpsertTradeOrderAsync(order, now);
         await fixture.TradeDb.UpsertOrderExecutionAsync(execution);
         await fixture.TradeDb.UpsertEstablishedTradeAsync(trade);
         await fixture.TradeDb.UpsertStrategyPositionAsync(openPosition);
@@ -212,8 +211,15 @@ public sealed class TradeFlowStorageTests(TradeFlowStorageFixture fixture)
         await fixture.TradeDb.ReplaceOpenPositionRoutesAsync(closedPosition);
 
         (await fixture.TradeDb.GetStrategyPositionAsync(positionId)).Should().BeEquivalentTo(closedPosition);
+        var history = await fixture.TradeDb.GetStrategyPositionHistoryAsync(positionId.PositionId,
+            now.AddMinutes(-1), now.AddMinutes(1), 10);
+        history.Items.Select(row => row.PositionSequence).Should().Equal(1L, 2L, 3L);
+        history.Items.Should().ContainEquivalentOf(amendedPosition);
+        history.Items.Should().ContainEquivalentOf(closedPosition);
+        await fixture.TradeDb.UpsertStrategyPositionAsync(closedPosition);
         (await fixture.TradeDb.GetStrategyPositionHistoryAsync(positionId.PositionId,
-            now.AddMinutes(-1), now.AddMinutes(1), 10)).Items.Should().HaveCount(2);
+            now.AddMinutes(-1), now.AddMinutes(1), 10)).Items.Should().HaveCount(3,
+                "replaying the closed projection must not create another history row");
         (await fixture.TradeDb.GetOpenPositionRoutesAsync(replacementLeg.ContractId)).Should().BeEmpty();
         (await fixture.TradeDb.GetOpenPositionRouteSnapshotAsync())
             .Should().NotContain(entry => entry.Route.StrategyPositionId == positionId.PositionId);

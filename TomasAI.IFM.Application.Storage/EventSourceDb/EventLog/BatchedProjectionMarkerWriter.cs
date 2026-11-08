@@ -68,7 +68,8 @@ internal static class BatchedProjectionMarkerWriter
         EventLogAppenderSupport.Add(command, stages);
         EventLogAppenderSupport.Add(command, BindValues.Text($"{now:o}"));
         EventLogAppenderSupport.Add(command, BindValues.TimestampTz(now));
-        var inserted = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        var inserted = await command.ExecuteScalarAsync(cancellationToken)
+            .ConfigureAwait(false);
         if (inserted is not long count || count != markers.Count)
             throw new InvalidOperationException("Not every required durable projection marker was persisted.");
         EventLogPersistenceMetrics.ProjectionMarkersWritten(markers.Count, started);

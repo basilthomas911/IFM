@@ -80,6 +80,7 @@ public sealed class CommandLogBenchmarkProviderTests(CommandLogBenchmarkFixture 
 
 public sealed class CommandLogBenchmarkFixture : IAsyncLifetime
 {
+    readonly TomasAI.IFM.IntegrationTesting.IsolatedIntegrationInfrastructure infrastructure = new("storage-command-log");
     const string ScyllaConnectionVariable = "IFM_SCYLLA_TEST_CONNECTION";
     const string PostgresConnectionVariable = "IFM_POSTGRES_EVENTSOURCE_TEST_CONNECTION";
 
@@ -88,9 +89,9 @@ public sealed class CommandLogBenchmarkFixture : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        var scyllaConnection = Required(ScyllaConnectionVariable);
-        var postgresConnection = Required(PostgresConnectionVariable);
-        Environment.SetEnvironmentVariable("DOTNET_ENVIRONMENT", "Test");
+        await infrastructure.StartAsync();
+        var scyllaConnection = infrastructure.CqlConnectionString;
+        var postgresConnection = infrastructure.PostgresConnectionString;
 
         var settings = new DbConnectionSettings()
             .Add(
@@ -108,7 +109,7 @@ public sealed class CommandLogBenchmarkFixture : IAsyncLifetime
         await Postgres.CreateSchemaAsync();
     }
 
-    public Task DisposeAsync() => Task.CompletedTask;
+    public Task DisposeAsync() => infrastructure.DisposeAsync().AsTask();
 
     public CommandLogBenchmarkEntry CreateEntry()
         => CommandLogBenchmarkEntry.Create(

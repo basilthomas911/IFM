@@ -17,8 +17,10 @@ public sealed class RiskHistoryJournal(IPostgresEventTransaction transactions)
     public Task<long> LoadCursorAsync(CancellationToken token = default, string projectionName = HistoryProjection)
         => transactions.ExecuteAsync(async (db, ct) =>
         {
-            await (db.ExecuteAsync(Schema.EventSourceSchemaSql.CreateRiskHistoryJournal, [], ct)).ConfigureAwait(false);
-            var value = await (db.ScalarAsync("SELECT after_event_version FROM risk_history_projection_progress WHERE projection_name=$1;", [projectionName], ct)).ConfigureAwait(false);
+            await (db.ExecuteAsync(Schema.EventSourceSchemaSql.CreateRiskHistoryJournal, [], ct))
+            .ConfigureAwait(false);
+            var value = await (db.ScalarAsync("SELECT after_event_version FROM risk_history_projection_progress WHERE projection_name=$1;", [projectionName], ct))
+            .ConfigureAwait(false);
             var cursor = value is null ? 0 : Convert.ToInt64(value,System.Globalization.CultureInfo.InvariantCulture);
             // Compatible migration: the old cursor proves these events were previously projected.
             await (db.ExecuteAsync("""
@@ -27,7 +29,8 @@ public sealed class RiskHistoryJournal(IPostgresEventTransaction transactions)
                 FROM event_log e JOIN event_name_id n ON n.eventnameid=e.eventnameid
                 WHERE n.eventname='WorkflowStrategyStateUpdatedEvent' AND e.eventversion<=$2
                 ON CONFLICT DO NOTHING;
-                """, [projectionName, cursor], ct)).ConfigureAwait(false);
+                """, [projectionName, cursor], ct))
+            .ConfigureAwait(false);
             return cursor;
         }, token);
 
@@ -39,7 +42,8 @@ public sealed class RiskHistoryJournal(IPostgresEventTransaction transactions)
                 INSERT INTO risk_history_projection_progress(projection_name,after_event_version) VALUES($2,$1)
                 ON CONFLICT(projection_name) DO UPDATE
                 SET after_event_version=GREATEST(risk_history_projection_progress.after_event_version,EXCLUDED.after_event_version);
-                """, [after, projectionName], ct)).ConfigureAwait(false);
+                """, [after, projectionName], ct))
+            .ConfigureAwait(false);
             return true;
         }, token);
 
@@ -56,14 +60,16 @@ public sealed class RiskHistoryJournal(IPostgresEventTransaction transactions)
                     SELECT 1 FROM risk_history_projection_receipt r
                     WHERE r.projection_name=$1 AND r.event_id=e.eventversion)
                 ORDER BY e.eventversion LIMIT 32;
-                """, [projectionName], Read, ct)).ConfigureAwait(false);
+                """, [projectionName], Read, ct))
+            .ConfigureAwait(false);
             return (IReadOnlyList<WorkflowStrategyStateUpdatedEvent>)rows.Select(x => (WorkflowStrategyStateUpdatedEvent)x.ToDomainEvent()).ToArray();
         }, token);
 
     public Task AcknowledgeAsync(string projectionName, long eventId, CancellationToken token = default)
         => transactions.ExecuteAsync(async (db, ct) =>
         {
-            await (db.ExecuteAsync("INSERT INTO risk_history_projection_receipt(projection_name,event_id) VALUES($1,$2) ON CONFLICT DO NOTHING;", [projectionName, eventId], ct)).ConfigureAwait(false);
+            await (db.ExecuteAsync("INSERT INTO risk_history_projection_receipt(projection_name,event_id) VALUES($1,$2) ON CONFLICT DO NOTHING;", [projectionName, eventId], ct))
+            .ConfigureAwait(false);
             return true;
         }, token);
 
@@ -78,10 +84,12 @@ public sealed class RiskHistoryJournal(IPostgresEventTransaction transactions)
                   projection_name,event_id,workflow_id,invocation_id,source_revision,issue_code,stored_hash,incoming_hash)
                 VALUES($1,$2,$3,$4,$5,'ImmutableRevisionConflict',$6,$7)
                 ON CONFLICT DO NOTHING;
-                """, [HistoryProjection, eventId, result.WorkflowId, result.InvocationId, result.Revision, result.StoredHash!, result.IncomingHash!], ct)).ConfigureAwait(false);
+                """, [HistoryProjection, eventId, result.WorkflowId, result.InvocationId, result.Revision, result.StoredHash!, result.IncomingHash!], ct))
+            .ConfigureAwait(false);
             await (db.ExecuteAsync(
                 "INSERT INTO risk_history_projection_receipt(projection_name,event_id) VALUES($1,$2) ON CONFLICT DO NOTHING;",
-                [HistoryProjection, eventId], ct)).ConfigureAwait(false);
+                [HistoryProjection, eventId], ct))
+            .ConfigureAwait(false);
             return true;
         }, token);
 
@@ -97,16 +105,19 @@ public sealed class RiskHistoryJournal(IPostgresEventTransaction transactions)
                     SELECT 1 FROM risk_history_projection_receipt r
                     WHERE r.projection_name=$2 AND r.event_id=e.eventversion)
                 ORDER BY e.eventversion LIMIT 32;
-                """, [nameof(RiskManagementFunctionCompletedEvent), projection], Read, ct).ConfigureAwait(false);
+                """, [nameof(RiskManagementFunctionCompletedEvent), projection], Read, ct)
+            .ConfigureAwait(false);
             foreach (var row in rows)
             {
                 var completed = (RiskManagementFunctionCompletedEvent)row.ToDomainEvent();
                 if (completed.CommandId != row.CommandId)
                     throw new InvalidDataException("Risk completion does not match its committed command identity.");
-                await RiskCompletionProjection.WriteAsync(db, completed, ct).ConfigureAwait(false);
+                await RiskCompletionProjection.WriteAsync(db, completed, ct)
+            .ConfigureAwait(false);
                 await db.ExecuteAsync(
                     "INSERT INTO risk_history_projection_receipt(projection_name,event_id) VALUES($1,$2) ON CONFLICT DO NOTHING;",
-                    [projection, completed.EventId], ct).ConfigureAwait(false);
+                    [projection, completed.EventId], ct)
+            .ConfigureAwait(false);
             }
 
             return rows.Count;

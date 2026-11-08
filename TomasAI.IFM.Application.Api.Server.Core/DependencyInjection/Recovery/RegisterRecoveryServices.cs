@@ -188,7 +188,7 @@ public static partial class CoreServiceRegistration
             services.AddSingleton<IDatabentoRecoveryRequester>(ApiDatabentoRecoveryComposition.Create);
         }
         services.AddSingleton<DatabentoSoftRecoveryGate>();
-        services.AddSingleton<IRedisCache, RedisCache>();
+        services.AddSingleton<IRedisCache, TomasAI.IFM.Application.Api.Server.Core.HostedServices.StartupRedisCache>();
         services.AddSingleton<IBlackboardService, BlackboardService>();
         services.AddSingleton<IDataCacheService, LocalDataCacheService>();
         services.AddSingleton<IReferenceLookupService, ReferenceLookupActorService>();

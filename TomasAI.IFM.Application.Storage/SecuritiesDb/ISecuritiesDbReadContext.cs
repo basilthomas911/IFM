@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
+using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.QueryParameters;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -16,6 +16,10 @@ namespace TomasAI.IFM.Application.Storage.SecuritiesDb;
 /// scenarios.</remarks>
 public interface ISecuritiesDbReadContext : ICurrentFuturesContractCatalog, IOptionPricingConventionStore
 {
+    /// <summary>Restores exact immutable convention versions in the requested order, preserving missing entries.</summary>
+    new Task<IReadOnlyList<OptionPricingConvention?>> GetManyAsync(
+        IReadOnlyList<(string ContractId, string Version)> identities, CancellationToken cancellationToken);
+
     /// <summary>Reads the immutable bundle JSON by its content digest.</summary>
     /// <param name="bundleId">The exact content digest qualified by the caller.</param>
     /// <param name="cancellationToken">Cancels the read.</param>
@@ -58,13 +62,15 @@ public interface ISecuritiesDbReadContext : ICurrentFuturesContractCatalog, IOpt
         IReadOnlyCollection<string>? providerRoots = null,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        var expiries = await GetOptionContractExpiriesAsync(symbol, first, last, cancellationToken).ConfigureAwait(false);
+        var expiries = await GetOptionContractExpiriesAsync(symbol, first, last, cancellationToken)
+            .ConfigureAwait(false);
         if (expiries.Count > maximumExpiries)
             throw new InvalidDataException("Raw option expiry capacity exceeded.");
         foreach (var expiry in expiries.Select(row => (row.ExpiryDate, row.ContractId)).Distinct())
         {
             var rows = await GetCachedOptionContractDefinitionsAsync(symbol, expiry.ContractId, expiry.ExpiryDate,
-                providerRoots, cancellationToken).ConfigureAwait(false);
+                providerRoots, cancellationToken)
+            .ConfigureAwait(false);
             foreach (var row in rows)
                 yield return row;
         }

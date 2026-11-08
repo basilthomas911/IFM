@@ -18,17 +18,15 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.SecuritiesDb;
 public sealed class FuturesOptionContractPagingTests
 {
     [Fact]
-    public async Task Scylla_pages_match_full_query_and_reject_invalid_or_stale_cursors()
+    public async Task PostgreSql_pages_match_full_query_and_reject_invalid_cursors()
     {
-        var keyspace = "ifm_opg_" + Guid.NewGuid().ToString("N");
+        await using var infrastructure = new TomasAI.IFM.IntegrationTesting.IsolatedIntegrationInfrastructure("storage-reference", includeCql: false);
+        await infrastructure.StartAsync();
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(120));
         var token = timeout.Token;
         var logger = Substitute.For<ILogger<DbProvider>>();
         var settings = new DbConnectionSettings()
-            .Add("admin", "Contact Points=localhost;Port=9042;Default Keyspace=system", "System.Data.ScyllaDb")
-            .Add(SecuritiesDbContext.SecuritiesDbConnection, $"Contact Points=localhost;Port=9042;Default Keyspace={keyspace}", "System.Data.ScyllaDb");
-        var admin = new Admin(settings["admin"], logger);
-        await admin.Use("OptionPages.Create", $"CREATE KEYSPACE {keyspace} WITH replication = {{'class':'SimpleStrategy','replication_factor':1}};").ExecuteCommandAsync(token);
+            .Add(SecuritiesDbContext.SecuritiesDbConnection, infrastructure.PostgresConnectionString + ";Search Path=securities,public", "System.Data.Postgres");
         try
         {
             await new SecuritiesSchemaDb(settings, logger).CreateAllAsync();
@@ -66,22 +64,15 @@ public sealed class FuturesOptionContractPagingTests
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() => db.GetFuturesOptionContractsPageAsync(new("ES"), canceled.Token));
 
             await db.InsertFuturesOptionContractAsync(Contract("ES", 999));
-            await Assert.ThrowsAsync<InvalidOperationException>(() => db.GetFuturesOptionContractsPageAsync(new("ES", 200, first.ContinuationToken), token));
-            var refreshed = await db.GetFuturesOptionContractsPageAsync(new("ES"), token);
-            Assert.Equal(200, refreshed.Items.Length);
-            Assert.NotEqual(first.ContinuationToken, refreshed.ContinuationToken);
-
-            // Unready projections fail explicitly; the paged read must never repair by scanning.
-            await Assert.ThrowsAsync<InvalidOperationException>(() => db.GetFuturesOptionContractsPageAsync(new("UNREADY"), token));
-            await db.BackfillSymbolProjectionsAsync(cancellationToken: token);
+            var continued = await db.GetFuturesOptionContractsPageAsync(new("ES", 200, first.ContinuationToken), token);
+            Assert.Equal(second.Items.Select(c => c.ContractId), continued.Items.Select(c => c.ContractId));
             var empty = await db.GetFuturesOptionContractsPageAsync(new("EMPTY"), token);
             Assert.Empty(empty.Items);
             Assert.False(empty.HasMore);
         }
         finally
         {
-            // Only the unique keyspace created by this test is removed.
-            await admin.Use("OptionPages.Drop", $"DROP KEYSPACE IF EXISTS {keyspace};").ExecuteCommandAsync(CancellationToken.None);
+            // The owning infrastructure disposes only this test's PostgreSQL database.
         }
     }
 

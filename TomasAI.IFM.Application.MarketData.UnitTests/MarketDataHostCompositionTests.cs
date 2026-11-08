@@ -35,9 +35,8 @@ public sealed class MarketDataHostCompositionTests
     [Fact]
     public async Task Full_Host_backend_resolves_without_API_actor_runtime_or_provider_epoch()
     {
-        var root = new DirectoryInfo(AppContext.BaseDirectory);
-        while (root is not null && !File.Exists(Path.Combine(root.FullName, "TomasAI.IFM.sln"))) root = root.Parent;
-        var config = new ConfigurationBuilder().SetBasePath(Path.Combine(root!.FullName, "TomasAI.IFM.Application.Api.Server"))
+        var root = Harness.WorkerTestProcess.RepositoryRoot();
+        var config = new ConfigurationBuilder().SetBasePath(Path.Combine(root, "TomasAI.IFM.Application.Api.Server"))
             .AddJsonFile("appsettings.json").AddJsonFile("appsettings.Development.json").AddEnvironmentVariables().Build();
         var services = new ServiceCollection();
         services.AddLogging(); services.AddHttpClient(); services.AddSingleton<IConfiguration>(config);

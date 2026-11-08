@@ -111,13 +111,11 @@ public partial class MarketDataApiClient(MarketDataHostConnection connection, IM
         => _ = await CallAsync<bool>(operation, types, arguments, token).ConfigureAwait(false);
     protected virtual Task<T> CallAsync<T>(string operation, Type[] types, object?[] arguments, CancellationToken token)
     {
-        var method = typeof(IMarketDataApi).GetMethod(operation, types)
-            ?? throw new MissingMethodException(operation);
-        var values = arguments.Select(value => value is null ? [] : MessagePack.MessagePackSerializer.Serialize(
-            value.GetType(), value, MarketDataHostConnection.Serialization)).ToArray();
-        var recovery = arguments.OfType<MarketDataRecoveryRequest>().FirstOrDefault();
-        return connection.PostAsync<T>("api/" + operation, new MarketDataApiCall(Signature(method), values), token,
-            recovery?.OperationId);
+        var body = MarketDataApiCallCodec.Encode(operation, types, arguments, token);
+        Guid? operationId = null;
+        foreach (var argument in arguments)
+            if (argument is MarketDataRecoveryRequest recovery) { operationId = recovery.OperationId; break; }
+        return connection.PostSerializedAsync<T>("api/" + operation, body, token, operationId);
     }
     public static string Signature(MethodInfo method) => method.Name + "(" + string.Join(",",
         method.GetParameters().Select(parameter => parameter.ParameterType.FullName)) + ")";

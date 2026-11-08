@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -21,8 +21,8 @@ public class SampleData
     public static FuturesBarDataReadModel FuturesBarData => new(
         contractId: "TestContract",
         symbol: "TestSymbol",
-        valueDate: DateOnly.FromDateTime(DateTime.Now.Date),
-        barDate: DateTime.Now,
+        valueDate: DateOnly.FromDateTime(DateTime.UtcNow.Date),
+        barDate: DateTime.UtcNow,
         barRateType: BarRateType.FifteenSeconds,
         barValue: 100.0m,
         upTrendTrigger: 1.0,
@@ -137,7 +137,7 @@ public class SampleData
         valueDate: new DateOnly(2025, 1, 15),
         timePeriod: TimeFrameType.Weekly,
         sequenceId: 1,
-        intrinsicTime: DateTime.Now,
+        intrinsicTime: DateTime.UtcNow,
         intrinsicTimeGroupId: 1,
         intrinsicTimeLength: 1,
         intrinsicPrice: 1,
@@ -163,7 +163,7 @@ public class SampleData
         valueDate: new DateOnly(2025, 1, 20),
         timePeriod: TimeFrameType.Weekly,
         sequenceId: 2,
-        intrinsicTime: DateTime.Now,
+        intrinsicTime: DateTime.UtcNow,
         intrinsicTimeGroupId: 2,
         intrinsicTimeLength: 2,
         intrinsicPrice: 2,

@@ -15,6 +15,8 @@ public interface IEnlistedTradeDbWriter
     Task ProjectExecutionAsync(IEnlistedPostgresTransaction transaction, OrderExecutionDefinition execution, CancellationToken token = default);
     /// <summary>Project Trade through the typed trade persistence boundary.</summary>
     Task ProjectTradeAsync(IEnlistedPostgresTransaction transaction, EstablishedTradeDefinition trade, CancellationToken token = default);
+    /// <summary>Replaces one verified daily mark with EOD history, preserving current position and routes.</summary>
+    Task ProjectPositionHistoryAsync(IEnlistedPostgresTransaction transaction, StrategyPositionSnapshot position, long expectedProjectionSequence, CancellationToken token = default);
     /// <summary>Project Position through the typed trade persistence boundary.</summary>
     Task ProjectPositionAsync(IEnlistedPostgresTransaction transaction, StrategyPositionSnapshot position, CancellationToken token = default);
 }

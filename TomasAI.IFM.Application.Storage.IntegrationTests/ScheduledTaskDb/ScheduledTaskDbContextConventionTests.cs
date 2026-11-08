@@ -126,7 +126,7 @@ public sealed class ScheduledTaskDbContextConventionTests
 
     private static string FindRepositoryRoot()
     {
-        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
+        for (var directory = new DirectoryInfo(DbContextConventionSource.RepositoryRoot); directory is not null; directory = directory.Parent)
             if (File.Exists(Path.Combine(directory.FullName, "TomasAI.IFM.sln")))
                 return directory.FullName;
         throw new DirectoryNotFoundException("Could not locate the repository root.");

@@ -25,7 +25,7 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb;
 /// Utility mapping methods convert data records to strongly-typed view models, and transactional save operations
 /// ensure consistency.
 /// </remarks>
-public sealed partial class EventSourceActorDbContext : ObjectDataRepository<EventSourceActorDbContext>,
+public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSourceActorDbContext>,
       IEventSourceActorDbContext,
       IDisposable,
       IAsyncDisposable
@@ -131,7 +131,8 @@ public sealed partial class EventSourceActorDbContext : ObjectDataRepository<Eve
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>True if this request inserted the command audit; false if it already exists.</returns>
     public async ValueTask<bool> TryInsertCommandAuditAsync(CommandAuditEnvelope envelope, CancellationToken cancellationToken = default)
-        => (await _commandAuditWriter.Value.ReserveAsync(envelope, cancellationToken).ConfigureAwait(false)).Accepted;
+        => (await _commandAuditWriter.Value.ReserveAsync(envelope, cancellationToken)
+            .ConfigureAwait(false)).Accepted;
 
 
     /// <summary>
@@ -530,7 +531,8 @@ public sealed partial class EventSourceActorDbContext : ObjectDataRepository<Eve
         string commandData,
         CancellationToken cancellationToken)
     {
-        _ = await TryInsertCommandLogAsync(command, commandTimestamp, commandData, cancellationToken).ConfigureAwait(false);
+        _ = await TryInsertCommandLogAsync(command, commandTimestamp, commandData, cancellationToken)
+            .ConfigureAwait(false);
     }
 
     /// <summary>Try Insert Command Log using the event-source persistence services.</summary>
@@ -561,7 +563,8 @@ public sealed partial class EventSourceActorDbContext : ObjectDataRepository<Eve
         string commandData,
         CancellationToken cancellationToken)
     {
-        return await this.InsertCommandLogCoreAsync(command, commandTimestamp, commandData, cancellationToken).ConfigureAwait(false);
+        return await this.InsertCommandLogCoreAsync(command, commandTimestamp, commandData, cancellationToken)
+            .ConfigureAwait(false);
     }
 
     /// <summary>Insert Event Projector State using the event-source persistence services.</summary>
@@ -1456,7 +1459,7 @@ public sealed partial class EventSourceActorDbContext : ObjectDataRepository<Eve
     public async ValueTask<ICollection<EventStreamReadModel>> GetEventsFromSnapshotAsync<TSnapshot>(long eventStreamId)
         where TSnapshot : IEvent
     {
-        var snapshotEventNameId = await GetCompatibleEventNameIdsAsync<TSnapshot>(CancellationToken.None)
+        var snapshotEventNameId = await this.GetCompatibleEventNameIdsAsync<TSnapshot>(CancellationToken.None)
             .ConfigureAwait(false);
         var db = _dbFactory.ActorEventSourceDb;
         var maxEventVersion = await (db.Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.GetMaxEventVersion)}", this.EventLogSql(EventSourceDbSql.GetMaxEventVersion))
@@ -1480,7 +1483,8 @@ public sealed partial class EventSourceActorDbContext : ObjectDataRepository<Eve
         Action<IEnumerable<EventStreamReadModel>> reducerAction,
         CancellationToken cancellationToken = default)
         where TState : IActorState<TState>
-        => await ReadCreationSnapshotAsync(eventStreamId, reducerAction, null, cancellationToken).ConfigureAwait(false);
+        => await this.ReadCreationSnapshotAsync(eventStreamId, reducerAction, null, cancellationToken)
+            .ConfigureAwait(false);
 
     /// <summary>Reads latest independent replacement snapshots without mixing their committed append boundaries.</summary>
     public async ValueTask MapReduceActorEventStreamFromLatestSnapshotsAsync<TState, TFirst, TSecond>(
@@ -1490,10 +1494,13 @@ public sealed partial class EventSourceActorDbContext : ObjectDataRepository<Eve
         where TFirst : IEvent
         where TSecond : IEvent
     {
-        var first = await GetCompatibleEventNameIdsAsync<TFirst>(cancellationToken).ConfigureAwait(false);
-        var second = await GetCompatibleEventNameIdsAsync<TSecond>(cancellationToken).ConfigureAwait(false);
-        await ReadCreationSnapshotAsync(eventStreamId, reducerAction, first.Concat(second).Distinct().ToArray(),
-            cancellationToken, components: true).ConfigureAwait(false);
+        var first = await this.GetCompatibleEventNameIdsAsync<TFirst>(cancellationToken)
+            .ConfigureAwait(false);
+        var second = await this.GetCompatibleEventNameIdsAsync<TSecond>(cancellationToken)
+            .ConfigureAwait(false);
+        await this.ReadCreationSnapshotAsync(eventStreamId, reducerAction, first.Concat(second).Distinct().ToArray(),
+            cancellationToken, components: true)
+            .ConfigureAwait(false);
     }
 
     /// <summary>Uses known persisted identities in the checkpoint read itself.</summary>
@@ -1507,8 +1514,9 @@ public sealed partial class EventSourceActorDbContext : ObjectDataRepository<Eve
             .Distinct(StringComparer.Ordinal).ToArray();
         // A resolvable older spelling outside the registered identities is replayed in the tail
         // until a known checkpoint supersedes it.
-        await ReadCreationSnapshotAsync(eventStreamId, reducerAction, null, cancellationToken,
-            checkpointIdentities: identities).ConfigureAwait(false);
+        await this.ReadCreationSnapshotAsync(eventStreamId, reducerAction, null, cancellationToken,
+            checkpointIdentities: identities)
+            .ConfigureAwait(false);
     }
 
     /// <summary>Uses a full checkpoint only when its owning repository explicitly declares that optimization.</summary>
@@ -1518,8 +1526,10 @@ public sealed partial class EventSourceActorDbContext : ObjectDataRepository<Eve
         where TState : IActorState<TState>
         where TCheckpoint : IEvent
     {
-        var names = await GetCompatibleEventNameIdsAsync<TCheckpoint>(cancellationToken).ConfigureAwait(false);
-        await ReadCreationSnapshotAsync(eventStreamId, reducerAction, names, cancellationToken).ConfigureAwait(false);
+        var names = await this.GetCompatibleEventNameIdsAsync<TCheckpoint>(cancellationToken)
+            .ConfigureAwait(false);
+        await this.ReadCreationSnapshotAsync(eventStreamId, reducerAction, names, cancellationToken)
+            .ConfigureAwait(false);
     }
 
     /// <summary>Reads only creation/head when the state contract declares no retained business fields.</summary>
@@ -1527,77 +1537,10 @@ public sealed partial class EventSourceActorDbContext : ObjectDataRepository<Eve
         long eventStreamId, Action<IEnumerable<EventStreamReadModel>> reducerAction,
         CancellationToken cancellationToken = default)
         where TState : IActorState<TState>, IStatelessCreationSnapshotState
-        => await ReadCreationSnapshotAsync(eventStreamId, reducerAction, null, cancellationToken, true).ConfigureAwait(false);
-
-    async ValueTask ReadCreationSnapshotAsync(long eventStreamId,
-        Action<IEnumerable<EventStreamReadModel>> reducerAction, int[]? checkpointNames,
-        CancellationToken cancellationToken, bool stateless = false, bool components = false,
-        string[]? checkpointIdentities = null)
-    {
-        ArgumentNullException.ThrowIfNull(reducerAction);
-        cancellationToken.ThrowIfCancellationRequested();
-        long head = 0;
-        long replayedVersion = 0;
-        var sql = components ? EventSourceDbSql.GetEventLogFromLatestComponentSnapshots
-            : stateless ? EventSourceDbSql.GetStatelessEventLogFromCreationSnapshot
-            : checkpointIdentities is not null ? EventSourceDbSql.GetEventLogFromCreationWithCheckpointIdentities
-            : checkpointNames is null ? EventSourceDbSql.GetEventLogFromCreationSnapshot : EventSourceDbSql.GetEventLogFromCreationWithCheckpoint;
-        var statementName = components ? nameof(EventSourceDbSql.GetEventLogFromLatestComponentSnapshots)
-            : stateless ? nameof(EventSourceDbSql.GetStatelessEventLogFromCreationSnapshot)
-            : checkpointIdentities is not null ? nameof(EventSourceDbSql.GetEventLogFromCreationWithCheckpointIdentities)
-            : checkpointNames is null ? nameof(EventSourceDbSql.GetEventLogFromCreationSnapshot)
-            : nameof(EventSourceDbSql.GetEventLogFromCreationWithCheckpoint);
-        var query = _dbFactory.ActorEventSourceDb.Use($"{nameof(EventSourceDbSql)}.{statementName}", this.EventLogSql(sql));
-        if (checkpointIdentities is not null)
-            query.SetParameters(new GetCheckpointEventLogByIdentity(eventStreamId, checkpointIdentities));
-        else if (checkpointNames is null)
-            query.SetParameters(new GetEventLogByEventStreamId(eventStreamId));
-        else
-            query.SetParameters(new GetMaxEventVersion(eventStreamId, checkpointNames));
-        await query.ExecuteMapReduceAsync(MapCreationRow,
-                ReduceAndValidate, cancellationToken)
+        => await this.ReadCreationSnapshotAsync(eventStreamId, reducerAction, null, cancellationToken, true)
             .ConfigureAwait(false);
-        if (replayedVersion != head)
-            throw new InvalidDataException($"Creation snapshot replay for stream {eventStreamId} ended at {replayedVersion}, expected {head}.");
 
-        void ReduceAndValidate(IEnumerable<EventStreamReadModel> rows)
-        {
-            using var iterator = rows.GetEnumerator();
-            reducerAction(ReadRows());
-            // Validate the remaining rows even when a reducer stops reading early.
-            while (iterator.MoveNext()) { }
 
-            IEnumerable<EventStreamReadModel> ReadRows()
-            {
-                while (iterator.MoveNext())
-                    if (iterator.Current.EventVersion > 0)
-                        yield return iterator.Current;
-            }
-        }
-
-        EventStreamReadModel MapCreationRow(IObjectDataRecord record)
-        {
-            head = record.GetLong(8);
-            if (record.IsNull(3))
-            {
-                if (head != 0)
-                    throw new InvalidDataException($"Creation snapshot is missing for nonempty stream {eventStreamId}.");
-                return new EventStreamReadModel();
-            }
-            var version = record.GetLong(7);
-            var isCheckpoint = components
-                ? replayedVersion >= 1 && version > replayedVersion && version == record.GetLong(9)
-                : (stateless || checkpointNames is not null || checkpointIdentities is not null) && replayedVersion == 1 && version == record.GetLong(9);
-            if (version != replayedVersion + 1 && !isCheckpoint)
-                throw new InvalidDataException($"Creation snapshot replay gap in stream {eventStreamId}: {replayedVersion} -> {version}.");
-            replayedVersion = version;
-            return new EventStreamReadModel
-            {
-                EventVersion = record.GetLong(3), EventTypeName = record.GetString(2),
-                EventData = record.GetBytes(4), StreamVersion = version
-            };
-        }
-    }
 
     /// <summary>
     /// Processes the full event stream by mapping records and invoking the provided reducer action.
@@ -1670,7 +1613,7 @@ public sealed partial class EventSourceActorDbContext : ObjectDataRepository<Eve
         where TState : IActorState<TState>
         where TEvent : IEvent
     {
-        var eventNameId = await GetCompatibleEventNameIdsAsync<TEvent>(cancellationToken)
+        var eventNameId = await this.GetCompatibleEventNameIdsAsync<TEvent>(cancellationToken)
             .ConfigureAwait(false);
         await (_dbFactory.ActorEventSourceDb
             .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.GetEventLogLastNRangeByEventName)}", this.EventLogSql(EventSourceDbSql.GetEventLogLastNRangeByEventName))
@@ -1711,7 +1654,7 @@ public sealed partial class EventSourceActorDbContext : ObjectDataRepository<Eve
         where TSnapshot : IEvent
     {
         var eventStream = new EventStreamReadModel();
-        var snapshotEventNameId = await GetCompatibleEventNameIdsAsync<TSnapshot>(cancellationToken)
+        var snapshotEventNameId = await this.GetCompatibleEventNameIdsAsync<TSnapshot>(cancellationToken)
             .ConfigureAwait(false);
         var db = _dbFactory.ActorEventSourceDb;
         var maxEventVersion = await (db.Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.GetMaxEventVersion)}", this.EventLogSql(EventSourceDbSql.GetMaxEventVersion))
@@ -1782,9 +1725,9 @@ public sealed partial class EventSourceActorDbContext : ObjectDataRepository<Eve
         where TSnapshot : IEvent
         where TRangeEvent : IEvent
     {
-        var snapshotEventNameId = await GetCompatibleEventNameIdsAsync<TSnapshot>(cancellationToken)
+        var snapshotEventNameId = await this.GetCompatibleEventNameIdsAsync<TSnapshot>(cancellationToken)
             .ConfigureAwait(false);
-        var rangeEventNameId = await GetCompatibleEventNameIdsAsync<TRangeEvent>(cancellationToken)
+        var rangeEventNameId = await this.GetCompatibleEventNameIdsAsync<TRangeEvent>(cancellationToken)
             .ConfigureAwait(false);
         await (_dbFactory.ActorEventSourceDb
             .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.GetEventLogFromSnapshotLastNRange)}", this.EventLogSql(EventSourceDbSql.GetEventLogFromSnapshotLastNRange))
@@ -1820,7 +1763,7 @@ public sealed partial class EventSourceActorDbContext : ObjectDataRepository<Eve
         where TState : IActorState<TState>
         where TEvent : IEvent
     {
-        var eventNameId = await GetCompatibleEventNameIdsAsync<TEvent>(CancellationToken.None)
+        var eventNameId = await this.GetCompatibleEventNameIdsAsync<TEvent>(CancellationToken.None)
             .ConfigureAwait(false);
         return await (_dbFactory.ActorEventSourceDb
             .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.GetEventLogLastNRangeByEventName)}", this.EventLogSql(EventSourceDbSql.GetEventLogLastNRangeByEventName))
@@ -1845,20 +1788,107 @@ public sealed partial class EventSourceActorDbContext : ObjectDataRepository<Eve
            => await (GetEventsFromSnapshotAsync<TSnapshot>(eventStreamId))
             .ConfigureAwait(false);
 
-    async Task<int[]> GetCompatibleEventNameIdsAsync<TEvent>(CancellationToken cancellationToken) where TEvent : IEvent
+
+
+
+    /// <summary>Reads an aggregate head, its newest indexed sidecar checkpoint and the bounded source tail.</summary>
+    public async Task<AggregateCheckpointWindow> ReadAggregateCheckpointWindowAsync(
+        string stream, string sidecar, CancellationToken cancellationToken, long through = long.MaxValue,
+        long maximumCheckpointRevision = long.MaxValue, long replayAfter = -1)
     {
-        var type = typeof(TEvent);
-        var current = await this.GetEventNameIdFromTypeAsync(type, cancellationToken).ConfigureAwait(false);
-        var registry = EventTypeRegistry.Default;
-        // Do not cache the alias row IDs: metadata may gain a new registered
-        // spelling while the process is running. Match resolved type, not a short-name guess.
-        var candidates = await _dbFactory.ActorEventSourceDb
-            .Use(nameof(EventSourceDbSql.GetCompatibleEventNameIds), EventSourceDbSql.GetCompatibleEventNameIds)
-            .SetParameters(new GetCompatibleEventNameIds(type.Name, registry.GetReadIdentities(type)))
-            .ExecuteQueryAsync<EventNameIdReadModel>(MapToEventNameId, cancellationToken).ConfigureAwait(false);
-        return candidates.Where(row => registry.Resolve(row.EventTypeName) == type)
-            .Select(row => row.EventNameId).Append(current).Distinct().ToArray();
+        var rows = await _dbFactory.ActorEventSourceDb
+            .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.ReadAggregateCheckpointWindow)}",
+                EventSourceDbSql.ReadAggregateCheckpointWindow)
+            .SetParameters(new AggregateWindowParameters(stream, sidecar, through, maximumCheckpointRevision, replayAfter))
+            .ExecuteQueryAsync(static row => new AggregateCheckpointRow(row.GetLong(0),
+                row.IsNull(1) ? AggregateCheckpointRowKind.None : (AggregateCheckpointRowKind)row.GetInt(1),
+                row.IsNull(2) ? 0 : row.GetLong(2),
+                row.IsNull(3) ? null : MapToAggregateEvent(row, 3)), cancellationToken)
+            .ConfigureAwait(false);
+        return new AggregateCheckpointWindow(rows.FirstOrDefault()?.Head ?? 0, rows.ToArray());
+    }
+
+    /// <summary>Resolves the stream and reads at most one creation event or two matching command events.</summary>
+    public async Task<IReadOnlyList<EventStreamReadModel>> FindAggregateEventsAsync(
+        string stream, Guid? commandId, CancellationToken cancellationToken)
+    {
+        var sql = commandId.HasValue
+            ? EventSourceDbSql.ReadAggregateEventByCommand
+            : EventSourceDbSql.ReadAggregateCreation;
+        var name = commandId.HasValue
+            ? nameof(EventSourceDbSql.ReadAggregateEventByCommand)
+            : nameof(EventSourceDbSql.ReadAggregateCreation);
+        var rows = await _dbFactory.ActorEventSourceDb.Use($"{nameof(EventSourceDbSql)}.{name}", sql)
+            .SetParameters(new AggregateFindParameters(stream, commandId))
+            .ExecuteQueryAsync(static row => MapToAggregateEvent(row, 0), cancellationToken)
+            .ConfigureAwait(false);
+        return rows.ToArray();
+    }
+
+    /// <summary>Atomically appends a sidecar snapshot and indexes its authoritative source revision.</summary>
+    public Task<bool> SaveAggregateCheckpointAsync(string stream, string sidecar, long sourceRevision,
+        IEvent snapshot, CancellationToken cancellationToken)
+        => _aggregateCheckpointTransactions.Value.ExecuteAsync(
+            (db, token) => db.AppendAggregateCheckpointAsync(stream, sidecar, sourceRevision, snapshot, token),
+            cancellationToken);
+
+    /// <summary>Appends an aggregate transition and sidecar checkpoint under one optimistic source fence.</summary>
+    public Task<bool> SaveAggregateSourceWithCheckpointAsync(string stream, long expectedRevision,
+        IEvent source, IEvent checkpoint, CancellationToken cancellationToken)
+        => _aggregateCheckpointTransactions.Value.ExecuteAsync(async (db, token) =>
+        {
+            await db.AppendAsync(stream, source.CommandId, source, expectedRevision, token)
+            .ConfigureAwait(false);
+            return await db.AppendAggregateCheckpointAsync(stream, $"{stream}.Snapshot", checked(expectedRevision + 1),
+                checkpoint, token)
+            .ConfigureAwait(false);
+        }, cancellationToken);
+
+    static EventStreamReadModel MapToAggregateEvent(IObjectDataRecord row, int offset)
+        => new()
+        {
+            EventVersion = row.GetLong(offset),
+            EventTypeName = row.GetString(offset + 1),
+            StreamVersion = row.GetLong(offset + 2),
+            EventData = row.GetBytes(offset + 3)
+        };
+
+
+    /// <summary>Reads a concern and its legacy prefix at one PostgreSQL statement boundary.</summary>
+    public async Task ReadConcernCheckpointWindowAsync(string concernStream, string legacyStream,
+        Type checkpointType, bool useCheckpoint, Action<IEnumerable<ConcernCheckpointRow>> reduce,
+        CancellationToken cancellationToken)
+    {
+        var identities = EventTypeRegistry.Default.GetReadIdentities(checkpointType)
+            .Distinct(StringComparer.Ordinal).ToArray();
+        await _dbFactory.ActorEventSourceDb
+            .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.ReadConcernCheckpointWindow)}",
+                EventSourceDbSql.ReadConcernCheckpointWindow)
+            .SetParameters(new ConcernWindowParameters(concernStream, legacyStream, identities, useCheckpoint))
+            .ExecuteMapReduceAsync(static row => new ConcernCheckpointRow(row.GetLong(0), row.GetLong(1),
+                row.GetLong(2), row.GetBool(3), row.GetBool(4), row.IsNull(5) ? null : MapToAggregateEvent(row, 5)),
+                reduce, cancellationToken)
+            .ConfigureAwait(false);
     }
 
 
 }
+
+/// <summary>The source head and one statement's selected checkpoint, legacy candidates or replay tail.</summary>
+public sealed record AggregateCheckpointWindow(long Head, IReadOnlyCollection<AggregateCheckpointRow> Rows);
+
+/// <summary>A versioned checkpoint or event selected in an aggregate window.</summary>
+public sealed record AggregateCheckpointRow(long Head, AggregateCheckpointRowKind Kind, long SourceRevision, EventStreamReadModel? Event);
+
+public enum AggregateCheckpointRowKind
+{
+    None,
+    IndexedCheckpoint,
+    LegacyCheckpoint,
+    SourceEvent
+}
+
+
+/// <summary>A source event and the paired concern and legacy heads observed by its read statement.</summary>
+public sealed record ConcernCheckpointRow(long ConcernHead, long LegacyHead, long CheckpointVersion,
+    bool IsLegacy, bool IsCheckpoint, EventStreamReadModel? Event);

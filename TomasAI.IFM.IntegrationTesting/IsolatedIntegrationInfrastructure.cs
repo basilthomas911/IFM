@@ -22,15 +22,17 @@ public sealed class IsolatedIntegrationInfrastructure : IAsyncDisposable
         "Cassandra", StringComparison.OrdinalIgnoreCase);
 
     readonly string scope;
+    readonly bool includeCql;
     readonly string runId = Guid.NewGuid().ToString("N")[..12];
     readonly Dictionary<string, string?> previousEnvironment = new(StringComparer.Ordinal);
     bool started;
 
     /// <summary>Creates an isolated infrastructure owner for the named test scope.</summary>
-    public IsolatedIntegrationInfrastructure(string scope)
+    public IsolatedIntegrationInfrastructure(string scope, bool includeCql = true)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(scope);
         this.scope = new string(scope.Where(char.IsLetterOrDigit).Select(char.ToLowerInvariant).ToArray());
+        this.includeCql = includeCql;
         if (this.scope.Length == 0)
             throw new ArgumentException("The infrastructure scope must contain a letter or digit.", nameof(scope));
     }
@@ -103,11 +105,11 @@ public sealed class IsolatedIntegrationInfrastructure : IAsyncDisposable
             if (scope == "domainactors")
                 await (DockerAsync(["run", "--detach", "--rm", "--name", AuxiliaryNatsContainer, "--label", $"ifm.integration.run={runId}",
                     "--publish", "127.0.0.1::4222", NatsImage, "--jetstream"])).ConfigureAwait(false);
-            if (useScylla)
+            if (includeCql && useScylla)
                 await (DockerAsync(["run", "--detach", "--rm", "--name", CqlContainer, "--label", $"ifm.integration.run={runId}",
                     "--publish", "127.0.0.1::9042", "--memory", "3g", ScyllaImage,
                     "--smp", "1", "--memory", "1G", "--overprovisioned", "1", "--developer-mode", "1"])).ConfigureAwait(false);
-            else
+            else if (includeCql)
                 await (DockerAsync(["run", "--detach", "--rm", "--name", CqlContainer, "--label", $"ifm.integration.run={runId}",
                     "--publish", "127.0.0.1::9042", "--memory", "2g", "--env", "MAX_HEAP_SIZE=512M",
                     "--env", "HEAP_NEWSIZE=100M", CassandraImage])).ConfigureAwait(false);
@@ -115,14 +117,14 @@ public sealed class IsolatedIntegrationInfrastructure : IAsyncDisposable
             PostgresPort = await (MappedPortAsync(PostgresContainer, "5432/tcp")).ConfigureAwait(false);
             var redisPort = await (MappedPortAsync(RedisContainer, "6379/tcp")).ConfigureAwait(false);
             var natsPort = await (MappedPortAsync(NatsContainer, "4222/tcp")).ConfigureAwait(false);
-            CqlPort = await (MappedPortAsync(CqlContainer, "9042/tcp")).ConfigureAwait(false);
+            CqlPort = includeCql ? await (MappedPortAsync(CqlContainer, "9042/tcp")).ConfigureAwait(false) : 0;
             var auxiliaryNatsPort = scope == "domainactors"
                 ? await (MappedPortAsync(AuxiliaryNatsContainer, "4222/tcp")).ConfigureAwait(false) : natsPort;
 
             PostgresConnectionString = $"Host=127.0.0.1;Port={PostgresPort};Database={PostgresDatabase};SSL Mode=Disable;Pooling=true";
             RedisConnectionString = $"127.0.0.1:{redisPort},abortConnect=false";
             NatsUrl = $"nats://127.0.0.1:{natsPort}";
-            CqlConnectionString = GetCqlConnectionString(CqlKeyspace);
+            CqlConnectionString = includeCql ? GetCqlConnectionString(CqlKeyspace) : string.Empty;
 
             AuxiliaryNatsUrl = $"nats://127.0.0.1:{auxiliaryNatsPort}";
             SetCredentialEnvironment("POSTGRES_DEV_KEY");
@@ -131,8 +133,11 @@ public sealed class IsolatedIntegrationInfrastructure : IAsyncDisposable
             await (WaitForPostgresAsync()).ConfigureAwait(false);
             await (WaitForTcpAsync(redisPort, "Redis")).ConfigureAwait(false);
             await (WaitForTcpAsync(natsPort, "NATS")).ConfigureAwait(false);
-            await (WaitForCqlAsync()).ConfigureAwait(false);
-            await (CqlAsync($"CREATE KEYSPACE IF NOT EXISTS {CqlKeyspace} WITH replication = {{'class':'SimpleStrategy','replication_factor':1}};")).ConfigureAwait(false);
+            if (includeCql)
+            {
+                await (WaitForCqlAsync()).ConfigureAwait(false);
+                await (CqlAsync($"CREATE KEYSPACE IF NOT EXISTS {CqlKeyspace} WITH replication = {{'class':'SimpleStrategy','replication_factor':1}};")).ConfigureAwait(false);
+            }
             await (WaitForTcpAsync(auxiliaryNatsPort, "auxiliary NATS")).ConfigureAwait(false);
             started = true;
         }
@@ -169,7 +174,7 @@ public sealed class IsolatedIntegrationInfrastructure : IAsyncDisposable
     // --rm also covers a container exiting before the fixture reaches DisposeAsync.
     public async ValueTask DisposeAsync()
     {
-        await (DockerAsync(["rm", "--force", "--volumes", CqlContainer], allowFailure: true)).ConfigureAwait(false);
+        if (includeCql) await (DockerAsync(["rm", "--force", "--volumes", CqlContainer], allowFailure: true)).ConfigureAwait(false);
         await (DockerAsync(["rm", "--force", "--volumes", NatsContainer], allowFailure: true)).ConfigureAwait(false);
         await (DockerAsync(["rm", "--force", "--volumes", RedisContainer], allowFailure: true)).ConfigureAwait(false);
         await (DockerAsync(["rm", "--force", "--volumes", PostgresContainer], allowFailure: true)).ConfigureAwait(false);
@@ -197,7 +202,9 @@ public sealed class IsolatedIntegrationInfrastructure : IAsyncDisposable
         {
             try
             {
-                await (DockerAsync(["exec", PostgresContainer, "pg_isready", "--username", PostgresUser, "--dbname", PostgresDatabase])).ConfigureAwait(false);
+                // The image's initialization server accepts Unix-socket probes before
+                // its final TCP listener starts. Require the same transport clients use.
+                await (DockerAsync(["exec", PostgresContainer, "pg_isready", "--host", "127.0.0.1", "--username", PostgresUser, "--dbname", PostgresDatabase])).ConfigureAwait(false);
                 return;
             }
             catch (InvalidOperationException)

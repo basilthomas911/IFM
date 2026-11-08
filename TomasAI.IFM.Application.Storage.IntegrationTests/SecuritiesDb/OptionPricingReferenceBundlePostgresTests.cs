@@ -33,7 +33,7 @@ public sealed class OptionPricingReferenceBundlePostgresTests(ITestOutputHelper 
     [Fact]
     public async Task Exact_reviewed_version_roundtrips_restarts_and_refuses_conflicting_content()
     {
-        await using var infrastructure = new TomasAI.IFM.IntegrationTesting.IsolatedIntegrationInfrastructure("pricingbundlerepository");
+        await using var infrastructure = new TomasAI.IFM.IntegrationTesting.IsolatedIntegrationInfrastructure("pricingbundlerepository", includeCql: false);
         await infrastructure.StartAsync();
         var logger = Substitute.For<ILogger<DbProvider>>();
         var settings = new DbConnectionSettings().Add(SecuritiesDbContext.SecuritiesDbConnection,

@@ -17,6 +17,14 @@ public static class PostgresValueBinding
         command.Parameters.AddRange(CreateMany(values));
     }
 
+    /// <summary>Binds positional C# values on a batched command using the same provider mapping.</summary>
+    public static void AddParameters(NpgsqlBatchCommand command, object?[] values)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(values);
+        command.Parameters.AddRange(CreateMany(values));
+    }
+
     /// <summary>Binds one value; a CLR array remains one database array parameter.</summary>
     public static void AddParameter(DbCommand command, object? value)
     {

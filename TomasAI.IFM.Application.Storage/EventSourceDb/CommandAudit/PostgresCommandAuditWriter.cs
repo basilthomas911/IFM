@@ -43,7 +43,8 @@ internal sealed class PostgresCommandAuditWriter : ICommandAuditWriter
             throw new ArgumentException("Command audit payload is outside its configured size limit.", nameof(envelope));
 
         var pending = new PendingAudit(envelope);
-        await _queue.Writer.WriteAsync(pending, cancellationToken).ConfigureAwait(false);
+        await _queue.Writer.WriteAsync(pending, cancellationToken)
+            .ConfigureAwait(false);
         return await pending.Completion.Task.ConfigureAwait(false);
     }
 
@@ -53,7 +54,8 @@ internal sealed class PostgresCommandAuditWriter : ICommandAuditWriter
         PendingAudit? carry = null;
         try
         {
-            while (carry is not null || await _queue.Reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
+            while (carry is not null || await _queue.Reader.WaitToReadAsync(cancellationToken)
+            .ConfigureAwait(false))
             {
                 var first = carry ?? (_queue.Reader.TryRead(out var queued) ? queued : null);
                 carry = null;
@@ -83,14 +85,17 @@ internal sealed class PostgresCommandAuditWriter : ICommandAuditWriter
                         }
 
                         var available = _queue.Reader.WaitToReadAsync(cancellationToken).AsTask();
-                        var completed = await Task.WhenAny(available, deadline).ConfigureAwait(false);
+                        var completed = await Task.WhenAny(available, deadline)
+            .ConfigureAwait(false);
                         if (completed == deadline) break;
                         if (!await available.ConfigureAwait(false)) break;
                     }
-await                    deadlineCancellation.CancelAsync().ConfigureAwait(false);
+await                    deadlineCancellation.CancelAsync()
+            .ConfigureAwait(false);
                 }
 
-                await PersistAsync(batch, cancellationToken).ConfigureAwait(false);
+                await PersistAsync(batch, cancellationToken)
+            .ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -111,7 +116,8 @@ await                    deadlineCancellation.CancelAsync().ConfigureAwait(false
     {
         try
         {
-            var connection = await GetOpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+            var connection = await GetOpenConnectionAsync(cancellationToken)
+            .ConfigureAwait(false);
             var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken)
                 .ConfigureAwait(false);
         await using var transactionDisposal = transaction.ConfigureAwait(false);
@@ -120,7 +126,8 @@ await                    deadlineCancellation.CancelAsync().ConfigureAwait(false
                 var results = await CommandAuditPostgres.ReserveAsync(
                     connection, transaction, batch.Select(static item => item.Envelope).ToArray(), cancellationToken)
                     .ConfigureAwait(false);
-                await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+                await transaction.CommitAsync(cancellationToken)
+            .ConfigureAwait(false);
                 for (var index = 0; index < batch.Count; index++)
                 {
                     if (results[index].PayloadConflict)
@@ -135,7 +142,8 @@ await                    deadlineCancellation.CancelAsync().ConfigureAwait(false
             }
             catch
             {
-                try { await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false); } catch { /* Preserve the original database failure; cleanup is best effort. */ }
+                try { await transaction.RollbackAsync(CancellationToken.None)
+            .ConfigureAwait(false); } catch { /* Preserve the original database failure; cleanup is best effort. */ }
                 throw;
             }
         }
@@ -143,7 +151,8 @@ await                    deadlineCancellation.CancelAsync().ConfigureAwait(false
         {
             if (_connection is not { FullState: ConnectionState.Open })
             {
-                if (_connection is not null) await _connection.DisposeAsync().ConfigureAwait(false);
+                if (_connection is not null) await _connection.DisposeAsync()
+            .ConfigureAwait(false);
                 _connection = null;
             }
             foreach (var pending in batch) pending.Completion.TrySetException(exception);
@@ -153,9 +162,11 @@ await                    deadlineCancellation.CancelAsync().ConfigureAwait(false
     async Task<NpgsqlConnection> GetOpenConnectionAsync(CancellationToken cancellationToken)
     {
         if (_connection is { FullState: ConnectionState.Open }) return _connection;
-        if (_connection is not null) await _connection.DisposeAsync().ConfigureAwait(false);
+        if (_connection is not null) await _connection.DisposeAsync()
+            .ConfigureAwait(false);
         _connection = new PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(_connectionString);
-        await _connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await _connection.OpenAsync(cancellationToken)
+            .ConfigureAwait(false);
         return _connection;
     }
 
@@ -163,17 +174,20 @@ await                    deadlineCancellation.CancelAsync().ConfigureAwait(false
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
         _queue.Writer.TryComplete();
-        var completed = await Task.WhenAny(_consumer, Task.Delay(_options.ShutdownDrainTimeout)).ConfigureAwait(false);
+        var completed = await Task.WhenAny(_consumer, Task.Delay(_options.ShutdownDrainTimeout))
+            .ConfigureAwait(false);
         if (completed != _consumer)
         {
-await            _lifetime.CancelAsync().ConfigureAwait(false);
+await            _lifetime.CancelAsync()
+            .ConfigureAwait(false);
             await _consumer.ConfigureAwait(false);
         }
         else
         {
             await _consumer.ConfigureAwait(false);
         }
-        if (_connection is not null) await _connection.DisposeAsync().ConfigureAwait(false);
+        if (_connection is not null) await _connection.DisposeAsync()
+            .ConfigureAwait(false);
         _lifetime.Dispose();
     }
 

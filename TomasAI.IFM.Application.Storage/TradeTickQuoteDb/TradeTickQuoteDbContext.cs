@@ -14,7 +14,7 @@ namespace TomasAI.IFM.Application.Storage.TradeTickQuoteDb;
 /// <param name="settings">The named ScyllaDB connection settings.</param>
 /// <param name="logger">Provider diagnostics.</param>
 public sealed class TradeTickQuoteDbContext(IDbConnectionSettings settings, ILogger<DbProvider> logger)
-    : ObjectDataRepository<TradeTickQuoteDbContext>(settings[TradeTickQuoteDbConnection], logger), ITradeTickQuoteDbContext
+    : ObjectDataRepository<TradeTickQuoteDbContext>(settings[TradeTickQuoteDbConnection], logger), ITradeTickQuoteDbContext, IStreamingRawFuturesTradeReader
 {
     /// <summary>The named ScyllaDB connection setting.</summary>
     public const string TradeTickQuoteDbConnection = "TradeTickQuoteDbConnection";
@@ -40,11 +40,22 @@ public Task InsertTickQuoteDataAsync(FuturesTickQuoteDataInsertedEvent e) => Scy
     public async Task<IReadOnlyList<BootstrapTradeRow>> GetRawFuturesTradeWindowAsync(string contractId, DateOnly valueDate,
         TimeOnly fromUtc, TimeOnly throughUtc, CancellationToken token = default)
     {
+        var rows = new List<BootstrapTradeRow>();
+        await foreach (var row in StreamRawFuturesTradeWindowAsync(contractId, valueDate, fromUtc, throughUtc, token)
+            .ConfigureAwait(false))
+            rows.Add(row);
+        return rows;
+    }
+
+    /// <inheritdoc />
+    public IAsyncEnumerable<BootstrapTradeRow> StreamRawFuturesTradeWindowAsync(string contractId, DateOnly valueDate,
+        TimeOnly fromUtc, TimeOnly throughUtc, CancellationToken token = default)
+    {
         this.ValidateScope(contractId, valueDate);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(fromUtc, throughUtc);
-        var rows = await this.Use(nameof(TradeTickQuoteDbCql.GetRawFuturesTradeWindow), TradeTickQuoteDbCql.GetRawFuturesTradeWindow)
+        return this.Use(nameof(TradeTickQuoteDbCql.GetRawFuturesTradeWindow), TradeTickQuoteDbCql.GetRawFuturesTradeWindow)
             .SetParameters(new BootstrapTradeWindowParameters(contractId, valueDate, fromUtc, throughUtc))
-            .ExecuteQueryAsync(row =>
+            .ExecuteStreamAsync(row =>
             {
                 var aggregationTicks = row.GetLong(10);
                 return new BootstrapTradeRow(row.GetDateOnly(0), row.GetDecimal(1), row.GetLong(2), row.GetLong(3),
@@ -55,8 +66,7 @@ public Task InsertTickQuoteDataAsync(FuturesTickQuoteDataInsertedEvent e) => Scy
                         ? new TimeOnly(aggregationTicks % TimeSpan.TicksPerDay / TimeSpan.TicksPerMillisecond * TimeSpan.TicksPerMillisecond)
                         : null
                 };
-            }, token).ConfigureAwait(false);
-        return rows.ToArray();
+            }, token);
     }
 
     /// <inheritdoc />
@@ -66,7 +76,8 @@ public Task InsertTickQuoteDataAsync(FuturesTickQuoteDataInsertedEvent e) => Scy
         var rows = await this.Use(nameof(TradeTickQuoteDbCql.GetLatestRawFuturesTrades), TradeTickQuoteDbCql.GetLatestRawFuturesTrades)
             .SetParameters(new BootstrapTradeParameters(contractId, throughDate))
             .ExecuteQueryAsync(row => new BootstrapTradeRow(row.GetDateOnly(0), row.GetDecimal(1), row.GetLong(2), row.GetLong(3),
-                row.GetLong(4), row.GetLong(5), row.GetShort(6), row.GetShort(7), checked((uint)row.GetLong(8)), checked((ushort)row.GetInt(9))), token).ConfigureAwait(false);
+                row.GetLong(4), row.GetLong(5), row.GetShort(6), row.GetShort(7), checked((uint)row.GetLong(8)), checked((ushort)row.GetInt(9))), token)
+            .ConfigureAwait(false);
         return rows.ToArray();
     }
 

@@ -731,8 +731,7 @@ public sealed class MarketDataHostNatsRecoveryIntegrationTests
         public static async Task<Fixture> StartAsync(TimeSpan? softTimeout = null, bool fullBackend = false, bool developmentFaults = false, bool developmentEnvironment = true)
         {
             var value = new Fixture { fullBackend = fullBackend };
-            var root = new DirectoryInfo(AppContext.BaseDirectory);
-            while (root is not null && !File.Exists(Path.Combine(root.FullName, "TomasAI.IFM.sln"))) root = root.Parent;
+            var root = Harness.WorkerTestProcess.RepositoryRoot();
             var output = Harness.WorkerTestProcess.HostDirectory;
             var scope = "recoverytest" + Guid.NewGuid().ToString("N");
             var natsUrl = Environment.GetEnvironmentVariable("IFM_MARKETDATA_TEST_NATS_URL") ?? "nats://127.0.0.1:4222";
@@ -758,7 +757,7 @@ public sealed class MarketDataHostNatsRecoveryIntegrationTests
                 start.Environment["MarketDataHost__DataSource"] = "DatabentoLive";
                 start.Environment["MarketDataHost__ControlOnly"] = "false";
                 start.Environment["MarketDataHost__StdinShutdown"] = "true";
-                start.Environment["MarketDataHost__ApiConfigurationDirectory"] = Path.Combine(root.FullName, "TomasAI.IFM.Application.Api.Server");
+                start.Environment["MarketDataHost__ApiConfigurationDirectory"] = Path.Combine(root, "TomasAI.IFM.Application.Api.Server");
             }
             if (softTimeout is { } duration) start.Environment["MarketDataHost__SoftRecoveryTimeout"] = duration.ToString("c");
             start.Environment["ASPNETCORE_URLS"] = "http://127.0.0.1:0";

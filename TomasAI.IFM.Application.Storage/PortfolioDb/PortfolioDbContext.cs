@@ -218,7 +218,8 @@ public sealed class PortfolioDbContext(IDbConnectionSettings settings, ILogger<D
     {
         return this.RequiredTransactions.ExecuteAsync(async (db, token) =>
         {
-            await db.WriteFundProjectionAsync(row, token).ConfigureAwait(false);
+            await db.WriteFundProjectionAsync(row, token)
+            .ConfigureAwait(false);
             return true;
         }, ct);
     }

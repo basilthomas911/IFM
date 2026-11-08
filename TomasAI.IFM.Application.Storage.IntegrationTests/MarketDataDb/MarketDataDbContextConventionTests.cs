@@ -229,7 +229,7 @@ public sealed class MarketDataDbContextConventionTests
         Assert.All(supportTypes, type =>
         {
             Assert.Same(typeof(MarketDataProjectionScopeGeneration).Assembly, type.Assembly);
-            Assert.Equal("TomasAI.IFM.Application.Contracts.MarketData", type.Namespace);
+            Assert.Equal("TomasAI.IFM.Domain.MarketData.Shared", type.Namespace);
         });
         Assert.Null(typeof(MarketDataDbContext).Assembly.GetType(
             "TomasAI.IFM.Application.Storage.MarketDataDb.MarketDataProjectionHash"));
@@ -273,7 +273,7 @@ public sealed class MarketDataDbContextConventionTests
 
     static string FindRepositoryRoot()
     {
-        for (var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        for (var directory = new DirectoryInfo(DbContextConventionSource.RepositoryRoot);
              directory is not null;
              directory = directory.Parent)
         {

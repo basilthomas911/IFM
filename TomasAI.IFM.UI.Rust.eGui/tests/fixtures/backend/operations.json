@@ -3558,7 +3558,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/MarketDataCommandApi.cs",
-    "line": 30,
+    "line": 31,
     "client": "MarketDataCommandApi",
     "method": "AddFuturesContractAsync",
     "parameters": [
@@ -3593,7 +3593,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/MarketDataCommandApi.cs",
-    "line": 60,
+    "line": 61,
     "client": "MarketDataCommandApi",
     "method": "ChangeFuturesContractAsync",
     "parameters": [
@@ -3633,7 +3633,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/MarketDataCommandApi.cs",
-    "line": 91,
+    "line": 92,
     "client": "MarketDataCommandApi",
     "method": "RemoveFuturesContractAsync",
     "parameters": [
@@ -3668,7 +3668,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/MarketDataCommandApi.cs",
-    "line": 120,
+    "line": 121,
     "client": "MarketDataCommandApi",
     "method": "AddFuturesOptionContractAsync",
     "parameters": [
@@ -3687,6 +3687,8 @@
     "calls": [
       "ArgumentNullException.ThrowIfNull",
       "Guid.NewGuid",
+      "PrepareOptionContractsAsync(cmdId, [futuresOptionContract]).ConfigureAwait",
+      "PrepareOptionContractsAsync",
       "entityId.Format",
       "(RequestCommandAsync(cmd!, entityId)).ConfigureAwait",
       "RequestCommandAsync",
@@ -3703,7 +3705,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/MarketDataCommandApi.cs",
-    "line": 149,
+    "line": 151,
     "client": "MarketDataCommandApi",
     "method": "AddFuturesOptionContractsAsync",
     "parameters": [
@@ -3721,6 +3723,8 @@
     "result": "Task\u003CServiceResult\u003CGuid\u003E\u003E",
     "calls": [
       "Guid.NewGuid",
+      "PrepareOptionContractsAsync(cmdId, futuresOptionContracts).ConfigureAwait",
+      "PrepareOptionContractsAsync",
       "entityId.Format",
       "(RequestCommandAsync(cmd!, entityId)).ConfigureAwait",
       "RequestCommandAsync",
@@ -3737,7 +3741,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/MarketDataCommandApi.cs",
-    "line": 179,
+    "line": 183,
     "client": "MarketDataCommandApi",
     "method": "ChangeFuturesOptionContractAsync",
     "parameters": [
@@ -3761,6 +3765,8 @@
     "calls": [
       "ArgumentNullException.ThrowIfNull",
       "Guid.NewGuid",
+      "PrepareOptionContractsAsync(cmdId, [futuresOptionContract], contractId)\n                .ConfigureAwait",
+      "PrepareOptionContractsAsync",
       "entityId.Format",
       "(RequestCommandAsync(cmd, entityId)).ConfigureAwait",
       "RequestCommandAsync",
@@ -3777,7 +3783,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/MarketDataCommandApi.cs",
-    "line": 209,
+    "line": 215,
     "client": "MarketDataCommandApi",
     "method": "RemoveFuturesOptionContractAsync",
     "parameters": [
@@ -3811,7 +3817,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/MarketDataCommandApi.cs",
-    "line": 239,
+    "line": 266,
     "client": "MarketDataCommandApi",
     "method": "AddYieldCurveRateAsync",
     "parameters": [
@@ -3846,7 +3852,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/MarketDataCommandApi.cs",
-    "line": 269,
+    "line": 296,
     "client": "MarketDataCommandApi",
     "method": "ChangeYieldCurveRateAsync",
     "parameters": [
@@ -3881,7 +3887,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/MarketDataCommandApi.cs",
-    "line": 299,
+    "line": 326,
     "client": "MarketDataCommandApi",
     "method": "RemoveYieldCurveRateAsync",
     "parameters": [
@@ -3915,7 +3921,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/MarketDataCommandApi.cs",
-    "line": 327,
+    "line": 354,
     "client": "MarketDataCommandApi",
     "method": "ImportYieldCurveRatesAsync",
     "parameters": [
@@ -5410,21 +5416,21 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/MarketDataFeedQueryApi.cs",
-    "line": 267,
+    "line": 254,
     "client": "MarketDataFeedQueryApi",
     "method": "GetRuntimeStatusAsync",
     "parameters": [],
     "result": "Task\u003CServiceResult\u003CMarketDataFeedRuntimeStatusReadModel\u003E\u003E",
     "calls": [
       "entityId.Format",
-      "(RequestAsync\u003CGetMarketDataFeedRuntimeStatusQuery, MarketDataFeedRuntimeStatusReadModel\u003E(\n            query.Subject,\n            query)).ConfigureAwait",
+      "(RequestAsync\u003CGetMarketDataFeedRuntimeStatusQuery, MarketDataFeedRuntimeStatusReadModel\u003E(\r\n            query.Subject,\r\n            query)).ConfigureAwait",
       "RequestAsync\u003CGetMarketDataFeedRuntimeStatusQuery, MarketDataFeedRuntimeStatusReadModel\u003E"
     ],
     "subjects": [
-      "(\n                ActorType.Query,\n                GetMarketDataFeedRuntimeStatusQuery.Actor,\n                GetMarketDataFeedRuntimeStatusQuery.Verb,\n                entityId.Format())"
+      "(\r\n                ActorType.Query,\r\n                GetMarketDataFeedRuntimeStatusQuery.Actor,\r\n                GetMarketDataFeedRuntimeStatusQuery.Verb,\r\n                entityId.Format())"
     ],
     "resolvedUiCallSites": [
-      "TomasAI.IFM.UI.Net.Services/MarketDataFeed/MarketDataFeedQueryService.cs:173",
+      "TomasAI.IFM.UI.Net.Services/MarketDataFeed/MarketDataFeedQueryService.cs:161",
       "TomasAI.IFM.UI.Rust.Bridge.Net/DashboardSession.cs:47"
     ],
     "nativeOwner": "services/feed_status.rs",
@@ -5432,7 +5438,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/MarketDataFeedQueryApi.cs",
-    "line": 283,
+    "line": 270,
     "client": "MarketDataFeedQueryApi",
     "method": "GetDatabentoReadinessAsync",
     "parameters": [],
@@ -5443,17 +5449,17 @@
       "RequestAsync\u003CGetDatabentoReadinessQuery, DatabentoReadinessReadModel\u003E"
     ],
     "subjects": [
-      "(ActorType.Query, GetDatabentoReadinessQuery.Actor,\n                GetDatabentoReadinessQuery.Verb, entityId.Format())"
+      "(ActorType.Query, GetDatabentoReadinessQuery.Actor,\r\n                GetDatabentoReadinessQuery.Verb, entityId.Format())"
     ],
     "resolvedUiCallSites": [
-      "TomasAI.IFM.UI.Net.Services/MarketDataFeed/MarketDataFeedQueryService.cs:179"
+      "TomasAI.IFM.UI.Net.Services/MarketDataFeed/MarketDataFeedQueryService.cs:167"
     ],
     "nativeOwner": null,
     "status": "Pending reachability review or native port"
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/MarketDataFeedQueryApi.cs",
-    "line": 294,
+    "line": 281,
     "client": "MarketDataFeedQueryApi",
     "method": "GetDatabentoCurrentContractsAsync",
     "parameters": [],
@@ -5464,7 +5470,7 @@
       "RequestAsync\u003CGetDatabentoCurrentContractsQuery, DatabentoContractAssignmentReadModel[]\u003E"
     ],
     "subjects": [
-      "(ActorType.Query, GetDatabentoCurrentContractsQuery.Actor,\n                GetDatabentoCurrentContractsQuery.Verb, entityId.Format())"
+      "(ActorType.Query, GetDatabentoCurrentContractsQuery.Actor,\r\n                GetDatabentoCurrentContractsQuery.Verb, entityId.Format())"
     ],
     "resolvedUiCallSites": [],
     "nativeOwner": null,
@@ -5472,7 +5478,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/MarketDataFeedQueryApi.cs",
-    "line": 305,
+    "line": 292,
     "client": "MarketDataFeedQueryApi",
     "method": "GetDatabentoWatchdogHistoryAsync",
     "parameters": [
@@ -5499,10 +5505,10 @@
       "RequestAsync\u003CGetDatabentoWatchdogHistoryQuery, DatabentoWatchdogObservationReadModel[]\u003E"
     ],
     "subjects": [
-      "(ActorType.Query, GetDatabentoWatchdogHistoryQuery.Actor,\n                GetDatabentoWatchdogHistoryQuery.Verb, entityId.Format())"
+      "(ActorType.Query, GetDatabentoWatchdogHistoryQuery.Actor,\r\n                GetDatabentoWatchdogHistoryQuery.Verb, entityId.Format())"
     ],
     "resolvedUiCallSites": [
-      "TomasAI.IFM.UI.Net.Services/MarketDataFeed/MarketDataFeedQueryService.cs:185"
+      "TomasAI.IFM.UI.Net.Services/MarketDataFeed/MarketDataFeedQueryService.cs:173"
     ],
     "nativeOwner": null,
     "status": "Pending reachability review or native port"
@@ -8301,7 +8307,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/PortfolioFinancialApi.cs",
-    "line": 11,
+    "line": 12,
     "client": "PortfolioFinancialApi",
     "method": "EvaluateAsync",
     "parameters": [
@@ -8328,7 +8334,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/PortfolioFinancialApi.cs",
-    "line": 20,
+    "line": 21,
     "client": "PortfolioFinancialApi",
     "method": "EvaluateCloseAsync",
     "parameters": [
@@ -8432,7 +8438,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/PortfolioFinancialApi.cs",
-    "line": 41,
+    "line": 60,
     "client": "PortfolioFinancialApi",
     "method": "GetFinancialLedgerConfigurationAsync",
     "parameters": [
@@ -8466,7 +8472,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/PortfolioFinancialApi.cs",
-    "line": 47,
+    "line": 66,
     "client": "PortfolioFinancialApi",
     "method": "GetFinancialPostingConfigurationAsync",
     "parameters": [
@@ -8500,7 +8506,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/PortfolioFinancialApi.cs",
-    "line": 53,
+    "line": 72,
     "client": "PortfolioFinancialApi",
     "method": "GetFundRiskAuthorizationAsync",
     "parameters": [
@@ -8532,7 +8538,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/PortfolioFinancialApi.cs",
-    "line": 59,
+    "line": 78,
     "client": "PortfolioFinancialApi",
     "method": "GetFinancialAdmissionSnapshotAsync",
     "parameters": [
@@ -8564,7 +8570,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/PortfolioFinancialApi.cs",
-    "line": 65,
+    "line": 84,
     "client": "PortfolioFinancialApi",
     "method": "GetPostingReceiptAsync",
     "parameters": [
@@ -8600,7 +8606,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/PortfolioFinancialApi.cs",
-    "line": 71,
+    "line": 90,
     "client": "PortfolioFinancialApi",
     "method": "GetJournalAsync",
     "parameters": [
@@ -8634,7 +8640,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/PortfolioFinancialApi.cs",
-    "line": 77,
+    "line": 96,
     "client": "PortfolioFinancialApi",
     "method": "GetAccountBalancesAsync",
     "parameters": [
@@ -8673,7 +8679,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/PortfolioFinancialApi.cs",
-    "line": 83,
+    "line": 102,
     "client": "PortfolioFinancialApi",
     "method": "GetTrialBalanceAsync",
     "parameters": [
@@ -8705,7 +8711,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/PortfolioFinancialApi.cs",
-    "line": 89,
+    "line": 108,
     "client": "PortfolioFinancialApi",
     "method": "GetFundPerformanceMetricsAsync",
     "parameters": [
@@ -8738,7 +8744,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/PortfolioFinancialApi.cs",
-    "line": 91,
+    "line": 110,
     "client": "PortfolioFinancialApi",
     "method": "GetFundTransactionsPageAsync",
     "parameters": [
@@ -8773,7 +8779,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/PortfolioFinancialApi.cs",
-    "line": 97,
+    "line": 116,
     "client": "PortfolioFinancialApi",
     "method": "GetReconciliationAsync",
     "parameters": [
@@ -8805,7 +8811,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/PortfolioFinancialApi.cs",
-    "line": 103,
+    "line": 122,
     "client": "PortfolioFinancialApi",
     "method": "GetCapacityReservationAsync",
     "parameters": [
@@ -8839,7 +8845,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/PortfolioFinancialApi.cs",
-    "line": 109,
+    "line": 128,
     "client": "PortfolioFinancialApi",
     "method": "GetCapacityUsageAsync",
     "parameters": [
@@ -8873,7 +8879,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/PortfolioFinancialApi.cs",
-    "line": 115,
+    "line": 134,
     "client": "PortfolioFinancialApi",
     "method": "GetFundReservationsPageAsync",
     "parameters": [
@@ -8908,7 +8914,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/PortfolioFinancialApi.cs",
-    "line": 121,
+    "line": 140,
     "client": "PortfolioFinancialApi",
     "method": "SubmitEmulatorOrderAsync",
     "parameters": [
@@ -8935,7 +8941,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/PortfolioFinancialApi.cs",
-    "line": 127,
+    "line": 146,
     "client": "PortfolioFinancialApi",
     "method": "PostAsync",
     "parameters": [
@@ -8964,7 +8970,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/PortfolioFinancialApi.cs",
-    "line": 133,
+    "line": 152,
     "client": "PortfolioFinancialApi",
     "method": "ConfigureAsync",
     "parameters": [
@@ -8993,7 +8999,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/PortfolioFinancialApi.cs",
-    "line": 139,
+    "line": 158,
     "client": "PortfolioFinancialApi",
     "method": "PostBatchAsync",
     "parameters": [
@@ -9020,7 +9026,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/PortfolioFinancialApi.cs",
-    "line": 145,
+    "line": 164,
     "client": "PortfolioFinancialApi",
     "method": "ChangeAsync",
     "parameters": [
@@ -9047,7 +9053,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/PortfolioFinancialApi.cs",
-    "line": 151,
+    "line": 170,
     "client": "PortfolioFinancialApi",
     "method": "ReserveAsync",
     "parameters": [
@@ -9074,7 +9080,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/PortfolioFinancialApi.cs",
-    "line": 157,
+    "line": 176,
     "client": "PortfolioFinancialApi",
     "method": "ConsumeAsync",
     "parameters": [
@@ -9101,7 +9107,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/PortfolioFinancialPolicyCommandApi.cs",
-    "line": 18,
+    "line": 19,
     "client": "PortfolioFinancialPolicyCommandApi",
     "method": "CreatePolicyAsync",
     "parameters": [
@@ -9124,7 +9130,8 @@
     "result": "Task\u003CServiceResult\u003CGuid\u003E\u003E",
     "calls": [
       "ArgumentNullException.ThrowIfNull",
-      "Send"
+      "Send",
+      "IdempotentCommandId.Create"
     ],
     "subjects": [],
     "resolvedUiCallSites": [
@@ -9135,7 +9142,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/PortfolioFinancialPolicyCommandApi.cs",
-    "line": 23,
+    "line": 26,
     "client": "PortfolioFinancialPolicyCommandApi",
     "method": "AddPolicyVersionAsync",
     "parameters": [
@@ -9169,7 +9176,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/PortfolioFinancialPolicyCommandApi.cs",
-    "line": 28,
+    "line": 31,
     "client": "PortfolioFinancialPolicyCommandApi",
     "method": "ActivateAndAssignAsync",
     "parameters": [
@@ -9213,7 +9220,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/PortfolioFinancialPolicyCommandApi.cs",
-    "line": 33,
+    "line": 36,
     "client": "PortfolioFinancialPolicyCommandApi",
     "method": "RetirePolicyAsync",
     "parameters": [
@@ -9257,7 +9264,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/PortfolioFinancialPolicyCommandApi.cs",
-    "line": 38,
+    "line": 41,
     "client": "PortfolioFinancialPolicyCommandApi",
     "method": "DeleteDraftPolicyAsync",
     "parameters": [
@@ -9296,7 +9303,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/PortfolioFundCommandApi.cs",
-    "line": 22,
+    "line": 25,
     "client": "PortfolioFundCommandApi",
     "method": "CreateFundMandateAsync",
     "parameters": [
@@ -9331,7 +9338,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/PortfolioFundCommandApi.cs",
-    "line": 27,
+    "line": 30,
     "client": "PortfolioFundCommandApi",
     "method": "AddFundMandateVersionAsync",
     "parameters": [
@@ -9365,7 +9372,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/PortfolioFundCommandApi.cs",
-    "line": 32,
+    "line": 35,
     "client": "PortfolioFundCommandApi",
     "method": "ChangeFundStateAsync",
     "parameters": [
@@ -9409,7 +9416,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/PortfolioFundCommandApi.cs",
-    "line": 37,
+    "line": 40,
     "client": "PortfolioFundCommandApi",
     "method": "AssignTradeTemplateAsync",
     "parameters": [
@@ -9443,7 +9450,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/PortfolioFundCommandApi.cs",
-    "line": 43,
+    "line": 46,
     "client": "PortfolioFundCommandApi",
     "method": "CreateManualOrderAsync",
     "parameters": [
@@ -9463,9 +9470,15 @@
       "ArgumentNullException.ThrowIfNull",
       "FindManualOrderAsync(request, cancellationToken).ConfigureAwait",
       "FindManualOrderAsync",
-      "Send(new(request.PortfolioId, request.FundId), CreateManualFundOrderCommand.Verb,\r\n            new CreateManualFundOrderCommand(request), PortfolioErrorCodes.ValidationFailed, cancellationToken,\r\n            IdempotentCommandId.Create(request.IdempotencyKey, request), AdministratorAccess).ConfigureAwait",
-      "Send",
       "IdempotentCommandId.Create",
+      "PortfolioAccessScope.Push",
+      "ReadActiveParentAsync(queries, request.PortfolioId, cancellationToken).ConfigureAwait",
+      "ReadActiveParentAsync",
+      "FundOrderPreparation.AllocationOperationId",
+      "_identity.AllocateForOperationAsync(PortfolioBusinessIdentityKind.Order, operationId, cancellationToken).ConfigureAwait",
+      "_identity.AllocateForOperationAsync",
+      "Send(fund, CreateManualFundOrderCommand.Verb,\r\n            command, PortfolioErrorCodes.ValidationFailed, cancellationToken,\r\n            commandId, AdministratorAccess).ConfigureAwait",
+      "Send",
       "Task.Delay(50, cancellationToken).ConfigureAwait",
       "Task.Delay"
     ],
@@ -9478,7 +9491,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/PortfolioFundCommandApi.cs",
-    "line": 92,
+    "line": 124,
     "client": "PortfolioFundCommandApi",
     "method": "AddManualTradeAsync",
     "parameters": [
@@ -9515,7 +9528,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/PortfolioFundCommandApi.cs",
-    "line": 144,
+    "line": 176,
     "client": "PortfolioFundCommandApi",
     "method": "RemoveManualTradeAsync",
     "parameters": [
@@ -9547,7 +9560,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/PortfolioFundCommandApi.cs",
-    "line": 163,
+    "line": 195,
     "client": "PortfolioFundCommandApi",
     "method": "DeleteManualOrderAsync",
     "parameters": [
@@ -9581,7 +9594,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/PortfolioFundCommandApi.cs",
-    "line": 238,
+    "line": 270,
     "client": "PortfolioFundCommandApi",
     "method": "ReserveCompositionAsync",
     "parameters": [
@@ -9606,7 +9619,13 @@
       "ArgumentNullException.ThrowIfNull",
       "FindReservationAsync(request, cancellationToken).ConfigureAwait",
       "FindReservationAsync",
-      "Send(new(request.PortfolioId, request.FundId), ReserveFundOrderCompositionCommand.Verb, new ReserveFundOrderCompositionCommand(request, snapshot), PortfolioErrorCodes.IdempotencyConflict, cancellationToken, access: WorkflowAccess).ConfigureAwait",
+      "IdempotentCommandId.Create",
+      "PortfolioAccessScope.Push",
+      "FundOrderPreparation.AllocationOperationId",
+      "_identity.AllocateForOperationAsync(PortfolioBusinessIdentityKind.Order, orderOperation, cancellationToken).ConfigureAwait",
+      "_identity.AllocateForOperationAsync",
+      "_identity.AllocateForOperationAsync(PortfolioBusinessIdentityKind.Trade, tradeOperation, cancellationToken).ConfigureAwait",
+      "Send(fund, ReserveFundOrderCompositionCommand.Verb, command, PortfolioErrorCodes.IdempotencyConflict, cancellationToken, commandId, WorkflowAccess).ConfigureAwait",
       "Send",
       "Task.Delay(50, cancellationToken).ConfigureAwait",
       "Task.Delay"
@@ -9618,7 +9637,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/PortfolioFundCommandApi.cs",
-    "line": 284,
+    "line": 337,
     "client": "PortfolioFundCommandApi",
     "method": "MarkComposingAsync",
     "parameters": [
@@ -9655,7 +9674,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/PortfolioFundCommandApi.cs",
-    "line": 289,
+    "line": 342,
     "client": "PortfolioFundCommandApi",
     "method": "RecordComposedAsync",
     "parameters": [
@@ -9692,7 +9711,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/PortfolioFundCommandApi.cs",
-    "line": 294,
+    "line": 347,
     "client": "PortfolioFundCommandApi",
     "method": "AuthorizeRiskAsync",
     "parameters": [
@@ -9735,7 +9754,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/PortfolioFundCommandApi.cs",
-    "line": 303,
+    "line": 356,
     "client": "PortfolioFundCommandApi",
     "method": "RecordRiskOutcomeAsync",
     "parameters": [
@@ -9772,7 +9791,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/PortfolioFundCommandApi.cs",
-    "line": 308,
+    "line": 361,
     "client": "PortfolioFundCommandApi",
     "method": "CancelCompositionAsync",
     "parameters": [
@@ -9809,7 +9828,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/PortfolioFundCommandApi.cs",
-    "line": 313,
+    "line": 366,
     "client": "PortfolioFundCommandApi",
     "method": "ExpireCompositionAsync",
     "parameters": [

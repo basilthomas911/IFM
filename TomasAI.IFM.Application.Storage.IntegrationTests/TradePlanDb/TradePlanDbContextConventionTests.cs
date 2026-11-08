@@ -171,7 +171,7 @@ public sealed class TradePlanDbContextConventionTests
     [Fact]
     public void Folder_has_one_helper_binding_catalog_and_postgres_schema()
     {
-        string[] expected = ["ITradePlanDbContext.cs", "ITradePlanDbReadContext.cs", "ITradePlanDbWriteContext.cs", "TradePlanDbContext.cs", "TradePlanDbContextExtensions.cs", "TradePlanDbParameters.cs", "TradePlanDbSql.cs", Path.Combine("Schema", "TradePlanSchemaDb.cs"), Path.Combine("Schema", "TradePlanSchemaSql.cs")];
+        string[] expected = ["TradePlanChartCache.cs", "ITradePlanDbContext.cs", "ITradePlanDbReadContext.cs", "ITradePlanDbWriteContext.cs", "TradePlanDbContext.cs", "TradePlanDbContextExtensions.cs", "TradePlanDbParameters.cs", "TradePlanDbSql.cs", Path.Combine("Schema", "TradePlanSchemaDb.cs"), Path.Combine("Schema", "TradePlanSchemaSql.cs")];
         var folder = GetFolder();
         var actual = Directory.GetFiles(folder, "*.cs", SearchOption.AllDirectories).Select(p => Path.GetRelativePath(folder, p)).OrderBy(p => p).ToArray();
         Assert.Equal(expected.OrderBy(p => p).ToArray(), actual);
@@ -204,7 +204,7 @@ public sealed class TradePlanDbContextConventionTests
 
     private static string FindRepositoryRoot()
     {
-        for (var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        for (var directory = new DirectoryInfo(DbContextConventionSource.RepositoryRoot);
              directory is not null;
              directory = directory.Parent)
         {

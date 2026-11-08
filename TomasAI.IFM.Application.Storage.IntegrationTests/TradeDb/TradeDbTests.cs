@@ -29,6 +29,7 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.TradeDb;
 
 public class TradeDbFixture : IDisposable
 {
+    readonly TomasAI.IFM.IntegrationTesting.IsolatedIntegrationInfrastructure infrastructure = new("storage-trade", includeCql: false);
 
     public TradeDbContext TradeDb { get; private set; }
     public SequenceIdDbContext SeqIdDatabase { get; private set; }
@@ -36,6 +37,7 @@ public class TradeDbFixture : IDisposable
 
     public TradeDbFixture()
     {
+        infrastructure.StartAsync().GetAwaiter().GetResult();
         SetSeqIdDatabase();
         SetTradeDatabase();
     }
@@ -43,7 +45,7 @@ public class TradeDbFixture : IDisposable
     void SetSeqIdDatabase()
     {
         var dbConn = new DbConnectionSettings()
-             .Add("SequenceIdDbConnection", LegacyStorageFixtureIsolation.Postgres("ifm_storage_legacy_sequence_trade_tests"), "System.Data.Postgres");
+             .Add("SequenceIdDbConnection", infrastructure.PostgresConnectionString, "System.Data.Postgres");
         var diContainer = new Dictionary<Type, SequenceIdDbContext>();
         var dbResolver = new DbContextResolver(repoType => diContainer[repoType]);
         var logger = Substitute.For<ILogger<DbProvider>>();
@@ -60,7 +62,7 @@ public class TradeDbFixture : IDisposable
     void SetTradeDatabase()
     {
         var dbConn = new DbConnectionSettings()
-            .Add("TradeDbConnection", LegacyStorageFixtureIsolation.Scylla("ifm_storage_legacy_trade_tests"), "System.Data.ScyllaDb");
+            .Add("TradeDbConnection", infrastructure.PostgresConnectionString + ";Search Path=trade,public", "System.Data.Postgres");
         var diContainer = new Dictionary<Type, TradeDbContext>();
         var dbResolver = new DbContextResolver(repoType => diContainer[repoType]);
         var logger = Substitute.For<ILogger<DbProvider>>();
@@ -78,9 +80,7 @@ public class TradeDbFixture : IDisposable
         TradeDb = dbFactory.TradeDb as TradeDbContext;
     }
 
-    public void Dispose()
-    {
-    }
+    public void Dispose() => infrastructure.DisposeAsync().AsTask().GetAwaiter().GetResult();
 }
 
 public class TradeDbTests : IClassFixture<TradeDbFixture>
@@ -279,8 +279,8 @@ public class TradeDbTests : IClassFixture<TradeDbFixture>
         var tradeId = SampleData.OptionTrade.TradeId;
         var valueDate = SampleData.OptionTrade.TradeDate;
         var tradeType = SampleData.OptionTrade.TradeType;
-        var startDate = DateTime.Now.AddDays(-7);
-        var endDate = DateTime.Now;
+        var startDate = DateTime.UtcNow.AddDays(-7);
+        var endDate = DateTime.UtcNow;
 
         // Create sample spread bar data for testing
         var sampleBarData = new OptionTradeSpreadBarsDataModel(
@@ -288,7 +288,7 @@ public class TradeDbTests : IClassFixture<TradeDbFixture>
             tradeId: tradeId,
             valueDate: valueDate,
             tradeType: tradeType,
-            barDate: DateTime.Now.AddDays(-3),
+            barDate: DateTime.UtcNow.AddDays(-3),
             lossLimit: 12.5m,
             winLimit: 5.25m,
             forwardSpread: 8.75m,
@@ -330,8 +330,8 @@ public class TradeDbTests : IClassFixture<TradeDbFixture>
         var tradeType = SampleData.OptionTrade.TradeType;
 
         // Use date range outside of any possible test data
-        var startDate = DateTime.Now.AddYears(1);
-        var endDate = DateTime.Now.AddYears(1).AddDays(7);
+        var startDate = DateTime.UtcNow.AddYears(1);
+        var endDate = DateTime.UtcNow.AddYears(1).AddDays(7);
 
         // Act
         var result = await db.GetOptionTradeSpreadBarDataAsync(orderId, tradeId, valueDate, tradeType, startDate, endDate);
@@ -361,7 +361,7 @@ public class TradeDbTests : IClassFixture<TradeDbFixture>
             tradeId: tradeId,
             valueDate: valueDate,
             tradeType: tradeType,
-            barDate: new DateTime(2025, 3, 15, 10, 0, 0),
+            barDate: new DateTime(2025, 3, 15, 10, 0, 0, DateTimeKind.Utc),
             lossLimit: 12.5m,
             winLimit: 5.25m,
             forwardSpread: 8.75m,
@@ -372,7 +372,7 @@ public class TradeDbTests : IClassFixture<TradeDbFixture>
             tradeId: tradeId,
             valueDate: valueDate,
             tradeType: tradeType,
-            barDate: new DateTime(2025, 3, 20, 10, 0, 0),
+            barDate: new DateTime(2025, 3, 20, 10, 0, 0, DateTimeKind.Utc),
             lossLimit: 13.0m,
             winLimit: 5.5m,
             forwardSpread: 9.0m,
@@ -383,8 +383,8 @@ public class TradeDbTests : IClassFixture<TradeDbFixture>
         await db.InsertOptionTradeSpreadBarDataAsync(outOfRangeBarData);
 
         // Define date range that should only include the first record
-        var startDate = new DateTime(2025, 3, 14);
-        var endDate = new DateTime(2025, 3, 16);
+        var startDate = new DateTime(2025, 3, 14, 0, 0, 0, DateTimeKind.Utc);
+        var endDate = new DateTime(2025, 3, 16, 0, 0, 0, DateTimeKind.Utc);
 
         // Act
         var result = await db.GetOptionTradeSpreadBarDataAsync(orderId, tradeId, valueDate, tradeType, startDate, endDate);
@@ -578,9 +578,9 @@ public class TradeDbTests : IClassFixture<TradeDbFixture>
             underlyingAssetType: AssetType.Futures,
             isPrimaryTrade: true,
             isHedgeTrade: false,
-            createdOn: DateTime.Now,
+            createdOn: DateTime.UtcNow,
             createdBy: "UnitTest",
-            updatedOn: DateTime.Now,
+            updatedOn: DateTime.UtcNow,
             updatedBy: "UnitTest");
 
         // Create option legs with different quantities
@@ -594,9 +594,9 @@ public class TradeDbTests : IClassFixture<TradeDbFixture>
                 strikePrice: 410.0m,
                 optionLegType: OptionType.Call,
                 optionLegAction: OptionLegAction.Long,
-                createdOn: DateTime.Now,
+                createdOn: DateTime.UtcNow,
                 createdBy: "UnitTest",
-                updatedOn: DateTime.Now,
+                updatedOn: DateTime.UtcNow,
                 updatedBy: "UnitTest"),
         new OptionTradeLegReadModel(
             orderId: orderId,
@@ -606,9 +606,9 @@ public class TradeDbTests : IClassFixture<TradeDbFixture>
             strikePrice: 415.0m,
             optionLegType: OptionType.Call,
             optionLegAction: OptionLegAction.Short,
-            createdOn: DateTime.Now,
+            createdOn: DateTime.UtcNow,
             createdBy: "UnitTest",
-            updatedOn: DateTime.Now,
+            updatedOn: DateTime.UtcNow,
             updatedBy: "UnitTest"),
         new OptionTradeLegReadModel(
             orderId: orderId,
@@ -618,9 +618,9 @@ public class TradeDbTests : IClassFixture<TradeDbFixture>
             strikePrice: 400.0m,
             optionLegType: OptionType.Put,
             optionLegAction: OptionLegAction.Long,
-            createdOn: DateTime.Now,
+            createdOn: DateTime.UtcNow,
             createdBy: "UnitTest",
-            updatedOn: DateTime.Now,
+            updatedOn: DateTime.UtcNow,
             updatedBy: "UnitTest"),
         new OptionTradeLegReadModel(
             orderId: orderId,
@@ -630,9 +630,9 @@ public class TradeDbTests : IClassFixture<TradeDbFixture>
             strikePrice: 395.0m,
             optionLegType: OptionType.Put,
             optionLegAction: OptionLegAction.Short,
-            createdOn: DateTime.Now,
+            createdOn: DateTime.UtcNow,
             createdBy: "UnitTest",
-            updatedOn: DateTime.Now,
+            updatedOn: DateTime.UtcNow,
             updatedBy: "UnitTest")
     };
 

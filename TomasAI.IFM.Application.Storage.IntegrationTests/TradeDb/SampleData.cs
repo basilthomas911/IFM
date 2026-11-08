@@ -21,7 +21,7 @@ public class SampleData
     private const int OrderId = 1001;
     private const int TradeId = 2001;
     private static readonly DateOnly DefaultValueDate = new DateOnly(2025, 3, 15);
-    private static readonly DateTime DefaultCreatedOn = new DateTime(2025, 3, 15, 9, 30, 0);
+    private static readonly DateTime DefaultCreatedOn = new DateTime(2025, 3, 15, 9, 30, 0, DateTimeKind.Utc);
     private static readonly string DefaultUser = "testuser";
 
     // Set up relationships between the data objects
@@ -457,7 +457,7 @@ public class SampleData
             orderId: 1001,
             tradeId: 2001,
             valueDate: new DateOnly(2025, 3, 15),
-            actionDate: new DateTime(2025, 3, 15, 9, 30, 0),
+            actionDate: new DateTime(2025, 3, 15, 9, 30, 0, DateTimeKind.Utc),
             tradeDate: new DateOnly(2025, 3, 15),
             maturityDate: new DateOnly(2025, 6, 18),
             tradeType: TradeType.LongIronCondor,
@@ -499,7 +499,7 @@ public class SampleData
             rsiSlope: 0.5,
             tdi: FuturesTrendDirectionType.UpTrending,
             tdiStrength: FuturesTrendDirectionStrengthType.Medium,
-            createdOn: new DateTime(2025, 3, 15, 9, 30, 0),
+            createdOn: new DateTime(2025, 3, 15, 9, 30, 0, DateTimeKind.Utc),
             createdBy: "testuser"
         );
 

@@ -24,15 +24,10 @@ public sealed class RsiSeedTickLookupTests
     {
         await using var infrastructure = new IsolatedIntegrationInfrastructure("rsi-seed-tick-lookup");
         await infrastructure.StartAsync();
-        var settings = new DbConnectionSettings().Add("MarketDataDbConnection", infrastructure.CqlConnectionString, "System.Data.ScyllaDb");
+        var settings = new DbConnectionSettings().Add("TradeTickQuoteDbConnection", infrastructure.CqlConnectionString, "System.Data.ScyllaDb");
         var logger = Substitute.For<ILogger<DbProvider>>();
-        await new MarketDataSchemaDb(settings, logger).CreateAllAsync();
-        var repositories = new Dictionary<Type, IObjectRepository>();
-        var factory = new DbContextFactory(new DbContextResolver(type => repositories[type]));
-        var board = new BlackboardService(Substitute.For<IRedisCache>(), new SystemTextJsonSerializer());
-        var db = new Storage.MarketDataDb.MarketDataDbContext(settings, factory, board, Substitute.For<ISequenceIdGenerator>(), logger);
-        repositories.Add(typeof(IObjectRepository<Storage.MarketDataDb.MarketDataDbContext>), db);
-        await db.BackfillQueryProjectionsV2Async(batchSize: 64, staleOperationCutoffUtc: DateTime.UtcNow);
+        await new Storage.TradeTickQuoteDb.Schema.TradeTickQuoteSchemaDb(settings, logger).CreateAllAsync();
+        var db = new Storage.TradeTickQuoteDb.TradeTickQuoteDbContext(settings, logger);
         var contract = "RSI-SEED-" + Guid.NewGuid().ToString("N"); var date = new DateOnly(2026, 8, 25);
         var rows = new[]{SampleData.FuturesTickData with {ContractId=contract,ValueDate=date,TickId=1,TickTime=new(12,0,0),Price=100m},
    SampleData.FuturesTickData with {ContractId=contract,ValueDate=date,TickId=2,TickTime=new(12,1,0),Price=101m}};

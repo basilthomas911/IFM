@@ -83,7 +83,8 @@ internal static class EventLogAppenderSupport
         Add(command, BindValues.Text($"{now:o}"));
         Add(command, BindValues.Text($"{now:o}"));
         Add(command, BindValues.TimestampTz(now));
-        if (await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) is null)
+        if (await command.ExecuteScalarAsync(cancellationToken)
+            .ConfigureAwait(false) is null)
             throw new InvalidOperationException("The required durable projection marker was not persisted.");
         EventLogPersistenceMetrics.ProjectionMarkersWritten(1, started);
     }

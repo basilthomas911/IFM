@@ -43,7 +43,8 @@ public sealed class FuturesEmaSignalCommandActor(ICommandActorContext<FuturesEma
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap = new Dictionary<string, Func<IActorMessage, ICommand>>(StringComparer.Ordinal)
     {
         [GenerateFuturesEmaSignalCommand.Verb] = message =>
-            message.AsCommand<GenerateFuturesEmaSignalCommand>()
+            message.AsCommand<GenerateFuturesEmaSignalCommand>(),
+        [SeedFuturesEmaSignalsCommand.Verb] = message => message.AsCommand<SeedFuturesEmaSignalsCommand>()
     };
 
     /// <inheritdoc />
@@ -62,7 +63,8 @@ public sealed class FuturesEmaSignalCommandActor(ICommandActorContext<FuturesEma
         FuturesEmaSignalCommandState, ServiceResult<GuidResult>>>()
         {
             [typeof(GenerateFuturesEmaSignalCommand)] = static (command, _, state) =>
-                ((GenerateFuturesEmaSignalCommand)command).Execute(state)
+                ((GenerateFuturesEmaSignalCommand)command).Execute(state),
+            [typeof(SeedFuturesEmaSignalsCommand)] = static (command, _, state) => ((SeedFuturesEmaSignalsCommand)command).Execute(state)
         };
 
     /// <inheritdoc />
@@ -87,6 +89,12 @@ public sealed class FuturesEmaSignalCommandActor(ICommandActorContext<FuturesEma
                     .ValidateCommandId(generate.CommandId, generate.CommandName)
                     .ValidateEntityId(generate.EntityId, generate.CommandName)
                     .ValidateSourceBar(generate);
+            },
+            [typeof(SeedFuturesEmaSignalsCommand)] = static command =>
+            {
+                var seed = (SeedFuturesEmaSignalsCommand)command;
+                return new List<ValidationError>().ValidateCommandId(seed.CommandId, seed.CommandName)
+                    .ValidateEntityId(seed.EntityId, seed.CommandName).ValidateSeedBatch(seed);
             }
         };
 

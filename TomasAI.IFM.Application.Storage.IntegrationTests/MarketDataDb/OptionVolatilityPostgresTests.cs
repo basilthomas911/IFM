@@ -21,7 +21,7 @@ public sealed class OptionVolatilityPostgresTests
     [Fact]
     public async Task Postgres_PreservesIdempotentAppendOnlyPointInTimePublicationSemantics()
     {
-        await using var infrastructure = new IsolatedIntegrationInfrastructure("option-volatility-schema");
+        await using var infrastructure = new IsolatedIntegrationInfrastructure("option-volatility-schema", includeCql: false);
         await infrastructure.StartAsync();
         var settings = new DbConnectionSettings().Add(MarketDataDbContext.MarketDataDbConnection,
             infrastructure.PostgresConnectionString, "System.Data.Postgres");

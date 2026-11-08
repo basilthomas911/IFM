@@ -18,12 +18,17 @@ public sealed class TradeRealtimeHotCache
     StrategyTradePlanSnapshot? publishedAvailablePlan;
     bool retired;
     DateTimeOffset nextQualityCheck = DateTimeOffset.MaxValue;
+    long nextQualityTicks = DateTimeOffset.MaxValue.UtcTicks;
+    int deadlineNotificationPending;
+    readonly Action<TradeRealtimeHotCache>? deadlineChanged;
 
-    public TradeRealtimeHotCache(EstablishedTradeDefinition trade, DateOnly valueDate, TimeProvider? time = null)
+    public TradeRealtimeHotCache(EstablishedTradeDefinition trade, DateOnly valueDate, TimeProvider? time = null,
+        Action<TradeRealtimeHotCache>? deadlineChanged = null)
     {
         ArgumentNullException.ThrowIfNull(trade);
         clock = time ?? TimeProvider.System;
         definition = trade;
+        this.deadlineChanged = deadlineChanged;
         current = new()
         {
             TradeId = trade.Id, PositionId = StrategyPositionId.Create(trade.Id, trade.StrategyKind),
@@ -35,6 +40,12 @@ public sealed class TradeRealtimeHotCache
     }
 
     public TradeRealtimeSnapshot Read() => Volatile.Read(ref current);
+
+    /// <summary>UTC deadline for the registry scheduler; reading it never acquires the quote mutation lock.</summary>
+    public long NextQualityCheckTicks => Interlocked.Read(ref nextQualityTicks);
+
+    internal bool TryMarkDeadlineChange() => Interlocked.Exchange(ref deadlineNotificationPending, 1) == 0;
+    internal void AcknowledgeDeadlineChange() => Volatile.Write(ref deadlineNotificationPending, 0);
 
     /// <summary>Captures live quotes and positions while exposing a new Iron Condor plan only when Daily PnL changes.</summary>
     /// <returns>A notification payload; the full latest calculated plan remains available through <see cref="Read"/>.</returns>
@@ -163,13 +174,19 @@ public sealed class TradeRealtimeHotCache
 
     /// <summary>Expires quote/risk state without requiring another tick. Returns whether a revision was published.</summary>
     public bool Expire()
+        => ExpireCore(notifyDeadlineChange: true);
+
+    /// <summary>The registry owns rescheduling after this synchronous call, so its own expiry must not enqueue a redundant dirty notification.</summary>
+    internal bool ExpireFromScheduler() => ExpireCore(notifyDeadlineChange: false);
+
+    bool ExpireCore(bool notifyDeadlineChange)
     {
         using var mutation = TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.EnterMutation();
         lock (gate)
         {
             if (retired || clock.GetUtcNow() < nextQualityCheck) return false;
             var next = Qualify(current);
-            ScheduleQualityCheck(next);
+            ScheduleQualityCheck(next, notifyDeadlineChange);
             if (next.Legs.SequenceEqual(current.Legs) && next.PlanStatus == current.PlanStatus) return false;
             Publish(next);
             return true;
@@ -194,7 +211,7 @@ public sealed class TradeRealtimeHotCache
 
     TradeRealtimeSnapshot Qualify(TradeRealtimeSnapshot snapshot) => TradeRealtimeSnapshotCalculations.Qualify(snapshot, clock.GetUtcNow());
 
-    void ScheduleQualityCheck(TradeRealtimeSnapshot snapshot)
+    void ScheduleQualityCheck(TradeRealtimeSnapshot snapshot, bool notifyDeadlineChange = true)
     {
         var next = DateTimeOffset.MaxValue;
         foreach (var leg in snapshot.Legs)
@@ -202,7 +219,12 @@ public sealed class TradeRealtimeHotCache
                 next = quote.ValidUntilUtc;
         if (snapshot.PlanStatus == "Available" && snapshot.Plan?.IronCondorTradePlanSnapshot?.RiskValidUntilUtc is {} riskUntil
             && riskUntil < next.UtcDateTime) next = new DateTimeOffset(DateTime.SpecifyKind(riskUntil, DateTimeKind.Utc));
-        nextQualityCheck = next;
+        if (next != nextQualityCheck)
+        {
+            nextQualityCheck = next;
+            Interlocked.Exchange(ref nextQualityTicks, next.UtcTicks);
+            if (notifyDeadlineChange) deadlineChanged?.Invoke(this);
+        }
     }
 
     /// <summary>Retains known numeric display values without changing current quote or plan quality metadata.</summary>

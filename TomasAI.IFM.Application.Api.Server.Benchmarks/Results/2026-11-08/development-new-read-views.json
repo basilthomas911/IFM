@@ -1,0 +1,22 @@
+[
+  {
+    "Path": "/api/actor-health/summary",
+    "Status": 200,
+    "Bytes": 215
+  },
+  {
+    "Path": "/api/actor-health/actors?offset=0&limit=2",
+    "Status": 200,
+    "Bytes": 849
+  },
+  {
+    "Path": "/api/actor-health/projectors",
+    "Status": 200,
+    "Bytes": 41682
+  },
+  {
+    "Path": "/api/actor-health/workers",
+    "Status": 200,
+    "Bytes": 9976
+  }
+]

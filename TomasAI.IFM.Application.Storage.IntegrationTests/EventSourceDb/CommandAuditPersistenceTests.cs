@@ -20,11 +20,10 @@ using Xunit;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.EventSourceDb;
 
-public sealed class CommandAuditPersistenceTests
+[Collection(TomasAI.IFM.Application.Storage.IntegrationTests.FrameworkStorage.Postgres.PostgresStorageProviderCollection.Name)]
+public sealed class CommandAuditPersistenceTests(TomasAI.IFM.Application.Storage.IntegrationTests.FrameworkStorage.Postgres.PostgresStorageProviderFixture fixture)
 {
-    static string ConnectionString =>
-        Environment.GetEnvironmentVariable("IFM_POSTGRES_EVENTSOURCE_TEST_CONNECTION")
-        ?? "Host=localhost;Port=5432;Database=event-source-test-db";
+    string ConnectionString => fixture.Repository.ConnectionString;
 
     [Fact]
     public void MessagePack_codec_round_trips_without_compression_and_has_stable_identity()
@@ -341,7 +340,7 @@ public sealed class CommandAuditPersistenceTests
         }
     }
 
-    static async Task EnsureSchemaAsync()
+    async Task EnsureSchemaAsync()
     {
         var settings = new DbConnectionSettings().Add(
             EventSourceActorDbContext.EventSourceActorDbConnection, BaseConnectionString(), "System.Data.Postgres");
@@ -464,7 +463,7 @@ public sealed class CommandAuditPersistenceTests
         public static RetryCommand Create() => new() { CommandId = Guid.NewGuid(), Subject = new ActorSubject(ActorType.Command, "Test", "Write", "1") };
     }
 
-    static string BaseConnectionString()
+    string BaseConnectionString()
     {
         var builder = new NpgsqlConnectionStringBuilder(ConnectionString)
         {
@@ -474,10 +473,10 @@ public sealed class CommandAuditPersistenceTests
         return builder.ConnectionString;
     }
 
-    static NpgsqlConnection CreateConnection()
+    NpgsqlConnection CreateConnection()
         => new PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(BaseConnectionString());
 
-    static async Task DeleteAsync(Guid commandId)
+    async Task DeleteAsync(Guid commandId)
     {
         await using var connection = CreateConnection();
         await connection.OpenAsync();

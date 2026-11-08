@@ -26,7 +26,10 @@ public sealed class MarketDataPostgresSchemaTests
         MarketDataDbSql.InsertEconomicCalendarV2.Should().Contain("impact = EXCLUDED.impact")
             .And.Contain("changePercentage = EXCLUDED.changePercentage");
         MarketDataDbSql.GetEconomicCalendarV2CommandId.Should().Contain("commandId")
-            .And.Contain("countryCode = $1 AND monthBucket = $2 AND eventDate = $3 AND eventName = $4");
+            .And.Contain("countryCode = $1 AND monthBucket = $2")
+            .And.Contain("eventDate >= date_trunc('second', $3::timestamptz)")
+            .And.Contain("eventDate < date_trunc('second', $3::timestamptz) + INTERVAL '1 second'")
+            .And.Contain("eventName = $4");
     }
 
     [Fact]

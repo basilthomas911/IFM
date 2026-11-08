@@ -14,7 +14,7 @@ public sealed class ProviderBindingBoundaryTests
     [Fact]
     public void Application_storage_leaves_driver_parameter_creation_and_type_mapping_to_providers()
     {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        var directory = new DirectoryInfo(DbContextConventionSource.RepositoryRoot);
         while (directory is not null && !Directory.Exists(Path.Combine(directory.FullName, "TomasAI.IFM.Application.Storage")))
             directory = directory.Parent;
         Assert.NotNull(directory);

@@ -25,6 +25,12 @@ pub struct PositionHistoryRow {
     pub net_spread: Option<DecimalText>,
     /// Optional trade pnl; `None` represents an absent value.
     pub trade_pnl: Option<DecimalText>,
+    /// Cumulative realized P&L in account currency, before commissions.
+    pub realized_pnl: Option<DecimalText>,
+    /// Actual opening and closing commissions accumulated for this position.
+    pub total_commission: Option<DecimalText>,
+    /// Cumulative realized plus unrealized P&L after actual commissions.
+    pub net_pnl: Option<DecimalText>,
     /// Whether valid is enabled or currently true.
     pub is_valid: bool,
 }
@@ -234,6 +240,9 @@ impl Cells for PositionHistoryRow {
             "commission" => self.commission.scalar_cell(),
             "netSpread" => self.net_spread.scalar_cell(),
             "tradePnl" => self.trade_pnl.scalar_cell(),
+            "realizedPnl" => self.realized_pnl.scalar_cell(),
+            "totalCommission" => self.total_commission.scalar_cell(),
+            "netPnl" => self.net_pnl.scalar_cell(),
             "isValid" => self.is_valid.scalar_cell(),
             _ => Cell::Missing,
         }

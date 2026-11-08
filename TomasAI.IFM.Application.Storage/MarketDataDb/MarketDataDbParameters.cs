@@ -1,3 +1,5 @@
+using TomasAI.IFM.Framework.Serialization;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
 using System.Text.Json;
 using TomasAI.IFM.Application.MarketData.Contracts.Historical;
 using static TomasAI.IFM.Shared.Storage.BindValues;
@@ -2623,3 +2625,17 @@ internal readonly record struct HistoricalAnalyticsAttemptProjectionParameter(Gu
 {
     public object Bind() => new object[] { AttemptId, EventId, Payload };
 }
+
+internal readonly record struct IndicatorSeedCoverageKey(string ContractId, TimeFrameType Frame, DateOnly Date,
+        DateTimeOffset[] Ends, string SourceVersion) : IBindValue
+    {
+        public object Bind() => new object?[] { MarketSeriesIdentity.ForContract(ContractId).Format(), Frame.ToString(),
+            checked(Date.Year * 100 + Date.Month), Ends.Select(end => end.UtcDateTime).ToArray(), ContractId, Date, SourceVersion };
+    }
+
+internal readonly record struct IndicatorSeedCoverageBatch(string SourceVersion, FuturesTradeSessionBarReadModel[] Bars) : IBindValue
+    {
+        public object Bind() => new object?[] { Bars[0].ContractId, Bars[0].TimeFrame.ToString(), Bars[0].ValueDate, SourceVersion,
+            Bars.Select(bar => bar.IntervalEndUtc.UtcDateTime).ToArray(),
+            Bars.Select(bar => MessagePackBinarySerializer.Shared.Serialize(bar)!).ToArray() };
+    }

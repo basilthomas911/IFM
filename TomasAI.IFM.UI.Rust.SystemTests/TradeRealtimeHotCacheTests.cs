@@ -77,7 +77,9 @@ public sealed class TradeRealtimeHotCacheTests
         Assert.True(cache.Apply(pending));
         Assert.Equal(12,cache.Read().Legs[0].Observation!.OptionPrice);
         Assert.Equal(valid,cache.Read().Legs[0].LastValidRisk);
-        Assert.Equal("Pending",cache.Read().Legs[0].PricingStatus);
+        Assert.False(cache.Read().Legs[0].Observation!.GreeksAvailable);
+        // The new mark is awaiting pricing; retained risk is still qualified at this clock time.
+        Assert.Equal("Available",cache.Read().Legs[0].PricingStatus);
         Assert.True(cache.Apply(pending));
         Assert.True(cache.Apply(pending with { IsPricingUpdate=true, PricingFailure="CalculationFailed" }));
         Assert.Equal(valid,cache.Read().Legs[0].LastValidRisk);

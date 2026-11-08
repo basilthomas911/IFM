@@ -1,0 +1,20 @@
+{
+  "Note": "Final whitespace-only cleanup after measurement; code behavior unchanged. Development Debug refreshed for matching PDB/source checksums.",
+  "MeasuredManifestChangedSources": [
+    {
+      "Path": "TomasAI.IFM.Application.Api.Server.Benchmarks/Program.cs",
+      "MeasuredSha256": "C0CF212D18A44EC2D62D14A29626B4C748F7DA832061000FEABBB24925B2617E",
+      "FinalSha256": "BC72F11755117F826525C0DA5E32DA91EF73B601CEFF278EF12D4FE7D05B2712"
+    },
+    {
+      "Path": "TomasAI.IFM.Application.Storage/MarketDataDb/MarketDataDbContextExtensions.cs",
+      "MeasuredSha256": "7F75DCCEAEB770EB95C562477A74290AC0D8FA12050E913F8D36AD34C7533BF7",
+      "FinalSha256": "CF119EA47EDF453011302A3E165957EF18EACAE94FE2BA7FAB6B9EE95015139E"
+    },
+    {
+      "Path": "TomasAI.IFM.Application.Storage/SecuritiesDb/SecuritiesDbContextExtensions.cs",
+      "MeasuredSha256": "1E71081986C179B34091A3A314515895A7A196D07DDF58841C5248CE449F7F26",
+      "FinalSha256": "B545D0A779B06303C1C718B18309983095F8A70A8C342E2B0E5BE344254643A0"
+    }
+  ]
+}

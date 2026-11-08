@@ -113,7 +113,7 @@ await using var queueDisposal = queue.ConfigureAwait(true);
 
     [Fact]
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
-    public async Task Typed_deferral_redelivers_process_message_without_publishing_a_failure_replay()
+    public async Task Typed_deferral_yields_durably_without_counting_a_failure()
     {
         var resources = CreateResources();
 var queue = CreateQueue();
@@ -134,10 +134,15 @@ await using var queueDisposal = queue.ConfigureAwait(true);
         await completed.Task.WaitAsync(TestTimeout);
         calls.Should().Be(2);
         await WaitForStreamMessagesAsync(resources.ReplayStream, 0);
+        await WaitForStreamMessagesAsync(resources.ProcessStream, 0);
         var processConsumer = await _jetStream.GetConsumerAsync(
             resources.ProcessStream,
             resources.ProcessConsumer);
-        processConsumer.Info.Delivered.ConsumerSeq.Should().BeGreaterThanOrEqualTo(2);
+        // Typed deferral now durably yields the acknowledgement slot to replay;
+        // it does not NAK the original process message and occupy that slot.
+        processConsumer.Info.Delivered.ConsumerSeq.Should().Be(1);
+        var replayConsumer = await _jetStream.GetConsumerAsync(resources.ReplayStream, resources.ReplayConsumer);
+        replayConsumer.Info.Delivered.ConsumerSeq.Should().BeGreaterThanOrEqualTo(1);
     }
 
     [Fact]

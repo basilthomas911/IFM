@@ -42,7 +42,7 @@ public sealed class MarketDataServicePostgresFixture : IAsyncLifetime
         var connectionString = Environment.GetEnvironmentVariable(ConnectionVariable);
         if (connectionString is null)
         {
-            _infrastructure = new IsolatedIntegrationInfrastructure("marketdataservice");
+            _infrastructure = new IsolatedIntegrationInfrastructure("marketdataservice", includeCql: false);
             await _infrastructure.StartAsync();
             connectionString = _infrastructure.PostgresConnectionString;
         }

@@ -6,6 +6,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $crateDirectory = $PSScriptRoot
+& (Join-Path $crateDirectory '../../scripts/Development/Initialize-RustBuildTarget.ps1') -ProjectDirectory $crateDirectory
 $cargo = Join-Path $env:USERPROFILE '.cargo\bin\cargo.exe'
 if (-not (Test-Path -LiteralPath $cargo)) {
     $cargoCommand = Get-Command cargo -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty Source
@@ -38,5 +39,8 @@ $sourceDll = Join-Path $crateDirectory "target\$target\$cargoProfile\ifm_option_
 $outputDirectory = Join-Path $crateDirectory "out\build\$Configuration"
 New-Item -ItemType Directory -Force -Path $outputDirectory | Out-Null
 Copy-Item -LiteralPath $sourceDll -Destination (Join-Path $outputDirectory 'ifm_option_pricer_native.dll') -Force
+$sourcePdb = Join-Path $crateDirectory "target\$target\$cargoProfile\ifm_option_pricer_native.pdb"
+if (!(Test-Path -LiteralPath $sourcePdb)) { throw 'Full-debug native PDB is missing.' }
+Copy-Item -LiteralPath $sourcePdb -Destination $outputDirectory -Force
 Copy-Item -LiteralPath (Join-Path $crateDirectory 'include\ifm_option_pricer_native.h') -Destination $outputDirectory -Force
 Write-Output (Join-Path $outputDirectory 'ifm_option_pricer_native.dll')

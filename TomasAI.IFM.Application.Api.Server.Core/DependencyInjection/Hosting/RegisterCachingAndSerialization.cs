@@ -159,8 +159,12 @@ public static partial class CoreServiceRegistration
         else services.AddDistributedMemoryCache();
 
         services.AddHttpClient();
+        services.AddSingleton<TomasAI.IFM.Application.Api.Server.Core.Observability.HealthChecks.BackendDiagnosticReads>();
+        services.AddSingleton<TomasAI.IFM.Application.Api.Server.Core.Observability.HealthChecks.ActorHealthSnapshotReader>();
         var redisUri = config["IFM_TEST_REDIS_URL"] ?? config.GetValue<string>("AppSettings:RedisUri")!;
-        services.AddSingleton<IConnectionMultiplexer>(_ => ConnectionMultiplexer.Connect(redisUri));
+        services.AddSingleton(sp => new TomasAI.IFM.Application.Api.Server.Core.HostedServices.RedisConnectionStartup(
+            redisUri, sp.GetRequiredService<ILogger<TomasAI.IFM.Application.Api.Server.Core.HostedServices.RedisConnectionStartup>>()));
+        services.AddHostedService(sp => sp.GetRequiredService<TomasAI.IFM.Application.Api.Server.Core.HostedServices.RedisConnectionStartup>());
         services.AddSingleton<IRecoveryInfrastructureProbe, RedisRecoveryInfrastructureProbe>();
         services.AddSingleton<IRecoveryInfrastructureProbe, NatsRecoveryInfrastructureProbe>();
 

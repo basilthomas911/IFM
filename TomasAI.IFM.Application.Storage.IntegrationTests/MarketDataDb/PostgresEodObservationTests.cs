@@ -52,7 +52,7 @@ public sealed class PostgresEodObservationTests
     [Fact]
     public async Task Iti_overshoot_modes_roundtrip_and_latest_categories_merge_by_sequence_with_twenty_percent_bands()
     {
-        await using var infrastructure = new IsolatedIntegrationInfrastructure("iti-overshoot");
+        await using var infrastructure = new IsolatedIntegrationInfrastructure("iti-overshoot", includeCql: false);
         await infrastructure.StartAsync();
         var settings = new DbConnectionSettings().Add("MarketDataDbConnection", infrastructure.PostgresConnectionString, "System.Data.Postgres");
         await new MarketDataSchemaDb(settings, NullLogger<DbProvider>.Instance).CreateAllAsync();
@@ -108,7 +108,7 @@ public sealed class PostgresEodObservationTests
     [Fact]
     public async Task Calendar_fractional_timestamp_lookup_update_and_delete_use_the_actor_identity()
     {
-        await using var infrastructure = new IsolatedIntegrationInfrastructure("calendar-identity");
+        await using var infrastructure = new IsolatedIntegrationInfrastructure("calendar-identity", includeCql: false);
         await infrastructure.StartAsync();
         var settings = new DbConnectionSettings().Add("MarketDataDbConnection", infrastructure.PostgresConnectionString, "System.Data.Postgres");
         await new MarketDataSchemaDb(settings, NullLogger<DbProvider>.Instance).CreateAllAsync();
@@ -414,7 +414,7 @@ public sealed class PostgresEodObservationTests
     [Fact]
     public async Task Download_outcome_source_projection_and_notification_marker_commit_or_roll_back_together()
     {
-        await using var infrastructure = new IsolatedIntegrationInfrastructure("native-download-atomic");
+        await using var infrastructure = new IsolatedIntegrationInfrastructure("native-download-atomic", includeCql: false);
         await infrastructure.StartAsync();
         var settings = new DbConnectionSettings()
             .Add("MarketDataDbConnection",infrastructure.PostgresConnectionString,"System.Data.Postgres")
@@ -507,7 +507,7 @@ public sealed class PostgresEodObservationTests
     [Fact]
     public async Task Session_snapshots_and_every_admitted_history_row_commit_together_and_roll_back_together()
     {
-        await using var infrastructure = new IsolatedIntegrationInfrastructure("native-eod");
+        await using var infrastructure = new IsolatedIntegrationInfrastructure("native-eod", includeCql: false);
         await infrastructure.StartAsync();
         var settings = new DbConnectionSettings().Add("MarketDataDbConnection", infrastructure.PostgresConnectionString, "System.Data.Postgres");
         await new MarketDataSchemaDb(settings, NullLogger<DbProvider>.Instance).CreateAllAsync();

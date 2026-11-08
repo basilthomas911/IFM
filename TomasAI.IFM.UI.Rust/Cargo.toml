@@ -19,3 +19,18 @@ chrono-tz = "0.10.4"
 visual-tests = []
 [dev-dependencies]
 egui_kittest = { version = "=0.32.3", features = ["wgpu", "snapshot"] }
+
+# Retain full source, type and variable information in all build configurations.
+[profile.dev]
+debug = 2
+strip = "none"
+
+# Retain full source, type and variable information in all build configurations.
+[profile.test]
+debug = 2
+strip = "none"
+
+# Retain full source, type and variable information in all build configurations.
+[profile.release]
+debug = 2
+strip = "none"

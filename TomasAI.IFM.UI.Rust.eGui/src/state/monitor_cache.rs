@@ -326,7 +326,10 @@ impl History {
                 trade_status: status.into(),
                 commission: value.commission.clone(),
                 net_spread: value.net_price.clone(),
-                trade_pnl: pnl,
+                trade_pnl: value.period_pnl.clone().or(pnl),
+                realized_pnl: value.realized_pnl.clone(),
+                total_commission: value.total_commission.clone(),
+                net_pnl: value.net_pnl.clone(),
                 is_valid: true,
             }
         };

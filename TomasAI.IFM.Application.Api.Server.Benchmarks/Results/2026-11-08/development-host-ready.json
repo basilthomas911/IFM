@@ -1,0 +1,5 @@
+{
+  "Status": 200,
+  "Body": "{\"status\":\"Ready\",\"implementation\":\"RustFFI\"}",
+  "CapturedUtc": "2026-11-08T18:13:00.0025171Z"
+}

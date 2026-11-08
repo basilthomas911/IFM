@@ -11,6 +11,15 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb;
 /// </summary>
 public interface IEventSourceActorDbReadContext
 {
+    /// <summary>Reads the committed source head, newest qualified checkpoint and replay tail in one statement.</summary>
+    Task<AggregateCheckpointWindow> ReadAggregateCheckpointWindowAsync(string stream, string sidecar,
+        CancellationToken cancellationToken, long through = long.MaxValue, long maximumCheckpointRevision = long.MaxValue, long replayAfter = -1);
+    /// <summary>Finds creation evidence or a bounded command outcome without replaying the whole stream.</summary>
+    Task<IReadOnlyList<EventStreamReadModel>> FindAggregateEventsAsync(string stream, Guid? commandId, CancellationToken cancellationToken);
+    /// <summary>Reads a concern and legacy prefix at one committed PostgreSQL statement boundary.</summary>
+    Task ReadConcernCheckpointWindowAsync(string concernStream, string legacyStream, Type checkpointType,
+        bool useCheckpoint, Action<IEnumerable<ConcernCheckpointRow>> reduce, CancellationToken cancellationToken);
+
     /// <summary>Restores independently replacing state components from their latest source snapshots at one committed head.</summary>
     /// <remarks>The owning repository must declare every retained state component; delta events are not eligible snapshots.</remarks>
     ValueTask MapReduceActorEventStreamFromLatestSnapshotsAsync<TState, TFirst, TSecond>(

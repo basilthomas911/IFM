@@ -82,7 +82,7 @@ public sealed class PostgresParameterAtomicTests(PostgresTradePlanFixture fixtur
             1,version.Reference,true,ParameterApplicationPolicy.NextStartup,DateTime.UtcNow,"integration");
         var changed = new ParameterAssignmentChangedEvent { CommandId=Guid.NewGuid(),EntityId=new(assignmentId),Revision=1,RequestHash=new string('c',64),Assignment=assignment };
         var startup = new ParameterStartupChangedEvent { CommandId=Guid.NewGuid(),EntityId=new(run),RunId=run,Revision=1,Run=new ParameterStartupRun(run,[assignment],[version],new(run,"assignment","plan",[]),DateTime.UtcNow,"integration") };
-        var report=new ParameterStartupChangedEvent{CommandId=Guid.NewGuid(),EntityId=ParameterStartupEntityId.Registry,RunId=run,Revision=2,
+        var report=new ParameterStartupChangedEvent{CommandId=Guid.NewGuid(),EntityId=new(run),RunId=run,Revision=2,
             Report=new(run,"plan",new DateOnly(2026,10,15),"ES",DateTime.UtcNow.AddTicks(1234),[])};
         IEvent[] sources = [set, changed, startup,report];
         var stream = "parameter-atomic-"+id.ToString("N");

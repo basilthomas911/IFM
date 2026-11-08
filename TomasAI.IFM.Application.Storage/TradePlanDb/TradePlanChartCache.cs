@@ -16,13 +16,15 @@ internal static class TradePlanChartCache
         (string, StrategyPositionId, TradeStrategyKind, DateOnly, long?) key,
         Func<Task<Series>> load, CancellationToken cancellationToken)
     {
-        await Gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        await Gate.WaitAsync(cancellationToken)
+            .ConfigureAwait(false);
         try
         {
             var now = Environment.TickCount64;
             if (Entries.TryGetValue(key, out var cached) && now - cached.LoadedAt < 60_000)
                 return cached.Series;
-            var series = await load().ConfigureAwait(false);
+            var series = await load()
+            .ConfigureAwait(false);
             foreach (var expired in Entries.Where(pair => now - pair.Value.LoadedAt >= 60_000).Select(pair => pair.Key).ToArray())
                 Entries.Remove(expired);
             if (Entries.Count >= 128)

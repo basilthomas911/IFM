@@ -53,4 +53,14 @@ public sealed record StrategyPositionSnapshot
 public sealed record StrategyPositionHistoryValuation(
     [property: Key(0)] DateOnly ValueDate, [property: Key(1)] int DaysToExpiry,
     [property: Key(2)] int Quantity, [property: Key(3)] decimal NetPrice,
-    [property: Key(4)] decimal Commission);
+    [property: Key(4)] decimal Commission)
+{
+    /// <summary>Cumulative realized P&amp;L in account currency before commissions; absent without multiplier evidence.</summary>
+    [Key(5)] public decimal? RealizedPnl { get; init; }
+    /// <summary>Actual opening and closing commissions accumulated over the position lifetime.</summary>
+    [Key(6)] public decimal? TotalCommission { get; init; }
+    /// <summary>Cumulative realized plus unrealized currency P&amp;L after actual commissions.</summary>
+    [Key(7)] public decimal? NetPnl { get; init; }
+    /// <summary>Change in lifetime net P&amp;L since the preceding retained history row; prevents double-counting daily snapshots.</summary>
+    [Key(8)] public decimal? PeriodPnl { get; init; }
+}

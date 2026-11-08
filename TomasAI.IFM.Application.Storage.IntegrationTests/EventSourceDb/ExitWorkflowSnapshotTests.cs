@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using TomasAI.IFM.Domain.Trade.Shared;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using TomasAI.IFM.Application.EventProjector.Contracts;
@@ -50,12 +51,17 @@ public sealed class ExitWorkflowSnapshotTests(EventSourceActorSnapshotRangeFixtu
         const int head = 12;
         const int samples = 20;
         var command = Substitute.For<ICommand>();
-        var subject = new ActorSubject(ActorType.Command, "ExitWorkflowSnapshotTest", "Start", Guid.NewGuid().ToString("N"));
+        var entity = new ExitPositionWorkflowId(new StrategyPositionId(new TradeEntityId(1, 2, 3, 4), Guid.NewGuid()), new DateOnly(2026, 11, 6), Guid.NewGuid());
+        var subject = new ActorSubject(ActorType.Command, "ExitWorkflowSnapshotTest", "Start", entity.Format());
         command.Subject.Returns(subject);
-        command.StreamId.Returns($"ExitWorkflowSnapshotTest.{subject.EntityId}");
+        command.StreamId.Returns(subject.StreamId);
+        var kind = typeof(TState) == typeof(FuturesExitPositionWorkflowCommandState) ? TradeStrategyKind.FuturesOutright
+            : typeof(TState) == typeof(IronCondorExitPositionWorkflowCommandState) ? TradeStrategyKind.IronCondor
+            : TradeStrategyKind.VerticalSpread;
         var events = Enumerable.Range(1, head).Select(revision => new ExitPositionWorkflowStartedEvent
         {
-            Id = Guid.NewGuid(), CommandId = Guid.NewGuid(),
+            Id = Guid.NewGuid(), CommandId = Guid.NewGuid(), StrategyKind = kind, EntityId = entity,
+            Subject = new(ActorType.Event, "ExitWorkflowSnapshotTest", ExitPositionWorkflowStartedEvent.Verb, entity.Format()),
             SourcePlanEventId = Guid.NewGuid(), ExitPlan = new() { PlanRevision = revision }
         });
         var database = fixture.ActorEventDb;

@@ -27,6 +27,7 @@ public sealed class MarketConditionConfigurationDbCollection
 
 public sealed class MarketConditionConfigurationDbFixture : IAsyncLifetime
 {
+    readonly TomasAI.IFM.IntegrationTesting.IsolatedIntegrationInfrastructure infrastructure = new("storage-configuration", includeCql: false);
     const string ConnectionVariable = "IFM_POSTGRES_CONFIGURATION_TEST_CONNECTION";
     // Keep generated configuration fixtures out of the Development API database.
     const string DefaultConnection = "Host=localhost;Port=5432;Database=ifm-configuration-integration-tests";
@@ -37,9 +38,8 @@ public sealed class MarketConditionConfigurationDbFixture : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        var connectionString = Environment.GetEnvironmentVariable(ConnectionVariable);
-        if (string.IsNullOrWhiteSpace(connectionString))
-            connectionString = DefaultConnection;
+        await infrastructure.StartAsync();
+        var connectionString = infrastructure.PostgresConnectionString;
 
         var settings = new DbConnectionSettings()
             .Add(ConfigurationDbContext.ConfigurationDbConnection, connectionString, Provider);
@@ -54,7 +54,7 @@ public sealed class MarketConditionConfigurationDbFixture : IAsyncLifetime
             settings[ConfigurationDbContext.ConfigurationDbConnection], logger);
     }
 
-    public Task DisposeAsync() => Task.CompletedTask;
+    public Task DisposeAsync() => infrastructure.DisposeAsync().AsTask();
 }
 
 public sealed class MarketConditionConfigurationTestRepository(

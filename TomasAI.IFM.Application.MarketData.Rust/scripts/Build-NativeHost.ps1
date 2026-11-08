@@ -13,6 +13,7 @@ function Invoke-Native([string]$Executable,[string[]]$Arguments) {
 }
 $implementation=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $repository=(Resolve-Path (Join-Path $implementation '..')).Path
+& (Join-Path $repository 'scripts/Development/Initialize-RustBuildTarget.ps1') -ProjectDirectory $implementation
 $profile=if($Configuration -eq 'Release'){'release'}else{'development'}
 $output=if($OutputDirectory){[IO.Path]::GetFullPath($OutputDirectory)}else{Join-Path $repository ('.artifacts/rust-marketdata-package/'+$Configuration)}
 # Check before publishing any file: an older opt-in package may still be running.

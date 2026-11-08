@@ -1,3 +1,12 @@
+using Microsoft.Extensions.Logging;
+using System.Collections.Concurrent;
+using TomasAI.IFM.Application.Blackboard;
+using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Shared.EventProjector.ReadModels;
+using TomasAI.IFM.Shared.Exceptions;
+using TomasAI.IFM.Shared.Storage;
 
 
 
@@ -319,13 +328,15 @@ internal static class EventSourceActorDbContextExtensions
             var envelope = CommandAuditEnvelope.Create(command, context._commandAuditCodec);
             if (domainEvents.Count == 0)
             {
-                if (!await context.TryInsertCommandAuditAsync(envelope, cancellationToken).ConfigureAwait(false))
+                if (!await context.TryInsertCommandAuditAsync(envelope, cancellationToken)
+            .ConfigureAwait(false))
                     throw new CommandAuditDuplicateException(command.CommandId);
                 return [];
             }
             var preparation = context.AcquireAtomicPreparation(command.StreamId);
             return await context.PrepareAndSaveCommandEventsAtomicallyAsync(
-                preparation, command, domainEvents, expectedStreamVersion, envelope, cancellationToken).ConfigureAwait(false);
+                preparation, command, domainEvents, expectedStreamVersion, envelope, cancellationToken)
+            .ConfigureAwait(false);
         }
 
         /// <summary>Prepare And Save Command Events Atomically using the event-source persistence services.</summary>
@@ -581,5 +592,92 @@ internal static class EventSourceActorDbContextExtensions
                 ? [] : [.. eventLogRange.Take(lastNRange).OrderBy(e => e.EventVersion)];
         }
 
+            /// <summary>Executes repository preparation under the owning context or caller transaction.</summary>
+        internal async ValueTask ReadCreationSnapshotAsync(long eventStreamId,
+            Action<IEnumerable<EventStreamReadModel>> reducerAction, int[]? checkpointNames,
+            CancellationToken cancellationToken, bool stateless = false, bool components = false,
+            string[]? checkpointIdentities = null)
+        {
+            ArgumentNullException.ThrowIfNull(reducerAction);
+            cancellationToken.ThrowIfCancellationRequested();
+            long head = 0;
+            long replayedVersion = 0;
+            var sql = components ? EventSourceDbSql.GetEventLogFromLatestComponentSnapshots
+                : stateless ? EventSourceDbSql.GetStatelessEventLogFromCreationSnapshot
+                : checkpointIdentities is not null ? EventSourceDbSql.GetEventLogFromCreationWithCheckpointIdentities
+                : checkpointNames is null ? EventSourceDbSql.GetEventLogFromCreationSnapshot : EventSourceDbSql.GetEventLogFromCreationWithCheckpoint;
+            var statementName = components ? nameof(EventSourceDbSql.GetEventLogFromLatestComponentSnapshots)
+                : stateless ? nameof(EventSourceDbSql.GetStatelessEventLogFromCreationSnapshot)
+                : checkpointIdentities is not null ? nameof(EventSourceDbSql.GetEventLogFromCreationWithCheckpointIdentities)
+                : checkpointNames is null ? nameof(EventSourceDbSql.GetEventLogFromCreationSnapshot)
+                : nameof(EventSourceDbSql.GetEventLogFromCreationWithCheckpoint);
+            var query = context._dbFactory.ActorEventSourceDb.Use($"{nameof(EventSourceDbSql)}.{statementName}", context.EventLogSql(sql));
+            if (checkpointIdentities is not null)
+                query.SetParameters(new GetCheckpointEventLogByIdentity(eventStreamId, checkpointIdentities));
+            else if (checkpointNames is null)
+                query.SetParameters(new GetEventLogByEventStreamId(eventStreamId));
+            else
+                query.SetParameters(new GetMaxEventVersion(eventStreamId, checkpointNames));
+            await query.ExecuteMapReduceAsync(MapCreationRow,
+                    ReduceAndValidate, cancellationToken)
+                .ConfigureAwait(false);
+            if (replayedVersion != head)
+                throw new InvalidDataException($"Creation snapshot replay for stream {eventStreamId} ended at {replayedVersion}, expected {head}.");
+
+            void ReduceAndValidate(IEnumerable<EventStreamReadModel> rows)
+            {
+                using var iterator = rows.GetEnumerator();
+                reducerAction(ReadRows());
+                // Validate the remaining rows even when a reducer stops reading early.
+                while (iterator.MoveNext()) { }
+
+                IEnumerable<EventStreamReadModel> ReadRows()
+                {
+                    while (iterator.MoveNext())
+                        if (iterator.Current.EventVersion > 0)
+                            yield return iterator.Current;
+                }
+            }
+
+            EventStreamReadModel MapCreationRow(IObjectDataRecord record)
+            {
+                head = record.GetLong(8);
+                if (record.IsNull(3))
+                {
+                    if (head != 0)
+                        throw new InvalidDataException($"Creation snapshot is missing for nonempty stream {eventStreamId}.");
+                    return new EventStreamReadModel();
+                }
+                var version = record.GetLong(7);
+                var isCheckpoint = components
+                    ? replayedVersion >= 1 && version > replayedVersion && version == record.GetLong(9)
+                    : (stateless || checkpointNames is not null || checkpointIdentities is not null) && replayedVersion == 1 && version == record.GetLong(9);
+                if (version != replayedVersion + 1 && !isCheckpoint)
+                    throw new InvalidDataException($"Creation snapshot replay gap in stream {eventStreamId}: {replayedVersion} -> {version}.");
+                replayedVersion = version;
+                return new EventStreamReadModel
+                {
+                    EventVersion = record.GetLong(3), EventTypeName = record.GetString(2),
+                    EventData = record.GetBytes(4), StreamVersion = version
+                };
+            }
+        }
+        /// <summary>Executes repository preparation under the owning context or caller transaction.</summary>
+        internal async Task<int[]> GetCompatibleEventNameIdsAsync<TEvent>(CancellationToken cancellationToken) where TEvent : IEvent
+        {
+            var type = typeof(TEvent);
+            var current = await context.GetEventNameIdFromTypeAsync(type, cancellationToken)
+                .ConfigureAwait(false);
+            var registry = EventTypeRegistry.Default;
+            // Do not cache the alias row IDs: metadata may gain a new registered
+            // spelling while the process is running. Match resolved type, not a short-name guess.
+            var candidates = await context._dbFactory.ActorEventSourceDb
+                .Use(nameof(EventSourceDbSql.GetCompatibleEventNameIds), EventSourceDbSql.GetCompatibleEventNameIds)
+                .SetParameters(new GetCompatibleEventNameIds(type.Name, registry.GetReadIdentities(type)))
+                .ExecuteQueryAsync<EventNameIdReadModel>(EventSourceActorDbContext.MapToEventNameId, cancellationToken)
+                .ConfigureAwait(false);
+            return candidates.Where(row => registry.Resolve(row.EventTypeName) == type)
+                .Select(row => row.EventNameId).Append(current).Distinct().ToArray();
+        }
     }
 }

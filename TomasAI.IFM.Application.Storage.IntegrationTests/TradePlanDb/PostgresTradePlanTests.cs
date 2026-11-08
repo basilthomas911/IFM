@@ -25,7 +25,7 @@ public sealed class PostgresTradePlanCollection : ICollectionFixture<PostgresTra
 
 public sealed class PostgresTradePlanFixture : IAsyncLifetime
 {
-    readonly IsolatedIntegrationInfrastructure infrastructure = new("portfolioatomicity");
+    readonly IsolatedIntegrationInfrastructure infrastructure = new("portfolioatomicity", includeCql: false);
     public string Connection => infrastructure.PostgresConnectionString;
     public DbConnectionSettings Settings { get; private set; } = null!;
     public TradePlanDbContext Plans { get; private set; } = null!;

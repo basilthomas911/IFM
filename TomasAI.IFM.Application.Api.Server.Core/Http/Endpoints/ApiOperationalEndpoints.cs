@@ -28,13 +28,13 @@ public static class ApiOperationalEndpoints
     public static void MapOperationalEndpoints(WebApplication app)
     {
         // Copied native readiness evidence: this diagnostic never acquires leases or initiates recovery.
-        app.MapGet("/api/market-data/options-health", async (TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi marketData, CancellationToken token) =>
+        app.MapGet("/api/market-data/options-health", async (Observability.HealthChecks.BackendDiagnosticReads diagnostics, CancellationToken token) =>
         {
-            var snapshot = await marketData.GetBackendReadSnapshotAsync(token).ConfigureAwait(false);
+            var snapshot = await diagnostics.SnapshotAsync(token).ConfigureAwait(false);
             return Results.Ok(new { datasets = snapshot.Status.Datasets.Where(d => d.Role == "Options"), workload = snapshot.NativeOptionWorkload });
         });
-        app.MapGet("/api/market-data/recovery-audit-health",async (TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi marketData,CancellationToken token) =>
-            Results.Ok((await marketData.GetBackendStatusAsync(token).ConfigureAwait(false)).RecoveryAudit));
+        app.MapGet("/api/market-data/recovery-audit-health",async (Observability.HealthChecks.BackendDiagnosticReads diagnostics,CancellationToken token) =>
+            Results.Ok((await diagnostics.StatusAsync(token).ConfigureAwait(false)).RecoveryAudit));
         app.MapGet("/api/market-data/recovery-log", async (IDbContextFactory databases, DateOnly valueDate,
             string? dataset, Guid? operationId, int? limit, CancellationToken token) =>
         {
@@ -87,6 +87,30 @@ public static class ApiOperationalEndpoints
             });
         })
         .CacheOutput(ApiOutputCachePolicies.OperationalSnapshot);
+        // These views share a one-second capture, without a second output-cache TTL that could double their age.
+        app.MapGet("/api/actor-health/summary", (Observability.HealthChecks.ActorHealthSnapshotReader reader) =>
+            Results.Ok(ActorHealthReadViews.Summarize(reader.Capture())));
+        app.MapGet("/api/actor-health/actors", (Observability.HealthChecks.ActorHealthSnapshotReader reader, int? offset, int? limit) =>
+        {
+            try { return Results.Ok(ActorHealthReadViews.Actors(reader.Capture(), offset ?? 0, limit ?? 64)); }
+            catch (ArgumentOutOfRangeException error) { return Results.BadRequest(new { Error = error.Message }); }
+        });
+        app.MapGet("/api/actor-health/actors/{actorType}/{name}", (Observability.HealthChecks.ActorHealthSnapshotReader reader, ActorType actorType, string name) =>
+        {
+            var actor = reader.Capture().Actors.FirstOrDefault(actor => actor.ActorId.ActorType == actorType && actor.ActorId.Name == name);
+            return actor is null ? Results.NotFound() : Results.Ok(actor);
+        });
+        app.MapGet("/api/actor-health/projectors", (Observability.HealthChecks.ActorHealthSnapshotReader reader) => Results.Ok(reader.Capture().Projectors));
+        app.MapGet("/api/actor-health/workers", (Observability.HealthChecks.ActorHealthSnapshotReader reader) => Results.Ok(reader.Capture().Workers ?? []));
+        app.MapGet("/api/actor-health/history", (ISupervisorHistoryStore history, DateTime fromUtc, DateTime toUtc, int? offset, int? limit) =>
+        {
+            if (fromUtc > toUtc || toUtc - fromUtc > TimeSpan.FromDays(7))
+                return Results.BadRequest(new { Error = "History requires an ordered range of at most seven days." });
+            try { ActorHealthReadViews.ValidatePage(offset ?? 0, limit ?? 64); }
+            catch (ArgumentOutOfRangeException error) { return Results.BadRequest(new { Error = error.Message }); }
+            var rows = history.Read(fromUtc.ToUniversalTime(), toUtc.ToUniversalTime(), 10080);
+            return Results.Ok(new { Offset = offset ?? 0, Total = rows.Count, Rows = rows.Skip(offset ?? 0).Take(limit ?? 64).ToArray() });
+        }).CacheOutput(ApiOutputCachePolicies.OperationalSnapshot);
         app.MapLivePipelineHealth();
         app.MapMarketClose();
 

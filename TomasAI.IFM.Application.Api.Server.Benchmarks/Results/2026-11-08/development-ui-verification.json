@@ -1,0 +1,17 @@
+{
+  "Id": 30816,
+  "Title": "IFM - eGui 0.1.0",
+  "Responding": true,
+  "Connections": [
+    {
+      "RemoteAddress": "::1",
+      "RemotePort": 22543
+    },
+    {
+      "RemoteAddress": "::1",
+      "RemotePort": 4222
+    }
+  ],
+  "PdbPresent": true,
+  "ApiPdbPresent": true
+}

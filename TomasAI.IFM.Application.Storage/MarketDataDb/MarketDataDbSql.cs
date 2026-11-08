@@ -473,6 +473,13 @@ public static partial class MarketDataDbSql
         DELETE FROM market_data.vix_futures_eod_data WHERE contractId = $1 AND valueDate = $2;
         """;
 
+    /// <summary>Corrects session statistics while preserving close, standard deviation and intraday history.</summary>
+    public const string UpdateFuturesEodSessionStatistics = """
+        UPDATE market_data.futures_eod_data
+        SET openPrice=$1, highPrice=$2, lowPrice=$3, volume=$4, dailyPercentChange=$5, priceDirection=$6
+        WHERE contractId=$7 AND valueDate=$8 AND symbol=$9;
+        """;
+
     public const string GetVixFuturesEodDataByValueDate = """
         SELECT contractId,valueDate,openPrice,highPrice,lowPrice,closePrice,volume FROM market_data.vix_futures_eod_data WHERE valueDate=$1 ORDER BY contractId;
         """;

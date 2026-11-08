@@ -68,7 +68,10 @@ public sealed class TradeFeedRecoveryService(ITradeFeedRecoveryStore store, ITra
                 throw new InvalidOperationException("Recovery requires an option trade with distinct contracts.");
             using (var save = new OptionFeedTrace("option.trade.save_intent", logger, trade))
             {
-                await store.SaveAsync(new(trade, date, contracts, DateTimeOffset.UtcNow), token);
+                // UpdatedAt identifies a business-intent revision. An unchanged restoration
+                // must not rewrite it and invalidate the API's successful recovery receipt.
+                if (enable || previous is null || !previous.OptionContracts.SequenceEqual(contracts, StringComparer.Ordinal))
+                    await store.SaveAsync(new(trade, date, contracts, DateTimeOffset.UtcNow), token);
                 enabledTrades[(trade, date)] = 0;
                 save.Complete();
             }

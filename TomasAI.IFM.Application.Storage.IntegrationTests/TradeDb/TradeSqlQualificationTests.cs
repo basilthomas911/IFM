@@ -38,7 +38,7 @@ public sealed class TradeSqlQualificationTests(PostgresTradePlanFixture fixture)
 
     static readonly string[] Statements =
     [
-        "ContextStatement2", "ContextStatement5", "HelperStatement7", "HelperStatement8", "HelperStatement9", "HelperStatement10",
+        "ContextStatement2", "GetEstablishedTradeHistoryFirstPage", "EstablishedTradeHistoryNextPage", "HelperStatement7", "HelperStatement8", "HelperStatement9", "HelperStatement10",
         "DeleteOptionTrade",
         "GetOptionTradeSpreadData",
         "GetOptionTrades",

@@ -1,3 +1,4 @@
+
 using TomasAI.IFM.Domain.Trade.Shared.Persistence;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using System.Text.Json;
@@ -991,23 +992,28 @@ public static class TradeDbContextExtensions
             return await context.NativeTransaction().ExecuteOnceAsync(async (db, projectionToken) =>
             {
                 var inserted = (bool)(await db.ScalarAsync(TradeDbSql.HelperStatement7,
-                    [row.WorkflowId, row.InvocationId, row.Revision, payload, hash], projectionToken).ConfigureAwait(false))!;
+                    [row.WorkflowId, row.InvocationId, row.Revision, payload, hash], projectionToken)
+            .ConfigureAwait(false))!;
                 if (!inserted)
                 {
                     var old = (string?)await db.ScalarAsync(TradeDbSql.HelperStatement8,
-                        [row.WorkflowId, row.InvocationId, row.Revision], projectionToken).ConfigureAwait(false);
+                        [row.WorkflowId, row.InvocationId, row.Revision], projectionToken)
+            .ConfigureAwait(false);
                     if (!string.Equals(old, hash, StringComparison.Ordinal))
                         return new RiskHistoryProjectionResult(RiskHistoryProjectionDisposition.Conflict, row.WorkflowId, row.InvocationId, row.Revision, old, hash);
                 }
                 var summary = MessagePackBinarySerializer.Shared.Serialize(row);
                 var added = (bool)(await db.ScalarAsync(TradeDbSql.HelperStatement9,
-                    [row.PortfolioId, row.FundId, row.ValueDate, row.EvaluatedAtUtc, row.InvocationId, row.Revision, summary], projectionToken).ConfigureAwait(false))!;
+                    [row.PortfolioId, row.FundId, row.ValueDate, row.EvaluatedAtUtc, row.InvocationId, row.Revision, summary], projectionToken)
+            .ConfigureAwait(false))!;
                 if (!added)
                     await db.ScalarAsync(TradeDbSql.HelperStatement10,
-                        [row.Revision, summary, row.PortfolioId, row.FundId, row.ValueDate, row.EvaluatedAtUtc, row.InvocationId, row.Revision], projectionToken).ConfigureAwait(false);
+                        [row.Revision, summary, row.PortfolioId, row.FundId, row.ValueDate, row.EvaluatedAtUtc, row.InvocationId, row.Revision], projectionToken)
+            .ConfigureAwait(false);
                 return new RiskHistoryProjectionResult(inserted ? RiskHistoryProjectionDisposition.Projected : RiskHistoryProjectionDisposition.AlreadyProjected,
                     row.WorkflowId, row.InvocationId, row.Revision, hash, hash);
-            }, token).ConfigureAwait(false);
+            }, token)
+            .ConfigureAwait(false);
         }
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Keep the C# 14 DbContext binding extension receiver contract.")]
@@ -1448,9 +1454,11 @@ public static class TradeDbContextExtensions
             var identity = new object?[] { order.Id.PortfolioId, order.Id.FundId, order.Id.OrderId, order.Revision };
             var existing = await db.ScalarAsync(
                 "SELECT payload FROM trade.trade_order WHERE portfolioid=$1 AND fundid=$2 AND orderid=$3 AND revision=$4 FOR UPDATE;",
-                identity, token).ConfigureAwait(false);
+                identity, token)
+            .ConfigureAwait(false);
             if (existing is not byte[] payload)
-                return await db.TradeFlowProjectOrderAsync(order, acceptedAtUtc, token).ConfigureAwait(false);
+                return await db.TradeFlowProjectOrderAsync(order, acceptedAtUtc, token)
+            .ConfigureAwait(false);
             var stored = MessagePackBinarySerializer.Shared.Deserialize<TradeOrderDefinition>(payload);
             // Status and execution binding belong to lifecycle state, not the accepted terms.
             static byte[] Terms(TradeOrderDefinition value) => MessagePackBinarySerializer.Shared.Serialize(value with
@@ -1462,7 +1470,8 @@ public static class TradeDbContextExtensions
                 throw new InvalidDataException("Accepted order revision conflicts with different source facts.");
             return await db.ExecuteAsync(
                 "UPDATE trade.trade_order SET status=$5,payload=$6,updatedatutc=$7 WHERE portfolioid=$1 AND fundid=$2 AND orderid=$3 AND revision=$4;",
-                [.. identity, order.Status.ToString(), MessagePackBinarySerializer.Shared.Serialize(order), acceptedAtUtc], token).ConfigureAwait(false);
+                [.. identity, order.Status.ToString(), MessagePackBinarySerializer.Shared.Serialize(order), acceptedAtUtc], token)
+            .ConfigureAwait(false);
         }
 
         /// <summary>Stores the accepted immutable order revision, retaining its operational value date.</summary>
@@ -1512,7 +1521,8 @@ public static class TradeDbContextExtensions
                 if (limits.PortfolioApprovalId == Guid.Empty || limits.OrderRevision < 1 || limits.TradeLimit.TradeId != trade.Id.TradeId
                     || limits.SpreadLimits.Any(limit => limit.TradeId != trade.Id.TradeId))
                     throw new InvalidDataException("Trade monitoring limits do not match their approved trade.");
-                await db.TradeFlowProjectMonitoringLimitsAsync(limits.TradeLimit, limits.SpreadLimits, token, initializeOnly: true).ConfigureAwait(false);
+                await db.TradeFlowProjectMonitoringLimitsAsync(limits.TradeLimit, limits.SpreadLimits, token, initializeOnly: true)
+            .ConfigureAwait(false);
             }
             var id = trade.Id;
             var payload = MessagePackBinarySerializer.Shared.Serialize(trade);
@@ -1548,7 +1558,8 @@ public static class TradeDbContextExtensions
             if (position.OpeningCommission is null || position.OpeningValueDate is null || position.ContractCashMultiplier is null)
             {
                 var definition = await db.ScalarAsync(TradeDbSql.HelperStatement32,
-                    [id.PortfolioId, id.FundId, id.OrderId, id.TradeId], token).ConfigureAwait(false);
+                    [id.PortfolioId, id.FundId, id.OrderId, id.TradeId], token)
+            .ConfigureAwait(false);
                 if (definition is byte[] bytes)
                     position = StrategyPositionCurrencyPnl.Apply(position,
                         MessagePackBinarySerializer.Shared.Deserialize<EstablishedTradeDefinition>(bytes));
@@ -1596,10 +1607,12 @@ public static class TradeDbContextExtensions
             {
                 foreach (var spread in spreads)
                     await db.ExecuteAsync(TradeDbSql.InsertInitialSpreadLimit,
-                        [spread.TradeId, spread.TradeType.ToString(), spread.MaxLossLimit, spread.MinProfitLimit, spread.MaxProfitLimit], token).ConfigureAwait(false);
+                        [spread.TradeId, spread.TradeType.ToString(), spread.MaxLossLimit, spread.MinProfitLimit, spread.MaxProfitLimit], token)
+            .ConfigureAwait(false);
             }
             else
-                await TradeDbContextExtensions.TradeFlowProjectSpreadLimitsAsync(db, spreads, token).ConfigureAwait(false);
+                await TradeDbContextExtensions.TradeFlowProjectSpreadLimitsAsync(db, spreads, token)
+            .ConfigureAwait(false);
         }
     }
 
@@ -1620,6 +1633,32 @@ public static class TradeDbContextExtensions
 
     extension(IEnlistedPostgresTransaction db)
     {
+        /// <summary>Reads bounded PostgreSQL history with a scoped, complete keyset cursor.</summary>
+        internal async Task<QueryPage<EstablishedTradeDefinition>> TradeReadEstablishedHistoryAsync(
+            int portfolio, int fund, TradeStrategyKind kind, DateTime from, DateTime through,
+            int pageSize, byte[]? cursor, CancellationToken token)
+        {
+            TradeReadEstablishedCursor? last = null;
+            if (cursor is not null)
+            {
+                try { last = JsonSerializer.Deserialize<TradeReadEstablishedCursor>(cursor); }
+                catch (JsonException error) { throw new ArgumentException("Invalid established-trade history cursor.", nameof(cursor), error); }
+                if (last is null || last.Portfolio != portfolio || last.Fund != fund || last.Kind != kind
+                    || last.From != from || last.Through != through || last.At.Kind != DateTimeKind.Utc
+                    || last.At < from || last.At > through || last.Order <= 0 || last.Trade <= 0 || last.Revision < 0)
+                    throw new ArgumentException("Established-trade history cursor does not match this query.", nameof(cursor));
+            }
+            object?[] values = last is null ? [portfolio, fund, kind.ToString(), from, through, pageSize + 1]
+                : [portfolio, fund, kind.ToString(), from, through, last.At, last.Order, last.Trade, last.Revision, pageSize + 1];
+            var rows = await db.QueryAsync(last is null ? TradeDbSql.GetEstablishedTradeHistoryFirstPage : TradeDbSql.EstablishedTradeHistoryNextPage, values,
+                row => (Payload: row.GetValue(0), At: row.GetDateTime(1), Order: row.GetInt32(2), Trade: row.GetInt32(3), Revision: row.GetInt32(4)), token)
+                .ConfigureAwait(false);
+            var items = rows.Take(pageSize).Select(row => MessagePackBinarySerializer.Shared.Deserialize<EstablishedTradeDefinition>((byte[])row.Payload)).ToArray();
+            var tail = rows.Count > pageSize ? rows[pageSize - 1] : default;
+            var next = rows.Count > pageSize ? JsonSerializer.SerializeToUtf8Bytes(new TradeReadEstablishedCursor(portfolio, fund, kind, from, through, tail.At, tail.Order, tail.Trade, tail.Revision)) : null;
+            return new(items, next);
+        }
+
         /// <summary>Reads every dated position row through ordered pages without a fixed history row cap.</summary>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
@@ -2041,7 +2080,8 @@ public static class TradeDbContextExtensions
             var state = source.State;
             var entity = state.EntityId;
             var iti = entity.ItiSignalEntityId;
-            return await TradeDbContextExtensions.WorkflowUpsertAsync(db, "intrinsic_time_strategy_workflow", "workflowId,workflowEntityId,workflowDefinitionId,workflowDefinitionVersion,contractId,timeFrameStartValueDate,timePeriod,triggerEventId,correlationId,status,outcome,currentStage,workflowRevision,lastEventId,stateSchemaVersion,statePayload,stopReasonCode,startedAtUtc,terminalAtUtc,updatedAtUtc", "workflowId", [state.WorkflowId.Value, entity.Format(), entity.WorkflowDefinitionId, state.WorkflowDefinitionVersion, iti.ContractId, iti.TimeFrameStartValueDate, iti.TimePeriod.ToString(), state.TriggerEventId, state.CorrelationId, TradeProjectionFacts.Status(state).ToString(), TradeProjectionFacts.Outcome(state).ToString(), state.CurrentStage.ToString(), state.WorkflowRevision, source.EventId, 2, payload, state.StopReasonCode, state.StartedAtUtc, state.TerminalAtUtc, state.UpdatedAtUtc], token, "lastEventId").ConfigureAwait(false);
+            return await TradeDbContextExtensions.WorkflowUpsertAsync(db, "intrinsic_time_strategy_workflow", "workflowId,workflowEntityId,workflowDefinitionId,workflowDefinitionVersion,contractId,timeFrameStartValueDate,timePeriod,triggerEventId,correlationId,status,outcome,currentStage,workflowRevision,lastEventId,stateSchemaVersion,statePayload,stopReasonCode,startedAtUtc,terminalAtUtc,updatedAtUtc", "workflowId", [state.WorkflowId.Value, entity.Format(), entity.WorkflowDefinitionId, state.WorkflowDefinitionVersion, iti.ContractId, iti.TimeFrameStartValueDate, iti.TimePeriod.ToString(), state.TriggerEventId, state.CorrelationId, TradeProjectionFacts.Status(state).ToString(), TradeProjectionFacts.Outcome(state).ToString(), state.CurrentStage.ToString(), state.WorkflowRevision, source.EventId, 2, payload, state.StopReasonCode, state.StartedAtUtc, state.TerminalAtUtc, state.UpdatedAtUtc], token, "lastEventId")
+            .ConfigureAwait(false);
         }
     }
 
@@ -2129,13 +2169,16 @@ public static class TradeDbContextExtensions
                 _ => null
             };
             using var write = operation is null ? null : TradeStorageTelemetry.Source.StartActivity(operation);
-            return await db.ExecuteAsync(TradeDbSql.WorkflowUpsert(table, columnList, keyList, values.Length, revision), values, token).ConfigureAwait(false);
+            return await db.ExecuteAsync(TradeDbSql.WorkflowUpsert(table, columnList, keyList, values.Length, revision), values, token)
+            .ConfigureAwait(false);
         }
     }
 
 
+    extension(IEnlistedPostgresTransaction db)
+    {
     /// <summary>Reads bounded PostgreSQL Risk pages ordered by evaluation time and invocation identity.</summary>
-    public static async Task<QueryPage<RiskHistoryRow>> RiskReadHistoryAsync(IEnlistedPostgresTransaction db,int portfolio,int fund,DateOnly date,int size,byte[]? pagingState,CancellationToken token=default)
+    public async Task<QueryPage<RiskHistoryRow>> RiskReadHistoryAsync(int portfolio,int fund,DateOnly date,int size,byte[]? pagingState,CancellationToken token=default)
     {
         ArgumentNullException.ThrowIfNull(db);
         if(portfolio<=0||fund<=0||date==default||size<1||size>100)throw new ArgumentException("Invalid Risk history scope.");
@@ -2143,10 +2186,12 @@ public static class TradeDbContextExtensions
         RiskReadCursor? cursor=null;
         if(pagingState is not null){if(pagingState.Length>2048)throw new ArgumentException("Invalid Risk history cursor.");try{cursor=JsonSerializer.Deserialize<RiskReadCursor>(pagingState);}catch(JsonException e){throw new ArgumentException("Invalid Risk history cursor.",nameof(pagingState),e);}if(cursor is null||cursor.Scope!=scope||cursor.AtUtc.Kind!=DateTimeKind.Utc||cursor.Invocation==Guid.Empty)throw new ArgumentException("Risk history cursor does not belong to this scope.");}
         object?[] values=cursor is null?[portfolio,fund,date,size+1]:[portfolio,fund,date,cursor.AtUtc,cursor.Invocation,size+1];
-        var rows=await db.QueryAsync(TradeDbSql.RiskHistory(cursor is not null),values,r=>(Item:MessagePackBinarySerializer.Shared.Deserialize<RiskHistoryRow>(r.GetFieldValue<byte[]>(0)),AtUtc:r.GetDateTime(1),Invocation:r.GetGuid(2)),token).ConfigureAwait(false);
+        var rows=await db.QueryAsync(TradeDbSql.RiskHistory(cursor is not null),values,r=>(Item:MessagePackBinarySerializer.Shared.Deserialize<RiskHistoryRow>(r.GetFieldValue<byte[]>(0)),AtUtc:r.GetDateTime(1),Invocation:r.GetGuid(2)),token)
+            .ConfigureAwait(false);
         var items=rows.Take(size).ToArray();
         var next=rows.Count>size?JsonSerializer.SerializeToUtf8Bytes(new RiskReadCursor(scope,items[^1].AtUtc,items[^1].Invocation)):null;
         return new(items.Select(r=>r.Item).ToArray(),next);
+    }
     }
 
 }
@@ -2158,3 +2203,47 @@ internal sealed record PipelineReadHistoryRow(DateTime AtUtc, Guid Workflow, Gui
 internal sealed record TradePlanForwardLossRatioRow(double ForwardLossRatio, long SequenceId);
 
 internal sealed record RiskReadCursor(string Scope,DateTime AtUtc,Guid Invocation);
+
+
+
+/// <summary>Stores and verifies immutable Risk calculation receipts for the read side.</summary>
+public static class RiskCompletionProjection
+{
+    public static async Task WriteAsync(EnlistedEventTransaction db, RiskManagementFunctionCompletedEvent source, CancellationToken token)
+    {
+        Validate(source, source.WorkflowId.Value, source.CommandId, source.EventId);
+        var payload = MessagePackBinarySerializer.Shared.Serialize(source);
+        var hash = Convert.ToHexString(SHA256.HashData(payload));
+        if (await db.ExecuteAsync(TradeDbSql.InsertRiskCompletion,
+                [source.WorkflowId.Value, source.CommandId, source.EventId, payload, hash], token)
+            .ConfigureAwait(false) == 1)
+            return;
+
+        var prior = await db.QueryAsync(TradeDbSql.ReadRiskCompletion, [source.WorkflowId.Value, source.CommandId],
+            row => (EventId: row.GetInt64(0), Hash: row.GetString(2)), token)
+            .ConfigureAwait(false);
+        if (prior.Single() != (source.EventId, hash))
+            throw new InvalidDataException("Conflicting projected Risk completion.");
+    }
+
+    internal static RiskManagementFunctionCompletedEvent Read(Guid workflow, Guid invocation, long eventId, byte[] payload, string hash)
+    {
+        if (!string.Equals(hash, Convert.ToHexString(SHA256.HashData(payload)), StringComparison.Ordinal))
+            throw new InvalidDataException("Risk completion projection content hash mismatch.");
+        var source = MessagePackBinarySerializer.Shared.Deserialize<RiskManagementFunctionCompletedEvent>(payload);
+        Validate(source, workflow, invocation, eventId);
+        return source;
+    }
+
+    static void Validate(RiskManagementFunctionCompletedEvent source, Guid workflow, Guid invocation, long eventId)
+    {
+        if (eventId <= 0 || source.EventId != eventId || source.Id == Guid.Empty || workflow == Guid.Empty
+            || invocation == Guid.Empty || source.WorkflowId.Value != workflow || source.CommandId != invocation
+            || source.Result.ResultId != source.Id || source.Result.WorkflowId != source.WorkflowId || source.Result.InvocationId != invocation
+            || source.Result.InputWorkflowRevision != source.InputWorkflowRevision)
+            throw new InvalidDataException("Risk completion projection identity or revision mismatch.");
+        RiskContracts.ValidateResult(source.Result);
+    }
+}
+
+internal sealed record TradeReadEstablishedCursor(int Portfolio, int Fund, TradeStrategyKind Kind, DateTime From, DateTime Through, DateTime At, int Order, int Trade, int Revision);

@@ -25,7 +25,10 @@ public static partial class CoreServiceRegistration
         if (builder.Environment.IsDevelopment()
         || builder.Configuration.GetValue("Logging:Console:Enabled", false))
         {
-            loggerConfiguration.WriteTo.Console();
+            var console = new LoggerConfiguration().WriteTo.Console().CreateLogger();
+            loggerConfiguration.WriteTo.Sink(new Observability.Logging.BoundedConsoleLogSink(console,
+                capacity: builder.Configuration.GetValue("Logging:Console:Capacity", 4096),
+                criticalCapacity: builder.Configuration.GetValue("Logging:Console:CriticalCapacity", 256), owner: console));
         }
         if (builder.Configuration.GetValue("Telemetry:Logs:Enabled", false))
         loggerConfiguration.WriteTo.Sink(new TomasAI.IFM.Framework.Telemetry.Logging.OtlpStructuredLogSink(

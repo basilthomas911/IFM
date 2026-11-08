@@ -20,6 +20,7 @@ public sealed class ScyllaStorageProviderCollection : ICollectionFixture<ScyllaS
 /// <summary>Provides a neutral ScyllaDB repository for integration tests.</summary>
 public sealed class ScyllaStorageProviderFixture : IAsyncLifetime
 {
+    readonly TomasAI.IFM.IntegrationTesting.IsolatedIntegrationInfrastructure infrastructure = new("storage-provider-cql");
     const string ConnectionVariable = "IFM_SCYLLA_TEST_CONNECTION";
     const string ProviderName = "System.Data.ScyllaDb";
     readonly ILogger<DbProvider> _logger = Substitute.For<ILogger<DbProvider>>();
@@ -31,19 +32,17 @@ public sealed class ScyllaStorageProviderFixture : IAsyncLifetime
     public IDbConnectionSetting ConnectionSetting { get; private set; } = null!;
 
     /// <summary>Initializes the shared ScyllaDB repository.</summary>
-    public Task InitializeAsync()
+    public async Task InitializeAsync()
     {
-        var connectionString = Environment.GetEnvironmentVariable(ConnectionVariable);
-        if (string.IsNullOrWhiteSpace(connectionString))
-            throw new InvalidOperationException($"Set {ConnectionVariable} to a credential-free ScyllaDB connection string whose default keyspace is dedicated to integration tests.");
+        await infrastructure.StartAsync();
+        var connectionString = infrastructure.CqlConnectionString;
         var settings = new DbConnectionSettings().Add("ScyllaIntegrationDbConnection", connectionString, ProviderName);
         ConnectionSetting = settings["ScyllaIntegrationDbConnection"];
         Repository = new ScyllaTestRepository(ConnectionSetting, _logger);
-        return Task.CompletedTask;
     }
 
     /// <summary>Releases fixture resources.</summary>
-    public Task DisposeAsync() => Task.CompletedTask;
+    public Task DisposeAsync() => infrastructure.DisposeAsync().AsTask();
 }
 
 /// <summary>Exposes object-data operations against the integration-test ScyllaDB keyspace.</summary>

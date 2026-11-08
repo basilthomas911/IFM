@@ -816,7 +816,10 @@ impl TradeWorkspace {
                         ("tradeStatus", "Trade Status", 150.),
                         ("commission", "Commission", 115.),
                         ("netSpread", "Net Spread", 115.),
-                        ("tradePnl", "Daily P&L", 120.),
+                        ("tradePnl", "Trade P&L", 120.),
+                        ("realizedPnl", "Realized P&L", 125.),
+                        ("totalCommission", "Total Commission", 145.),
+                        ("netPnl", "Net P&L", 120.),
                     ],
                     selected,
                 );

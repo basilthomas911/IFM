@@ -90,7 +90,8 @@ public sealed class BinaryCopyEventLogAppender : IEventLogAppender
         EventLogPersistenceMetrics.Queued(_metricTags);
         try
         {
-            await _queue.Writer.WriteAsync(pending, cancellationToken).ConfigureAwait(false);
+            await _queue.Writer.WriteAsync(pending, cancellationToken)
+            .ConfigureAwait(false);
         }
         catch
         {
@@ -107,7 +108,8 @@ public sealed class BinaryCopyEventLogAppender : IEventLogAppender
         PendingAppend? carry = null;
         try
         {
-            while (carry is not null || await _queue.Reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
+            while (carry is not null || await _queue.Reader.WaitToReadAsync(cancellationToken)
+            .ConfigureAwait(false))
             {
                 var first = carry ?? (_queue.Reader.TryRead(out var queued) ? queued : null);
                 carry = null;
@@ -137,12 +139,15 @@ public sealed class BinaryCopyEventLogAppender : IEventLogAppender
                     }
 
                     var data = _queue.Reader.WaitToReadAsync(cancellationToken).AsTask();
-                    var completed = await Task.WhenAny(data, delay).ConfigureAwait(false);
+                    var completed = await Task.WhenAny(data, delay)
+            .ConfigureAwait(false);
                     if (completed == delay) break;
                     if (!await data.ConfigureAwait(false)) break;
                 }
-await                flushDelay.CancelAsync().ConfigureAwait(false);
-                await PersistBatchAsync(batch, cancellationToken).ConfigureAwait(false);
+await                flushDelay.CancelAsync()
+            .ConfigureAwait(false);
+                await PersistBatchAsync(batch, cancellationToken)
+            .ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -168,8 +173,10 @@ await                flushDelay.CancelAsync().ConfigureAwait(false);
             foreach (var _ in batch) EventLogPersistenceMetrics.Dequeued(_metricTags);
         try
         {
-            var connection = await GetOpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-            var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken).ConfigureAwait(false);
+            var connection = await GetOpenConnectionAsync(cancellationToken)
+            .ConfigureAwait(false);
+            var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken)
+            .ConfigureAwait(false);
         await using var transactionDisposal = transaction.ConfigureAwait(false);
             try
             {
@@ -178,7 +185,8 @@ await                flushDelay.CancelAsync().ConfigureAwait(false);
                 if (audited.Length > 0)
                 {
                     var reservations = await CommandAuditPostgres.ReserveAsync(
-                        connection, transaction, audited, cancellationToken).ConfigureAwait(false);
+                        connection, transaction, audited, cancellationToken)
+            .ConfigureAwait(false);
                     for (var index = 0; index < reservations.Length; index++)
                     {
                         if (reservations[index].PayloadConflict)
@@ -187,11 +195,15 @@ await                flushDelay.CancelAsync().ConfigureAwait(false);
                             throw new CommandAuditDuplicateException(audited[index].CommandId);
                     }
                 }
-                var current = await LockStreamsAsync(connection, transaction, batch, cancellationToken).ConfigureAwait(false);
+                var current = await LockStreamsAsync(connection, transaction, batch, cancellationToken)
+            .ConfigureAwait(false);
                 var planned = Plan(batch, current);
-                await UpdateStreamVersionsAsync(connection, transaction, current, cancellationToken).ConfigureAwait(false);
-                await ReserveEventIdsAsync(connection, transaction, planned, cancellationToken).ConfigureAwait(false);
-                await CopyEventsAsync(connection, planned, cancellationToken).ConfigureAwait(false);
+                await UpdateStreamVersionsAsync(connection, transaction, current, cancellationToken)
+            .ConfigureAwait(false);
+                await ReserveEventIdsAsync(connection, transaction, planned, cancellationToken)
+            .ConfigureAwait(false);
+                await CopyEventsAsync(connection, planned, cancellationToken)
+            .ConfigureAwait(false);
                 List<ProjectionMarker>? markers = null;
                 foreach (var request in planned)
                 {
@@ -204,16 +216,19 @@ await                flushDelay.CancelAsync().ConfigureAwait(false);
                                 (markers ??= []).Add(new ProjectionMarker(request.Assignments[index].EventVersion, projection));
                             else
                                 await EventLogAppenderSupport.InsertProjectionMarkerAsync(connection, transaction,
-                                    request.Assignments[index].EventVersion, projection, cancellationToken, _projectionSql).ConfigureAwait(false);
+                                    request.Assignments[index].EventVersion, projection, cancellationToken, _projectionSql)
+            .ConfigureAwait(false);
                         }
                     }
                 }
                 if (markers is not null)
                     await BatchedProjectionMarkerWriter.InsertAsync(connection, transaction, markers,
-                        _batchedProjectionSql, cancellationToken).ConfigureAwait(false);
+                        _batchedProjectionSql, cancellationToken)
+            .ConfigureAwait(false);
                 try
                 {
-                    await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+                    await transaction.CommitAsync(cancellationToken)
+            .ConfigureAwait(false);
                 }
                 catch (Exception exception)
                 {
@@ -232,7 +247,8 @@ await                flushDelay.CancelAsync().ConfigureAwait(false);
             }
             catch
             {
-                try { await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false); } catch { /* Preserve the original database failure; cleanup is best effort. */ }
+                try { await transaction.RollbackAsync(CancellationToken.None)
+            .ConfigureAwait(false); } catch { /* Preserve the original database failure; cleanup is best effort. */ }
                 throw;
             }
         }
@@ -241,7 +257,8 @@ await                flushDelay.CancelAsync().ConfigureAwait(false);
             EventLogPersistenceMetrics.Failed(_metricTags, started);
             if (_connection is not { FullState: ConnectionState.Open })
             {
-                if (_connection is not null) await _connection.DisposeAsync().ConfigureAwait(false);
+                if (_connection is not null) await _connection.DisposeAsync()
+            .ConfigureAwait(false);
                 _connection = null;
             }
             // Audit rejection occurs before event writes/commit. The transaction has been rolled back.
@@ -250,7 +267,8 @@ await                flushDelay.CancelAsync().ConfigureAwait(false);
             if (batch.Count > 1 && exception is CommandAuditDuplicateException or CommandAuditPayloadConflictException)
             {
                 foreach (var pending in batch)
-                    await PersistBatchAsync([pending], cancellationToken, alreadyDequeued: true).ConfigureAwait(false);
+                    await PersistBatchAsync([pending], cancellationToken, alreadyDequeued: true)
+            .ConfigureAwait(false);
                 return;
             }
             foreach (var pending in batch) pending.Completion.TrySetException(exception);
@@ -260,9 +278,11 @@ await                flushDelay.CancelAsync().ConfigureAwait(false);
     async Task<NpgsqlConnection> GetOpenConnectionAsync(CancellationToken cancellationToken)
     {
         if (_connection is { FullState: ConnectionState.Open }) return _connection;
-        if (_connection is not null) await _connection.DisposeAsync().ConfigureAwait(false);
+        if (_connection is not null) await _connection.DisposeAsync()
+            .ConfigureAwait(false);
         _connection = new PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(_connectionString);
-        await _connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await _connection.OpenAsync(cancellationToken)
+            .ConfigureAwait(false);
         return _connection;
     }
 
@@ -283,9 +303,11 @@ await                flushDelay.CancelAsync().ConfigureAwait(false);
         await using var commandDisposal = command.ConfigureAwait(false);
         EventLogAppenderSupport.Add(command, ids);
         var current = new Dictionary<long, long>(ids.Length);
-        var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        var reader = await command.ExecuteReaderAsync(cancellationToken)
+            .ConfigureAwait(false);
         await using var readerDisposal = reader.ConfigureAwait(false);
-        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        while (await reader.ReadAsync(cancellationToken)
+            .ConfigureAwait(false))
             current[Convert.ToInt64(reader.GetValue(0),System.Globalization.CultureInfo.InvariantCulture)] = reader.GetInt64(1);
         if (current.Count != ids.Length) throw new InvalidOperationException("An event stream disappeared before persistence.");
         return current;
@@ -331,7 +353,8 @@ await                flushDelay.CancelAsync().ConfigureAwait(false);
         await using var commandDisposal = command.ConfigureAwait(false);
         EventLogAppenderSupport.Add(command, ordered.Select(static pair => pair.Key).ToArray());
         EventLogAppenderSupport.Add(command, ordered.Select(static pair => pair.Value).ToArray());
-        if (await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) != ordered.Length)
+        if (await command.ExecuteNonQueryAsync(cancellationToken)
+            .ConfigureAwait(false) != ordered.Length)
             throw new InvalidOperationException("Not every event stream version was reserved.");
     }
 
@@ -346,13 +369,15 @@ await                flushDelay.CancelAsync().ConfigureAwait(false);
             "SELECT nextval('public.event_log_eventversion_seq') FROM generate_series(1, $1);");
         await using var commandDisposal = command.ConfigureAwait(false);
         EventLogAppenderSupport.Add(command, BindValues.Integer(count));
-        var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        var reader = await command.ExecuteReaderAsync(cancellationToken)
+            .ConfigureAwait(false);
         await using var readerDisposal = reader.ConfigureAwait(false);
         foreach (var request in planned)
         {
             for (var index = 0; index < request.Assignments.Length; index++)
             {
-                if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+                if (!await reader.ReadAsync(cancellationToken)
+            .ConfigureAwait(false))
                     throw new InvalidOperationException("PostgreSQL did not reserve every requested event ID.");
                 request.Assignments[index] = request.Assignments[index] with { EventVersion = reader.GetInt64(0) };
                 EventInitHelper.SetProperty(request.Pending.Request.Events[index].DomainEvent, nameof(IEvent.EventId),
@@ -366,7 +391,8 @@ await                flushDelay.CancelAsync().ConfigureAwait(false);
         IReadOnlyList<PlannedAppend> planned,
         CancellationToken cancellationToken)
     {
-        var importer = await connection.BeginBinaryImportAsync(_copySql, cancellationToken).ConfigureAwait(false);
+        var importer = await connection.BeginBinaryImportAsync(_copySql, cancellationToken)
+            .ConfigureAwait(false);
         await using var importerDisposal = importer.ConfigureAwait(false);
         foreach (var request in planned)
         {
@@ -377,10 +403,12 @@ await                flushDelay.CancelAsync().ConfigureAwait(false);
                 var assignment = request.Assignments[index];
                 await PostgresValueBinding.WriteRowAsync(importer,
                     [source.EventStreamId, entry.EventNameId, assignment.EventVersion, assignment.StreamVersion,
-                     entry.Payload, source.CommandId, $"{source.EventTimestampUtc:o}"], cancellationToken).ConfigureAwait(false);
+                     entry.Payload, source.CommandId, $"{source.EventTimestampUtc:o}"], cancellationToken)
+            .ConfigureAwait(false);
             }
         }
-        await importer.CompleteAsync(cancellationToken).ConfigureAwait(false);
+        await importer.CompleteAsync(cancellationToken)
+            .ConfigureAwait(false);
     }
 
     public async ValueTask DisposeAsync()
@@ -388,9 +416,12 @@ await                flushDelay.CancelAsync().ConfigureAwait(false);
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
         _queue.Writer.TryComplete();
         var timeout = Task.Delay(_options.ShutdownDrainTimeout);
-        if (await Task.WhenAny(_consumer, timeout).ConfigureAwait(false) != _consumer) await _lifetime.CancelAsync().ConfigureAwait(false);
+        if (await Task.WhenAny(_consumer, timeout)
+            .ConfigureAwait(false) != _consumer) await _lifetime.CancelAsync()
+            .ConfigureAwait(false);
         try { await _consumer.ConfigureAwait(false); } catch (OperationCanceledException) { /* Cancellation is the expected shutdown outcome. */ }
-        if (_connection is not null) await _connection.DisposeAsync().ConfigureAwait(false);
+        if (_connection is not null) await _connection.DisposeAsync()
+            .ConfigureAwait(false);
         _lifetime.Dispose();
     }
 

@@ -42,7 +42,8 @@ public sealed class TradeTickQuoteDbContextConventionTests
         Type[] contracts =
         [
             typeof(ITradeTickQuoteDbReadContext),
-            typeof(ITradeTickQuoteDbWriteContext)
+            typeof(ITradeTickQuoteDbWriteContext),
+            typeof(IStreamingRawFuturesTradeReader)
         ];
         var contractMethods = contracts
             .SelectMany(static type => type.GetMethods())
@@ -201,7 +202,7 @@ public sealed class TradeTickQuoteDbContextConventionTests
 
     private static string FindRepositoryRoot()
     {
-        for (var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        for (var directory = new DirectoryInfo(DbContextConventionSource.RepositoryRoot);
              directory is not null;
              directory = directory.Parent)
         {

@@ -1,0 +1,222 @@
+[
+  {
+    "File": "after-development-final-trace-metrics.json",
+    "Bytes": 1286,
+    "Sha256": "3d939f3c6043383dbd63e625629bb380c6888b345a22fcd00fd06d2af3d8da7c"
+  },
+  {
+    "File": "api-provenance.json",
+    "Bytes": 2493907,
+    "Sha256": "e3a43d43731843ba93444581d598f5724f5a51efebea3942dc603df070b8889d"
+  },
+  {
+    "File": "before-development-trace-metrics.json",
+    "Bytes": 1295,
+    "Sha256": "4081dc03d9ff3681d6ba997bb33ff9160b64f8b13879aca5fc93e1f9655e0266"
+  },
+  {
+    "File": "comparison.csv",
+    "Bytes": 12639,
+    "Sha256": "f8ab72de12ce85905f1acb71bba999ed7b8fc71be2ba69ff93db5628a5dde3b7"
+  },
+  {
+    "File": "comparisons.md",
+    "Bytes": 4412,
+    "Sha256": "a7a15bf06599a1323e074ecdddb2842f4924d2354b407a61c562cd00c77f261e"
+  },
+  {
+    "File": "development-financial-verification-summary.json",
+    "Bytes": 460,
+    "Sha256": "b9bedee499a9a2e140fbfa5c45eabbefd265f0c966b1dedf732ff48b79cbcae8"
+  },
+  {
+    "File": "development-health-ready.json",
+    "Bytes": 5666,
+    "Sha256": "cdbe1c518723a2780ea84888e45d6f97412bae51701b4905c4c06ac0baa130b7"
+  },
+  {
+    "File": "development-host-ready.json",
+    "Bytes": 141,
+    "Sha256": "1fa8d2e82e42463e129b5816f6e2e51eda4a0ad5b29c40f54d3b1813dc5985e5"
+  },
+  {
+    "File": "development-launch-ready.json",
+    "Bytes": 2764,
+    "Sha256": "b99240ac16479dbbe0737a3a803c1384b1dfe6642a56f2d9d774a77ce68e92db"
+  },
+  {
+    "File": "development-new-read-views.json",
+    "Bytes": 391,
+    "Sha256": "1dae86082fe1fa98519745a20c3c4d985cf00bce8bb579c7d1c59404e89e68cc"
+  },
+  {
+    "File": "development-processes-restored.json",
+    "Bytes": 1975,
+    "Sha256": "15d8a1cf94179ece73503b7926f98cb53d542d3547c3230f2889a3b871980b1a"
+  },
+  {
+    "File": "development-scheduler-health.json",
+    "Bytes": 268,
+    "Sha256": "dce3657664344237eba99c8a879eec5517316aa0f293c8637b01a349cb0420e5"
+  },
+  {
+    "File": "development-scheduler-next-runs.txt",
+    "Bytes": 124,
+    "Sha256": "5d5e49126416cad63c899b14bcb8e6f6eab340692871933bd9dcc9dd316d1a30"
+  },
+  {
+    "File": "development-ui-verification.json",
+    "Bytes": 295,
+    "Sha256": "418610a55e446f518cfac2fde168a4d7e2403f9713f3025ee888a80172e39651"
+  },
+  {
+    "File": "final-formatting-provenance.json",
+    "Bytes": 1056,
+    "Sha256": "e9259da127f3a8790bb7e7fd23abfc3e341fa944c5c0989834c2e90ffb2d8059"
+  },
+  {
+    "File": "measurement-files.json",
+    "Bytes": 6254,
+    "Sha256": "015f14226ff347b7964492ed0c6de8b6ae4c11b7dc72ea4e94c66d17048311e9"
+  },
+  {
+    "File": "native-package.json",
+    "Bytes": 454,
+    "Sha256": "c831d2b08c2f88b01a6c18adcb3eb9a6518847c0da5697d42b3511def06e747a"
+  },
+  {
+    "File": "nats-provenance.json",
+    "Bytes": 2493911,
+    "Sha256": "bbcac753e77daa24a3ab69c2e42b0316767174651c09eaa18ff3adfcca8401dd"
+  },
+  {
+    "File": "qualification-totals.json",
+    "Bytes": 673,
+    "Sha256": "4077c758bb1f4010b38394dc35df31677868c6ff9e45c5c50efe5f78e7a4d6c8"
+  },
+  {
+    "File": "resource-medians.csv",
+    "Bytes": 1394,
+    "Sha256": "ab70c9f7ce9884f3f8b4dcf819081333b81469f631512da4741f785752b94ce9"
+  },
+  {
+    "File": "resource-medians.json",
+    "Bytes": 4925,
+    "Sha256": "1abdfd262993ca8ae502ee5a2d4b9064a72fb6a86db5133040f3d595b12ed6b6"
+  },
+  {
+    "File": "retired-cql-guard-tests.txt",
+    "Bytes": 1041,
+    "Sha256": "bd425deb71c222c14ad3b8c171111133403c2861943dab49a0b888dcfa71a3de"
+  },
+  {
+    "File": "retired-securities-cql-guard-tests.txt",
+    "Bytes": 706,
+    "Sha256": "7d9ca68fd53a9c71ec6871b1617e16acdcb7bc0abced279abc04f0e48e3cf712"
+  },
+  {
+    "File": "sustained-pricing-20261108.json",
+    "Bytes": 3638,
+    "Sha256": "0bdddfd8581b11c9ea2798d2cbab317b1738ed5fa4d92b88624b69c4e78b862e"
+  },
+  {
+    "File": "test-summary.json",
+    "Bytes": 3424,
+    "Sha256": "82da05dbd22d20a1e9b743c48af89b056317c932274129ced22c89a64be920af"
+  },
+  {
+    "File": "TomasAI.IFM.Application.Api.Server.Benchmarks.ApiServerPerformanceConsoleBenchmarks-report-github.md",
+    "Bytes": 2293,
+    "Sha256": "860b262586fc7ff116e16a313cf5340d912862716cb18b5a60e6293bc1ea7648"
+  },
+  {
+    "File": "TomasAI.IFM.Application.Api.Server.Benchmarks.ApiServerPerformanceDiagnosticBenchmarks-report-github.md",
+    "Bytes": 2457,
+    "Sha256": "90b616c8c71e9e9f0d05f54e5414eab639630b8fe47d68410bf627ba57f0cbdf"
+  },
+  {
+    "File": "TomasAI.IFM.Application.Api.Server.Benchmarks.ApiServerPerformanceEmaPersistenceBenchmarks-report-github.md",
+    "Bytes": 2424,
+    "Sha256": "0dc67aede7f9a0a29fbf0c415bceefa354ec343d6602f599fe2df161b3d6df38"
+  },
+  {
+    "File": "TomasAI.IFM.Application.Api.Server.Benchmarks.ApiServerPerformanceExpiryBenchmarks-report-github.md",
+    "Bytes": 3245,
+    "Sha256": "f3cb50104b5d388944c5db0966e14e4068566578d9c758764eb45219a0d12f68"
+  },
+  {
+    "File": "TomasAI.IFM.Application.Api.Server.Benchmarks.ApiServerPerformanceExpiryBurstBenchmarks-report-github.md",
+    "Bytes": 2008,
+    "Sha256": "fa980c6b0700280be1d4d2b4c798901d39f5f23f52cc7eb00df14b2e40e70560"
+  },
+  {
+    "File": "TomasAI.IFM.Application.Api.Server.Benchmarks.ApiServerPerformanceHealthViewsBenchmarks-report-github.md",
+    "Bytes": 1501,
+    "Sha256": "94ede084bfe4a3396a0b696632473a1aa5dffcce03d2f94c5cbcd81cbf10810b"
+  },
+  {
+    "File": "TomasAI.IFM.Application.Api.Server.Benchmarks.ApiServerPerformanceHistoryBenchmarks-report-github.md",
+    "Bytes": 2235,
+    "Sha256": "eb5f5506fd573481dd5d0c391d8ca7dedbbb473db4100b591f51d0e31e1e0d2d"
+  },
+  {
+    "File": "TomasAI.IFM.Application.Api.Server.Benchmarks.ApiServerPerformanceIndicatorCommandBenchmarks-report-github.md",
+    "Bytes": 1350,
+    "Sha256": "d3303d3177cc4ea31193d8ffe3381cb38e4f3356d7c21f32e83cc01037f0e7a4"
+  },
+  {
+    "File": "TomasAI.IFM.Application.Api.Server.Benchmarks.ApiServerPerformanceIndicatorReadBenchmarks-report-github.md",
+    "Bytes": 1321,
+    "Sha256": "99dff65d47267301060c94e91b9b56d36de61239acbfc15ded531b5ad26bb8b9"
+  },
+  {
+    "File": "TomasAI.IFM.Application.Api.Server.Benchmarks.ApiServerPerformanceLoggingBenchmarks-report-github.md",
+    "Bytes": 2242,
+    "Sha256": "dd9fb3e65f2e5cfdd628448500ca81ef230645cadab9996cf2d76584e9565e6c"
+  },
+  {
+    "File": "TomasAI.IFM.Application.Api.Server.Benchmarks.ApiServerPerformanceRedisBenchmarks-report-github.md",
+    "Bytes": 1341,
+    "Sha256": "5a684a2b4d21ab276b1e4445ef0bc6cac25d67ed125abf12fcd73dffd3594c2b"
+  },
+  {
+    "File": "TomasAI.IFM.Application.Api.Server.Benchmarks.ApiServerPerformanceRpcBenchmarks-report-github.md",
+    "Bytes": 3502,
+    "Sha256": "77779ed424e26ab79b9351f200e2005b83245d6e2b9caaebbb13d490a7a3879d"
+  },
+  {
+    "File": "TomasAI.IFM.Application.Api.Server.Benchmarks.ApiServerPerformanceRpcDescriptorBenchmarks-report-github.md",
+    "Bytes": 1404,
+    "Sha256": "5f71294201711056c1f740e471c7feae8fbe27885749a64cb3f893b07b954fe2"
+  },
+  {
+    "File": "TomasAI.IFM.Application.Api.Server.Benchmarks.ApiServerPerformanceSeedBenchmarks-report-github.md",
+    "Bytes": 2240,
+    "Sha256": "d19a8a186d5681f41fa5fb614d3f9a236f574bb7f334ed45e0b2fd550209e32c"
+  },
+  {
+    "File": "TomasAI.IFM.Application.Api.Server.Benchmarks.ApiServerPerformanceSeedReaderBenchmarks-report-github.md",
+    "Bytes": 2454,
+    "Sha256": "30cb6aa64c2a0c3c03ef71ea8909a6e84875460d02281a9d06f1edcfa6992951"
+  },
+  {
+    "File": "TomasAI.IFM.Application.Api.Server.Benchmarks.ApiServerPerformanceTradeContentionBenchmarks-report-github.md",
+    "Bytes": 2731,
+    "Sha256": "5abf75f76cfa8bfbcd26969dae82edd3ddf70dd2559cd1936d3f356c59def1c7"
+  },
+  {
+    "File": "TomasAI.IFM.Application.Api.Server.Benchmarks.ApiServerPerformanceTradeRestoreBenchmarks-report-github.md",
+    "Bytes": 2967,
+    "Sha256": "7a3cb44eccadace7f5c6ffe36b4f3d5056776b28ed2f2efe47ba1ab8aa8b9b55"
+  },
+  {
+    "File": "TomasAI.IFM.Application.Api.Server.Benchmarks.ApiServerPerformanceWarmupBenchmarks-report-github.md",
+    "Bytes": 3019,
+    "Sha256": "14ff983e86bc6c233817186784681b1c3ed4feb56bdf3351e556024c0f1f81c1"
+  },
+  {
+    "File": "TomasAI.IFM.Framework.Messaging.Nats.Benchmarks.ApiServerPerformanceReceiveQualificationBenchmarks-report-github.md",
+    "Bytes": 3559,
+    "Sha256": "885a1ef33a73df18bdf227601dcb25ab8b339a982ef1340ab0ffd7981e1c3aab"
+  }
+]

@@ -1,0 +1,22 @@
+{
+  "head": "a17da60ca03d3924fd87f1fd078b316cb938c782",
+  "capturedUtc": "2026-11-07T23:43:54.839655+00:00",
+  "workingTreeManifest": "E:\\IFM\\BenchmarkArtifacts\\ApiServerPerformance\\20261107\\baseline-manifest.json",
+  "selectedSources": [
+    {
+      "path": "TomasAI.IFM.Application.MarketData/Remote/MarketDataApiClient.cs",
+      "bytes": 13981,
+      "sha256": "bf63fb1ef05b09dd1d2970cac40b08081e88a218303a78a0d0154a04c8cb59b1"
+    }
+  ],
+  "rpcFixtures": {
+    "contracts": [
+      13,
+      218,
+      3640,
+      50000
+    ],
+    "value": "ES20261218-{index:D6}",
+    "format": "existing MarketDataApiCall MessagePack v1"
+  }
+}

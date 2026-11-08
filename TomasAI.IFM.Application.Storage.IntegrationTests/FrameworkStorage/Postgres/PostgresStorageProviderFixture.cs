@@ -20,6 +20,7 @@ public sealed class PostgresStorageProviderCollection : ICollectionFixture<Postg
 
 public sealed class PostgresStorageProviderFixture : IAsyncLifetime
 {
+    readonly TomasAI.IFM.IntegrationTesting.IsolatedIntegrationInfrastructure infrastructure = new("storage-provider-pg", includeCql: false);
     const string ConnectionVariable = "IFM_POSTGRES_EVENTSOURCE_TEST_CONNECTION";
     const string ProviderName = "System.Data.Postgres";
 
@@ -29,12 +30,8 @@ public sealed class PostgresStorageProviderFixture : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        var connectionString = Environment.GetEnvironmentVariable(ConnectionVariable);
-        if (string.IsNullOrWhiteSpace(connectionString))
-        {
-            throw new InvalidOperationException(
-                $"Set {ConnectionVariable} to a credential-free PostgreSQL connection string whose database is dedicated to integration tests.");
-        }
+        await infrastructure.StartAsync();
+        var connectionString = infrastructure.PostgresConnectionString;
 
         var settings = new DbConnectionSettings()
             .Add(EventSourceActorDbContext.EventSourceActorDbConnection, connectionString, ProviderName);
@@ -47,10 +44,8 @@ public sealed class PostgresStorageProviderFixture : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
-        if (Repository is null)
-            return;
-
-        await CleanupAllScopesAsync();
+        try { if (Repository is not null) await CleanupAllScopesAsync(); }
+        finally { await infrastructure.DisposeAsync(); }
     }
 
     internal async Task RunIsolatedAsync(PostgresEventSourceTestScope scope, Func<PostgresTestRepository, Task> test)

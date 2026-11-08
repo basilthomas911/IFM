@@ -11,6 +11,8 @@ public sealed class TradeRealtimeNatsTests
     [TradeCacheNatsFact]
     public async Task Whole_snapshot_crosses_real_actor_transport_and_encodes_for_native_display()
     {
+        var natsUrl = Environment.GetEnvironmentVariable("IFM_NATS_URL")
+            ?? throw new InvalidOperationException("Select the isolated test broker with IFM_NATS_URL.");
         var trade = new EstablishedTradeDefinition { Id = new(101, 701, 1901, 1501), StrategyKind = TradeStrategyKind.IronCondor,
             Legs = Enumerable.Range(0, 4).Select(i => new TradeLegDefinition { TradeLegId = Guid.NewGuid(), ContractId = $"option-{i}" }).ToArray() };
         var date = DateOnly.FromDateTime(DateTime.UtcNow);
@@ -19,7 +21,7 @@ public sealed class TradeRealtimeNatsTests
         var actor = "TradeCacheVerification" + Guid.NewGuid().ToString("N");
         var received = new TaskCompletionSource<TradeRealtimeSnapshotChangedEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
         var caughtUp = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        await using var listener = new NatsActorEventListener(new NatsEventListenerOptions(), NullLogger.Instance);
+        await using var listener = new NatsActorEventListener(new NatsEventListenerOptions { Url = natsUrl }, NullLogger.Instance);
         await listener.StartAsync(actor, new() { [new(ActorType.Notify, actor)] = [TradeRealtimeSnapshotChangedEvent.Verb] }, (_, message) =>
         {
             var update = message.AsEvent<TradeRealtimeSnapshotChangedEvent>()!;
@@ -28,7 +30,7 @@ public sealed class TradeRealtimeNatsTests
             if (update.Snapshot.SnapshotRevision == 200) caughtUp.TrySetResult();
             return ValueTask.CompletedTask;
         });
-        await using var producer = new NatsActorProducer(new NatsProducerOptions(), NullLogger.Instance);
+        await using var producer = new NatsActorProducer(new NatsProducerOptions { Url = natsUrl }, NullLogger.Instance);
         await producer.StartAsync(new(ActorType.Notify, actor + "Producer"));
         var changed = TradeRealtimeSnapshotChangedEvent.From(source.Read());
         changed = changed with { Subject = new(ActorType.Notify, actor, TradeRealtimeSnapshotChangedEvent.Verb, trade.Id.Format()) };

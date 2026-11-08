@@ -17,28 +17,24 @@ using Xunit;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.TradePlanDb;
 
-public sealed class TradePlanStorageFixture
+public sealed class TradePlanStorageFixture : IDisposable
 {
+    readonly TomasAI.IFM.IntegrationTesting.IsolatedIntegrationInfrastructure infrastructure = new("storage-trade-plan", includeCql: false);
     public TradePlanStorageFixture()
     {
+        infrastructure.StartAsync().GetAwaiter().GetResult();
         var settings = new DbConnectionSettings().Add(
             TradePlanDbContext.TradePlanDbConnection,
-            LegacyStorageFixtureIsolation.Scylla("ifm_storage_legacy_trade_plan"),
-            "System.Data.ScyllaDb");
+            infrastructure.PostgresConnectionString,
+            "System.Data.Postgres");
         var logger = Substitute.For<ILogger<DbProvider>>();
         var schema = new TradePlanSchemaDb(settings, logger);
         schema.CreateAllAsync().GetAwaiter().GetResult();
-        // These two schemas are introduced by this test suite. Recreate them in the
-        // disposable test keyspace so clustering changes are exercised rather than
-        // hidden by a table left behind by an earlier development build.
-        schema.RecreateAsync([
-            "position_trade_plan_activity_by_date",
-            "position_exit_workflow"
-        ]).GetAwaiter().GetResult();
         TradePlanDb = new TradePlanDbContext(settings, logger);
     }
 
     public TradePlanDbContext TradePlanDb { get; }
+    public void Dispose() => infrastructure.DisposeAsync().AsTask().GetAwaiter().GetResult();
 }
 
 public sealed class TradePlanStorageTests(TradePlanStorageFixture fixture)
@@ -64,7 +60,7 @@ public sealed class TradePlanStorageTests(TradePlanStorageFixture fixture)
         var current = await fixture.TradePlanDb.GetCurrentAsync(plan.Position.Id, plan.Position.StrategyKind, plan.ValueDate);
         current.Should().BeEquivalentTo(plan);
         var scalar = await fixture.TradePlanDb.Database
-            .Use("MonitoringScalarReadback", "SELECT tradePnl,forwardLossRatio,mScore,inputStatus,sourceEventId FROM iron_condor_trade_plan WHERE portfolioId=? AND fundId=? AND orderId=? AND tradeId=? AND positionId=? AND valueDate=? AND planRevision=?;")
+            .Use("MonitoringScalarReadback", "SELECT tradePnl,forwardLossRatio,mScore,inputStatus,sourceEventId FROM trade_plan.iron_condor_trade_plan WHERE portfolioId=$1 AND fundId=$2 AND orderId=$3 AND tradeId=$4 AND positionId=$5 AND valueDate=$6 AND planRevision=$7;")
             .SetParameters(new MonitoringReadbackParameters(plan))
             .ExecuteSingleAsync(record => (record.GetDecimal(0), record.GetDouble(1), record.IsNull(2), record.GetString(3)));
         scalar.Should().Be((42m, 0.5, true, "Unavailable"));
@@ -87,7 +83,7 @@ public sealed class TradePlanStorageTests(TradePlanStorageFixture fixture)
         var restored = await fixture.TradePlanDb.GetCurrentAsync(plan.Position.Id, plan.Position.StrategyKind, plan.ValueDate);
         restored.Should().BeEquivalentTo(plan);
         var scalar = await fixture.TradePlanDb.Database
-            .Use("DailyRiskReadback", "SELECT dailyPnl,forwardLoss,forwardLossRatio,currency,riskParameterSetHash FROM iron_condor_trade_plan WHERE portfolioId=? AND fundId=? AND orderId=? AND tradeId=? AND positionId=? AND valueDate=? AND planRevision=?;")
+            .Use("DailyRiskReadback", "SELECT dailyPnl,forwardLoss,forwardLossRatio,currency,riskParameterSetHash FROM trade_plan.iron_condor_trade_plan WHERE portfolioId=$1 AND fundId=$2 AND orderId=$3 AND tradeId=$4 AND positionId=$5 AND valueDate=$6 AND planRevision=$7;")
             .SetParameters(new MonitoringReadbackParameters(plan))
             .ExecuteSingleAsync(record => (record.GetDecimal(0), record.GetDecimal(1), record.GetDouble(2), record.GetString(3), record.GetString(4)));
         scalar.Should().Be((-400m, 1100m, 1.1, "USD", policy.Hash()));

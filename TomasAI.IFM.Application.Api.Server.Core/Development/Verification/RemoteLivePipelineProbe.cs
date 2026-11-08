@@ -7,14 +7,14 @@ using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 namespace TomasAI.IFM.Application.Api.Server.Core.Development.Verification;
 /// <summary>Observes the independent backend and API actors without owning provider recovery.</summary>
 public sealed class RemoteLivePipelineProbe(IMarketDataApi market, ActorRuntimeHealthCheck actors,
-    IFuturesMarketSessionAuthority sessions, TimeProvider time) : ILivePipelineProbe
+    IFuturesMarketSessionAuthority sessions, TimeProvider time, BackendDiagnosticReads? diagnostics = null) : ILivePipelineProbe
 {
     public async Task<LivePipelineHealthSnapshot> CheckAsync(CancellationToken token)
     {
         var now = time.GetUtcNow().UtcDateTime;
         var session = sessions.Current;
         var checks = new List<LivePipelineCheck> { new("Session authority", "session", session.IsValid ? "Healthy" : "Unhealthy", "Authoritative exchange session.", now) };
-        var backend = await market.GetBackendStatusAsync(token).ConfigureAwait(false);
+        var backend = await (diagnostics?.StatusAsync(token) ?? market.GetBackendStatusAsync(token)).ConfigureAwait(false);
         checks.Add(new("MarketData Host", "control", backend.Ready ? "Healthy" : "Degraded", "Independent backend control response.", now));
         foreach (var dataset in backend.Datasets)
             checks.Add(new("MarketData dataset", dataset.Role + "/" + dataset.Dataset,

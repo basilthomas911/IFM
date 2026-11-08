@@ -57,6 +57,39 @@ async fn closed_setup_loads_original_position_and_chart_without_order_submission
             let details = publication.result.rows.iter().find(|row| row.fields.get("kind").is_some_and(|v| v == "position-details")).unwrap();
             let position: Value = ifm_ui_egui::wire::decode(details.data.as_ref().unwrap()).unwrap();
             assert_eq!(position["isOpen"], false, "Expected completed close: {position}");
+            if std::env::var("IFM_VERIFY_REALIZED_PNL").is_ok() {
+                for (field, key) in [("realizedPnl","IFM_VERIFY_REALIZED_PNL"),
+                    ("totalCommission","IFM_VERIFY_TOTAL_COMMISSION"),("netPnl","IFM_VERIFY_NET_PNL")] {
+                    assert_eq!(position["historyValuation"][field].as_str(), Some(setting(key).as_str()));
+                }
+                let history = publication.result.rows.iter().filter(|row| row.fields.get("kind").is_some_and(|v| v == "position"))
+                    .map(|row| ifm_ui_egui::wire::decode::<Value>(row.data.as_ref().unwrap()).unwrap())
+                    .find(|row| row["tradeStatus"] == "Close").expect("Closed history row");
+                for (field, key) in [("realizedPnl","IFM_VERIFY_REALIZED_PNL"),
+                    ("totalCommission","IFM_VERIFY_TOTAL_COMMISSION"),("netPnl","IFM_VERIFY_NET_PNL")] {
+                    assert_eq!(history[field].as_str(), Some(setting(key).as_str()));
+                }
+                let history_rows = publication.result.rows.iter().filter(|row| row.fields.get("kind").is_some_and(|v| v == "position"))
+                    .map(|row| ifm_ui_egui::wire::decode::<Value>(row.data.as_ref().unwrap()).unwrap()).collect::<Vec<_>>();
+                let cents = |text: &str| -> i64 {
+                    let negative=text.starts_with('-'); let text=text.trim_start_matches('-');
+                    let (whole,fraction)=text.split_once('.').unwrap_or((text,""));
+                    assert!(fraction.chars().skip(2).all(|v|v=='0'));
+                    let fraction=format!("{fraction:0<2}");
+                    let value=whole.parse::<i64>().unwrap()*100+fraction[..2].parse::<i64>().unwrap();
+                    if negative { -value } else { value }
+                };
+                let sum=history_rows.iter().map(|row|cents(row["tradePnl"].as_str().expect("History currency P&L"))).sum::<i64>();
+                assert_eq!(sum,cents(&setting("IFM_VERIFY_NET_PNL")),"History rows must reconcile to final net");
+                if std::env::var("IFM_VERIFY_RECOVERED_EOD").is_ok() {
+                    for date in ["2026-10-26","2026-10-27"] {
+                        let rows=history_rows.iter().filter(|row|row["valueDate"]==date).collect::<Vec<_>>();
+                        assert_eq!(rows.len(),1);assert_eq!(rows[0]["tradeStatus"],"EndOfDay");
+                    }
+                }
+                println!("Verified {} history rows sum to {sum} cents",history_rows.len());
+                println!("Verified displayed close totals: {history}");
+            }
             println!("Closed setup {trade} loaded original position {expected} including chart and details in {:?}", started.elapsed());
             break;
         }

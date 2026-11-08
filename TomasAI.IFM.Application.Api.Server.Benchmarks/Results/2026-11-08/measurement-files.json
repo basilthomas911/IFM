@@ -1,0 +1,78 @@
+[
+  {
+    "File": "E:\\IFM\\BenchmarkArtifacts\\ApiServerPerformance\\20261107\\acceptance-20261108-final\\paired\\results\\TomasAI.IFM.Application.Api.Server.Benchmarks.ApiServerPerformanceConsoleBenchmarks-report-full-compressed.json",
+    "Sha256": "5881109968EFFDBFD693E290438BAD4B44824075564E0B199C826A632B270D88"
+  },
+  {
+    "File": "E:\\IFM\\BenchmarkArtifacts\\ApiServerPerformance\\20261107\\acceptance-20261108-final\\paired\\results\\TomasAI.IFM.Application.Api.Server.Benchmarks.ApiServerPerformanceDiagnosticBenchmarks-report-full-compressed.json",
+    "Sha256": "42F998229AC93732A1F0B9473C96B6080B31CF44DC311E50F3A676D6D64D3ECF"
+  },
+  {
+    "File": "E:\\IFM\\BenchmarkArtifacts\\ApiServerPerformance\\20261107\\acceptance-20261108-final\\paired\\results\\TomasAI.IFM.Application.Api.Server.Benchmarks.ApiServerPerformanceEmaPersistenceBenchmarks-report-full-compressed.json",
+    "Sha256": "C407BC2133038599C4B3BAD507E3AC6A21223CE4564E44F0165E6FABD3A8B676"
+  },
+  {
+    "File": "E:\\IFM\\BenchmarkArtifacts\\ApiServerPerformance\\20261107\\acceptance-20261108-final\\paired\\results\\TomasAI.IFM.Application.Api.Server.Benchmarks.ApiServerPerformanceExpiryBenchmarks-report-full-compressed.json",
+    "Sha256": "0F0B41C3F5BD546D018B60A80A9065EFA401496EE392B2D3E10C5B9414F6C007"
+  },
+  {
+    "File": "E:\\IFM\\BenchmarkArtifacts\\ApiServerPerformance\\20261107\\acceptance-20261108-final\\paired\\results\\TomasAI.IFM.Application.Api.Server.Benchmarks.ApiServerPerformanceExpiryBurstBenchmarks-report-full-compressed.json",
+    "Sha256": "BF2290C7B809FA666F9DB4DB4D830FB35C5F966A517E99EB2396A974ABB2A563"
+  },
+  {
+    "File": "E:\\IFM\\BenchmarkArtifacts\\ApiServerPerformance\\20261107\\acceptance-20261108-final\\paired\\results\\TomasAI.IFM.Application.Api.Server.Benchmarks.ApiServerPerformanceHealthViewsBenchmarks-report-full-compressed.json",
+    "Sha256": "E01B70FD4D006E0F0DC1A3B4086CBF61779AF85B5B89DD6EFDEA6EB46BAC0A7C"
+  },
+  {
+    "File": "E:\\IFM\\BenchmarkArtifacts\\ApiServerPerformance\\20261107\\acceptance-20261108-final\\paired\\results\\TomasAI.IFM.Application.Api.Server.Benchmarks.ApiServerPerformanceHistoryBenchmarks-report-full-compressed.json",
+    "Sha256": "7D7227E117268D4DBA373FFBA0E1163CA9826E5441C9AF953F6814F60777D3E4"
+  },
+  {
+    "File": "E:\\IFM\\BenchmarkArtifacts\\ApiServerPerformance\\20261107\\acceptance-20261108-final\\paired\\results\\TomasAI.IFM.Application.Api.Server.Benchmarks.ApiServerPerformanceIndicatorCommandBenchmarks-report-full-compressed.json",
+    "Sha256": "6C33BF797409CD5A4A5629936AA4963D566D6A46285DAF532E0191C6CA42F6DE"
+  },
+  {
+    "File": "E:\\IFM\\BenchmarkArtifacts\\ApiServerPerformance\\20261107\\acceptance-20261108-final\\paired\\results\\TomasAI.IFM.Application.Api.Server.Benchmarks.ApiServerPerformanceIndicatorReadBenchmarks-report-full-compressed.json",
+    "Sha256": "92BBDAD2AB61BDABFC05D019A8C457F5F9777780B4A896ACCDE541F57DD16D34"
+  },
+  {
+    "File": "E:\\IFM\\BenchmarkArtifacts\\ApiServerPerformance\\20261107\\acceptance-20261108-final\\paired\\results\\TomasAI.IFM.Application.Api.Server.Benchmarks.ApiServerPerformanceLoggingBenchmarks-report-full-compressed.json",
+    "Sha256": "8E4E1E9C3935E3D246EBCA4D95E632D700236C2A1308BF7B210D3505A0261F6E"
+  },
+  {
+    "File": "E:\\IFM\\BenchmarkArtifacts\\ApiServerPerformance\\20261107\\acceptance-20261108-final\\paired\\results\\TomasAI.IFM.Application.Api.Server.Benchmarks.ApiServerPerformanceRedisBenchmarks-report-full-compressed.json",
+    "Sha256": "53A443A1F012E4B0FEA5ED10DED70F89D3E292B71A46C8FED2C827CC394830EB"
+  },
+  {
+    "File": "E:\\IFM\\BenchmarkArtifacts\\ApiServerPerformance\\20261107\\acceptance-20261108-final\\paired\\results\\TomasAI.IFM.Application.Api.Server.Benchmarks.ApiServerPerformanceRpcBenchmarks-report-full-compressed.json",
+    "Sha256": "9C725298A05DB2296A137E75EE329FB324DF80FDDE0EADFDC2639F1B6CB115AA"
+  },
+  {
+    "File": "E:\\IFM\\BenchmarkArtifacts\\ApiServerPerformance\\20261107\\acceptance-20261108-final\\paired\\results\\TomasAI.IFM.Application.Api.Server.Benchmarks.ApiServerPerformanceRpcDescriptorBenchmarks-report-full-compressed.json",
+    "Sha256": "ECFA2F6AC3151DF9C15071F85CFBF8F9884986548E3B1476688CA5D52D332ABE"
+  },
+  {
+    "File": "E:\\IFM\\BenchmarkArtifacts\\ApiServerPerformance\\20261107\\acceptance-20261108-final\\paired\\results\\TomasAI.IFM.Application.Api.Server.Benchmarks.ApiServerPerformanceSeedBenchmarks-report-full-compressed.json",
+    "Sha256": "1FB76A1AD4CF4B26E0B4E41CAC99B01CAD751D7A22BDE0036B0C06CE56A540D7"
+  },
+  {
+    "File": "E:\\IFM\\BenchmarkArtifacts\\ApiServerPerformance\\20261107\\acceptance-20261108-final\\paired\\results\\TomasAI.IFM.Application.Api.Server.Benchmarks.ApiServerPerformanceSeedReaderBenchmarks-report-full-compressed.json",
+    "Sha256": "A4381A2B4BB555771323CA759DF8C88AE45B74A4302CB289D616DC325E88B4B8"
+  },
+  {
+    "File": "E:\\IFM\\BenchmarkArtifacts\\ApiServerPerformance\\20261107\\acceptance-20261108-final\\paired\\results\\TomasAI.IFM.Application.Api.Server.Benchmarks.ApiServerPerformanceTradeContentionBenchmarks-report-full-compressed.json",
+    "Sha256": "CD602E7190DFFF90ACED8AB67AAC41F3A769F6CAF190F2EC454E7C8BDDA2A570"
+  },
+  {
+    "File": "E:\\IFM\\BenchmarkArtifacts\\ApiServerPerformance\\20261107\\acceptance-20261108-final\\paired\\results\\TomasAI.IFM.Application.Api.Server.Benchmarks.ApiServerPerformanceTradeRestoreBenchmarks-report-full-compressed.json",
+    "Sha256": "E064159C0721F3160A928BB2750CB615698D275E1BE4EF54EA8681783BFAABCF"
+  },
+  {
+    "File": "E:\\IFM\\BenchmarkArtifacts\\ApiServerPerformance\\20261107\\acceptance-20261108-final\\paired\\results\\TomasAI.IFM.Application.Api.Server.Benchmarks.ApiServerPerformanceWarmupBenchmarks-report-full-compressed.json",
+    "Sha256": "A8194B52DCE923EB2CEA20BFCFB550E54057E969089078D74E713B50F8E69C2C"
+  },
+  {
+    "File": "E:\\IFM\\BenchmarkArtifacts\\ApiServerPerformance\\20261107\\acceptance-nats-final\\paired\\results\\TomasAI.IFM.Framework.Messaging.Nats.Benchmarks.ApiServerPerformanceReceiveQualificationBenchmarks-report-full-compressed.json",
+    "Sha256": "E2686A0A94F9E439E0DD5D77840E9087707FA9F43F53E68613F8BA6D49815CF3"
+  }
+]

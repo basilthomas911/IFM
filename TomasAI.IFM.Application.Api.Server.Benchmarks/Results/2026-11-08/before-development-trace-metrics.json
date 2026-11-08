@@ -1,0 +1,29 @@
+{
+  "Trace": "E:\\IFM\\BenchmarkArtifacts\\ApiServerPerformance\\20261107\\before-development.nettrace",
+  "Sha256": "26C1D2D9EAA0829334FC149EF15298E5E487636EE0749D7AA141E786245C161A",
+  "Note": "GC starts are exclusive counts by depth. Only SuspendForGC/GCPrep intervals count as GC pauses; other runtime suspensions are reported separately. Heap peaks are reported GC samples, not continuous process peaks. AllocationTick bytes are sampled evidence. Monitor contentions exclude async semaphore waits. Incomplete pauses at trace end are excluded.",
+  "Processes": [
+    {
+      "ProcessId": 80792,
+      "Gen0Starts": 0,
+      "Gen1Starts": 0,
+      "Gen2Starts": 1,
+      "GcPauseCount": 1,
+      "GcPauseTotalMilliseconds": 236.1953,
+      "GcPauseMaximumMilliseconds": 236.1953,
+      "PeakReportedHeapBytes": 116404872,
+      "PeakReportedLohBytes": 67022920,
+      "PeakReportedPohBytes": 299592,
+      "SampledAllocationTickBytes": 0,
+      "AllocationTickEvents": 0,
+      "SuspensionReasons": {
+        "SuspendOther": 10454,
+        "SuspendForGC": 1
+      },
+      "CompletedMonitorContentions": 13,
+      "MonitorContentionMilliseconds": 0.47150000000000003,
+      "MaximumMonitorContentionMilliseconds": 0.0735,
+      "IncompletePause": false
+    }
+  ]
+}

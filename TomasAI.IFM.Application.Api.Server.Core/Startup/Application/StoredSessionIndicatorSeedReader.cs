@@ -19,12 +19,15 @@ public sealed class StoredSessionIndicatorSeedReader(IDbContextFactory databases
     DatabentoMarketDataRuntimeOptions? sourceOptions = null)
 {
     /// <summary>Reads one bounded sequence of completed trading intervals, or returns unavailable when any interval lacks trades.</summary>
-    public async Task<FuturesTradeSessionBarReadModel[]> ReadAsync(string contractId, TimeFrameType frame, int count, CancellationToken token)
+    public Task<FuturesTradeSessionBarReadModel[]> ReadAsync(string contractId, TimeFrameType frame, int count, CancellationToken token)
+        => ReadAtAsync(contractId, frame, count, clock.GetUtcNow(), token);
+
+    /// <summary>Uses one captured cutoff across overlapping structure and initialization reads.</summary>
+    internal async Task<FuturesTradeSessionBarReadModel[]> ReadAtAsync(string contractId, TimeFrameType frame, int count, DateTimeOffset cutoff, CancellationToken token)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(contractId);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(count, 64);
         var watch = Stopwatch.StartNew();
-        var cutoff = clock.GetUtcNow();
         var windows = RsiHistoricalSeedWindowModel.Create(frame, count, cutoff, calendar);
         if (frame == TimeFrameType.Daily)
         {
@@ -80,16 +83,19 @@ public sealed class StoredSessionIndicatorSeedReader(IDbContextFactory databases
         {
             // Read adjacent short windows together. An overlap admits ordinary
             // delayed writes; exact exchange timestamps qualify each bar below.
-            var rows = await ReadRawRangeAsync(contractId, range[0], range[^1], token).ConfigureAwait(false);
-            var hasUnmappedTimes = range.Length > 1 && rows.Any(row => row.AggregationTimeUtc is null);
-            foreach (var window in range)
+            using var buckets = new SeedWindowBuckets(range);
+            await foreach (var row in StreamRawRangeAsync(contractId, range[0], range[^1], token).ConfigureAwait(false))
+                buckets.Add(row);
+            for (var index = 0; index < range.Length; index++)
             {
+                var window = range[index];
                 // Legacy rows can lack the full aggregation timestamp. Keep the
                 // original Scylla time bounds when those rows cannot be filtered locally.
-                var source = hasUnmappedTimes
+                var source = buckets.HasUnmappedTimes && range.Length > 1
                     ? await ReadRawRangeAsync(contractId, window, window, token).ConfigureAwait(false)
-                    : range.Length == 1 ? rows : WithinOriginalReadWindow(window, rows);
-                var bar = Aggregate(contractId, frame, window, cutoff, source);
+                    : (IEnumerable<BootstrapTradeRow>)buckets.Rows[index];
+                var bar = AggregateCore(contractId, frame, window, cutoff, source,
+                    alreadyDistinct: !(buckets.HasUnmappedTimes && range.Length > 1));
                 if (bar is null)
                 {
                     logger.LogWarning("Stored indicator seed unavailable: {ContractId} {TimeFrame} {IntervalStartUtc}; no complete local trade interval.", contractId, frame, window.StartUtc);
@@ -106,6 +112,13 @@ public sealed class StoredSessionIndicatorSeedReader(IDbContextFactory databases
         MarketSessionBounds last, CancellationToken token)
     {
         var rows = new List<BootstrapTradeRow>();
+        await foreach (var row in StreamRawRangeAsync(contractId, first, last, token).ConfigureAwait(false)) rows.Add(row);
+        return rows;
+    }
+
+    async IAsyncEnumerable<BootstrapTradeRow> StreamRawRangeAsync(string contractId, MarketSessionBounds first,
+        MarketSessionBounds last, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken token)
+    {
         var until = last.EndUtc.AddMinutes(1);
         for (var cursor = first.StartUtc.AddMinutes(-1); cursor < until;)
         {
@@ -113,11 +126,101 @@ public sealed class StoredSessionIndicatorSeedReader(IDbContextFactory databases
             var end = until < midnight ? until : midnight;
             var lower = TimeOnly.FromDateTime(cursor.UtcDateTime);
             var upper = end == midnight ? TimeOnly.MaxValue : TimeOnly.FromDateTime(end.UtcDateTime);
-            rows.AddRange(await databases.TradeTickQuoteDb.GetRawFuturesTradeWindowAsync(contractId, first.ValueDate,
-                lower, upper, token).ConfigureAwait(false));
+            if (databases.TradeTickQuoteDb is IStreamingRawFuturesTradeReader streaming)
+            {
+                await foreach (var row in streaming.StreamRawFuturesTradeWindowAsync(contractId, first.ValueDate, lower, upper, token).ConfigureAwait(false))
+                { token.ThrowIfCancellationRequested(); yield return row; }
+            }
+            else
+                foreach (var row in await databases.TradeTickQuoteDb.GetRawFuturesTradeWindowAsync(contractId, first.ValueDate, lower, upper, token).ConfigureAwait(false))
+                { token.ThrowIfCancellationRequested(); yield return row; }
             cursor = end;
         }
-        return rows;
+    }
+
+    /// <summary>Partitions original input once. Stable per-window order preserves duplicate selection and decimal summation.</summary>
+    internal sealed class SeedWindowBuckets(MarketSessionBounds[] windows, System.Buffers.ArrayPool<BootstrapTradeRow>? pool = null) : IDisposable
+    {
+        // The private pool retains at most sixteen arrays per size bucket, capped at 65,536 references.
+        // Larger windows allocate normally rather than growing a long-lived shared pool without bounds.
+        static readonly System.Buffers.ArrayPool<BootstrapTradeRow> RowPool = System.Buffers.ArrayPool<BootstrapTradeRow>.Create(65536, 16);
+        internal PooledRows[] Rows { get; } = windows.Select(_ => new PooledRows(pool ?? RowPool)).ToArray();
+        internal bool HasUnmappedTimes { get; private set; }
+        readonly HashSet<(ushort Publisher, uint Instrument, long Sequence, long Time)>[] identities = windows
+            .Select(_ => new HashSet<(ushort, uint, long, long)>()).ToArray();
+
+        internal void Add(BootstrapTradeRow row)
+        {
+            if (row.AggregationTimeUtc is null && !HasUnmappedTimes)
+            {
+                HasUnmappedTimes = true;
+                if (windows.Length > 1) Dispose(); // Legacy qualification will reread individual original windows.
+            }
+            if (HasUnmappedTimes && windows.Length > 1) return;
+            if (row.Action != (short)'T' || row.Price <= 0 || row.Size <= 0) return;
+            var time = At(row.EventNanoseconds);
+            var low = 0; var high = windows.Length - 1;
+            while (low <= high)
+            {
+                var middle = low + (high - low) / 2;
+                var window = windows[middle];
+                if (time < window.StartUtc) high = middle - 1;
+                else if (time >= window.EndUtc) low = middle + 1;
+                else
+                {
+                    if (row.ValueDate != window.ValueDate) return;
+                    if (windows.Length > 1 && row.AggregationTimeUtc is { } aggregation && !Within(window, aggregation)) return;
+                    if (identities[middle].Add((row.PublisherId, row.InstrumentId, row.Sequence, row.EventNanoseconds))) Rows[middle].Add(row);
+                    return;
+                }
+            }
+        }
+
+        public void Dispose() { foreach (var rows in Rows) rows.Dispose(); }
+    }
+
+    /// <summary>Owns bounded reusable reference buffers; accepted bar values never borrow their storage.</summary>
+    internal sealed class PooledRows(System.Buffers.ArrayPool<BootstrapTradeRow> pool) : IEnumerable<BootstrapTradeRow>, IDisposable
+    {
+        BootstrapTradeRow[] buffer = [];
+        int count;
+        bool rented, disposed;
+        public void Add(BootstrapTradeRow row)
+        {
+            ObjectDisposedException.ThrowIf(disposed, this);
+            if (count == buffer.Length)
+            {
+                var capacity = Math.Max(16, checked(count * 2));
+                var usePool = capacity <= 65536;
+                var next = usePool ? pool.Rent(capacity) : new BootstrapTradeRow[capacity];
+                Array.Copy(buffer, next, count);
+                if (rented) pool.Return(buffer, clearArray: true);
+                buffer = next; rented = usePool;
+            }
+            buffer[count++] = row;
+        }
+        public IEnumerator<BootstrapTradeRow> GetEnumerator()
+        {
+            ObjectDisposedException.ThrowIf(disposed, this);
+            for (var index = 0; index < count; index++) yield return buffer[index];
+        }
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+        public void Dispose()
+        {
+            if (disposed) return;
+            disposed = true;
+            if (rented) pool.Return(buffer, clearArray: true);
+            buffer = []; count = 0;
+        }
+    }
+
+    static bool Within(MarketSessionBounds window, TimeOnly time)
+    {
+        var start = window.StartUtc.UtcDateTime.AddMinutes(-1);
+        var end = window.EndUtc.UtcDateTime.AddMinutes(1);
+        var lower = TimeOnly.FromDateTime(start); var upper = TimeOnly.FromDateTime(end);
+        return start.Date == end.Date ? time >= lower && time <= upper
+            : time >= lower || (upper != TimeOnly.MinValue && time <= upper);
     }
 
     async Task<IReadOnlyList<FuturesTradeSessionBarReadModel>> ReadStoredAsync(string contractId, TimeFrameType frame,
@@ -146,28 +249,19 @@ public sealed class StoredSessionIndicatorSeedReader(IDbContextFactory databases
         }
     }
 
-    static IEnumerable<BootstrapTradeRow> WithinOriginalReadWindow(MarketSessionBounds window, IEnumerable<BootstrapTradeRow> rows)
-    {
-        var start = window.StartUtc.UtcDateTime.AddMinutes(-1);
-        var end = window.EndUtc.UtcDateTime.AddMinutes(1);
-        var lower = TimeOnly.FromDateTime(start);
-        var upper = TimeOnly.FromDateTime(end);
-        if (start.Date == end.Date)
-            return rows.Where(row => row.AggregationTimeUtc is { } time && time >= lower && time <= upper);
-
-        // A request ending at midnight reads only the old day's partition slice.
-        return rows.Where(row => row.AggregationTimeUtc is { } time && (time >= lower || (upper != TimeOnly.MinValue && time <= upper)));
-    }
-
     /// <summary>Builds exact OHLCV and source provenance, discarding duplicates, non-trades, and observations outside the requested interval.</summary>
     public static FuturesTradeSessionBarReadModel? Aggregate(string contractId, TimeFrameType frame,
         MarketSessionBounds window, DateTimeOffset cutoff, IEnumerable<BootstrapTradeRow> source)
+        => AggregateCore(contractId, frame, window, cutoff, source, alreadyDistinct: false);
+
+    internal static FuturesTradeSessionBarReadModel? AggregateCore(string contractId, TimeFrameType frame,
+        MarketSessionBounds window, DateTimeOffset cutoff, IEnumerable<BootstrapTradeRow> source, bool alreadyDistinct)
     {
-        var rows = source.Where(row => row.ValueDate == window.ValueDate && row.Action == (short)'T' && row.Price > 0 && row.Size > 0)
+        var candidates = source.Where(row => row.ValueDate == window.ValueDate && row.Action == (short)'T' && row.Price > 0 && row.Size > 0)
             .Select(row => (Row: row, Time: At(row.EventNanoseconds)))
-            .Where(value => value.Time >= window.StartUtc && value.Time < window.EndUtc)
-            .DistinctBy(value => (value.Row.PublisherId, value.Row.InstrumentId, value.Row.Sequence, value.Row.EventNanoseconds))
-            .OrderBy(value => value.Time).ThenBy(value => value.Row.Sequence).ToArray();
+            .Where(value => value.Time >= window.StartUtc && value.Time < window.EndUtc);
+        var distinct = alreadyDistinct ? candidates : candidates.DistinctBy(value => (value.Row.PublisherId, value.Row.InstrumentId, value.Row.Sequence, value.Row.EventNanoseconds));
+        var rows = distinct.OrderBy(value => value.Time).ThenBy(value => value.Row.Sequence).ToArray();
         if (rows.Length == 0) return null;
         var series = MarketSeriesIdentity.ForContract(contractId);
         return new()

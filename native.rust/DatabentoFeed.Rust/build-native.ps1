@@ -7,6 +7,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $crateDirectory = $PSScriptRoot
+& (Join-Path $crateDirectory '../../scripts/Development/Initialize-RustBuildTarget.ps1') -ProjectDirectory $crateDirectory
 $cargo = Join-Path $env:USERPROFILE '.cargo\bin\cargo.exe'
 if (-not (Test-Path -LiteralPath $cargo)) {
     $cargoCommand = Get-Command cargo -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty Source
@@ -86,4 +87,7 @@ $buildKind = if ($EnableLive) { 'live-build' } else { 'build' }
 $outputDirectory = Join-Path $crateDirectory "out\$buildKind\$Configuration"
 New-Item -ItemType Directory -Force -Path $outputDirectory | Out-Null
 Copy-Item -LiteralPath $sourceDll -Destination (Join-Path $outputDirectory 'databento_feed_native.dll') -Force
+$sourcePdb = Join-Path $crateDirectory "target\$target\$cargoProfile\databento_feed_native.pdb"
+if (!(Test-Path -LiteralPath $sourcePdb)) { throw 'Full-debug native PDB is missing.' }
+Copy-Item -LiteralPath $sourcePdb -Destination $outputDirectory -Force
 Write-Output (Join-Path $outputDirectory 'databento_feed_native.dll')

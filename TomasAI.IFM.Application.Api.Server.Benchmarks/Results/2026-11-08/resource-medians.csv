@@ -1,0 +1,9 @@
+Workload,Producers,Candidate,Repeats,Trades,WarmupReads,Reads,ProcessorCount,ElapsedMilliseconds,CpuMilliseconds,AllocatedBytesAllThreads,AllocatedBytesPerRead,Gen0,Gen1,Gen2,GcPauseMilliseconds,SampledPeakWorkingSetBytes,SampledPeakPrivateBytes,MaterializedReads,StreamedReads,RowsDelivered,Batches,Requests,AllocatedBytesPerRequest,CompletedMonitorContentions,RequestP50Microseconds,RequestP95Microseconds,RequestP99Microseconds
+seed,,False,3,300000,20,20,32,8938.3834,18546.875,1169636032,58481801.6,17,14,14,126.411,227807232,233639936,80,0,7987340,,,,,,,
+seed,,True,3,300000,20,20,32,3970.7913,11125,1016718256,50835912.8,15,12,12,84.201,273747968,279113728,0,80,7987340,,,,,,,
+trade,1,False,3,,,,32,2192.5045,2328.125,23562008,,5,1,1,1.82,50364416,,,,,100,6400,3681.56375,0,1.4,8.7,16.8
+trade,1,True,3,,,,32,2070.0346,2234.375,23609048,,5,1,1,1.635,50143232,,,,,100,6400,3688.91375,0,1.4,8.6,15.1
+trade,4,False,3,,,,32,2177.9135,2453.125,47273368,,19,1,1,5.145,49225728,,,,,100,25600,1846.6159375,1117,3,19.5,163.3
+trade,4,True,3,,,,32,2113.687,2343.75,46001480,,19,1,1,4.688,49299456,,,,,100,25600,1796.9328125,1224,3.2,23.7,167.1
+trade,16,False,3,,,,32,2346.8528,2734.375,367691944,,71,0,0,20.596,54312960,,,,,100,102400,3590.741640625,4899,2.7,23.7,856.4
+trade,16,True,3,,,,32,2406.5785,2843.75,279732096,,38,2,2,13.678,60231680,,,,,100,102400,2731.75875,6351,2.6,231.1,791.6

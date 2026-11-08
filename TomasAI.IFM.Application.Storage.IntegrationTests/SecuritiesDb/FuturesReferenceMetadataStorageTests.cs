@@ -31,20 +31,18 @@ public sealed class FuturesReferenceMetadataStorageTests(PostgresTradePlanFixtur
     [Fact]
     public async Task Additive_migration_preserves_legacy_and_exact_decimal_metadata_across_restart_and_pages()
     {
-        var keyspace = "ifm_ref_" + Guid.NewGuid().ToString("N");
+        await using var infrastructure = new TomasAI.IFM.IntegrationTesting.IsolatedIntegrationInfrastructure("storage-reference", includeCql: false);
+        await infrastructure.StartAsync();
         using var deadline = new CancellationTokenSource(TimeSpan.FromMinutes(3));
         var token = deadline.Token;
         var logger = Substitute.For<ILogger<DbProvider>>();
         var settings = new DbConnectionSettings()
-            .Add("admin", "Contact Points=localhost;Port=9042;Default Keyspace=system", "System.Data.ScyllaDb")
-            .Add(SecuritiesDbContext.SecuritiesDbConnection, $"Contact Points=localhost;Port=9042;Default Keyspace={keyspace}", "System.Data.ScyllaDb");
-        var admin = new Admin(settings["admin"], logger);
-        await admin.Use("ReferenceMetadata.Create", $"CREATE KEYSPACE {keyspace} WITH replication = {{'class':'SimpleStrategy','replication_factor':1}};").ExecuteCommandAsync(token);
+            .Add(SecuritiesDbContext.SecuritiesDbConnection, infrastructure.PostgresConnectionString + ";Search Path=securities,public", "System.Data.Postgres");
         try
         {
             var schema = new SecuritiesSchemaDb(settings, logger);
-            // Install the unchanged legacy tables first; add data before the new columns exist.
-            await schema.CreateAsync(["futures_contract", "futures_option_contract"], token);
+            // Insert a legacy-shaped row with null additive metadata into the current schema.
+            await schema.CreateAllAsync();
             var raw = new Admin(settings[SecuritiesDbContext.SecuritiesDbConnection], logger);
             await raw.Use("ReferenceMetadata.Legacy", """
                 INSERT INTO futures_option_contract(contractId,description,symbol,localSymbol,securityType,currency,exchange,multiplier,contractMonth,strikePrice,optionType)
@@ -242,8 +240,7 @@ public sealed class FuturesReferenceMetadataStorageTests(PostgresTradePlanFixtur
         }
         finally
         {
-            // Only the unique test-owned keyspace is removed.
-            await admin.Use("ReferenceMetadata.Drop", $"DROP KEYSPACE IF EXISTS {keyspace};").ExecuteCommandAsync(CancellationToken.None);
+            // The owning infrastructure disposes only this test's PostgreSQL database.
         }
 
         SecuritiesDbContext Open()

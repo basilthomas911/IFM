@@ -1,0 +1,63 @@
+{
+  "status": "Healthy",
+  "totalDurationMilliseconds": 0.1262,
+  "entries": {
+    "deployment_identity": {
+      "status": "Healthy",
+      "description": "The running process matches the current deployment manifest.",
+      "durationMilliseconds": 0.0081,
+      "data": {
+        "enforced": true,
+        "buildId": "1ADEEE0E89938FFE2D14C07494424229646AA82C5B302BC342AD8DEF883C4102.7B6331B887C5B03D720DBCF51472C901248FF79C0E24A405362459C2F04C0BF3.15A34F00A6AC6C840B6EC370358059797D8B919CFB7655D5E77AEB51DC3CE458",
+        "manifestPath": "C:\\repos\\IFM\\TomasAI.IFM.Application.Api.Server\\bin\\Debug\\net10.0\\ifm-deployment-manifest.json",
+        "capturedAtUtc": "2026-11-08T18:11:22.5502733Z",
+        "artifacts": {
+          "TomasAI.IFM.Application.Api.Server.dll": "1ADEEE0E89938FFE2D14C07494424229646AA82C5B302BC342AD8DEF883C4102",
+          "TomasAI.IFM.Application.Api.Server.Core.dll": "7B6331B887C5B03D720DBCF51472C901248FF79C0E24A405362459C2F04C0BF3",
+          "TomasAI.IFM.Domain.Trade.dll": "15A34F00A6AC6C840B6EC370358059797D8B919CFB7655D5E77AEB51DC3CE458"
+        },
+        "errors": []
+      }
+    },
+    "portfolio_operations": {
+      "status": "Healthy",
+      "description": "Portfolio operational controls are configured.",
+      "durationMilliseconds": 0.0079,
+      "data": {
+        "enabled": true,
+        "queriesEnabled": true,
+        "mutationsEnabled": true,
+        "authorizationRequired": true
+      }
+    },
+    "actor_runtime": {
+      "status": "Healthy",
+      "description": "Actor runtime is ready and consumer intake is open.",
+      "durationMilliseconds": 0.0057,
+      "data": {
+        "registeredActorTypes": 216
+      }
+    },
+    "application_lifecycle": {
+      "status": "Healthy",
+      "description": "Application startup ScheduledStopped. Activities=8; Satisfied=8; Failed=0; Skipped=0.",
+      "durationMilliseconds": 0.0334,
+      "data": {
+        "state": "ScheduledStopped",
+        "valueDate": "2026-11-06",
+        "processBootId": "c055619e-4895-4f1d-8ba1-98672a49eae8",
+        "commandId": "afcad270-d717-4038-8fb9-0b7981cf20ca",
+        "correlationId": "497cd5db-7547-4688-a2c5-156ee7218055",
+        "activities": 8,
+        "summary": "Application startup ScheduledStopped. Activities=8; Satisfied=8; Failed=0; Skipped=0.",
+        "handoffState": "LifecycleObserved",
+        "handoffCommandId": "afcad270-d717-4038-8fb9-0b7981cf20ca",
+        "handoffAttemptCount": 1,
+        "handoffAcceptedAtUtc": "2026-11-08T18:11:27.0419368Z",
+        "handoffObservationDeadlineUtc": "2026-11-08T18:11:37.0419368Z",
+        "handoffLastError": "",
+        "handoffObservedAtUtc": "2026-11-08T18:11:27.4400617Z"
+      }
+    }
+  }
+}

@@ -20,6 +20,10 @@ public sealed class PostgresPositionalParameterCatalogTests
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["InsertActorCommandLog"] = "InsertCommandLog",
+            ["GetCheckpointEventLogByIdentity"] = "GetEventLogFromCreationWithCheckpointIdentities",
+            ["AggregateFindParameters"] = "ReadAggregateEventByCommand",
+            ["AggregateWindowParameters"] = "ReadAggregateCheckpointWindow",
+            ["ConcernWindowParameters"] = "ReadConcernCheckpointWindow",
             ["RetryEventProjectorExecution"] = "TryRetryEventProjectorExecution",
             ["SkipEventProjectorExecution"] = "TrySkipEventProjectorExecution"
         };
@@ -43,10 +47,19 @@ public sealed class PostgresPositionalParameterCatalogTests
             AssertBinding(bindType, sqlType);
     }
 
+    [Fact]
+    public void Aggregate_creation_lookup_binds_only_the_stream_when_command_is_absent()
+    {
+        var values = Assert.IsType<object?[]>(new AggregateFindParameters("aggregate/test", null).Bind());
+        Assert.Equal(new object?[] { "aggregate/test" }, values);
+        Assert.Contains("$1", EventSourceDbSql.ReadAggregateCreation, StringComparison.Ordinal);
+        Assert.DoesNotContain("$2", EventSourceDbSql.ReadAggregateCreation, StringComparison.Ordinal);
+    }
+
     static void AssertBinding(Type bindType, Type sqlType)
     {
         var sqlName = CqlAliases.GetValueOrDefault(bindType.Name, bindType.Name);
-        var sqlField = sqlType.GetField(sqlName, BindingFlags.Public | BindingFlags.Static);
+        var sqlField = sqlType.GetField(sqlName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
         Assert.True(sqlField is not null, $"No SQL field maps to {bindType.FullName}.");
 
         var sql = Assert.IsType<string>(sqlField!.GetValue(null));

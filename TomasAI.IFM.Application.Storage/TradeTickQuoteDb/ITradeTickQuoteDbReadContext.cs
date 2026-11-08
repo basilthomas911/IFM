@@ -5,6 +5,13 @@ using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 
 namespace TomasAI.IFM.Application.Storage.TradeTickQuoteDb;
 
+/// <summary>Optional raw-tick streaming capability; each provider page remains owned by its active enumerator.</summary>
+public interface IStreamingRawFuturesTradeReader
+{
+    IAsyncEnumerable<BootstrapTradeRow> StreamRawFuturesTradeWindowAsync(string contractId, DateOnly valueDate,
+        TimeOnly fromUtc, TimeOnly throughUtc, CancellationToken token = default);
+}
+
 /// <summary>Reads persisted futures and option ticks from their raw ScyllaDB owner.</summary>
 public interface ITradeTickQuoteDbReadContext
 {

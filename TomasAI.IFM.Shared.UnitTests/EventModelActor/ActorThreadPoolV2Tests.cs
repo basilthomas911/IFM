@@ -18,6 +18,26 @@ namespace TomasAI.IFM.Shared.UnitTests.EventModelActor;
 
 public sealed class ActorThreadPoolV2Tests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Sampled_query_success_has_one_entry_exit_pair_and_slow_override_restores_the_pair(bool slow)
+    {
+        var logger = new RecordingLogger();
+        var policy = new ActorInformationLoggingOptions
+        { SuccessfulQuerySampleEvery = 100, SlowOperationMilliseconds = slow ? 1 : null }.Compile();
+        var runtime = CreateRuntime(2, handlerDelay: slow ? TimeSpan.FromMilliseconds(10) : default,
+            logger: logger, informationLoggingPolicy: policy, actorType: ActorType.Query);
+        await using var pool = runtime.Pool;
+        for (var index = 1; index <= 2; index++)
+            (await runtime.Mailbox.ThreadQueues.WriteAsync(new TestActorMessage(index, actorType: ActorType.Query) { Owner = runtime.Actor })).Should().BeTrue();
+        await runtime.Actor.Completed.WaitAsync(TimeSpan.FromSeconds(5));
+        (await pool.WaitForIdleAsync(TimeSpan.FromMilliseconds(1), TimeSpan.FromSeconds(5))).Should().BeTrue();
+        logger.Events.Count(entry => entry.EventId == 7001).Should().Be(slow ? 2 : 1);
+        logger.Events.Count(entry => entry.EventId == 7002).Should().Be(slow ? 2 : 1);
+        policy.SampledOutCount.Should().Be(slow ? 0 : 1);
+    }
+
     [Fact]
     public async Task Realtime_generation_is_checked_when_queued_message_reaches_actor_handler()
     {

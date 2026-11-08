@@ -22,7 +22,7 @@ public class NatsActorEventListenerTests
     {
         _logger = Substitute.For<ILogger<NatsActorEventListener>>();
         _options = Substitute.For<INatsEventListenerOptions>();
-        _options.Url.Returns("nats://localhost:4222");
+        _options.Url.Returns(Environment.GetEnvironmentVariable("IFM_NATS_URL") ?? "nats://localhost:4222");
     }
 
     #region Constructor Tests

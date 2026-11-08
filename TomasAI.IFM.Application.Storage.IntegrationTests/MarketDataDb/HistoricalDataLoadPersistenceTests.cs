@@ -31,7 +31,7 @@ public sealed class HistoricalDataLoadPersistenceTests
     [Fact]
     public async Task Context_and_adapter_preserve_resume_state_immutable_manifests_and_atomic_failure()
     {
-        await using var infrastructure = new IsolatedIntegrationInfrastructure("historical-load-context");
+        await using var infrastructure = new IsolatedIntegrationInfrastructure("historical-load-context", includeCql: false);
         await infrastructure.StartAsync();
         var settings = new DbConnectionSettings().Add(MarketDataDbContext.MarketDataDbConnection,
             infrastructure.PostgresConnectionString, "System.Data.Postgres");

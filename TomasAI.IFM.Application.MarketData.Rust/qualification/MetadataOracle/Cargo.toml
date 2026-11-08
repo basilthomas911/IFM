@@ -7,3 +7,18 @@ dbn = { version = "=0.66.0", features = ["async"] }
 tokio = { version = "=1.53.1", features = ["rt", "macros"] }
 sha2 = "=0.10.9"
 time = "=0.3.55"
+
+# Retain full source, type and variable information in all build configurations.
+[profile.dev]
+debug = 2
+strip = "none"
+
+# Retain full source, type and variable information in all build configurations.
+[profile.test]
+debug = 2
+strip = "none"
+
+# Retain full source, type and variable information in all build configurations.
+[profile.release]
+debug = 2
+strip = "none"

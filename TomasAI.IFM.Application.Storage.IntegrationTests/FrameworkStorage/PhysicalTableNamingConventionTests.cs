@@ -31,7 +31,7 @@ public sealed class PhysicalTableNamingConventionTests
 
     static string FindRepositoryRoot()
     {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        var directory = new DirectoryInfo(DbContextConventionSource.RepositoryRoot);
         while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "TomasAI.IFM.sln")))
             directory = directory.Parent;
         return directory?.FullName ?? throw new DirectoryNotFoundException("Could not locate the repository root.");

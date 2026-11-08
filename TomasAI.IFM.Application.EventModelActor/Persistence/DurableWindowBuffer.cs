@@ -88,6 +88,8 @@ public sealed class DurableWindowBuffer<T> : IAsyncDisposable
                 var deadline = Task.Delay(_maximumAge, stopDeadline.Token);
                 while (batch.Count < _maximumItems && bytes < _maximumBytes)
                 {
+                    // A permanently readable channel must not bypass the first-item deadline.
+                    if (deadline.IsCompleted) break;
                     if (_channel.Reader.TryRead(out var next))
                     {
                         if (next.IsBarrier || bytes + next.SizeBytes > _maximumBytes)

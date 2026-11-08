@@ -1,3 +1,14 @@
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.HistoricalDataLoader;
+using TomasAI.IFM.Application.MarketData.Contracts.Historical;
+using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Application.Blackboard;
+using TomasAI.IFM.Application.Storage.SecuritiesDb;
+using TomasAI.IFM.Shared.Extensions;
+using MessagePack.Resolvers;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
+using EvidenceKey = TomasAI.IFM.Application.Storage.MarketDataDb.MarketDataDbContext.EvidenceKey;
+using TomasAI.IFM.Application.MarketData.Pricing;
+using TomasAI.IFM.Application.Storage.ConfigurationDb;
 using static TomasAI.IFM.Shared.Storage.BindValues;
 using TomasAI.IFM.Domain.MarketData.Shared.OptionChainCache;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
@@ -1028,7 +1039,137 @@ public static class MarketDataDbContextExtensions
             })
             .ConfigureAwait(false);
         }
-}
+
+
+        /// <summary>Validates and executes the bounded seed or evidence persistence operation.</summary>
+        internal async Task<IReadOnlyList<FuturesTradeSessionBarReadModel>> ReadQualifiedIndicatorSeedsCoreAsync(string contractId,
+            TimeFrameType frame, DateOnly valueDate, DateTimeOffset[] intervalEndsUtc, string sourceVersion,
+            CancellationToken cancellationToken)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(sourceVersion);
+            ArgumentNullException.ThrowIfNull(intervalEndsUtc);
+            ArgumentOutOfRangeException.ThrowIfGreaterThan(intervalEndsUtc.Length, 64);
+            if (intervalEndsUtc.Length == 0) return [];
+
+            return (await context.Database.Use(nameof(MarketDataDbSql.GetQualifiedIndicatorSeedBars), MarketDataDbSql.GetQualifiedIndicatorSeedBars)
+                .SetParameters(new IndicatorSeedCoverageKey(contractId, frame, valueDate, intervalEndsUtc, sourceVersion))
+                .ExecuteQueryAsync(row => row.IsNull(17) ? MarketDataDbContext.MapToStoredTradeSessionBar(row, contractId, frame, valueDate)
+                    : MarketDataDbContext.MapToCachedIndicatorSeedBar(row, contractId, frame, valueDate), cancellationToken)
+                .ConfigureAwait(false)).ToArray();
+        }
+
+        /// <summary>Validates and executes the bounded seed or evidence persistence operation.</summary>
+        internal async Task StoreQualifiedIndicatorSeedsCoreAsync(string sourceVersion, FuturesTradeSessionBarReadModel[] bars,
+            CancellationToken cancellationToken)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(sourceVersion);
+            ArgumentNullException.ThrowIfNull(bars);
+            ArgumentOutOfRangeException.ThrowIfGreaterThan(bars.Length, 64);
+            if (bars.Length == 0) return;
+
+            var first = bars[0];
+            var ends = new HashSet<DateTimeOffset>();
+            foreach (var bar in bars)
+            {
+                if (!bar.IsComplete || !bar.IsValid || bar.ContractId != first.ContractId
+                    || bar.TimeFrame != first.TimeFrame || bar.ValueDate != first.ValueDate
+                    || bar.IntervalStartUtc >= bar.IntervalEndUtc || !ends.Add(bar.IntervalEndUtc))
+                    throw new ArgumentException("Seed coverage must contain unique qualified intervals of the same contract, timeframe and ValueDate.", nameof(bars));
+            }
+
+            await context.Database.Use(nameof(MarketDataDbSql.StoreQualifiedIndicatorSeedBars), MarketDataDbSql.StoreQualifiedIndicatorSeedBars)
+                .SetParameters(new IndicatorSeedCoverageBatch(sourceVersion, bars))
+                .ExecuteCommandAsync(cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+
+
+
+        /// <summary>Validates and executes the bounded seed or evidence persistence operation.</summary>
+        internal async ValueTask<bool[]> WriteFirstBatchCoreAsync(IReadOnlyList<OptionTradeEvidence> evidence, CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(evidence);
+            if (evidence.Count is < 1 or > IOptionTradeEvidenceWriter.MaximumFirstWriteBatch)
+                throw new ArgumentOutOfRangeException(nameof(evidence));
+            if (evidence.Count == 1)
+                return [await context.WriteFirstAsync(evidence[0], cancellationToken)
+                .ConfigureAwait(false)];
+
+            var serializer = MessagePackBinarySerializer.Shared;
+            var requests = new (EvidenceKey Key, string Digest, byte[] Payload)[evidence.Count];
+            for (var index = 0; index < evidence.Count; index++)
+            {
+                var item = evidence[index];
+                ArgumentNullException.ThrowIfNull(item);
+                item.Validate();
+                if (MessagePackBinarySerializer.MeasureContent(item) > 131072)
+                    throw new ArgumentException("Trade evidence exceeds its bounded payload.", nameof(evidence));
+                requests[index] = (EvidenceKey.From(item.Source), item.Source.SourceDigest, serializer.Serialize(item)!);
+            }
+
+            // Same-key requests within a window follow the first submitted attempt.
+            // The database statement orders different keys before taking write locks.
+            var first = requests.DistinctBy(static request => request.Key).ToArray();
+            var accepted = await context.Database.Use("OptionTradeEvidence.InsertBatch", MarketDataDbSql.InsertOptionTradeEvidenceBatch)
+                .SetParameters((object)BindValues.Values(
+                    first.Select(static r => r.Key.Contract).ToArray(),
+                    first.Select(static r => r.Key.Date).ToArray(),
+                    first.Select(static r => r.Key.Identity).ToArray(),
+                    first.Select(static r => r.Digest).ToArray(),
+                    first.Select(static r => r.Payload).ToArray()))
+                .ExecuteQueryAsync(EvidenceKey.Read, cancellationToken)
+                .ConfigureAwait(false);
+
+            var inserted = accepted.ToHashSet();
+            var durable = first.Where(r => inserted.Contains(r.Key)).ToDictionary(static r => r.Key, static r => r.Payload);
+            var conflicts = first.Where(r => !inserted.Contains(r.Key)).Select(static r => r.Key).ToArray();
+            if (conflicts.Length != 0)
+            {
+                // A concurrent insert can win the unique-key lock after the insertion
+                // statement's snapshot. Read conflicts in a separate command.
+                var stored = await context.Database.Use("OptionTradeEvidence.ReadConflicts", MarketDataDbSql.GetOptionTradeEvidenceBatch)
+                    .SetParameters((object)BindValues.Values(
+                        conflicts.Select(static k => k.Contract).ToArray(),
+                        conflicts.Select(static k => k.Date).ToArray(),
+                        conflicts.Select(static k => k.Identity).ToArray()))
+                    .ExecuteQueryAsync(static (row) =>
+                    {
+                        var key = EvidenceKey.Read(row);
+                        return (Key: key, Value: MarketDataDbContext.MapToOptionTradeEvidence(key, row.GetString(3), row.GetBytes(4)));
+                    }, cancellationToken)
+                .ConfigureAwait(false);
+                foreach (var row in stored)
+                    durable.Add(row.Key, serializer.Serialize(row.Value)!);
+                if (stored.Count != conflicts.Length)
+                    throw new InvalidOperationException("Durable option trade evidence write not confirmed.");
+            }
+
+            return requests.Select(r => durable[r.Key].AsSpan().SequenceEqual(r.Payload)).ToArray();
+        }
+
+
+
+            /// <summary>Executes repository preparation under the owning context or caller transaction.</summary>
+        internal async ValueTask<bool> TryInsertOptionTradeEvidenceAsync(OptionTradeEvidence evidence, CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(evidence);
+            evidence.Validate();
+            if (MessagePackBinarySerializer.MeasureContent(evidence) > 131072)
+                throw new ArgumentException("Trade evidence exceeds its bounded payload.",nameof(evidence));
+            var source = evidence.Source;
+            return await context.Database.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertOptionTradeEvidence)}", MarketDataDbSql.InsertOptionTradeEvidence)
+                .SetParameters(new NativeOptionEvidenceWriteParameters(source.ContractId, source.ValueDate, source.Identity, source.SourceDigest, MessagePackBinarySerializer.Shared.Serialize(evidence)!))
+                .ExecuteSingleAsync(static row => row.GetBool(0), cancellationToken)
+                .ConfigureAwait(false);
+        }
+        /// <summary>Executes repository preparation under the owning context or caller transaction.</summary>
+        internal async ValueTask<OptionTradeEvidence> ReadAcceptedOptionTradeEvidenceAsync(OptionTradeSource source, CancellationToken cancellationToken)
+            => await context.ReadAsync(source.ContractId, source.ValueDate, source.Identity, cancellationToken)
+                .ConfigureAwait(false) ?? throw new InvalidOperationException("Durable option trade evidence write not confirmed.");
+
+
+    }
 
     extension(DateOnly valueDate)
     {
@@ -2196,7 +2337,8 @@ public static class MarketDataDbContextExtensions
             ArgumentNullException.ThrowIfNull(parameters);
             ArgumentOutOfRangeException.ThrowIfNegativeOrZero(revision);
             parameters.Validate();
-            await ConfigurationDb.ConfigurationDbContext.WriteTypedValueAsync(transaction,TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterSetValue.From(parameters),cancellationToken).ConfigureAwait(false);
+            await transaction.WriteTypedValueAsync(TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterSetValue.From(parameters),cancellationToken)
+            .ConfigureAwait(false);
             var payload=parameters.Hash();
             await transaction.ExecuteAsync(MarketDataDbSql.InsertOptionChainParameterVersion, Values(Uuid(parameters.ParameterSetId), Integer(parameters.Version), Text(payload)), cancellationToken)
                 .ConfigureAwait(false);
@@ -2645,6 +2787,16 @@ public static class MarketDataDbContextExtensions
         internal object?[] BindOptionVolatilityValues(params object?[] items)
             => (object?[])new OptionVolatilityParameters(items).Bind();
     }
+
+
+
+
+
+
+
+
+
+
 }
 
 /// <summary>Opaque economic-calendar continuation state bound to the originating query.</summary>

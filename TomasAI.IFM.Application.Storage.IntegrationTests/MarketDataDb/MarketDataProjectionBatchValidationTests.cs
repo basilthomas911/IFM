@@ -25,10 +25,12 @@ public sealed class MarketDataProjectionBatchValidationTests
             Price = row.Price + 1m
         };
 
+        var raw = new TomasAI.IFM.Application.Storage.TradeTickQuoteDb.TradeTickQuoteDbContext(
+            new DbConnectionSettings().Add("TradeTickQuoteDbConnection", "Contact Points=127.0.0.1;Port=1;Default Keyspace=ifm_validation_only", "System.Data.ScyllaDb"), Substitute.For<ILogger<DbProvider>>());
         var error = await Assert.ThrowsAsync<ArgumentException>(() =>
-            context.InsertFuturesTickDataAsync(new[] { row, conflictingProjectionRow }));
+            raw.InsertFuturesTickDataAsync(new[] { row, conflictingProjectionRow }));
 
-        Assert.Equal("rows", error.ParamName);
+        Assert.Equal("values", error.ParamName);
         _ = dbFactory.DidNotReceive().MarketDataDb;
     }
 

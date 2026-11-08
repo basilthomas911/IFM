@@ -1,0 +1,9 @@
+{
+  "state": 1,
+  "version": "1.0.0.0",
+  "databaseAvailable": true,
+  "quartzAvailable": true,
+  "schedulingStarted": true,
+  "message": "Actor-owned Quartz definitions and run reservations reconciled.",
+  "observedAtUtc": "2026-11-08T18:13:22.698021+00:00"
+}

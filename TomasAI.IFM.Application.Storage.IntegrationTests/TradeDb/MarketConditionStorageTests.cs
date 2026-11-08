@@ -26,7 +26,7 @@ public sealed class MarketConditionStorageTests(TradeDbFixture fixture) : IClass
 
         var exact = await fixture.TradeDb.GetMarketConditionAsync(first.WorkflowId);
         var history = await fixture.TradeDb.GetMarketConditionHistoryAsync(
-            fundId, "ES", TimeFrameType.Daily, DateTime.MaxValue, 10);
+            fundId, "ES", TimeFrameType.Daily, DateTime.SpecifyKind(DateTime.MaxValue, DateTimeKind.Utc), 10);
 
         exact.Should().BeEquivalentTo(first, options => options
             .Excluding(x => x.ResultPayload)

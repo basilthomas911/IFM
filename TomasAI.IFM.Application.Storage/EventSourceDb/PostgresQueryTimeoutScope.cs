@@ -20,7 +20,8 @@ internal sealed class PostgresQueryTimeoutScope(NpgsqlConnection connection, Npg
             { CommandTimeout = 0 };
         PostgresValueBinding.AddParameter(configure, checked((int)Math.Ceiling(selected.StatementTimeout.TotalMilliseconds)).ToString(System.Globalization.CultureInfo.InvariantCulture));
         PostgresValueBinding.AddParameter(configure, checked((int)Math.Ceiling((selected.LockTimeout ?? selected.StatementTimeout).TotalMilliseconds)).ToString(System.Globalization.CultureInfo.InvariantCulture));
-        await configure.ExecuteNonQueryAsync(token).ConfigureAwait(false);
+        await configure.ExecuteNonQueryAsync(token)
+            .ConfigureAwait(false);
         activeTimeout = selected;
     }
 }

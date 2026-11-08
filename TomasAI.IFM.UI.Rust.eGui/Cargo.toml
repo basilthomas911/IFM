@@ -45,10 +45,25 @@ required-features = ["desktop"]
 [profile.development]
 inherits = "release"
 opt-level = 1
-debug = 1
+debug = 2
 incremental = true
 lto = false
 codegen-units = 256
 
 [profile.development.package."*"]
 opt-level = 3
+
+# Retain full source, type and variable information in all build configurations.
+[profile.dev]
+debug = 2
+strip = "none"
+
+# Retain full source, type and variable information in all build configurations.
+[profile.test]
+debug = 2
+strip = "none"
+
+# Retain full source, type and variable information in all build configurations.
+[profile.release]
+debug = 2
+strip = "none"

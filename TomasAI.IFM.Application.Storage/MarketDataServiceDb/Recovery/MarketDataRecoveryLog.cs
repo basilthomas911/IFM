@@ -15,13 +15,16 @@ public static class MarketDataRecoveryLog
         var schema=Schemas.GetOrAdd(connectionString,key=>new Lazy<Task>(async ()=> {
             try {
                 await using var connection=new PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(key);
-                await connection.OpenAsync(token).ConfigureAwait(false);
+                await connection.OpenAsync(token)
+            .ConfigureAwait(false);
                 await using var command=new NpgsqlCommand(MarketDataServiceSchemaSql.CreateSchema+MarketDataServiceSchemaSql.CreateRecoveryLog,connection) {CommandTimeout=120};
-                await command.ExecuteNonQueryAsync(token).ConfigureAwait(false);
+                await command.ExecuteNonQueryAsync(token)
+            .ConfigureAwait(false);
             }
             catch {Schemas.TryRemove(key,out _);throw;}
         }));
-        await schema.Value.WaitAsync(token).ConfigureAwait(false);
+        await schema.Value.WaitAsync(token)
+            .ConfigureAwait(false);
     }
 
     public const string InsertSql = """
@@ -37,9 +40,11 @@ public static class MarketDataRecoveryLog
     public static async Task ProjectAsync(string connectionString, MarketDataFeedRecoveryFact source, CancellationToken token = default)
     {
         var fact = RecoveryRecord.Parse(source.Payload, source.Digest);
-        await EnsureSchemaAsync(connectionString,token).ConfigureAwait(false);
+        await EnsureSchemaAsync(connectionString,token)
+            .ConfigureAwait(false);
         await using var connection = new PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(connectionString);
-        await connection.OpenAsync(token).ConfigureAwait(false);
+        await connection.OpenAsync(token)
+            .ConfigureAwait(false);
         await using var command = new NpgsqlCommand(InsertSql, connection) { CommandTimeout = 120 };
         PostgresValueBinding.AddNamedParameter(command, "record", fact.RecordId); PostgresValueBinding.AddNamedParameter(command, "operation", fact.OperationId);
         PostgresValueBinding.AddNamedParameter(command, "sequence", fact.Sequence); PostgresValueBinding.AddNamedParameter(command, "date", fact.ValueDate);
@@ -47,7 +52,8 @@ public static class MarketDataRecoveryLog
         PostgresValueBinding.AddNamedParameter(command, "kind", fact.Kind); PostgresValueBinding.AddNamedParameter(command, "occurred", fact.OccurredAtUtc);
         PostgresValueBinding.AddNamedParameter(command, "received", source.ReceivedOn); PostgresValueBinding.AddNamedParameter(command, "digest", source.Digest);
         PostgresValueBinding.AddNamedParameter(command, "payload", source.Payload); PostgresValueBinding.AddNamedParameter(command, "event", source.EventId);
-        if (await command.ExecuteScalarAsync(token).ConfigureAwait(false) is null)
+        if (await command.ExecuteScalarAsync(token)
+            .ConfigureAwait(false) is null)
             throw new InvalidDataException("Recovery projection RecordId/digest conflict.");
     }
     /// <summary>Returns at most 4096 copied JSON records, ordered per incident. Historical ValueDates remain queryable.</summary>
@@ -55,9 +61,11 @@ public static class MarketDataRecoveryLog
         string? dataset = null, Guid? operationId = null, int limit = 256, CancellationToken token = default)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(limit,1); ArgumentOutOfRangeException.ThrowIfGreaterThan(limit,4096);
-        await EnsureSchemaAsync(connectionString,token).ConfigureAwait(false);
+        await EnsureSchemaAsync(connectionString,token)
+            .ConfigureAwait(false);
         await using var connection = new PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(connectionString);
-        await connection.OpenAsync(token).ConfigureAwait(false);
+        await connection.OpenAsync(token)
+            .ConfigureAwait(false);
         await using var command = new NpgsqlCommand("""
             SELECT payload FROM market_data_service.marketdata_recovery_log
             WHERE value_date=@date AND (@dataset IS NULL OR dataset=@dataset) AND (@operation IS NULL OR operation_id=@operation)
@@ -68,8 +76,10 @@ public static class MarketDataRecoveryLog
         PostgresValueBinding.AddNamedParameter(command, "operation",TomasAI.IFM.Shared.Storage.BindValues.Uuid(operationId));
         PostgresValueBinding.AddNamedParameter(command, "limit", limit);
         var rows = new List<string>();
-        await using var reader = await command.ExecuteReaderAsync(token).ConfigureAwait(false);
-        while (await reader.ReadAsync(token).ConfigureAwait(false)) rows.Add(reader.GetString(0));
+        await using var reader = await command.ExecuteReaderAsync(token)
+            .ConfigureAwait(false);
+        while (await reader.ReadAsync(token)
+            .ConfigureAwait(false)) rows.Add(reader.GetString(0));
         return rows;
     }
 }

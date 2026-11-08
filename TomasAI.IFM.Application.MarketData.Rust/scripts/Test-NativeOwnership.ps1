@@ -27,7 +27,7 @@ Push-Location $implementation
 try {
     # Cargo fixtures and all managed children share an isolated test-only root.
     if(-not $env:IFM_MARKETDATA_RECOVERY_OUTBOX){$env:IFM_MARKETDATA_RECOVERY_OUTBOX=Join-Path ([IO.Path]::GetTempPath()) ('ifm-native-qualification-audit/'+[Guid]::NewGuid().ToString('N'))}
-    $env:CARGO_INCREMENTAL='0';$env:CARGO_PROFILE_TEST_DEBUG='0';$env:CARGO_PROFILE_DEV_DEBUG='0'
+    $env:CARGO_INCREMENTAL='0';$env:CARGO_PROFILE_TEST_DEBUG='2';$env:CARGO_PROFILE_DEV_DEBUG='2'
     $cargoProfile=if($NativeProfile -eq 'debug'){'dev'}else{$NativeProfile}
     Invoke-Checked 'cargo' @('build','--locked','--profile',$cargoProfile,'--lib')
     $library=(Resolve-Path ('target/'+$NativeProfile+'/ifm_market_data_native.dll')).Path

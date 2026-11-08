@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.Storage.ConfigurationDb;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.HistoricalDataLoader;
 using System.Text.Json;
 using TomasAI.IFM.Application.MarketData.Contracts.Historical;
@@ -53,7 +54,7 @@ namespace TomasAI.IFM.Application.Storage.MarketDataDb;
 /// <param name="blackboardService">The existing context construction dependency.</param>
 /// <param name="sequenceIdGenerator">The database sequence allocator.</param>
 /// <param name = "logger"></param>
-public partial class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbContextFactory dbFactory, IBlackboardService blackboardService, ISequenceIdGenerator sequenceIdGenerator, ILogger<DbProvider> logger) : ObjectDataRepository<MarketDataDbContext>(connectionSettings[MarketDataDbConnection], logger), IMarketDataDbContext
+public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbContextFactory dbFactory, IBlackboardService blackboardService, ISequenceIdGenerator sequenceIdGenerator, ILogger<DbProvider> logger) : ObjectDataRepository<MarketDataDbContext>(connectionSettings[MarketDataDbConnection], logger), IMarketDataDbContext
 {
     readonly ILogger _diagnosticLogger = logger;
     public const string MarketDataDbConnection = "MarketDataDbConnection";
@@ -878,9 +879,9 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
         CancellationToken cancellationToken = default)
         => await _dbFactory.MarketDataDb.Use(nameof(MarketDataDbSql.GetLatestFuturesOptionChainQuoteData),
                 MarketDataDbSql.GetLatestFuturesOptionChainQuoteData)
-            .SetParameters(new GetLatestFuturesOptionChainQuoteData(underlyingContractId, expiryDate, valueDate,
-                checked((notAfterUtc - DateTimeOffset.UnixEpoch).Ticks * 100)))
-            .ExecuteQueryAsync(MapToOptionChainQuote!, cancellationToken).ConfigureAwait(false);
+            .SetParameters(new GetLatestFuturesOptionChainQuoteData(underlyingContractId, expiryDate, valueDate, checked((notAfterUtc - DateTimeOffset.UnixEpoch).Ticks * 100)))
+            .ExecuteQueryAsync(MapToOptionChainQuote!, cancellationToken)
+            .ConfigureAwait(false);
 
     /// <summary>Reads the latest available saved volume and open interest independently, excluding future reference dates.</summary>
     /// <param name="underlyingContractId">The exact underlying futures contract.</param>
@@ -893,9 +894,9 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     {
         var rows = await _dbFactory.MarketDataDb.Use(nameof(MarketDataDbSql.GetOptionChainStatistics), MarketDataDbSql.GetOptionChainStatistics)
             .SetParameters(new GetFuturesOptionChainQuoteData(underlyingContractId, expiryDate, valueDate))
-            .ExecuteQueryAsync(row => new TomasAI.IFM.Shared.MarketData.Contracts.OptionChainStatisticsSnapshot(
-                row.GetString(0), row.IsNull(1) ? null : row.GetLong(1), row.IsNull(2) ? null : row.GetDateOnly(2),
-                row.IsNull(3) ? null : row.GetLong(3), row.IsNull(4) ? null : row.GetDateOnly(4)), cancellationToken).ConfigureAwait(false);
+            .ExecuteQueryAsync(row => new TomasAI.IFM.Shared.MarketData.Contracts.OptionChainStatisticsSnapshot(row.GetString(0), row.IsNull(1) ? null : row.GetLong(1), row.IsNull(2) ? null : row.GetDateOnly(2),
+                row.IsNull(3) ? null : row.GetLong(3), row.IsNull(4) ? null : row.GetDateOnly(4)), cancellationToken)
+            .ConfigureAwait(false);
         return rows.ToImmutableArray();
     }
     /// <summary>
@@ -1877,19 +1878,10 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
                 .ConfigureAwait(false);
         if (existingData is null)
             throw new InvalidOperationException($"Futures EOD row '{e.ContractId}:{e.ValueDate:yyyy-MM-dd}' does not exist.");
-        await (this.ExecuteMaintainedProjectionMutationAsync(FuturesEodProjection, new[] { MarketDataDbContextExtensions.GetFuturesEodScopeKey(e.ValueDate) }, async () =>
-        {
-            List<object> commands = [db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.UpdateFuturesEodSessionStatistics)}", MarketDataDbCql.UpdateFuturesEodSessionStatistics)
-                .SetParameters(new UpdateFuturesEodSessionStatistics(contractId: e.ContractId, valueDate: e.ValueDate, symbol: e.Symbol, openPrice: e.OpenPrice, highPrice: e.HighPrice, lowPrice: e.LowPrice, volume: e.Volume, dailyPercentChange: e.DailyPercentChange, priceDirection: e.PriceDirection.ToStringFast()))
-                .QueueCommand(), db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesEodDataByMonth)}", MarketDataDbCql.InsertFuturesEodDataByMonth)
-                .SetParameters(MarketDataDbContextExtensions.CreateFuturesEodDataByMonthParameters(e, e.OpenPrice))
-                .QueueCommand(), db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertMarketDataProjectionMonth)}", MarketDataDbCql.InsertMarketDataProjectionMonth)
-                .SetParameters(new InsertMarketDataProjectionMonth(FuturesEodProjection, MarketDataDbContextExtensions.ToYearMonth(e.ValueDate)))
-                .QueueCommand()];
-            await (db.ExecuteQueuedCommandsAsync(commands))
-                .ConfigureAwait(false);
-        }))
-                .ConfigureAwait(false);
+        await db.Use(nameof(MarketDataDbSql.UpdateFuturesEodSessionStatistics), MarketDataDbSql.UpdateFuturesEodSessionStatistics)
+            .SetParameters(new UpdateFuturesEodSessionStatistics(e.ContractId, e.ValueDate, e.Symbol, e.OpenPrice, e.HighPrice, e.LowPrice, e.Volume, e.DailyPercentChange, e.PriceDirection.ToStringFast()))
+            .ExecuteCommandAsync()
+            .ConfigureAwait(false);
     }
 
     /// <summary>
@@ -2096,14 +2088,16 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// <param name="valueDate">The value date used by this operation.</param>
     /// <returns>The typed result of the market-data query or mutation.</returns>
     public async Task<FuturesItiSignalV2ReadModel?> GetLastFuturesItiSignalAsync(string contractId, DateOnly valueDate)
-        => await this.ReadLastFuturesItiCategoryAsync(contractId, valueDate, IntrinsicTimeModeType.TrendReversalChanged, IntrinsicTimeModeType.TrendOvershootReversal).ConfigureAwait(false);
+        => await this.ReadLastFuturesItiCategoryAsync(contractId, valueDate, IntrinsicTimeModeType.TrendReversalChanged, IntrinsicTimeModeType.TrendOvershootReversal)
+            .ConfigureAwait(false);
     /// <summary>Get Last Futures Iti Signal using the MarketDataDb persistence.</summary>
     /// <param name="contractId">The contract id used by this operation.</param>
     /// <param name="valueDate">The value date used by this operation.</param>
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
     /// <returns>The typed result of the market-data query or mutation.</returns>
     public async Task<FuturesItiSignalV2ReadModel?> GetLastFuturesItiSignalAsync(string contractId, DateOnly valueDate, CancellationToken cancellationToken)
-        => await this.ReadLastFuturesItiCategoryAsync(contractId, valueDate, IntrinsicTimeModeType.TrendReversalChanged, IntrinsicTimeModeType.TrendOvershootReversal, cancellationToken: cancellationToken).ConfigureAwait(false);
+        => await this.ReadLastFuturesItiCategoryAsync(contractId, valueDate, IntrinsicTimeModeType.TrendReversalChanged, IntrinsicTimeModeType.TrendOvershootReversal, cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
     /// <summary>Get Last Futures Iti Signal using the MarketDataDb persistence.</summary>
     /// <param name="contractId">The contract id used by this operation.</param>
     /// <param name="valueDate">The value date used by this operation.</param>
@@ -2148,7 +2142,8 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     {
         var direction = (await (this.ReadFuturesItiDayModeAsync(contractId, valueDate, IntrinsicTimeModeType.TrendDirectionChanged))
                 .ConfigureAwait(false)).FirstOrDefault();
-        return await this.ReadLastFuturesItiCategoryAsync(contractId, valueDate, IntrinsicTimeModeType.TrendExtremeChanged, IntrinsicTimeModeType.TrendOvershootExtended, direction?.SequenceId ?? 0).ConfigureAwait(false);
+        return await this.ReadLastFuturesItiCategoryAsync(contractId, valueDate, IntrinsicTimeModeType.TrendExtremeChanged, IntrinsicTimeModeType.TrendOvershootExtended, direction?.SequenceId ?? 0)
+            .ConfigureAwait(false);
     }
 
     /// <summary>Get Last Futures Iti Signal Trend Extreme Change using the MarketDataDb persistence.</summary>
@@ -2160,7 +2155,8 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     {
         var direction = (await this.ReadFuturesItiDayModeAsync(contractId, valueDate, IntrinsicTimeModeType.TrendDirectionChanged, cancellationToken: cancellationToken)
             .ConfigureAwait(false)).FirstOrDefault();
-        return await this.ReadLastFuturesItiCategoryAsync(contractId, valueDate, IntrinsicTimeModeType.TrendExtremeChanged, IntrinsicTimeModeType.TrendOvershootExtended, direction?.SequenceId ?? 0, cancellationToken).ConfigureAwait(false);
+        return await this.ReadLastFuturesItiCategoryAsync(contractId, valueDate, IntrinsicTimeModeType.TrendExtremeChanged, IntrinsicTimeModeType.TrendOvershootExtended, direction?.SequenceId ?? 0, cancellationToken)
+            .ConfigureAwait(false);
     }
 
     /// <summary>
@@ -2173,7 +2169,8 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     {
         var direction = (await (this.ReadFuturesItiDayModeAsync(contractId, valueDate, IntrinsicTimeModeType.TrendDirectionChanged))
                 .ConfigureAwait(false)).FirstOrDefault();
-        return await this.ReadLastFuturesItiCategoryAsync(contractId, valueDate, IntrinsicTimeModeType.TrendReversalChanged, IntrinsicTimeModeType.TrendOvershootReversal, direction?.SequenceId ?? 0).ConfigureAwait(false);
+        return await this.ReadLastFuturesItiCategoryAsync(contractId, valueDate, IntrinsicTimeModeType.TrendReversalChanged, IntrinsicTimeModeType.TrendOvershootReversal, direction?.SequenceId ?? 0)
+            .ConfigureAwait(false);
     }
 
     /// <summary>Get Last Futures Iti Signal Trend Reversal Change using the MarketDataDb persistence.</summary>
@@ -2185,7 +2182,8 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     {
         var direction = (await this.ReadFuturesItiDayModeAsync(contractId, valueDate, IntrinsicTimeModeType.TrendDirectionChanged, cancellationToken: cancellationToken)
             .ConfigureAwait(false)).FirstOrDefault();
-        return await this.ReadLastFuturesItiCategoryAsync(contractId, valueDate, IntrinsicTimeModeType.TrendReversalChanged, IntrinsicTimeModeType.TrendOvershootReversal, direction?.SequenceId ?? 0, cancellationToken).ConfigureAwait(false);
+        return await this.ReadLastFuturesItiCategoryAsync(contractId, valueDate, IntrinsicTimeModeType.TrendReversalChanged, IntrinsicTimeModeType.TrendOvershootReversal, direction?.SequenceId ?? 0, cancellationToken)
+            .ConfigureAwait(false);
     }
 
     /// <summary>
@@ -3730,7 +3728,7 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
         var key = new EvidenceKey(contract, date, sourceId);
         var rows = await this.Database.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetOptionTradeEvidence)}", MarketDataDbSql.GetOptionTradeEvidence)
             .SetParameters(new NativeOptionEvidenceReadParameters(contract, date, sourceId))
-            .ExecuteQueryAsync(row => ReadOptionTradeEvidence(key, row.GetString(0), row.GetBytes(1)), token)
+            .ExecuteQueryAsync(row => MapToOptionTradeEvidence(key, row.GetString(0), row.GetBytes(1)), token)
             .ConfigureAwait(false);
         return rows.SingleOrDefault();
     }
@@ -3757,8 +3755,10 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// <returns>The completion of the persistence operation.</returns>
     public async ValueTask WriteAsync(OptionTradeEvidence evidence, CancellationToken cancellationToken)
     {
-        if (await TryInsertOptionTradeEvidenceAsync(evidence, cancellationToken).ConfigureAwait(false)) return;
-        var stored = await ReadAcceptedOptionTradeEvidenceAsync(evidence.Source, cancellationToken).ConfigureAwait(false);
+        if (await this.TryInsertOptionTradeEvidenceAsync(evidence, cancellationToken)
+            .ConfigureAwait(false)) return;
+        var stored = await this.ReadAcceptedOptionTradeEvidenceAsync(evidence.Source, cancellationToken)
+            .ConfigureAwait(false);
         if (!string.Equals(stored.Source.SourceDigest, evidence.Source.SourceDigest, StringComparison.Ordinal))
             throw new InvalidOperationException("Trade source identity collision or durable write not confirmed.");
     }
@@ -3766,44 +3766,18 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// <inheritdoc />
     public async ValueTask<bool> WriteFirstAsync(OptionTradeEvidence evidence, CancellationToken cancellationToken)
     {
-        if (await TryInsertOptionTradeEvidenceAsync(evidence, cancellationToken).ConfigureAwait(false)) return true;
-        var stored = await ReadAcceptedOptionTradeEvidenceAsync(evidence.Source, cancellationToken).ConfigureAwait(false);
+        if (await this.TryInsertOptionTradeEvidenceAsync(evidence, cancellationToken)
+            .ConfigureAwait(false)) return true;
+        var stored = await this.ReadAcceptedOptionTradeEvidenceAsync(evidence.Source, cancellationToken)
+            .ConfigureAwait(false);
         // An exact retry still needs its persistence acknowledgment if the first reply was lost.
         var serializer = MessagePackBinarySerializer.Shared;
         return serializer.Serialize(stored)!.AsSpan().SequenceEqual(serializer.Serialize(evidence));
     }
 
-    async ValueTask<bool> TryInsertOptionTradeEvidenceAsync(OptionTradeEvidence evidence, CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(evidence);
-        evidence.Validate();
-        if (MessagePackBinarySerializer.MeasureContent(evidence) > 131072)
-            throw new ArgumentException("Trade evidence exceeds its bounded payload.",nameof(evidence));
-        var source = evidence.Source;
-        return await this.Database.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertOptionTradeEvidence)}", MarketDataDbSql.InsertOptionTradeEvidence)
-            .SetParameters(new NativeOptionEvidenceWriteParameters(source.ContractId, source.ValueDate, source.Identity, source.SourceDigest, MessagePackBinarySerializer.Shared.Serialize(evidence)!))
-            .ExecuteSingleAsync(static row => row.GetBool(0), cancellationToken)
-            .ConfigureAwait(false);
-    }
 
-    async ValueTask<OptionTradeEvidence> ReadAcceptedOptionTradeEvidenceAsync(OptionTradeSource source, CancellationToken cancellationToken)
-        => await ReadAsync(source.ContractId, source.ValueDate, source.Identity, cancellationToken)
-            .ConfigureAwait(false) ?? throw new InvalidOperationException("Durable option trade evidence write not confirmed.");
 
-    internal const int MaximumPayloadBytes = 1_048_576;
-    /// <summary>Append Observation using the MarketDataDb persistence.</summary>
-    /// <param name="environment">The environment used by this operation.</param>
-    /// <param name="observation">The observation used by this operation.</param>
-    /// <param name="cancellationToken">The token used to cancel the operation.</param>
-    /// <returns>The completion of the persistence operation.</returns>
-    public async Task AppendObservationAsync(string environment, OptionIvObservation observation, CancellationToken cancellationToken = default)
-    {
-            await new EventSourceDb.PostgresEventTransaction(new DbConnectionSettings().Add(EventSourceDb.EventSourceActorDbContext.EventSourceActorDbConnection,ConnectionString,"System.Data.Postgres"))
-            .ExecuteOnceAsync(async (transaction,token) => { await MarketDataDbContextExtensions.AppendOptionIvObservationAsync(transaction,environment,observation,token)
-                .ConfigureAwait(false); return true; },cancellationToken)
-                .ConfigureAwait(false);
-            return;
-    }
+
 
     /// <summary>Publish using the MarketDataDb persistence.</summary>
     /// <param name="publication">The publication used by this operation.</param>
@@ -3910,7 +3884,7 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
         DateOnly valueDate, DateTimeOffset intervalEndUtc, CancellationToken cancellationToken = default)
         => this.Database.Use(nameof(MarketDataDbSql.GetStoredTradeSessionBar), MarketDataDbSql.GetStoredTradeSessionBar)
             .SetParameters(new StoredTradeSessionBarKey(contractId, frame, valueDate, intervalEndUtc))
-            .ExecuteSingleAsync<FuturesTradeSessionBarReadModel?>(row => MapStoredTradeSessionBar(row, contractId, frame, valueDate), cancellationToken);
+            .ExecuteSingleAsync<FuturesTradeSessionBarReadModel?>(row => MapToStoredTradeSessionBar(row, contractId, frame, valueDate), cancellationToken);
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<FuturesTradeSessionBarReadModel>> GetStoredTradeSessionBarsAsync(string contractId,
@@ -3921,10 +3895,11 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
         if (intervalEndsUtc.Length == 0) return [];
         return (await this.Database.Use(nameof(MarketDataDbSql.GetStoredTradeSessionBars), MarketDataDbSql.GetStoredTradeSessionBars)
             .SetParameters(new StoredTradeSessionBarKeys(contractId, frame, valueDate, intervalEndsUtc))
-            .ExecuteQueryAsync(row => MapStoredTradeSessionBar(row, contractId, frame, valueDate), cancellationToken).ConfigureAwait(false)).ToArray();
+            .ExecuteQueryAsync(row => MapToStoredTradeSessionBar(row, contractId, frame, valueDate), cancellationToken)
+            .ConfigureAwait(false)).ToArray();
     }
 
-    static FuturesTradeSessionBarReadModel MapStoredTradeSessionBar(IObjectDataRecord row, string contractId,
+    internal static FuturesTradeSessionBarReadModel MapToStoredTradeSessionBar(IObjectDataRecord row, string contractId,
         TimeFrameType frame, DateOnly valueDate) => new()
     {
         MarketSeriesIdentity = MarketSeriesIdentity.ForContract(contractId), ContractId = contractId,
@@ -4051,38 +4026,48 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     public async Task<ImmutableArray<StrategyOptionChainParameterSet>> ReadPublishedAsync(string environment, CancellationToken token)
     {
         if (environment is not ("Development" or "Paper" or "Production")) throw new ArgumentException("Invalid parameter environment.",nameof(environment));
-        await using var connection=CreateConnection().As<Npgsql.NpgsqlConnection>(ConnectionString);await connection.OpenAsync(token).ConfigureAwait(false);
-        await using var transaction=await connection.BeginTransactionAsync(token).ConfigureAwait(false);
+        await using var connection=CreateConnection().As<Npgsql.NpgsqlConnection>(ConnectionString);await connection.OpenAsync(token)
+            .ConfigureAwait(false);
+        await using var transaction=await connection.BeginTransactionAsync(token)
+            .ConfigureAwait(false);
         var session=new ConfigurationDb.ConfigurationDbSession(connection,transaction);
         var rows=await session.QueryAsync("SELECT DISTINCT ON(set_id) set_id,version,published,parameter_hash FROM market_data.strategy_option_chain_policy_current WHERE environment=$1 ORDER BY set_id,version DESC LIMIT 129;",
-            [environment],reader=>(Id:reader.GetGuid(0),Version:reader.GetInt32(1),Published:reader.GetBoolean(2),Hash:reader.GetString(3)),token).ConfigureAwait(false);
+            [environment],reader=>(Id:reader.GetGuid(0),Version:reader.GetInt32(1),Published:reader.GetBoolean(2),Hash:reader.GetString(3)),token)
+            .ConfigureAwait(false);
         if(rows.Count>128)throw new InvalidDataException("Global strategy parameter capacity exceeded");
         var result=ImmutableArray.CreateBuilder<StrategyOptionChainParameterSet>();
         foreach(var row in rows.Where(x=>x.Published))
         {
-            var value=await ConfigurationDb.ConfigurationDbContext.ReadTypedValueAsync(session,row.Id,row.Version,token).ConfigureAwait(false)
+            var value=await session.ReadTypedValueAsync(row.Id,row.Version,token)
+            .ConfigureAwait(false)
                 ??throw new InvalidDataException("Missing option-chain parameter values");
             var policy=value.Get<StrategyOptionChainParameterSet>();
             if(policy.Hash()!=row.Hash)throw new InvalidDataException("Option-chain parameter hash mismatch");
             if(policy.Enabled)result.Add(policy);
         }
-        await transaction.CommitAsync(token).ConfigureAwait(false);return result.ToImmutable();
+        await transaction.CommitAsync(token)
+            .ConfigureAwait(false);return result.ToImmutable();
     }
 
     /// <summary>Reads an exact immutable policy reference and its concrete values.</summary>
     public async Task<StrategyOptionChainParameterSet?> ReadVersionAsync(Guid setId,int version,CancellationToken token)
     {
         if(setId==Guid.Empty||version<1)throw new ArgumentException("Exact parameter identity is required",nameof(setId));
-        await using var connection=CreateConnection().As<Npgsql.NpgsqlConnection>(ConnectionString);await connection.OpenAsync(token).ConfigureAwait(false);
-        await using var transaction=await connection.BeginTransactionAsync(token).ConfigureAwait(false);
+        await using var connection=CreateConnection().As<Npgsql.NpgsqlConnection>(ConnectionString);await connection.OpenAsync(token)
+            .ConfigureAwait(false);
+        await using var transaction=await connection.BeginTransactionAsync(token)
+            .ConfigureAwait(false);
         var session=new ConfigurationDb.ConfigurationDbSession(connection,transaction);
-        var hash=await session.ScalarAsync(MarketDataDbSql.GetOptionChainParameterVersion,[setId,version],token).ConfigureAwait(false);
+        var hash=await session.ScalarAsync(MarketDataDbSql.GetOptionChainParameterVersion,[setId,version],token)
+            .ConfigureAwait(false);
         if(hash is null)return null;
-        var value=await ConfigurationDb.ConfigurationDbContext.ReadTypedValueAsync(session,setId,version,token).ConfigureAwait(false)
+        var value=await session.ReadTypedValueAsync(setId,version,token)
+            .ConfigureAwait(false)
             ??throw new InvalidDataException("Missing option-chain parameter values");
         var policy=value.Get<StrategyOptionChainParameterSet>();
         if(policy.Hash()!=(string)hash)throw new InvalidDataException("Option-chain parameter hash mismatch");
-        await transaction.CommitAsync(token).ConfigureAwait(false);return policy;
+        await transaction.CommitAsync(token)
+            .ConfigureAwait(false);return policy;
     }
     /// <inheritdoc/>
     public async Task<FuturesAnalyticsHistoricalDataLoaderDiagnosticsReadModel?> GetHistoricalAnalyticsAttemptProjectionAsync(
@@ -4096,7 +4081,8 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
             return projected;
 
         // Materialize operational progress and older attempts that predate terminal facts.
-        var state = await GetHistoricalDataLoadAsync(attemptId, cancellationToken).ConfigureAwait(false);
+        var state = await GetHistoricalDataLoadAsync(attemptId, cancellationToken)
+            .ConfigureAwait(false);
         if (state is null)
             return projected;
 
@@ -4124,7 +4110,8 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(eventId);
         await Use(nameof(MarketDataDbSql.UpsertHistoricalAnalyticsAttemptProjection), MarketDataDbSql.UpsertHistoricalAnalyticsAttemptProjection)
             .SetParameters(new HistoricalAnalyticsAttemptProjectionParameter(diagnostics.DataLoadAttemptId, eventId, JsonSerializer.Serialize(diagnostics)))
-            .ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
+            .ExecuteCommandAsync(cancellationToken)
+            .ConfigureAwait(false);
     }
 
     /// <summary>Reads one persisted historical-load checkpoint and terminal manifest.</summary>
@@ -4188,5 +4175,55 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
             ? null
             : JsonSerializer.Deserialize<HistoricalDataLoaderAudit>(row.GetString(11))
     };
+
+    /// <inheritdoc />
+    public ValueTask<bool[]> WriteFirstBatchAsync(IReadOnlyList<OptionTradeEvidence> evidence, CancellationToken cancellationToken)
+        => this.WriteFirstBatchCoreAsync(evidence, cancellationToken);
+
+    /// <inheritdoc />
+    public Task<IReadOnlyList<FuturesTradeSessionBarReadModel>> GetQualifiedIndicatorSeedBarsAsync(string contractId,
+        TimeFrameType frame, DateOnly valueDate, DateTimeOffset[] intervalEndsUtc, string sourceVersion, CancellationToken cancellationToken)
+        => this.ReadQualifiedIndicatorSeedsCoreAsync(contractId, frame, valueDate, intervalEndsUtc, sourceVersion, cancellationToken);
+    /// <inheritdoc />
+    public Task StoreQualifiedIndicatorSeedBarsAsync(string sourceVersion, FuturesTradeSessionBarReadModel[] bars, CancellationToken cancellationToken)
+        => this.StoreQualifiedIndicatorSeedsCoreAsync(sourceVersion, bars, cancellationToken);
+    internal readonly record struct EvidenceKey(string Contract, DateOnly Date, string Identity)
+    {
+        public static EvidenceKey From(OptionTradeSource source) => new(source.ContractId, source.ValueDate, source.Identity);
+        public static EvidenceKey Read(IObjectDataRecord row) => new(row.GetString(0), row.GetDateOnly(1), row.GetString(2));
+    }
+    internal static OptionTradeEvidence MapToOptionTradeEvidence(EvidenceKey key, string digest, byte[] payload)
+    {
+        if (payload.Length is 0 or > 131072)
+            throw new InvalidDataException("Invalid trade evidence payload size.");
+        var value = MessagePackBinarySerializer.Shared.Deserialize<OptionTradeEvidence>(payload)
+            ?? throw new InvalidDataException("Missing trade evidence.");
+        value.Validate();
+        if (EvidenceKey.From(value.Source) != key || !string.Equals(value.Source.SourceDigest, digest, StringComparison.Ordinal))
+            throw new InvalidDataException("Trade evidence identity mismatch.");
+        return value;
+    }    internal static FuturesTradeSessionBarReadModel MapToCachedIndicatorSeedBar(IObjectDataRecord row, string contractId,
+        TimeFrameType frame, DateOnly valueDate)
+    {
+        var bar = MessagePackBinarySerializer.Shared.Deserialize<FuturesTradeSessionBarReadModel>(row.GetBytes(17));
+        var end = new DateTimeOffset(DateTime.SpecifyKind(row.GetDateTime(2), DateTimeKind.Utc));
+        if (bar is null || bar.ContractId != contractId || bar.TimeFrame != frame || bar.ValueDate != valueDate
+            || bar.IntervalEndUtc != end || bar is not { IsComplete: true, IsValid: true })
+            throw new InvalidDataException("Stored indicator seed payload does not match its qualified interval identity.");
+        return bar;
+    }    internal const int MaximumPayloadBytes = 1_048_576;
+    /// <summary>Append Observation using the MarketDataDb persistence.</summary>
+    /// <param name="environment">The environment used by this operation.</param>
+    /// <param name="observation">The observation used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The completion of the persistence operation.</returns>
+    public async Task AppendObservationAsync(string environment, OptionIvObservation observation, CancellationToken cancellationToken = default)
+    {
+            await new EventSourceDb.PostgresEventTransaction(new DbConnectionSettings().Add(EventSourceDb.EventSourceActorDbContext.EventSourceActorDbConnection,ConnectionString,"System.Data.Postgres"))
+            .ExecuteOnceAsync(async (transaction,token) => { await MarketDataDbContextExtensions.AppendOptionIvObservationAsync(transaction,environment,observation,token)
+                .ConfigureAwait(false); return true; },cancellationToken)
+                .ConfigureAwait(false);
+            return;
+    }
 
 }

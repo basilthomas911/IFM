@@ -12,11 +12,22 @@ name = "ifm_option_pricer_native"
 crate-type = ["cdylib", "rlib"]
 
 [profile.release]
+debug = 2
 codegen-units = 1
 lto = "fat"
 opt-level = 3
 panic = "unwind"
-strip = "symbols"
+strip = "none"
 
 [lints.rust]
 unsafe_op_in_unsafe_fn = "deny"
+
+# Retain full source, type and variable information in all build configurations.
+[profile.dev]
+debug = 2
+strip = "none"
+
+# Retain full source, type and variable information in all build configurations.
+[profile.test]
+debug = 2
+strip = "none"

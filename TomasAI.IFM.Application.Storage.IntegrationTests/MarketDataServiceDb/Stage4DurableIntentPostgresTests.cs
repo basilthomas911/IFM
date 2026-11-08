@@ -49,7 +49,7 @@ public sealed class Stage4DurableIntentPostgresFixture : IAsyncLifetime
         var connection = Environment.GetEnvironmentVariable("IFM_POSTGRES_EVENTSOURCE_TEST_CONNECTION");
         if (connection is null)
         {
-            _infrastructure = new IsolatedIntegrationInfrastructure("marketdataserviceintent");
+            _infrastructure = new IsolatedIntegrationInfrastructure("marketdataserviceintent", includeCql: false);
             await _infrastructure.StartAsync();
             connection = _infrastructure.PostgresConnectionString;
         }

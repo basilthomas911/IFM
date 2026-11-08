@@ -24,7 +24,7 @@ public sealed partial class EventSourceActorSnapshotRangeFixture : IAsyncLifetim
     string _authenticatedConnectionString = string.Empty;
 
     public EventSourceActorSnapshotRangeFixture()
-        : this(new IsolatedIntegrationInfrastructure("eventsource-snapshot-range"), true) { }
+        : this(new IsolatedIntegrationInfrastructure("eventsource-snapshot-range", includeCql: false), true) { }
 
     internal EventSourceActorSnapshotRangeFixture(IsolatedIntegrationInfrastructure infrastructure)
         : this(infrastructure, false) { }
