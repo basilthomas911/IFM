@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Framework.Messaging.Nats;
+using TomasAI.IFM.Framework.Messaging.Nats;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
@@ -52,7 +52,7 @@ public class FuturesTickDataCommandApiTests(TomasAI.IFM.IntegrationTesting.Kestr
 
         var contract = SampleData.FuturesContract;
         var tickData = SampleData.UnderlyingFuturesTickData;
-        dbFixture.BlackboardService.MarketDataFeed.FuturesEodDataRange.Remove(SampleData.UnderlyingFuturesTickData.ContractId, SampleData.UnderlyingFuturesTickData.ValueDate);
+
         await dbFixture.MarketDataDb.DeleteFuturesEodDataAsync(SampleData.FuturesEodData.ContractId, SampleData.FuturesEodData.ValueDate);
         await dbFixture.MarketDataDb.InsertFuturesEodDataAsync(SampleData.FuturesEodData);
         await dbFixture.MarketDataDb.DeleteFuturesTickDataAsync(SampleData.UnderlyingFuturesTickData.ContractId, SampleData.UnderlyingFuturesTickData.ValueDate);
@@ -136,14 +136,8 @@ public class FuturesTickDataCommandApiTests(TomasAI.IFM.IntegrationTesting.Kestr
     [Fact]
     public async Task StartFuturesTickDataStreaming_Ok()
     {
-        // arrange...
-        var eventListener = new NatsActorEventListener(new NatsEventListenerOptions(), _logger);
-        FuturesTickDataStreamingStartedEvent futuresTickDataStreamingStartedEvent = default!;
-        FuturesTickDataStreamingStartedCompleteEvent futuresTickDataStreamingStartedCompleteEvent = default!;
-        FuturesTickDataStreamingStartedFailEvent futuresTickDataStreamingStartedFailEvent = default!;
-        var domainEventReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var terminalEventReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-
+        await using var eventListener = new NatsActorEventListener(new NatsEventListenerOptions(), _logger);
+        var received = System.Threading.Channels.Channel.CreateUnbounded<IEvent>();
         await eventListener.StartAsync(
             $"{nameof(StartFuturesTickDataStreaming_Ok)}-{Guid.NewGuid():N}",
             new()
@@ -155,63 +149,47 @@ public class FuturesTickDataCommandApiTests(TomasAI.IFM.IntegrationTesting.Kestr
                     FuturesTickDataStreamingStartedFailEvent.Verb
                 ]
             },
-            EventHandlerAsync
-        );
-
+            EventHandlerAsync);
         var contract = SampleData.FuturesContract;
         var valueDate = SampleData.ValueDate;
-
-        // act...
         await ResetApplicationMarketDataApiAsync(valueDate);
-        var marketDataFeedApi = new MarketDataFeedCommandApi(_actorProducer);
-        var response = await marketDataFeedApi.StartFuturesTickDataStreamingAsync(contract, valueDate, false);
-
+        var api = new MarketDataFeedCommandApi(_actorProducer);
+        var response = await api.StartFuturesTickDataStreamingAsync(contract, valueDate, false);
         response.Should().NotBeNull();
         response.Success.Should().BeTrue(response.ErrorMessage);
         response.Value.Should().NotBe(Guid.Empty);
 
-        await Task.WhenAll(domainEventReceived.Task, terminalEventReceived.Task).WaitAsync(TimeSpan.FromSeconds(10));
-
-        // assert...
-        futuresTickDataStreamingStartedEvent.Should().NotBeNull();
-        futuresTickDataStreamingStartedCompleteEvent.Should().NotBeNull();
-        futuresTickDataStreamingStartedFailEvent.Should().BeNull();
-
-        futuresTickDataStreamingStartedEvent.Contract.ContractId.Should().Be(contract.ContractId);
-        futuresTickDataStreamingStartedEvent.ValueDate.Should().Be(valueDate);
-
-        await eventListener.StopAsync();
-
-        async ValueTask EventHandlerAsync(string eventVerb, NatsMsg<byte[]> eventMsg)
+        FuturesTickDataStreamingStartedEvent? started = null;
+        FuturesTickDataStreamingStartedCompleteEvent? completed = null;
+        FuturesTickDataStreamingStartedFailEvent? failed = null;
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await foreach (var item in received.Reader.ReadAllAsync(deadline.Token))
         {
-            IEvent receivedEvent = eventVerb switch
-            {
-                _ when eventVerb == FuturesTickDataStreamingStartedEvent.Verb => SetEvent(eventMsg.AsEvent<FuturesTickDataStreamingStartedEvent>()!),
-                _ when eventVerb == FuturesTickDataStreamingStartedCompleteEvent.Verb => SetEvent(eventMsg.AsEvent<FuturesTickDataStreamingStartedCompleteEvent>()!),
-                _ when eventVerb == FuturesTickDataStreamingStartedFailEvent.Verb => SetEvent(eventMsg.AsEvent<FuturesTickDataStreamingStartedFailEvent>()!),
-                _ => default!
-            };
-            await ValueTask.CompletedTask;
+            // Background ES/VX subscriptions share this event family. Retain early
+            // delivery but assert only the command returned to this test caller.
+            if (item.CommandId != response.Value) continue;
+            if (item is FuturesTickDataStreamingStartedEvent source) started = source;
+            if (item is FuturesTickDataStreamingStartedCompleteEvent terminal) completed = terminal;
+            if (item is FuturesTickDataStreamingStartedFailEvent failure) failed = failure;
+            if (started is not null && (completed is not null || failed is not null)) break;
+        }
+        started.Should().NotBeNull();
+        completed.Should().NotBeNull();
+        failed.Should().BeNull();
+        started!.Contract.ContractId.Should().Be(contract.ContractId);
+        started.ValueDate.Should().Be(valueDate);
 
-            IEvent SetEvent(IEvent @event)
+        ValueTask EventHandlerAsync(string verb, NatsMsg<byte[]> message)
+        {
+            IEvent? item = verb switch
             {
-                if (@event is FuturesTickDataStreamingStartedEvent started)
-                {
-                    futuresTickDataStreamingStartedEvent = started;
-                    domainEventReceived.TrySetResult();
-                }
-                if (@event is FuturesTickDataStreamingStartedCompleteEvent startedComplete)
-                {
-                    futuresTickDataStreamingStartedCompleteEvent = startedComplete;
-                    terminalEventReceived.TrySetResult();
-                }
-                if (@event is FuturesTickDataStreamingStartedFailEvent startedFail)
-                {
-                    futuresTickDataStreamingStartedFailEvent = startedFail;
-                    terminalEventReceived.TrySetResult();
-                }
-                return @event;
-            }
+                FuturesTickDataStreamingStartedEvent.Verb => message.AsEvent<FuturesTickDataStreamingStartedEvent>(),
+                FuturesTickDataStreamingStartedCompleteEvent.Verb => message.AsEvent<FuturesTickDataStreamingStartedCompleteEvent>(),
+                FuturesTickDataStreamingStartedFailEvent.Verb => message.AsEvent<FuturesTickDataStreamingStartedFailEvent>(),
+                _ => null
+            };
+            if (item is not null) received.Writer.TryWrite(item);
+            return ValueTask.CompletedTask;
         }
     }
 

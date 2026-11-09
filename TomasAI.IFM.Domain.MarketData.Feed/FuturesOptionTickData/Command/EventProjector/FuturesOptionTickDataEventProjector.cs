@@ -1,6 +1,5 @@
 using System.Collections.Immutable;
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
@@ -16,7 +15,7 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Command.Event
 public sealed class FuturesOptionTickDataEventProjector(
     ICommandActorContext<FuturesOptionTickDataCommandActor> actorContext,
     ILogger<FuturesOptionTickDataEventProjector> logger, EventProjectorReliabilityOptions? reliabilityOptions = null)
-    : ConventionalEventProjector<FuturesOptionTickDataCommandActor>(actorContext.DurableReplayQueue, actorContext.DbEventSource, actorContext.BlackboardService, logger, reliabilityOptions)
+    : ConventionalEventProjector<FuturesOptionTickDataCommandActor>(actorContext.DurableReplayQueue, actorContext.DbEventSource, logger, reliabilityOptions)
 {
     readonly ImmutableArray<EventProjectionDescriptor> _descriptors =
     [

@@ -27,6 +27,11 @@ public static class SeedFuturesEmaSignals
         /// <summary>Computes every accepted full-state fact without mutating actor state; duplicates and already committed prefixes produce no events.</summary>
         internal FuturesEmaSignalGeneratedEvent[] Compute(FuturesEmaAccumulatorCheckpoint? checkpoint)
         {
+            // A late history repair must rebuild the missing prefix, rather than
+            // discard it as stale behind a partially initialized live checkpoint.
+            if (checkpoint is { Count: < 20 } && command.Observations.Length >= 40
+                && command.Observations[^1].IntervalEndUtc >= checkpoint.LastIntervalEndUtc)
+                checkpoint = null;
             List<FuturesEmaSignalGeneratedEvent> facts = [];
             foreach (var observation in command.Observations)
             {

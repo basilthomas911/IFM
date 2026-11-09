@@ -1,6 +1,5 @@
 using NSubstitute;
 using TomasAI.IFM.Application.Storage;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Application.Storage.MarketDataDb.Schema;
@@ -35,7 +34,7 @@ using TomasAI.IFM.Shared.MarketData.Contracts.LastPrice;
 using TomasAI.IFM.Shared.MarketData.Contracts.Pricing;
 using TomasAI.IFM.Shared.MarketData.Definitions;
 await using var postgres=args.Contains("--postgres")?await TemporaryPostgres.CreateAsync(string.Join("\n",MarketDataSchemaSql.GetDefinitions().Select(x=>x.CreateStatement))):null;
-MarketDataDbContext? persisted=postgres is null?null:new(new DbConnectionSettings().Add(MarketDataDbContext.MarketDataDbConnection,postgres.ConnectionString,"System.Data.Postgres"),Substitute.For<IDbContextFactory>(),Substitute.For<IBlackboardService>(),Substitute.For<ISequenceIdGenerator>(),NullLogger<DbProvider>.Instance);
+MarketDataDbContext? persisted=postgres is null?null:new(new DbConnectionSettings().Add(MarketDataDbContext.MarketDataDbConnection,postgres.ConnectionString,"System.Data.Postgres"),Substitute.For<IDbContextFactory>(),Substitute.For<ISequenceIdGenerator>(),NullLogger<DbProvider>.Instance);
 var library=Path.GetFullPath(args[0]);var wire=await File.ReadAllBytesAsync(args[1]);
 var baseAt=new DateTimeOffset(2026,9,8,16,0,0,TimeSpan.Zero);var at=baseAt.AddSeconds(1);var budget=TimeSpan.FromSeconds(5);
 var listener=new TcpListener(IPAddress.Loopback,0);listener.Start();var port=(ushort)((IPEndPoint)listener.LocalEndpoint).Port;

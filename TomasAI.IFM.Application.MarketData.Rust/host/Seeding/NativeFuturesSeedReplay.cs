@@ -105,8 +105,13 @@ public sealed class NativeFuturesSeedReplay(
         var missing = windows.Where(window => !retained.ContainsKey(window.StartUtc)).ToArray();
         var historicalWindows = missing.Where(window => window.StartUtc < sessionStart
             || window.StartUtc < now.AddHours(-23)).ToArray();
-        var historicalBars = timeFrame == TimeFrameType.FifteenSeconds
-            ? await ReadHistoricalTradesAsync(registration, contractId, historicalWindows, cutoff, cache, sourceVersion, token).ConfigureAwait(false)
+        // CFE OHLCV is partitioned by on/off-market publisher. Their minute
+        // open/close ordering cannot be recovered by merging OHLCV rows.
+        // Use original trades, exactly as the live VX lane does.
+        var useTrades = timeFrame == TimeFrameType.FifteenSeconds
+            || StringComparer.Ordinal.Equals(registration.Dataset ?? options.FeedOptions.Dataset, "XCBF.PITCH");
+        var historicalBars = useTrades
+            ? await ReadHistoricalTradesAsync(registration, contractId, historicalWindows, cutoff, timeFrame, cache, sourceVersion, token).ConfigureAwait(false)
             : await ReadHistoricalAsync(registration, contractId, historicalWindows, cutoff, timeFrame, maximumCostUsd, cache, sourceVersion, token).ConfigureAwait(false);
         if (historicalBars.Length != historicalWindows.Length && cache is null)
             return [];
@@ -153,7 +158,9 @@ public sealed class NativeFuturesSeedReplay(
                 Dataset = registration.Dataset ?? options.FeedOptions.Dataset,
                 Symbols = [registration.ProviderContractName], Schema = HistoricalDataSchema.OhlcvOneMinute,
                 Symbology = HistoricalSymbology.RawSymbol, StartUtc = start, EndUtc = end,
-                RecordLimit = minuteCount + 1,
+                // Permit bounded exact redelivery without confusing it with a
+                // second original minute. Conflicting records remain errors.
+                RecordLimit = checked(minuteCount * 2 + 1),
                 RequestHash = $"indicator-seed-v1|{sourceVersion}|{contractId}|{start:O}|{end:O}"
             };
             var estimate = await historical.EstimateAsync(request, token).ConfigureAwait(false);
@@ -166,7 +173,7 @@ public sealed class NativeFuturesSeedReplay(
             while (await reader.ReadNextAsync(token).ConfigureAwait(false) is { } batch)
                 foreach (var record in batch.Records)
                 {
-                    if (++recordCount > minuteCount)
+                    if (++recordCount > minuteCount * 2)
                         throw new InvalidOperationException("Indicator historical seed exceeded its bounded record limit.");
                     if (record.Kind != HistoricalProviderRecordKind.Ohlcv
                         || record.EventTimestampUtc < start || record.EventTimestampUtc >= end
@@ -175,8 +182,14 @@ public sealed class NativeFuturesSeedReplay(
                         || record.High < Math.Max(record.Open, record.CloseOrPrice)
                         || record.Low > Math.Min(record.Open, record.CloseOrPrice) || record.Low <= 0)
                         throw new InvalidOperationException("Invalid historical indicator seed minute.");
-                    if (!minutes.TryAdd(record.EventTimestampUtc, record))
-                        throw new InvalidOperationException("Duplicate historical indicator seed minute.");
+                    if (!minutes.TryAdd(record.EventTimestampUtc, record) && minutes[record.EventTimestampUtc] is { } previous
+                        // OHLCV SourceSequence is the native reader's local row
+                        // ordinal, not a provider revision. It cannot turn exact
+                        // source redelivery into a conflicting market record.
+                        && (previous with { SourceSequence = record.SourceSequence }) != record)
+                        throw new InvalidOperationException($"Conflicting historical indicator seed minute for {contractId} at {record.EventTimestampUtc:O}: "
+                            + $"previous instrument={previous.InstrumentId}, publisher={previous.PublisherId}, OHLCV={previous.Open}/{previous.High}/{previous.Low}/{previous.CloseOrPrice}/{previous.VolumeOrSize}; "
+                            + $"incoming instrument={record.InstrumentId}, publisher={record.PublisherId}, OHLCV={record.Open}/{record.High}/{record.Low}/{record.CloseOrPrice}/{record.VolumeOrSize}.");
                 }
             var qualified = new List<FuturesTradeSessionBarReadModel>(selected.Length);
             foreach (var window in selected)
@@ -218,14 +231,20 @@ public sealed class NativeFuturesSeedReplay(
 
     async Task<FuturesTradeSessionBarReadModel[]> ReadHistoricalTradesAsync(
         DatabentoContractRegistration registration, string contractId, MarketSessionBounds[] windows,
-        DateTimeOffset cutoff, IDbContextFactory? cache, string sourceVersion, CancellationToken token)
+        DateTimeOffset cutoff, TimeFrameType timeFrame, IDbContextFactory? cache, string sourceVersion, CancellationToken token)
     {
         if (windows.Length == 0 || historical is null) return [];
         const int recordLimit = 250_000;
         var series = MarketSeriesIdentity.ForContract(contractId);
         var validation = new FuturesTradeSessionBarReadModelValidationRules();
         var bars = new List<FuturesTradeSessionBarReadModel>(windows.Length);
-        foreach (var selected in ContiguousRanges(windows))
+        var cfe = StringComparer.Ordinal.Equals(registration.Dataset ?? options.FeedOptions.Dataset, "XCBF.PITCH");
+        // One cold VX history can span several sessions. Repeating metadata,
+        // entitlement and range acquisition for every session exhausts the RPC
+        // deadline. A completed bounded source range can cover calendar gaps;
+        // only trades within requested exchange intervals contribute to bars.
+        var pending = new Stack<MarketSessionBounds[]>(cfe ? [windows] : ContiguousRanges(windows).Reverse());
+        while (pending.TryPop(out var selected))
         {
             var start = selected[0].StartUtc;
             var end = selected[^1].EndUtc;
@@ -239,15 +258,24 @@ public sealed class NativeFuturesSeedReplay(
             };
             var estimate = await historical.EstimateAsync(request, token).ConfigureAwait(false);
             if (estimate.EstimatedCostUsd != 0m)
-                throw new InvalidOperationException("Fifteen-second historical seed requires a zero-dollar estimate; no data was purchased.");
+                throw new InvalidOperationException($"Original-trade historical seed for {contractId} {timeFrame} requires a zero-dollar estimate; provider estimated ${estimate.EstimatedCostUsd}. No data was purchased.");
+            if (estimate.EstimatedRecords > recordLimit && selected.Length > 1)
+            {
+                var middle = selected.Length / 2;
+                pending.Push(selected[middle..]);
+                pending.Push(selected[..middle]);
+                continue;
+            }
             var buckets = new BarBucket[selected.Length];
             var count = 0;
+            var complete = false;
             await using var reader = await historical.OpenRangeAsync(request, 1024, token).ConfigureAwait(false);
             while (await reader.ReadNextAsync(token).ConfigureAwait(false) is { } batch)
             {
+                complete = batch.IsFinal;
                 count += batch.Records.Count;
                 if (count > recordLimit)
-                    throw new InvalidOperationException("Fifteen-second historical seed exceeded its bounded record limit.");
+                    throw new InvalidOperationException("Original-trade historical seed exceeded its bounded record limit.");
                 foreach (var trade in batch.Records)
                 {
                     if (trade.Kind != HistoricalProviderRecordKind.Trade || trade.CloseOrPrice <= 0 || trade.VolumeOrSize <= 0)
@@ -258,6 +286,7 @@ public sealed class NativeFuturesSeedReplay(
                             trade.EventTimestampUtc, checked((uint)trade.SourceSequence));
                 }
             }
+            if (!complete) throw new InvalidDataException("Historical seed trade range ended without a final source marker.");
             var qualified = new List<FuturesTradeSessionBarReadModel>(selected.Length);
             for (var index = 0; index < selected.Length; index++)
             {
@@ -266,7 +295,7 @@ public sealed class NativeFuturesSeedReplay(
                     if (cache is null) return [];
                     continue;
                 }
-                var bar = buckets[index].ToObservation(series, contractId, selected[index], cutoff, TimeFrameType.FifteenSeconds) with
+                var bar = buckets[index].ToObservation(series, contractId, selected[index], cutoff, timeFrame) with
                 {
                     CalculationVersion = "databento-historical-trade-seed-v1",
                     CalculationMethod = MarketSignalCalculationMethod.NormalizedHistoricalAggregate

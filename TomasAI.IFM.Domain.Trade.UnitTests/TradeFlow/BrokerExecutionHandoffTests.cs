@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.TradeDb;
 using TomasAI.IFM.Application.TradeBroker.Contracts;
@@ -44,7 +43,7 @@ public sealed class BrokerExecutionHandoffTests
         context.ActorService.Returns(actors);
         context.DbEventSource.Returns(Substitute.For<IEventSourceActorDbContext>());
         context.DurableReplayQueue.Returns(Substitute.For<IDurableReplayQueue>());
-        context.BlackboardService.Returns(Substitute.For<IBlackboardService>());
+
         context.Logger.Returns(NullLogger<OrderExecutionCommandActor>.Instance);
         var factory = Substitute.For<IDbContextFactory>();
         var tradeDb = Substitute.For<ITradeDbContext>();
@@ -177,7 +176,7 @@ public sealed class BrokerExecutionHandoffTests
         executionContext.ActorService.Returns(actors);
         executionContext.DbEventSource.Returns(Substitute.For<IEventSourceActorDbContext>());
         executionContext.DurableReplayQueue.Returns(Substitute.For<IDurableReplayQueue>());
-        executionContext.BlackboardService.Returns(Substitute.For<IBlackboardService>());
+
         executionContext.Logger.Returns(NullLogger<OrderExecutionCommandActor>.Instance);
         var factory = Substitute.For<IDbContextFactory>();
         var tradeDb = Substitute.For<ITradeDbContext>();

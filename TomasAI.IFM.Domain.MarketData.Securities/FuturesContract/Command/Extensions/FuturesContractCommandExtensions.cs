@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command.Actor;
@@ -21,7 +20,7 @@ public static class FuturesContractCommandExtensions
         /// <summary>Gets the database-context factory.</summary>
         public IDbContextFactory DbFactory => context.FuturesContractContext.DbFactory;
         /// <summary>Gets the blackboard service.</summary>
-        public IBlackboardService BlackboardService => context.FuturesContractContext.BlackboardService;
+
         /// <summary>Gets the actor logger.</summary>
         public ILogger<FuturesContractCommandActor> Logger => context.FuturesContractContext.Logger;
         /// <summary>Gets the event-source database context.</summary>

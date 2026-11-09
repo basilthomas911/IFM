@@ -226,6 +226,26 @@ fn status_console_consumer_preserves_eastern_time_without_raising_an_error_dialo
 }
 
 
+/// An indicator incident uses the existing error dialog once, while recovery remains a console notice.
+#[test]
+fn indicator_health_incident_opens_one_dialog_across_repeated_console_delivery() {
+    let registry = Registry::compiled().unwrap();
+    let kind = "TomasAI.IFM.Shared.StatusConsole.Events.StatusConsoleLoggedEvent";
+    let fixture = codec::decode(include_bytes!("fixtures/backend/status-notification.wire.msgpack")).unwrap();
+    let mut named = registry.project(kind, &fixture).unwrap();
+    named["StatusConsoleLog"]["DataType"] = "IndicatorHealthFailure.v1".into();
+    named["StatusConsoleLog"]["StatusCode"] = 23102.into();
+    named["StatusConsoleLog"]["Message"] = "ES OneHour ATR14: not warm after five minutes".into();
+    let wire = codec::encode(&registry.value_from_json(kind, &named).unwrap()).unwrap();
+    let mut notifications = Notifications::default();
+    assert!(notifications.event(&registry, "Notify.StatusConsoleEvent.Logged.none", &wire).unwrap());
+    assert_eq!(notifications.publication.error_sequence, 1);
+    assert!(notifications.publication.error.contains("OneHour ATR14"));
+    assert!(!notifications.event(&registry, "Notify.StatusConsoleEvent.Logged.none", &wire).unwrap());
+    assert_eq!(notifications.publication.error_sequence, 1);
+}
+
+
 /// Verifies that status query failure and terminal failure both survive coalesced updates.
 #[test]
 fn status_query_failure_and_terminal_failure_both_survive_coalesced_updates() {

@@ -6,7 +6,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage.SequenceIdDb;
 using TomasAI.IFM.Application.Storage.SecuritiesDb;
 using TomasAI.IFM.Application.Storage.SecuritiesDb.Schema;
@@ -48,11 +47,10 @@ public class SecuritiesDatabaseFixture : IDisposable
         logger.When(_ => { }).Do(_ => { });
         new TomasAI.IFM.Application.Storage.SecuritiesDb.Schema.SecuritiesSchemaDb(dbConn, logger)
             .CreateAllAsync().GetAwaiter().GetResult();
-        var redisCache = Substitute.For<IRedisCache>();
+
         var redisCacheMap = new Dictionary<string, string>();
-        redisCache.Get(Arg.Any<string>()).Returns(callInfo => redisCacheMap[callInfo.Arg<string>()]);
-        redisCache.When(_ => _.Set(Arg.Any<string>(), Arg.Any<string>())).Do(_ => { redisCacheMap.Add(_.ArgAt<string>(0), _.ArgAt<string>(1)); });
-        var blackboardServce = new BlackboardService(redisCache, new SystemTextJsonSerializer());
+
+
         var dbFactory = new DbContextFactory(dbResolver);
         var dbCache = new DbCache();
         DbFactory = dbFactory;
@@ -308,7 +306,7 @@ public class SecuritiesDbTests(SecuritiesDatabaseFixture testFixture) : IClassFi
         - UpdateFuturesOptionContractAsync
         - DeleteFuturesOptionContractAsync
         - GetFuturesOptionContractAsync
-        - GetFuturesOptionContractsAsync    
+        - GetFuturesOptionContractsAsync
      */
 
     [Fact]

@@ -12,7 +12,7 @@ namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Workflow.C
 public sealed class IronCondorExitPositionWorkflowEventProjector : ConventionalEventProjector<IronCondorExitPositionWorkflowCommandActor>
 {
     readonly IReadOnlyCollection<EventProjectionDescriptor> descriptors;
-    public IronCondorExitPositionWorkflowEventProjector(ICommandActorContext<IronCondorExitPositionWorkflowCommandActor> actorContext, IActorSupervisor supervisor, IPostgresEventTransaction transactions, EventProjectorReliabilityOptions? options = null) : base(Typed(actorContext).DurableReplayQueue, Typed(actorContext).DbEventSource, Typed(actorContext).BlackboardService, Typed(actorContext).Logger, options)
+    public IronCondorExitPositionWorkflowEventProjector(ICommandActorContext<IronCondorExitPositionWorkflowCommandActor> actorContext, IActorSupervisor supervisor, IPostgresEventTransaction transactions, EventProjectorReliabilityOptions? options = null) : base(Typed(actorContext).DurableReplayQueue, Typed(actorContext).DbEventSource, Typed(actorContext).Logger, options)
     {
         var context = Typed(actorContext);
         descriptors = ExitWorkflowProjectionDescriptors.Create(context.DbFactory.TradePlanDb, () => supervisor.GetProducer(context.ActorId), transactions);

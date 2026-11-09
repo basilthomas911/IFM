@@ -3,7 +3,6 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Realtime.Contracts;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.Event.Extensions;
@@ -35,11 +34,10 @@ public sealed class FuturesTickDataEventActorTests : IClassFixture<MarketDataFee
     public sealed class TestableDurableActor(
         IActorSupervisor supervisor,
         IMarketDataApi marketDataApi,
-        IBlackboardService blackboard,
         IStatusConsoleWriter status,
         ILogger<FuturesTickDataEventActor> logger)
         : FuturesTickDataEventActor(new FuturesTickDataEventContext(
-            supervisor, logger, marketDataApi, blackboard, status))
+            supervisor, logger, marketDataApi, status))
     {
         public ValueTask Start(IEventActorContext<FuturesTickDataEventActor> context) => OnStartup(context);
         public ValueTask Stop(IEventActorContext<FuturesTickDataEventActor> context) => OnShutdown(context);
@@ -53,11 +51,10 @@ public sealed class FuturesTickDataEventActorTests : IClassFixture<MarketDataFee
             IActorSupervisor supervisor,
             IRealtimeProjector<FuturesEodDataRealtimeActor> projector,
             IMarketDataApi marketDataApi,
-            IBlackboardService blackboard,
             IStatusConsoleWriter status,
             ILogger<FuturesEodDataRealtimeActor> logger)
             : this(TypedActorContextFactory.Realtime(
-                supervisor, projector, marketDataApi, blackboard, status, logger))
+                supervisor, projector, marketDataApi, status, logger))
         { }
 
         TestableRealtimeActor(IFuturesEodDataRealtimeContext context)
@@ -77,7 +74,6 @@ public sealed class FuturesTickDataEventActorTests : IClassFixture<MarketDataFee
         var actor = new TestableDurableActor(
             CreateSupervisor(),
             Substitute.For<IMarketDataApi>(),
-            Substitute.For<IBlackboardService>(),
             Substitute.For<IStatusConsoleWriter>(),
             Substitute.For<ILogger<FuturesTickDataEventActor>>());
         var context = Substitute.For<IEventActorContext<FuturesTickDataEventActor>>();
@@ -103,7 +99,7 @@ public sealed class FuturesTickDataEventActorTests : IClassFixture<MarketDataFee
         });
         api.IsTickDataStreamActive(ContractId).Returns(true);
         var parameters = new TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Event.FuturesTickDataEventParameters(
-            api, Substitute.For<IBlackboardService>(), Substitute.For<IStatusConsoleWriter>(),
+            api, Substitute.For<IStatusConsoleWriter>(),
             Substitute.For<ILogger<FuturesTickDataEventActor>>());
         var eventApi = Substitute.For<IEventActorContext>();
         var started = new FuturesTickDataStreamingStartedEvent
@@ -139,7 +135,7 @@ public sealed class FuturesTickDataEventActorTests : IClassFixture<MarketDataFee
         });
         var status = Substitute.For<IStatusConsoleWriter>();
         var parameters = new TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Event.FuturesTickDataEventParameters(
-            api, Substitute.For<IBlackboardService>(), status,
+            api, status,
             Substitute.For<ILogger<FuturesTickDataEventActor>>());
         var eventApi = Substitute.For<IEventActorContext>();
         var started = new FuturesTickDataStreamingStartedEvent
@@ -639,7 +635,6 @@ public sealed class FuturesTickDataEventActorTests : IClassFixture<MarketDataFee
             CreateSupervisor(),
             projector,
             marketDataApi,
-            Substitute.For<IBlackboardService>(),
             Substitute.For<IStatusConsoleWriter>(),
             Substitute.For<ILogger<FuturesEodDataRealtimeActor>>());
     }

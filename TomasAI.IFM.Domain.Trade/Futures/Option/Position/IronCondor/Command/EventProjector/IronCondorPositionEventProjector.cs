@@ -16,7 +16,7 @@ public sealed class IronCondorPositionEventProjector : ConventionalEventProjecto
 {
     readonly IIronCondorPositionCommandContext context;
     readonly ImmutableArray<EventProjectionDescriptor> descriptors;
-    public IronCondorPositionEventProjector(ICommandActorContext<FuturesIronCondorTradePositionCommandActor> actorContext, EventProjectorReliabilityOptions? options = null) : base(Typed(actorContext).DurableReplayQueue, Typed(actorContext).DbEventSource, Typed(actorContext).BlackboardService, Typed(actorContext).Logger, options)
+    public IronCondorPositionEventProjector(ICommandActorContext<FuturesIronCondorTradePositionCommandActor> actorContext, EventProjectorReliabilityOptions? options = null) : base(Typed(actorContext).DurableReplayQueue, Typed(actorContext).DbEventSource, Typed(actorContext).Logger, options)
     {
         context = Typed(actorContext);
         descriptors = [DescribeNotification<IronCondorMonitoringInitializedEvent, StrategyPositionId>(source => string.Equals(context.DbFactory.TradeDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? Task.CompletedTask : ProjectMonitoringLimitsAsync(source)).WithReadModelRebuild((source, _) => ProjectMonitoringLimitsAsync((IronCondorMonitoringInitializedEvent)source)), new EventProjectionDescriptor(typeof(IronCondorPositionChangedEvent), EventProjectionIdempotencyStrategy.NaturalKeyMutation, async (source, _) =>

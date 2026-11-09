@@ -6,18 +6,18 @@ namespace TomasAI.IFM.UI.Net.ViewModels.Trade;
 public class OptionTradeSpreadBarUIViewModel
 {
     readonly OptionTradeSpreadBarsDataModel _optionTradeSpreadBarData;
-    readonly IronCondorMDILimitDataModel _ironCondorMDILimit;
 
-    public OptionTradeSpreadBarUIViewModel(OptionTradeSpreadBarsDataModel optionTradeSpreadBarData, IronCondorMDILimitDataModel ironCondorMDILimit)
+
+    public OptionTradeSpreadBarUIViewModel(OptionTradeSpreadBarsDataModel optionTradeSpreadBarData)
     {
         _optionTradeSpreadBarData = optionTradeSpreadBarData;
-        _ironCondorMDILimit = ironCondorMDILimit;
+
     }
     public DateTime BarDate => EasternTime.FromUtc(_optionTradeSpreadBarData.BarDate);
     public decimal LossLimit => _optionTradeSpreadBarData.LossLimit;
     public decimal WinLimit => _optionTradeSpreadBarData.WinLimit;
     public decimal ForwardSpread => _optionTradeSpreadBarData.ForwardSpread;
     public decimal NetSpread => _optionTradeSpreadBarData.NetSpread;
-    public double MDIWarningLimit => _ironCondorMDILimit?.WarningLimit ?? 0;
-    public double MDIMaxLimit => _ironCondorMDILimit?.MaxLimit ?? 0;
+
+
 }

@@ -2,7 +2,6 @@ using System.Diagnostics;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
@@ -281,7 +280,7 @@ public sealed class IronCondorDisposableSnapshotTests
         readonly EventProjectionDescriptor descriptor;
         public SnapshotProjector(IEventSourceActorDbContext source, IDurableReplayQueue queue,
             Func<IronCondorTradePlanUpdatedEvent, CancellationToken, Task> write)
-            : base(queue, source, Substitute.For<IBlackboardService>(), Substitute.For<ILogger>(),
+            : base(queue, source, Substitute.For<ILogger>(),
                 new EventProjectorReliabilityOptions { NonDurableQueueCapacity = 1 })
             => descriptor = DescribeSnapshot<IronCondorTradePlanUpdatedEvent, PlanId>(write, publishProcessingEvent: false);
         public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors => [descriptor];

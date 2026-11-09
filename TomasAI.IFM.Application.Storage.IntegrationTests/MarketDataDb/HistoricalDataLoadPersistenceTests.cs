@@ -6,7 +6,6 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Npgsql;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.MarketData.Contracts.Historical;
@@ -38,7 +37,7 @@ public sealed class HistoricalDataLoadPersistenceTests
         await new MarketDataSchemaDb(settings, NullLogger<DbProvider>.Instance)
             .CreateAsync(new[] { "historical_data_loader", "historical_analytics_attempt_projection" });
         var factory = Substitute.For<IDbContextFactory>();
-        var db = new MarketDataDbContext(settings, factory, Substitute.For<IBlackboardService>(),
+        var db = new MarketDataDbContext(settings, factory,
             Substitute.For<ISequenceIdGenerator>(), NullLogger<DbProvider>.Instance);
         factory.MarketDataDb.Returns(db);
         IHistoricalDataLoaderStore adapter = new HistoricalDataLoaderStore(factory);
@@ -89,8 +88,7 @@ public sealed class HistoricalDataLoadPersistenceTests
             ManifestId = manifest.ManifestId, LastCompletedBatchOrdinal = 2, CompletedAtUtc = time.UtcDateTime
         };
         var projector = new FuturesAnalyticsHistoricalDataLoaderEventProjector(
-            factory, Substitute.For<IDurableReplayQueue>(), Substitute.For<IEventSourceActorDbContext>(),
-            Substitute.For<IBlackboardService>(), NullLogger<FuturesAnalyticsHistoricalDataLoaderEventProjector>.Instance);
+            factory, Substitute.For<IDurableReplayQueue>(), Substitute.For<IEventSourceActorDbContext>(), NullLogger<FuturesAnalyticsHistoricalDataLoaderEventProjector>.Instance);
         var rebuilder = new ReadProjectionRebuilder(projector.ProjectionDescriptors);
         Assert.Equal(2, await rebuilder.RebuildAsync(Events(requested, reconciled)));
         Assert.Equal(1, await rebuilder.RebuildAsync(Events(requested)));

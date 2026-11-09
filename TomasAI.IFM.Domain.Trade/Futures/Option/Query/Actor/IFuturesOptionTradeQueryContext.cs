@@ -1,6 +1,5 @@
-﻿using System.Collections.Frozen;
+using System.Collections.Frozen;
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Futures.Option;
@@ -18,7 +17,6 @@ public interface IFuturesOptionTradeQueryContext : IQueryActorContext<FuturesOpt
     TomasAI.IFM.Domain.Trade.Futures.Option.Realtime.TradeRealtimeCacheRegistry? RealtimeCache => null;
     IDbContextFactory DbFactory { get; }
 
-    IBlackboardService BlackboardService { get; }
 
     ILogger<FuturesOptionTradeQueryActor> Logger { get; }
 }

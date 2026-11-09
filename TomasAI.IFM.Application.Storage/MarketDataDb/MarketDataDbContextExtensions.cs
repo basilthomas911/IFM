@@ -1,7 +1,6 @@
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.HistoricalDataLoader;
 using TomasAI.IFM.Application.MarketData.Contracts.Historical;
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage.SecuritiesDb;
 using TomasAI.IFM.Shared.Extensions;
 using MessagePack.Resolvers;
@@ -22,8 +21,6 @@ using System.Collections.Immutable;
 using MessagePack;
 
 
-
-
 using static TomasAI.IFM.Application.Storage.MarketDataDb.MarketDataDbContext;
 
 using System.Globalization;
@@ -32,14 +29,10 @@ using System.Text;
 using System.Text.Json;
 
 
-
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
-
-
-
 
 
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility;
@@ -58,8 +51,6 @@ using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
-
-
 
 
 using TomasAI.IFM.Shared.Storage;
@@ -1084,8 +1075,6 @@ public static class MarketDataDbContextExtensions
         }
 
 
-
-
         /// <summary>Validates and executes the bounded seed or evidence persistence operation.</summary>
         internal async ValueTask<bool[]> WriteFirstBatchCoreAsync(IReadOnlyList<OptionTradeEvidence> evidence, CancellationToken cancellationToken)
         {
@@ -1147,7 +1136,6 @@ public static class MarketDataDbContextExtensions
 
             return requests.Select(r => durable[r.Key].AsSpan().SequenceEqual(r.Payload)).ToArray();
         }
-
 
 
             /// <summary>Executes repository preparation under the owning context or caller transaction.</summary>
@@ -2198,7 +2186,6 @@ public static class MarketDataDbContextExtensions
     }
 
 
-
         /// <summary>Writes accepted calendar rows and country lookups with command ownership checks.</summary>
         /// <param name="rows">The rows used by the persistence operation.</param>
         /// <param name="policy">The policy used by the persistence operation.</param>
@@ -2787,14 +2774,6 @@ public static class MarketDataDbContextExtensions
         internal object?[] BindOptionVolatilityValues(params object?[] items)
             => (object?[])new OptionVolatilityParameters(items).Bind();
     }
-
-
-
-
-
-
-
-
 
 
 }

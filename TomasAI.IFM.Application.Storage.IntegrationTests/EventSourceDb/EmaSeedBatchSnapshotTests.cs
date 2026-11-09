@@ -25,6 +25,36 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.EventSourceDb;
 /// <summary>Exercises the production repository's atomic event/projection commit and latest full-state restore in disposable PostgreSQL.</summary>
 public sealed class EmaSeedBatchSnapshotTests(EventSourceActorSnapshotRangeFixture fixture) : IClassFixture<EventSourceActorSnapshotRangeFixture>
 {
+    [Fact]
+    public async Task Bollinger_repair_persists_one_full_state_snapshot_and_restart_does_not_duplicate_it()
+    {
+        await SchemaAsync();
+        var original = Command(48);
+        var command = new SeedFuturesBbSignalsCommand { CommandId = Guid.NewGuid(), EntityId = original.EntityId, Observations = original.Observations,
+            Subject = new(ActorType.Command, SeedFuturesBbSignalsCommand.Actor, SeedFuturesBbSignalsCommand.Verb, original.EntityId.Format()) };
+        var factory = Substitute.For<IEventSourceActorStateFactory>();
+        factory.CreateState<TomasAI.IFM.Domain.MarketData.Analytics.FuturesBbSignal.Command.State.FuturesBbSignalCommandState>()
+            .Returns(_ => new TomasAI.IFM.Domain.MarketData.Analytics.FuturesBbSignal.Command.State.FuturesBbSignalCommandState());
+        var projector = Substitute.For<IEventProjector<TomasAI.IFM.Domain.MarketData.Analytics.FuturesBbSignal.Command.Actor.FuturesBbSignalCommandActor>>();
+        var repository = new TomasAI.IFM.Domain.MarketData.Analytics.FuturesBbSignal.Command.State.FuturesBbSignalStateRepository(factory,
+            fixture.ActorEventDb, Substitute.For<IActorService>(), projector,
+            NullLogger<TomasAI.IFM.Domain.MarketData.Analytics.FuturesBbSignal.Command.State.FuturesBbSignalStateRepository>.Instance);
+        var (_, context, _) = Repository();
+        var state = await repository.LoadStateAsync(command);
+        Assert.True(TomasAI.IFM.Domain.MarketData.Analytics.FuturesBbSignal.Command.SeedFuturesBbSignals.Execute(command, state).Success);
+        await repository.SaveStateAsync(context, state, command);
+        Assert.True(state.FuturesBbSignal!.IsWarm);
+        Assert.Equal(1, await CountAsync("SELECT count(*) FROM event_log WHERE CommandId=$1", command.CommandId));
+        Assert.Equal(1, await CountAsync("SELECT count(*) FROM market_data.futures_bollinger_band_signal WHERE contractId=$1", command.Observations[0].ContractId));
+        var restored = await repository.LoadStateAsync(command);
+        Assert.Equivalent(state.FuturesBbCheckpoint, restored.FuturesBbCheckpoint, strict: true);
+        Assert.Equivalent(state.FuturesBbSignal, restored.FuturesBbSignal, strict: true);
+        Assert.True(TomasAI.IFM.Domain.MarketData.Analytics.FuturesBbSignal.Command.SeedFuturesBbSignals.Execute(command, restored).Success);
+        Assert.Empty(restored.Events);
+        await repository.SaveStateAsync(context, restored, command);
+        Assert.Equal(1, await CountAsync("SELECT count(*) FROM event_log WHERE CommandId=$1", command.CommandId));
+    }
+
     [Theory]
     [InlineData(21)]
     [InlineData(48)]

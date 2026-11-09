@@ -16,7 +16,7 @@ public sealed class FuturesPositionEventProjector : ConventionalEventProjector<F
 {
     readonly IFuturesPositionCommandContext context;
     readonly ImmutableArray<EventProjectionDescriptor> descriptors;
-    public FuturesPositionEventProjector(ICommandActorContext<FuturesTradePositionCommandActor> actorContext, EventProjectorReliabilityOptions? options = null) : base(Typed(actorContext).DurableReplayQueue, Typed(actorContext).DbEventSource, Typed(actorContext).BlackboardService, Typed(actorContext).Logger, options)
+    public FuturesPositionEventProjector(ICommandActorContext<FuturesTradePositionCommandActor> actorContext, EventProjectorReliabilityOptions? options = null) : base(Typed(actorContext).DurableReplayQueue, Typed(actorContext).DbEventSource, Typed(actorContext).Logger, options)
     {
         context = Typed(actorContext);
         descriptors = [DescribeNotification<FuturesPositionChangedEvent, StrategyPositionId>(ProjectAsync).WithReadModelRebuild((source, _) => PositionProjectionActions.RebuildReadModelAsync(context.DbFactory, (FuturesPositionChangedEvent)source)), DescribeSnapshot<FuturesTradePlanUpdatedEvent, FuturesTradePlanId>(ProjectTradePlanAsync)];

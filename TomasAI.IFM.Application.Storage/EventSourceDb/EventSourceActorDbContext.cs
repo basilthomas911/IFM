@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit;
 using TomasAI.IFM.Application.Storage.EventSourceDb.EventLog;
 using TomasAI.IFM.Framework.Storage;
@@ -20,8 +19,8 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb;
 /// </summary>
 /// <remarks>
 /// <see cref="EventSourceActorDbContext"/> interacts with an event-sourced database to retrieve event streams, save
-/// domain events, and manage event logs. It integrates with <see cref="IBlackboardService"/> for cached lookups
-/// (e.g., stream and event name IDs) and <see cref="IDbContextFactory"/> for executing database commands.
+/// domain events, and manage event logs. Typed process-local caches accelerate stable identities;
+/// PostgreSQL and <see cref="IDbContextFactory"/> supply authoritative database access.
 /// Utility mapping methods convert data records to strongly-typed view models, and transactional save operations
 /// ensure consistency.
 /// </remarks>
@@ -30,7 +29,8 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
       IDisposable,
       IAsyncDisposable
 {
-    internal readonly IBlackboardService _blackboardService;
+    internal readonly TomasAI.IFM.Framework.Caching.BoundedAsyncCache<string, long> _streamIdentities = new();
+    internal readonly Func<string, CancellationToken, Task<long>> _streamIdentityLoader;
     internal readonly IDbContextFactory _dbFactory;
     internal readonly ConcurrentDictionary<string, EventNameIdReadModel> _eventNameIdCache = new(StringComparer.Ordinal);
     internal readonly ConcurrentDictionary<string, AtomicPreparationLane> _atomicPreparationLanes = new(StringComparer.Ordinal);
@@ -45,7 +45,7 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
     /// <summary>Initializes the actor event-source context and its configured persistence writers.</summary>
     /// <param name="connectionSettings">Application database connection settings.</param>
     /// <param name="dbFactory">Factory providing access to event-source repository contexts.</param>
-    /// <param name="blackboardService">Blackboard service for cached ID resolution and lookups.</param>
+
     /// <param name="logger">Logger for database provider diagnostics.</param>
     /// <param name="eventLogPersistenceOptions">The event log persistence configuration.</param>
     /// <param name="commandAuditPersistenceOptions">The command audit persistence configuration.</param>
@@ -53,13 +53,17 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
     public EventSourceActorDbContext(
         IDbConnectionSettings connectionSettings,
         IDbContextFactory dbFactory,
-        IBlackboardService blackboardService,
         ILogger<DbProvider> logger,
         EventLogPersistenceOptions? eventLogPersistenceOptions = null,
         CommandAuditPersistenceOptions? commandAuditPersistenceOptions = null)
         : base(connectionSettings[EventSourceActorDbConnection], logger)
     {
-        _blackboardService = blackboardService;
+        _streamIdentityLoader = async (stream, token) =>
+        {
+            var id = await this.InsertEventStreamAsync(stream, token).ConfigureAwait(false);
+            if (id <= 0) throw new InvalidOperationException("PostgreSQL returned an invalid stream identity.");
+            return id;
+        };
         _dbFactory = dbFactory;
         var eventOptions = (eventLogPersistenceOptions ?? new EventLogPersistenceOptions()).Validate();
         _eventLogSqlLayout = EventLogSqlLayout.ForProduction(eventOptions);
@@ -82,10 +86,10 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "The database provider owns this injected logger; retain its category and constructor contract while the context supplies structured component names.")]
     internal EventSourceActorDbContext(
         IDbConnectionSettings connectionSettings, IDbContextFactory dbFactory,
-        IBlackboardService blackboardService, ILogger<DbProvider> logger,
+        ILogger<DbProvider> logger,
         EventLogPersistenceOptions options, CommandAuditPersistenceOptions? auditOptions,
         bool benchmarkBatchProjectionMarkers)
-        : this(connectionSettings, dbFactory, blackboardService, logger, options, auditOptions)
+        : this(connectionSettings, dbFactory, logger, options, auditOptions)
     {
         var connection = connectionSettings[EventSourceActorDbConnection].ConnectionString;
         var layout = EventLogSqlLayout.ForBenchmark(connection, benchmarkBatchProjectionMarkers);
@@ -358,19 +362,15 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
     /// <param name="eventStream">The name of the event stream for which the identifier is requested. Cannot be null or empty.</param>
     /// <returns>A task that represents the asynchronous operation. The task result contains the unique identifier  of the
     /// specified event stream as a <see langword="long"/>.</returns>
-    public async Task<long> GetEventStreamIdAsync(string eventStream)
-        => await GetEventStreamIdAsync(eventStream, CancellationToken.None)
-            .ConfigureAwait(false);
+    public Task<long> GetEventStreamIdAsync(string eventStream)
+        => GetEventStreamIdAsync(eventStream, CancellationToken.None);
 
     /// <summary>Get Event Stream Id using the event-source persistence services.</summary>
     /// <param name="eventStream">The event stream name.</param>
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
     /// <returns>The typed result of the event-source operation.</returns>
-    public async Task<long> GetEventStreamIdAsync(string eventStream, CancellationToken cancellationToken)
-    {
-        return await this.ResolveEventStreamIdAsync(eventStream, cancellationToken)
-            .ConfigureAwait(false);
-    }
+    public Task<long> GetEventStreamIdAsync(string eventStream, CancellationToken cancellationToken)
+        => this.ResolveEventStreamIdAsync(eventStream, cancellationToken);
 
     /// <summary>
     /// Saves a collection of domain events to the event stream asynchronously.
@@ -493,6 +493,7 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
     /// <returns>The completion of the persistence operation.</returns>
     public async ValueTask DisposeAsync()
     {
+        _streamIdentities.Dispose();
         if (_commandAuditWriter.IsValueCreated)
             await _commandAuditWriter.Value.DisposeAsync()
             .ConfigureAwait(false);
@@ -1545,7 +1546,6 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
             .ConfigureAwait(false);
 
 
-
     /// <summary>
     /// Processes the full event stream by mapping records and invoking the provided reducer action.
     /// </summary>
@@ -1791,8 +1791,6 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
         where TSnapshot : IEvent
            => await (GetEventsFromSnapshotAsync<TSnapshot>(eventStreamId))
             .ConfigureAwait(false);
-
-
 
 
     /// <summary>Reads an aggregate head, its newest indexed sidecar checkpoint and the bounded source tail.</summary>

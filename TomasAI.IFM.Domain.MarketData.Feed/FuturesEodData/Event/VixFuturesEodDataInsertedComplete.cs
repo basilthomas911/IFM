@@ -39,7 +39,7 @@ public static class VixFuturesEodDataInsertedComplete
             var vixFuturesEodData = await (context.GetVixFuturesEodDataAsync(e.VixFuturesTickData.ContractId, e.VixFuturesTickData.ValueDate)).ConfigureAwait(false);
             if (vixFuturesEodData is not null && vixFuturesEodData.Length > 0)
             {
-                p.BlackboardService.MarketDataFeed.VixFuturesEodData.Set(e.VixFuturesTickData.ContractId, e.VixFuturesTickData.ValueDate, vixFuturesEodData);
+
                 await (p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesEodDataEvent, $"{e.VixFuturesTickData.ContractId}:={e.VixFuturesTickData.Price} cached")).ConfigureAwait(false);
                 logger.LogInformationEvent(ServiceId, "{Source}: {ContractId}:={Price} cached", source, e.VixFuturesTickData.ContractId, e.VixFuturesTickData.Price);
             }

@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -22,15 +21,14 @@ public sealed class FuturesRsiSignalEventContext : EventActorContext, IFuturesRs
         IActorSupervisor supervisor,
         IMarketDataApi marketDataApi,
         IStatusConsoleWriter statusConsoleWriter,
-        ILogger<FuturesRsiSignalEventActor> logger,
-        IBlackboardService blackboardService)
+        ILogger<FuturesRsiSignalEventActor> logger)
         : base(supervisor, new ActorMailboxId(ActorType.Event, FuturesRsiSignalEventActor.Actor))
     {
         Supervisor = IsArgumentNull.Set(supervisor);
         MarketDataApi = IsArgumentNull.Set(marketDataApi);
         StatusConsoleWriter = IsArgumentNull.Set(statusConsoleWriter);
         Logger = IsArgumentNull.Set(logger);
-        BlackboardService = IsArgumentNull.Set(blackboardService);
+
     }
 
     /// <inheritdoc/>
@@ -42,5 +40,5 @@ public sealed class FuturesRsiSignalEventContext : EventActorContext, IFuturesRs
     /// <inheritdoc/>
     public ILogger<FuturesRsiSignalEventActor> Logger { get; }
     /// <inheritdoc/>
-    public IBlackboardService BlackboardService { get; }
+
 }

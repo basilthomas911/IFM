@@ -2,7 +2,6 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Persistence;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using System.Collections.Immutable;
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
@@ -17,10 +16,9 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Command.Event
 
 public sealed class FuturesRsiSignalEventProjector(
     IDbContextFactory dbFactory, IDurableReplayQueue durableReplayQueue,
-    IEventSourceActorDbContext dbEventSource, IBlackboardService blackboardService,
-    ILogger<FuturesRsiSignalEventProjector> logger, EventProjectorReliabilityOptions? reliabilityOptions = null,
+    IEventSourceActorDbContext dbEventSource, ILogger<FuturesRsiSignalEventProjector> logger, EventProjectorReliabilityOptions? reliabilityOptions = null,
     IPostgresEventTransaction? transactions = null)
-    : ConventionalEventProjector<FuturesRsiSignalCommandActor>(durableReplayQueue, dbEventSource, blackboardService, logger, reliabilityOptions)
+    : ConventionalEventProjector<FuturesRsiSignalCommandActor>(durableReplayQueue, dbEventSource, logger, reliabilityOptions)
 {
     readonly ImmutableArray<EventProjectionDescriptor> _descriptors =
     [

@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.MarketData.DownloadLog.Command.Actor;
@@ -26,7 +25,7 @@ public static class DownloadLogCommandExtensions
         /// <summary>
         /// Gets the blackboard service exposed by the underlying <see cref = "IDownloadLogCommandContext"/>.
         /// </summary>
-        public IBlackboardService BlackboardService => GetContext(context).BlackboardService;
+
         /// <summary>
         /// Gets the logger exposed by the underlying <see cref = "IDownloadLogCommandContext"/>.
         /// </summary>

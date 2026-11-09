@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventProjector;
@@ -15,14 +14,13 @@ namespace TomasAI.IFM.Application.EventProjector;
 public sealed class EventProjectorRecoveryCoordinator(
     IEventSourceActorDbContext eventSource,
     IDurableReplayQueue durableQueue,
-    IBlackboardService blackboard,
     EventProjectorReliabilityOptions options,
     ILogger logger,
     Func<IEvent, bool>? shouldDiscardProjection = null)
 {
     readonly IEventSourceActorDbContext _eventSource = eventSource ?? throw new ArgumentNullException(nameof(eventSource));
     readonly IDurableReplayQueue _durableQueue = durableQueue ?? throw new ArgumentNullException(nameof(durableQueue));
-    readonly IBlackboardService _blackboard = blackboard ?? throw new ArgumentNullException(nameof(blackboard));
+
     readonly EventProjectorReliabilityOptions _options = (options ?? throw new ArgumentNullException(nameof(options))).Validate();
     readonly ILogger _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
@@ -121,10 +119,6 @@ public sealed class EventProjectorRecoveryCoordinator(
                             continue;
                         }
 
-                        _blackboard.EventSourcing.EventProjectorState.Set(
-                            item.State.EventId,
-                            projectorName,
-                            ToLegacyState(item.State));
                         await _durableQueue.EnqueueAsync(projectorName, domainEvent, token).ConfigureAwait(false);
                         Interlocked.Increment(ref queued);
                     }
@@ -146,16 +140,4 @@ public sealed class EventProjectorRecoveryCoordinator(
         return new EventProjectorRecoveryResult(discovered, queued, claimConflicts, terminalFailures);
     }
 
-    static EventProjectorStateReadModel ToLegacyState(EventProjectorExecutionStateReadModel state)
-        => new(
-            state.EventId,
-            state.ActorName,
-            state.ProjectorName,
-            state.IsReplay,
-            state.AttemptNumber,
-            state.Outcome,
-            state.Stage,
-            state.ErrorMessage,
-            state.CreatedTimestamp,
-            state.UpdatedTimestamp);
 }

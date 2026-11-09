@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Realtime.Contracts;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Command.Model;
@@ -35,22 +34,20 @@ public static class FuturesTickTradeDataInserted
         public async ValueTask<bool> ExecuteAsync(
             IEventActorContext context,
             IMarketDataApi marketDataApi,
-            IBlackboardService blackboardService,
             IStatusConsoleWriter statusConsoleWriter,
             IRealtimeProjector<FuturesEodDataRealtimeActor> projector,
             ILogger logger)
-            => await ExecuteCoreAsync(source, context, marketDataApi, blackboardService,
+            => await ExecuteCoreAsync(source, context, marketDataApi,
                 statusConsoleWriter, projector, logger, null).ConfigureAwait(false);
 
         internal ValueTask<bool> ExecuteWithCacheAsync(
             IEventActorContext context,
             IMarketDataApi marketDataApi,
-            IBlackboardService blackboardService,
             IStatusConsoleWriter statusConsoleWriter,
             IRealtimeProjector<FuturesEodDataRealtimeActor> projector,
             ILogger logger,
             FuturesEodTradeReadCache cache)
-            => ExecuteCoreAsync(source, context, marketDataApi, blackboardService,
+            => ExecuteCoreAsync(source, context, marketDataApi,
                 statusConsoleWriter, projector, logger, cache);
     }
 
@@ -58,7 +55,6 @@ public static class FuturesTickTradeDataInserted
         FuturesTickTradeDataInsertedEvent source,
         IEventActorContext context,
         IMarketDataApi marketDataApi,
-        IBlackboardService blackboardService,
         IStatusConsoleWriter statusConsoleWriter,
         IRealtimeProjector<FuturesEodDataRealtimeActor> projector,
         ILogger logger,
@@ -67,7 +63,6 @@ public static class FuturesTickTradeDataInserted
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(marketDataApi);
-        ArgumentNullException.ThrowIfNull(blackboardService);
         ArgumentNullException.ThrowIfNull(statusConsoleWriter);
         ArgumentNullException.ThrowIfNull(projector);
         ArgumentNullException.ThrowIfNull(logger);

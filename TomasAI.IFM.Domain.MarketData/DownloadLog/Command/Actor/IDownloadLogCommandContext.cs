@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -20,7 +19,7 @@ public interface IDownloadLogCommandContext : ICommandActorContext<DownloadLogCo
     /// <summary>
     /// Gets the application blackboard service used by DownloadLog command processing.
     /// </summary>
-    IBlackboardService BlackboardService { get; }
+
 
     /// <summary>
     /// Gets the logger associated with the DownloadLog command actor.

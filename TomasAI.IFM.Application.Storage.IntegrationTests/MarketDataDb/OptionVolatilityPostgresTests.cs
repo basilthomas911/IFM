@@ -3,7 +3,6 @@ using System.Threading.Tasks;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.IntegrationTesting;
 using TomasAI.IFM.Shared.Storage;
@@ -32,8 +31,7 @@ public sealed class OptionVolatilityPostgresTests
         var correctionSource = Observation("observation-2", scope.Series, 2, firstSource.ObservationId, At(2));
         var first = Publication(environment, "snapshot-1", 1, firstSource, 1, null);
         var correction = Publication(environment, "snapshot-2", 2, correctionSource, 2, "snapshot-1");
-        var repository = new MarketDataDbContext(settings, Substitute.For<IDbContextFactory>(),
-            Substitute.For<IBlackboardService>(), Substitute.For<ISequenceIdGenerator>(), NullLogger<DbProvider>.Instance);
+        var repository = new MarketDataDbContext(settings, Substitute.For<IDbContextFactory>(), Substitute.For<ISequenceIdGenerator>(), NullLogger<DbProvider>.Instance);
 
         await repository.PublishAsync(first);
         await repository.PublishAsync(first);

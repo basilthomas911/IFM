@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
@@ -23,7 +22,7 @@ public static class FuturesClosingPriceCommandExtensions
         /// <summary>Gets the Market Data database.</summary>
         public IMarketDataDbContext MarketDataDb => context.FuturesClosingPriceContext.MarketDataDb;
         /// <summary>Gets the blackboard service.</summary>
-        public IBlackboardService BlackboardService => context.FuturesClosingPriceContext.BlackboardService;
+
         /// <summary>Gets the actor logger.</summary>
         public ILogger<FuturesClosingPriceCommandActor> Logger => context.FuturesClosingPriceContext.Logger;
         /// <summary>Gets the event-source database.</summary>

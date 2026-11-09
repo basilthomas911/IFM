@@ -1,12 +1,9 @@
 using Microsoft.Extensions.Logging;
 using NSubstitute;
-using StackExchange.Redis;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.SecuritiesDb;
 using TomasAI.IFM.Framework.Caching;
-using TomasAI.IFM.Framework.Caching.Redis;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
@@ -18,7 +15,7 @@ public class SecuritiesDatabaseFixture : IDisposable
 {
     public SecuritiesDbContext Db { get; private set; } = default!;
     public EventSourceActorDbContext ActorEventSourceDb { get; private set; } = default!;
-    public BlackboardService BlackboardService { get; private set; } = default!;
+
     public IDbContextFactory DbFactory { get; private set; } = default!;
 
     public SecuritiesDatabaseFixture()
@@ -40,11 +37,10 @@ public class SecuritiesDatabaseFixture : IDisposable
         logger.When(_ => { }).Do(_ => { });
         new TomasAI.IFM.Application.Storage.SecuritiesDb.Schema.SecuritiesSchemaDb(dbConn, logger)
             .CreateAllAsync().GetAwaiter().GetResult();
-        var redisCache = Substitute.For<IRedisCache>();
+
         var redisCacheMap = new Dictionary<string, string>();
-        redisCache.Get(Arg.Any<string>()).Returns(callInfo => redisCacheMap[callInfo.Arg<string>()]);
-        redisCache.When(_ => _.Set(Arg.Any<string>(), Arg.Any<string>())).Do(_ => { redisCacheMap.Add(_.ArgAt<string>(0), _.ArgAt<string>(1)); });
-        var blackboardServce = new BlackboardService(redisCache, new SystemTextJsonSerializer());
+
+
         var dbFactory = new DbContextFactory(dbResolver);
         var dbCache = new DbCache();
         DbFactory = dbFactory;
@@ -63,14 +59,11 @@ public class SecuritiesDatabaseFixture : IDisposable
         var dbResolver = new DbContextResolver(repoType => diContainer[repoType]);
         var logger = Substitute.For<ILogger<DbProvider>>();
         logger.When(_ => { }).Do(_ => { });
-        var redisUri = Environment.GetEnvironmentVariable("IFM_TEST_REDIS_URL")
-            ?? throw new InvalidOperationException("The assembly integration fixture did not set IFM_TEST_REDIS_URL.");
-        var connMultiplexer = ConnectionMultiplexer.Connect(redisUri);
-        var redisCache = new RedisCache(connMultiplexer);
-        BlackboardService = new BlackboardService(redisCache, new SystemTextJsonSerializer());
+
+
         var dbFactory = new DbContextFactory(dbResolver);
         var dbCache = new DbCache();
-        diContainer.Add(typeof(IObjectRepository<EventSourceActorDbContext>), new EventSourceActorDbContext(dbConn, dbFactory, BlackboardService, logger));
+        diContainer.Add(typeof(IObjectRepository<EventSourceActorDbContext>), new EventSourceActorDbContext(dbConn, dbFactory, logger));
         ActorEventSourceDb = (dbFactory.ActorEventSourceDb as EventSourceActorDbContext)!;
     }
 

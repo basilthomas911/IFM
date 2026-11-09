@@ -1,6 +1,5 @@
 using System.Collections.Immutable;
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
@@ -19,7 +18,6 @@ public sealed class LookupTypeEventProjector(
     : ConventionalEventProjector<LookupTypeCommandActor>(
         actorContext.DurableReplayQueue,
         actorContext.DbEventSource,
-        actorContext.BlackboardService,
         actorContext.Logger,
         reliabilityOptions)
 {
@@ -30,29 +28,28 @@ public sealed class LookupTypeEventProjector(
             {
                 if (!string.Equals(actorContext.DbFactory.ReferenceDb.ProviderName,"System.Data.Postgres",StringComparison.Ordinal))
                     await actorContext.DbFactory.ReferenceDb.InsertLookupTypeAsync(e.LookupType).ConfigureAwait(false);
-                Invalidate(actorContext.BlackboardService);
+                Invalidate();
             })).WithReadModelRebuild((source, token) => actorContext.DbFactory.ReferenceDb.InsertLookupTypeAsync(((LookupTypeAddedEvent)source).LookupType)),
         Describe<LookupTypeChangedEvent, LookupTypeChangedCompleteEvent, LookupTypeChangedFailEvent, LookupTypeId>(
             (Func<LookupTypeChangedEvent, Task>)(async e =>
             {
                 if (!string.Equals(actorContext.DbFactory.ReferenceDb.ProviderName,"System.Data.Postgres",StringComparison.Ordinal))
                     await actorContext.DbFactory.ReferenceDb.UpdateLookupTypeAsync(e.EntityId, e.LookupType).ConfigureAwait(false);
-                Invalidate(actorContext.BlackboardService);
+                Invalidate();
             })).WithReadModelRebuild((source, token) => actorContext.DbFactory.ReferenceDb.UpdateLookupTypeAsync(((LookupTypeChangedEvent)source).EntityId, ((LookupTypeChangedEvent)source).LookupType)),
         Describe<LookupTypeRemovedEvent, LookupTypeRemovedCompleteEvent, LookupTypeRemovedFailEvent, LookupTypeId>(
             (Func<LookupTypeRemovedEvent, Task>)(async e =>
             {
                 if (!string.Equals(actorContext.DbFactory.ReferenceDb.ProviderName,"System.Data.Postgres",StringComparison.Ordinal))
                     await actorContext.DbFactory.ReferenceDb.DeleteLookupTypeAsync(e.EntityId).ConfigureAwait(false);
-                Invalidate(actorContext.BlackboardService);
+                Invalidate();
             })).WithReadModelRebuild((source, token) => actorContext.DbFactory.ReferenceDb.DeleteLookupTypeAsync(((LookupTypeRemovedEvent)source).EntityId))
     ];
 
     public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors => _descriptors;
 
-    static void Invalidate(IBlackboardService blackboardService)
+    static void Invalidate()
     {
-        blackboardService.Reference.ReferenceLookup.Remove();
         ReferenceLookupCacheGeneration.Invalidate();
     }
 }

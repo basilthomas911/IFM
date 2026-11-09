@@ -2,7 +2,6 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Event.Actor;
 using TomasAI.IFM.Framework.Caching;
 using TomasAI.IFM.Framework.Serialization;
@@ -31,10 +30,9 @@ public class FuturesEodDataEventActorTests : IClassFixture<MarketDataFeedTestFix
         public IFuturesEodDataEventContext Context { get; }
         public TestableFuturesEodDataEventActor(
         IActorSupervisor supervisor,
-        IBlackboardService blackboardService,
         IStatusConsoleWriter statusConsoleWriter,
         ILogger<FuturesEodDataEventActor> logger)
-            : this(TypedActorContextFactory.Event(supervisor, blackboardService, statusConsoleWriter, logger)) { }
+            : this(TypedActorContextFactory.Event(supervisor, statusConsoleWriter, logger)) { }
         TestableFuturesEodDataEventActor(IFuturesEodDataEventContext context) : base(context) => Context = context;
         public IEvent InvokeParseMessage(IEventActorContext<FuturesEodDataEventActor> context, NatsMsg<byte[]> message)
             => ParseMessage(context, new global::TomasAI.IFM.Framework.Messaging.NatsJetStream.NatsActorMessage(message));
@@ -142,7 +140,7 @@ public class FuturesEodDataEventActorTests : IClassFixture<MarketDataFeedTestFix
     }
 
     [Fact]
-    public async Task ReceiveAsync_InsertedEvent_CachesDataAndSendsUpdatedEvent()
+    public async Task ReceiveAsync_InsertedEvent_SendsUpdatedEventWithoutAnExternalCache()
     {
         var harness = CreateHarness();
         IEventActorContext<FuturesEodDataEventActor> context = harness.Actor.Context;
@@ -153,9 +151,7 @@ public class FuturesEodDataEventActorTests : IClassFixture<MarketDataFeedTestFix
 
         await harness.Actor.InvokeReceiveAsync(context, @event);
 
-        harness.JsonSerializer.Received(1).Serialize(@event.FuturesEodData);
-        harness.RedisCache.Received(1).Set(
-            Arg.Is<string>(key => key.Contains(@event.FuturesEodData.ContractId)), "serialized");
+
         await context.Received(1).SendAsync<FuturesEodDataUpdatedEvent, FuturesEodDataId>(
             Arg.Is<FuturesEodDataUpdatedEvent>(value =>
                 value.CommandId == @event.CommandId &&
@@ -210,27 +206,6 @@ public class FuturesEodDataEventActorTests : IClassFixture<MarketDataFeedTestFix
     }
 
     [Fact]
-    public async Task ReceiveAsync_InsertedEventCacheFailure_WritesStatusAndDoesNotSendUpdate()
-    {
-        var harness = CreateHarness();
-        harness.JsonSerializer.Serialize(Arg.Any<object>())
-            .Returns(_ => throw new InvalidOperationException("cache failed"));
-        IEventActorContext<FuturesEodDataEventActor> context = harness.Actor.Context;
-        var @event = CreateFuturesEodDataInsertedEvent();
-
-        Func<Task> act = () => harness.Actor.InvokeReceiveAsync(context, @event).AsTask();
-
-        await act.Should().NotThrowAsync();
-        await harness.StatusConsole.Received(1).WriteConsoleAsync(
-            LogSourceType.FuturesEodDataEvent,
-            FuturesEodDataInsertedEvent.ErrorCode,
-            Arg.Is<string>(message => message.Contains("cache failed")),
-            Arg.Any<string>(), Arg.Any<string>());
-        await context.DidNotReceive().SendAsync<FuturesEodDataUpdatedEvent, FuturesEodDataId>(
-            Arg.Any<FuturesEodDataUpdatedEvent>());
-    }
-
-    [Fact]
     public async Task ReceiveAsync_UpdatedEventPublishFailure_WritesStatus()
     {
         var harness = CreateHarness();
@@ -250,7 +225,7 @@ public class FuturesEodDataEventActorTests : IClassFixture<MarketDataFeedTestFix
     }
 
     [Fact]
-    public async Task ReceiveAsync_VixCompleteEvent_QueriesCachesAndReportsValue()
+    public async Task ReceiveAsync_VixCompleteEvent_QueriesProjectionAndReportsValue()
     {
         var harness = CreateHarness();
         IEventActorContext<FuturesEodDataEventActor> context = harness.Actor.Context;
@@ -265,10 +240,8 @@ public class FuturesEodDataEventActorTests : IClassFixture<MarketDataFeedTestFix
             Arg.Is<GetVixFuturesEodDataQuery>(query =>
                 query.ContractId == @event.VixFuturesTickData.ContractId &&
                 query.ValueDate == @event.VixFuturesTickData.ValueDate));
-        harness.JsonSerializer.Received(1).Serialize(
-            Arg.Is<object>(value => ReferenceEquals(value, SampleData.VixEodData)));
-        harness.RedisCache.Received(1).Set(
-            Arg.Is<string>(key => key.Contains(@event.VixFuturesTickData.ContractId)), "serialized");
+
+
         await harness.StatusConsole.Received(1).WriteConsoleAsync(
             LogSourceType.FuturesEodDataEvent,
             Arg.Is<string>(message => message.Contains("cached")));
@@ -277,7 +250,7 @@ public class FuturesEodDataEventActorTests : IClassFixture<MarketDataFeedTestFix
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public async Task ReceiveAsync_VixQueryWithoutData_DoesNotCacheOrWriteSuccess(bool failedResult)
+    public async Task ReceiveAsync_VixQueryWithoutData_DoesNotWriteSuccess(bool failedResult)
     {
         var harness = CreateHarness();
         IEventActorContext<FuturesEodDataEventActor> context = harness.Actor.Context;
@@ -291,7 +264,6 @@ public class FuturesEodDataEventActorTests : IClassFixture<MarketDataFeedTestFix
 
         await harness.Actor.InvokeReceiveAsync(context, @event);
 
-        harness.RedisCache.DidNotReceive().Set(Arg.Any<string>(), Arg.Any<string>());
         await harness.StatusConsole.DidNotReceive().WriteConsoleAsync(
             LogSourceType.FuturesEodDataEvent, Arg.Any<string>());
     }
@@ -419,22 +391,17 @@ public class FuturesEodDataEventActorTests : IClassFixture<MarketDataFeedTestFix
     ActorHarness CreateHarness()
     {
         var supervisor = Substitute.For<IActorSupervisor>();
-        var blackboard = Substitute.For<IBlackboardService>();
+
         var statusConsole = Substitute.For<IStatusConsoleWriter>();
         var logger = Substitute.For<ILogger<FuturesEodDataEventActor>>();
-        var redisCache = Substitute.For<IRedisCache>();
-        var jsonSerializer = Substitute.For<IJsonSerializer>();
-        jsonSerializer.Serialize(Arg.Any<object>()).Returns("serialized");
-        blackboard.MarketDataFeed.FuturesEodData.Returns(new FuturesEodDataCacheModel(redisCache, jsonSerializer));
-        blackboard.MarketDataFeed.VixFuturesEodData.Returns(new VixFuturesEodDataCacheModel(redisCache, jsonSerializer));
-        var actor = _fixture.CreateActor(supervisor, blackboard, statusConsole, logger);
-        return new ActorHarness(actor, redisCache, jsonSerializer, statusConsole);
+
+
+        var actor = _fixture.CreateActor(supervisor, statusConsole, logger);
+        return new ActorHarness(actor, statusConsole);
     }
 
     sealed record ActorHarness(
         TestableFuturesEodDataEventActor Actor,
-        IRedisCache RedisCache,
-        IJsonSerializer JsonSerializer,
         IStatusConsoleWriter StatusConsole);
 
     static FuturesEodDataInsertedEvent CreateFuturesEodDataInsertedEvent(Guid? commandId = null)

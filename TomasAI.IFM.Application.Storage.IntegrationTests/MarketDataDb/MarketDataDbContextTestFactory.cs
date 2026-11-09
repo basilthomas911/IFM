@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Framework.Storage;
@@ -24,7 +23,6 @@ internal static class MarketDataDbContextTestFactory
         var context = new MarketDataDbContext(
             settings,
             factory,
-            Substitute.For<IBlackboardService>(),
             Substitute.For<ISequenceIdGenerator>(),
             Substitute.For<ILogger<DbProvider>>());
         repositories.Add(typeof(IObjectRepository<MarketDataDbContext>), context);

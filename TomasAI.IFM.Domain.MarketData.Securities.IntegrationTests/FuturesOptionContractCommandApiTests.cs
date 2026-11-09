@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Framework.Messaging.Nats;
+using TomasAI.IFM.Framework.Messaging.Nats;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using FluentAssertions;
@@ -154,7 +154,7 @@ public class FuturesOptionContractCommandApiTests(TomasAI.IFM.IntegrationTesting
         var year = futuresOptionContracts[0].ContractMonth.Year;
         var entityId = new FuturesOptionContractsEntityId(year);
         var subject = new ActorSubject(ActorType.Command, AddFuturesOptionContractsCommand.Actor, AddFuturesOptionContractsCommand.Verb, entityId.Format());
-        dbFixture.BlackboardService.EventSourcing.EventStreamId.Remove($"{subject.ThreadId}");
+
         var eventStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{subject.ThreadId}");
         if (eventStreamId > 0)
             await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(eventStreamId);

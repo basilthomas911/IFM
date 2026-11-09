@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -12,7 +11,7 @@ public interface ILookupTypeCommandContext : ICommandActorContext<LookupTypeComm
     /// <summary>Gets the database-context factory.</summary>
     IDbContextFactory DbFactory { get; }
     /// <summary>Gets the application blackboard service.</summary>
-    IBlackboardService BlackboardService { get; }
+
     /// <summary>Gets the command actor logger.</summary>
     ILogger<LookupTypeCommandActor> Logger { get; }
     /// <summary>Gets the event-source database context resolved once.</summary>

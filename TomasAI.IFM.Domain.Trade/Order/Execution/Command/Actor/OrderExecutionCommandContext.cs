@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.Portfolio.GeneralLedger;
@@ -20,10 +19,10 @@ public sealed class OrderExecutionCommandContext : CommandActorContext, IOrderEx
     private readonly Lazy<IEventSourceActorStateRepository<OrderExecutionCommandState>> _repository;
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "This typed context adapts services for its actor and intentionally retains the actor logger category.")]
     /// <summary>Creates the typed actor context and its lazy runtime service bindings.</summary>
-    public OrderExecutionCommandContext(IActorSupervisor supervisor, IDbContextFactory dbFactory, IBlackboardService blackboard, ILogger<OrderExecutionCommandActor> logger) : base(supervisor, new(ActorType.Command, OrderExecutionCommandActor.ActorName))
+    public OrderExecutionCommandContext(IActorSupervisor supervisor, IDbContextFactory dbFactory, ILogger<OrderExecutionCommandActor> logger) : base(supervisor, new(ActorType.Command, OrderExecutionCommandActor.ActorName))
     {
         DbFactory = dbFactory;
-        BlackboardService = blackboard;
+
         Logger = logger;
         _eventDb = Resolve<IEventSourceActorDbContext>();
         _replay = Resolve<IDurableReplayQueue>();
@@ -34,7 +33,7 @@ public sealed class OrderExecutionCommandContext : CommandActorContext, IOrderEx
     }
 
     public IDbContextFactory DbFactory { get; }
-    public IBlackboardService BlackboardService { get; }
+
     public ILogger<OrderExecutionCommandActor> Logger { get; }
     public IEventSourceActorDbContext DbEventSource => _eventDb.Value;
     public IDurableReplayQueue DurableReplayQueue => _replay.Value;

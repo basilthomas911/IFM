@@ -24,9 +24,27 @@ public sealed class RegimeDiscoveryMarketSignalSnapshotProvider
         if (errors.Length != 0)
             throw new ArgumentException(string.Join("; ", errors.Select(value => value.ErrorMessage)),
                 nameof(observation));
-        Observations.AddOrUpdate(observation.SignalKey, observation,
-            (_, current) => observation.SourceSequence >= current.SourceSequence ? observation : current);
-        Interlocked.Increment(ref revision);
+        // Historical replay and restarted live workers do not share a sequence
+        // domain. Market time orders observations across those generations;
+        // sequence and calculation time only resolve the same source timestamp.
+        while (true)
+        {
+            if (!Observations.TryGetValue(observation.SignalKey, out var current))
+            {
+                if (!Observations.TryAdd(observation.SignalKey, observation)) continue;
+            }
+            else
+            {
+                if (observation == current || observation.MarketDataAsOfUtc < current.MarketDataAsOfUtc
+                    || observation.MarketDataAsOfUtc == current.MarketDataAsOfUtc
+                    && (observation.SourceSequence < current.SourceSequence
+                        || observation.SourceSequence == current.SourceSequence
+                        && observation.CalculatedAtUtc < current.CalculatedAtUtc)) return;
+                if (!Observations.TryUpdate(observation.SignalKey, observation, current)) continue;
+            }
+            Interlocked.Increment(ref revision);
+            return;
+        }
     }
 
     /// <inheritdoc />

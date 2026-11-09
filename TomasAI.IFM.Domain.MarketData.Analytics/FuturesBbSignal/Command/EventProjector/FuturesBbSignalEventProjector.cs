@@ -2,7 +2,6 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Persistence;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using System.Collections.Immutable;
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
@@ -18,11 +17,10 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesBbSignal.Command.EventP
 /// <summary>Projects Bollinger events to the configured read model after the source transaction.</summary>
 public sealed class FuturesBbSignalEventProjector(IDbContextFactory dbFactory,
     IDurableReplayQueue durableReplayQueue, IEventSourceActorDbContext dbEventSource,
-    IBlackboardService blackboardService, ILogger<FuturesBbSignalEventProjector> logger,
+    ILogger<FuturesBbSignalEventProjector> logger,
     EventProjectorReliabilityOptions? reliabilityOptions = null,
     IPostgresEventTransaction? transactions = null)
-    : ConventionalEventProjector<FuturesBbSignalCommandActor>(durableReplayQueue, dbEventSource,
-        blackboardService, logger, reliabilityOptions)
+    : ConventionalEventProjector<FuturesBbSignalCommandActor>(durableReplayQueue, dbEventSource, logger, reliabilityOptions)
 {
     readonly ImmutableArray<EventProjectionDescriptor> descriptors =
     [

@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Text.Json;
 using FluentAssertions;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
@@ -33,7 +33,7 @@ public sealed class G0StartupAuditTests
                 ["nats"] = configuration.NatsUri.ToString(),
                 ["postgresql"] = $"{configuration.PostgreSql.Host}:{configuration.PostgreSql.Port}",
                 ["scyllaDb"] = $"{configuration.ScyllaDb.Host}:{configuration.ScyllaDb.Port}",
-                ["redis"] = $"{configuration.Redis.Host}:{configuration.Redis.Port}"
+
             }
         };
         var recorder = new G0AuditRecorder(run);
@@ -78,12 +78,12 @@ public sealed class G0StartupAuditTests
                     return Observation("NATS reachable; eight typed event-family listeners are running.");
                 });
 
-            await Step("G0-003", "Probe PostgreSQL, ScyllaDB, and Redis",
+            await Step("G0-003", "Probe PostgreSQL and ScyllaDB",
                 "Every configured Development data service accepts a connection.",
                 async token =>
                 {
                     List<string> failures = [];
-                    foreach (var endpoint in new[] { configuration.PostgreSql, configuration.ScyllaDb, configuration.Redis })
+                    foreach (var endpoint in new[] { configuration.PostgreSql, configuration.ScyllaDb })
                     {
                         try
                         {
@@ -96,7 +96,7 @@ public sealed class G0StartupAuditTests
                     }
                     if (failures.Count > 0)
                         throw new G0DependencyException(string.Join(Environment.NewLine, failures));
-                    return Observation("PostgreSQL, ScyllaDB, and Redis accepted TCP connections.");
+                    return Observation("PostgreSQL and ScyllaDB accepted TCP connections.");
                 });
 
             await Step("G0-004", "Start the Development API Server",

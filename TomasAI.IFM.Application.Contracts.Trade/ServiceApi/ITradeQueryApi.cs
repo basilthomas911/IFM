@@ -38,5 +38,4 @@ public interface ITradeQueryApi
          DateOnly valueDate,
         int daysToExpiry,
         TradeStatus tradeStatus);
-    Task<ServiceResult<IronCondorMDILimitDataModel>> GetIronCondorMDILimitAsync(int orderId, int tradeId, DateOnly valueDate);
 }

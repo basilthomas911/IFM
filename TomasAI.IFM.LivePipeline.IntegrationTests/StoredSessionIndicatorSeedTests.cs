@@ -136,6 +136,8 @@ public sealed class StoredSessionIndicatorSeedTests
     [InlineData(TimeFrameType.FifteenMinutes)]
     [InlineData(TimeFrameType.OneHour)]
     [InlineData(TimeFrameType.FourHours)]
+    [InlineData(TimeFrameType.FifteenSeconds)]
+    [InlineData(TimeFrameType.OneMinute)]
     public async Task Local_history_gap_delegates_to_the_native_owner_with_the_requested_timeframe(TimeFrameType frame)
     {
         var db = Substitute.For<IDbContextFactory>();
@@ -144,7 +146,8 @@ public sealed class StoredSessionIndicatorSeedTests
         ticks.GetRawFuturesTradeWindowAsync(Arg.Any<string>(), Arg.Any<DateOnly>(), Arg.Any<TimeOnly>(), Arg.Any<TimeOnly>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyList<BootstrapTradeRow>>([]));
         var market = Substitute.For<TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi>();
-        TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal.FuturesTradeSessionBarReadModel[] expected = [new() { ContractId = "ES20261218", TimeFrame = frame }];
+        FuturesTradeSessionBarReadModel[] expected = Enumerable.Range(0, 48)
+            .Select(_ => new FuturesTradeSessionBarReadModel { ContractId = "ES20261218", TimeFrame = frame }).ToArray();
         market.ReadIndicatorSeedBarsAsync("ES20261218", frame, Arg.Any<CancellationToken>()).Returns(Task.FromResult(expected));
         var reader = new StoredSessionIndicatorSeedReader(db, new CmeFuturesMarketSessionCalendar(), new Clock(Start.AddHours(3)),
             NullLogger<StoredSessionIndicatorSeedReader>.Instance, market);

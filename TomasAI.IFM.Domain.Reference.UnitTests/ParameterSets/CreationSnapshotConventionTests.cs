@@ -18,13 +18,19 @@ public sealed class CreationSnapshotConventionTests
                 || source.Contains("LoadStateFromLatestCheckpointAsync", StringComparison.Ordinal)
                 || source.Contains("LoadStateFromLatestSnapshotsAsync", StringComparison.Ordinal)
                 || source.Contains("PortfolioOperationCreationSnapshot", StringComparison.Ordinal)
-                || source.Contains("DatabaseOperationStateRepository", StringComparison.Ordinal), relative);
+                || source.Contains("DatabaseOperationStateRepository", StringComparison.Ordinal)
+                || (source.Contains(": TradeReplacementStateRepository(", StringComparison.Ordinal)
+                    && source.Contains("LoadVerifiedReplacementAsync<", StringComparison.Ordinal)), relative);
             Assert.DoesNotContain("LoadStateFromSnapshotAsync<", source);
             Assert.DoesNotContain("LoadStateFromSnapshotLastNRangeAsync<", source);
             Assert.DoesNotContain("MapReduceActorEventStreamAsync<", source);
         }
         var backup = File.ReadAllText(Path.Combine(root, "TomasAI.IFM.Domain.SystemAdmin/Shared/DatabaseBackup/Persistence/DatabaseOperationStateRepository.cs"));
         Assert.Contains("MapReduceActorEventStreamFromCreationAsync", backup);
+        var replacements = File.ReadAllText(Path.Combine(root, "TomasAI.IFM.Domain.Trade/Persistence/TradeReplacementStateRepository.cs"));
+        Assert.Contains("LoadStateFromLatestCheckpointAsync<TState>", replacements);
+        Assert.Contains("isComplete(snapshot)", replacements);
+        Assert.Contains("target.Apply(snapshot, addEvent: false)", replacements);
     }
 
     static string RepositoryRoot([CallerFilePath] string source = "")

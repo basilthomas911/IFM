@@ -23,12 +23,10 @@ using Serilog;
 using Serilog.Events;
 using SimpleInjector;
 using SimpleInjector.Lifestyles;
-using StackExchange.Redis;
 using System.Buffers;
 using System.Reflection;
 using System.Text.Json.Serialization;
 using TomasAI.IFM.Application.Actor.Client;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Application.MarketData.Databento.Historical;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
@@ -100,7 +98,6 @@ using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.Actor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Development;
 using DomainApplicationActorAssembly = TomasAI.IFM.Domain.Application.Actor.ApplicationActorAssembly;
 using TomasAI.IFM.Framework.Caching;
-using TomasAI.IFM.Framework.Caching.Redis;
 using TomasAI.IFM.Framework.Messaging;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
@@ -247,7 +244,7 @@ public static partial class CoreServiceRegistration
         : Lifestyle.Singleton.CreateRegistration(() => new EventSourceActorDbContext(
         siContainer.GetInstance<IDbConnectionSettings>(),
         siContainer.GetInstance<IDbContextFactory>(),
-        siContainer.GetInstance<IBlackboardService>(),
+
         siContainer.GetInstance<Microsoft.Extensions.Logging.ILogger<DbProvider>>(),
         eventLogPersistenceOptions, commandAuditPersistenceOptions, true), siContainer);
         siContainer.AddRegistration<IObjectRepository<EventSourceActorDbContext>>(eventSourceRegistration);

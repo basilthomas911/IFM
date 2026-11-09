@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
@@ -23,11 +22,11 @@ IFuturesContractCommandContext
 
     /// <summary>Initializes a futures-contract command context.</summary>
     public FuturesContractCommandContext(IActorSupervisor supervisor, IDbContextFactory dbFactory,
-        IBlackboardService blackboardService, ILogger<FuturesContractCommandActor> logger)
+        ILogger<FuturesContractCommandActor> logger)
         : base(supervisor, new ActorMailboxId(ActorType.Command, FuturesContractCommandActor.ActorName))
     {
         DbFactory = IsArgumentNull.Set(dbFactory);
-        BlackboardService = IsArgumentNull.Set(blackboardService);
+
         Logger = IsArgumentNull.Set(logger);
         _dbEventSource = ResolveOnce<IEventSourceActorDbContext>();
         _durableReplayQueue = ResolveOnce<IDurableReplayQueue>();
@@ -40,7 +39,7 @@ IFuturesContractCommandContext
     /// <inheritdoc/>
     public IDbContextFactory DbFactory { get; }
     /// <inheritdoc/>
-    public IBlackboardService BlackboardService { get; }
+
     /// <inheritdoc/>
     public ILogger<FuturesContractCommandActor> Logger { get; }
     /// <inheritdoc/>

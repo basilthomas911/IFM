@@ -224,16 +224,5 @@ public class OptionTradeQueryApi(IActorProducer actorProducer)
         return await (RequestAsync<GetTradePositionTradeTypesQuery, string[]>(query.Subject, query)).ConfigureAwait(false);
     }
 
-    /// <summary>
-    /// Return iron condor MDI limit
-    /// </summary>
-    public async Task<ServiceResult<IronCondorMDILimitDataModel>> GetIronCondorMDILimitAsync(int orderId, int tradeId, DateOnly valueDate)
-    {
-        var entityId = new GetIronCondorMDILimitParameter(orderId, tradeId, valueDate);
-        GetIronCondorMDILimitQuery query = new(orderId, tradeId, valueDate)
-        {
-            Subject = new ActorSubject(ActorType.Query, GetIronCondorMDILimitQuery.Actor, GetIronCondorMDILimitQuery.Verb, entityId.Format()),
-        };
-        return await (RequestAsync<GetIronCondorMDILimitQuery, IronCondorMDILimitDataModel>(query.Subject, query)).ConfigureAwait(false);
-    }
+
 }

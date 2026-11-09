@@ -3,7 +3,6 @@ using System.Collections.Concurrent;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.TradeDb;
@@ -318,7 +317,7 @@ public sealed class WorkflowProjectionOrderingTests
             context.DbFactory.Returns(dbFactory);
             context.DbEventSource.Returns(Substitute.For<IEventSourceActorDbContext>());
             context.DurableReplayQueue.Returns(Substitute.For<IDurableReplayQueue>());
-            context.BlackboardService.Returns(Substitute.For<IBlackboardService>());
+
             context.Logger.Returns(Substitute.For<ILogger<IntrinsicTimeStrategyWorkflowCommandActor>>());
             context.SendAsync<WorkflowStrategyStateUpdatedEvent, IntrinsicTimeStrategyWorkflowEntityId>(
                     Arg.Any<WorkflowStrategyStateUpdatedEvent>(), Arg.Any<CancellationToken>())

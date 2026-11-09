@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using NSubstitute;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
@@ -25,7 +24,7 @@ internal sealed class ApiServerPerformanceDatabaseFixture : IAsyncDisposable
 {
     readonly IsolatedIntegrationInfrastructure infrastructure = new("apiperformancebench", includeCql: false);
     int disposed;
-    IRedisCache cache = null!;
+
     IEventSourceActorStateFactory stateFactory = null!;
     IEventProjector<FuturesEmaSignalCommandActor> projector = null!;
     readonly List<object> additionalProjectors = [];
@@ -34,7 +33,7 @@ internal sealed class ApiServerPerformanceDatabaseFixture : IAsyncDisposable
     public FuturesEmaSignalStateRepository Ema { get; private set; } = null!;
     public MarketDataDbContext Market { get; private set; } = null!;
     public ICommandActorContext Context { get; private set; } = null!;
-    public string Redis => infrastructure.RedisConnectionString;
+
     public string Nats => infrastructure.NatsUrl;
     public string AuthenticatedPostgres => new NpgsqlConnectionStringBuilder(infrastructure.PostgresConnectionString)
         { Username = infrastructure.PostgresUser, Password = infrastructure.PostgresPassword }.ConnectionString;
@@ -58,15 +57,13 @@ internal sealed class ApiServerPerformanceDatabaseFixture : IAsyncDisposable
             var repositories = new Dictionary<Type, object>();
             var databases = new DbContextFactory(new DbContextResolver(type => repositories[type]));
             Databases = databases;
-            cache = Substitute.For<IRedisCache>();
+
             var values = new System.Collections.Concurrent.ConcurrentDictionary<string, string>();
-            cache.TryGet(Arg.Any<string>(), out Arg.Any<string>()).Returns(call =>
-            { var found = values.TryGetValue(call.ArgAt<string>(0), out var value); call[1] = value!; return found; });
-            cache.When(instance => instance.Set(Arg.Any<string>(), Arg.Any<string>())).Do(call => values[call.ArgAt<string>(0)] = call.ArgAt<string>(1));
-            var blackboard = new BlackboardService(cache, new SystemTextJsonSerializer());
-            Events = new(settings, databases, blackboard, logger);
+
+
+            Events = new(settings, databases, logger);
             repositories.Add(typeof(IObjectRepository<EventSourceActorDbContext>), Events);
-            Market = new(settings, databases, blackboard, Substitute.For<TomasAI.IFM.Framework.SequenceId.ISequenceIdGenerator>(), logger);
+            Market = new(settings, databases, Substitute.For<TomasAI.IFM.Framework.SequenceId.ISequenceIdGenerator>(), logger);
             repositories.Add(typeof(IObjectRepository<MarketDataDbContext>), Market);
             stateFactory = Substitute.For<IEventSourceActorStateFactory>();
             stateFactory.CreateState<FuturesEmaSignalCommandState>().Returns(_ => new FuturesEmaSignalCommandState());
@@ -82,7 +79,7 @@ internal sealed class ApiServerPerformanceDatabaseFixture : IAsyncDisposable
             var root = Path.GetDirectoryName(Environment.GetEnvironmentVariable("IFM_API_PERF_BUILD_ROOT")
                 ?? @"E:\IFM\BenchmarkArtifacts\ApiServerPerformance\20261107\generated")!;
             await File.WriteAllTextAsync(Path.Combine(root, "infrastructure-" + infrastructure.RunId + ".json"), System.Text.Json.JsonSerializer.Serialize(new
-            { infrastructure.RunId, infrastructure.PostgresPort, infrastructure.NatsUrl, infrastructure.RedisConnectionString, infrastructure.CqlPort,
+            { infrastructure.RunId, infrastructure.PostgresPort, infrastructure.NatsUrl, infrastructure.CqlPort,
                 Note = "Disposable synthetic infrastructure only; credentials resolved through the existing test environment. CQL disabled." }));
         }
         catch { await DisposeAsync(); throw; }

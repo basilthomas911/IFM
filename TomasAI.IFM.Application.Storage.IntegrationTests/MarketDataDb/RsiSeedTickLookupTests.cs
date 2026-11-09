@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Application.Storage.MarketDataDb.Schema;
 using TomasAI.IFM.Framework.Caching;

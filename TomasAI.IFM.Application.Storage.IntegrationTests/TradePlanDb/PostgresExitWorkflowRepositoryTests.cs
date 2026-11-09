@@ -17,7 +17,6 @@ using NSubstitute;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.TradePlanDb;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 using TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Workflow.Command.Actor;
@@ -303,7 +302,7 @@ public sealed class PostgresExitWorkflowRepositoryTests(PostgresTradePlanFixture
         EventSourceActorDbContext source = null!;
         var factory = new DbContextFactory(new DbContextResolver(_ => source));
         return source = new(fixture.Settings, factory,
-            new BlackboardService(Substitute.For<IRedisCache>(), new SystemTextJsonSerializer()), NullLogger<DbProvider>.Instance);
+             NullLogger<DbProvider>.Instance);
     }
 
     async Task MeasureReplayAsync(EventSourceActorDbContext source, ICommand command, IronCondorExitPositionWorkflowStateRepository repo,

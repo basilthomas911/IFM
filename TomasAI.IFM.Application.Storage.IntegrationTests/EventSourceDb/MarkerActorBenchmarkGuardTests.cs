@@ -2,7 +2,6 @@ using System;
 using System.Linq;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.EventSourceDb.EventLog;
 using TomasAI.IFM.Framework.Storage;
@@ -22,7 +21,7 @@ public sealed class MarkerActorBenchmarkGuardTests
         var settings = new DbConnectionSettings().Add("EventSourceActorDbConnection", connection, "System.Data.Postgres");
         foreach (var batched in new[] { false, true })
             Assert.Throws<ArgumentException>(() => new EventSourceActorDbContext(settings,
-                Substitute.For<IDbContextFactory>(), Substitute.For<IBlackboardService>(), NullLogger<DbProvider>.Instance,
+                Substitute.For<IDbContextFactory>(), NullLogger<DbProvider>.Instance,
                 new EventLogPersistenceOptions { WriteMode = EventLogWriteMode.BinaryCopy }, null, batched));
     }
 
@@ -30,7 +29,7 @@ public sealed class MarkerActorBenchmarkGuardTests
     public void Public_construction_exposes_no_candidate_switch()
     {
         var constructor = Assert.Single(typeof(EventSourceActorDbContext).GetConstructors());
-        Assert.Equal(6, constructor.GetParameters().Length);
+        Assert.Equal(5, constructor.GetParameters().Length);
         Assert.DoesNotContain(constructor.GetParameters(), parameter => parameter.ParameterType == typeof(bool));
         Assert.False(EventLogSqlLayout.Current.BatchProjectionMarkers);
     }

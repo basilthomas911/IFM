@@ -2,7 +2,7 @@ namespace TomasAI.IFM.Domain.Reference.Services;
 
 /// <summary>
 /// Coordinates immediate lookup-cache invalidation inside one process.
-/// Redis removal handles other processes when their bounded local snapshot expires.
+/// Other processes refresh from projected PostgreSQL data when their bounded local snapshot expires.
 /// </summary>
 internal static class ReferenceLookupCacheGeneration
 {

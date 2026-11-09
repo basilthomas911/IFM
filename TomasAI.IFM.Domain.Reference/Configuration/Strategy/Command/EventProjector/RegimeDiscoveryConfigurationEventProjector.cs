@@ -29,8 +29,7 @@ public sealed class RegimeDiscoveryConfigurationEventProjector
     public RegimeDiscoveryConfigurationEventProjector(
         ICommandActorContext<RegimeDiscoveryConfigurationCommandActor> actorContext,
         EventProjectorReliabilityOptions? reliabilityOptions = null)
-        : base(Typed(actorContext).DurableReplayQueue, Typed(actorContext).DbEventSource,
-            Typed(actorContext).BlackboardService, Typed(actorContext).Logger, reliabilityOptions)
+        : base(Typed(actorContext).DurableReplayQueue, Typed(actorContext).DbEventSource, Typed(actorContext).Logger, reliabilityOptions)
     {
         context = Typed(actorContext);
         descriptors =

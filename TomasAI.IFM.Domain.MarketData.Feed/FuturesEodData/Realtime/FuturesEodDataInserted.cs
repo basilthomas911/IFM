@@ -21,10 +21,7 @@ public static class FuturesEodDataInserted
             if (CurrentFuturesEodCache.Shared.TryGet(domainEvent.EntityId.ContractId, domainEvent.EntityId.ValueDate, out var latest)
                 && latest != domainEvent.FuturesEodData)
                 return;
-            context.BlackboardService.MarketDataFeed.FuturesEodData.Set(
-                domainEvent.FuturesEodData.ContractId,
-                domainEvent.FuturesEodData.ValueDate,
-                domainEvent.FuturesEodData);
+
             // Live notification is explicitly distinct from persistence completion.
             if (CurrentFuturesEodCache.Shared.TryGet(domainEvent.EntityId.ContractId, domainEvent.EntityId.ValueDate, out var current)
                 && current == domainEvent.FuturesEodData)

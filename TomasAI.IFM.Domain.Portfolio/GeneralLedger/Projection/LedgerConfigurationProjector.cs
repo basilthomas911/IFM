@@ -1,6 +1,5 @@
 using System.Collections.Immutable;
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
@@ -15,9 +14,8 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.Portfolio.GeneralLedger.Projection;
 
 /// <summary>Durably projects committed financial history and publishes completion notifications.</summary>
-public sealed class LedgerConfigurationProjector(IDurableReplayQueue queue, IEventSourceActorDbContext eventSource, IBlackboardService blackboard,
-    IFinancialHistoryProjection history, ILogger<LedgerConfigurationProjector> logger, EventProjectorReliabilityOptions? options = null, LedgerConfigurationProjection? financial = null)
-    : ConventionalEventProjector<LedgerConfigurationCommandActor>(queue, eventSource, blackboard, logger, options)
+public sealed class LedgerConfigurationProjector(IDurableReplayQueue queue, IEventSourceActorDbContext eventSource, IFinancialHistoryProjection history, ILogger<LedgerConfigurationProjector> logger, EventProjectorReliabilityOptions? options = null, LedgerConfigurationProjection? financial = null)
+    : ConventionalEventProjector<LedgerConfigurationCommandActor>(queue, eventSource, logger, options)
 {
     static readonly ImmutableArray<Type> Types = [typeof(LedgerConfigurationCompletedEvent)];
     readonly ImmutableArray<EventProjectionDescriptor> _descriptors = [

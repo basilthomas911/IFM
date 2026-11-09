@@ -401,7 +401,9 @@ public sealed class NewRecoveryCompositionIntegrationTests
             if (File.Exists(artifact))
                 return artifact;
         }
-        var configuration = artifactBin is { Name: "bin" } ? output.Name : output.Parent!.Name;
+        var configuration = typeof(NewRecoveryCompositionIntegrationTests).Assembly
+            .GetCustomAttributes(typeof(System.Reflection.AssemblyConfigurationAttribute), false)
+            .Cast<System.Reflection.AssemblyConfigurationAttribute>().Single().Configuration;
         return Path.Combine(repository, worker, "bin", configuration, "net10.0", worker + ".dll");
     }
 

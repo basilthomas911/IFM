@@ -73,7 +73,7 @@ public partial class MarketDataCommandApi
         try
         {
             var entityId = new EconomicCalendarId(importedDate, "ZZ", "ImportEconomicCalendars");
-            var command = new ImportEconomicCalendarsCommand(importedDate, countryCodes)
+            var command = new ImportEconomicCalendarsCommand(entityId.EventDate, countryCodes)
             {
                 CommandId = commandId,
                 Subject = new ActorSubject(ActorType.Command, ImportEconomicCalendarsCommand.Actor, ImportEconomicCalendarsCommand.Verb, entityId.Format()),

@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Realtime.Contracts;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Shared.EventModelActor;

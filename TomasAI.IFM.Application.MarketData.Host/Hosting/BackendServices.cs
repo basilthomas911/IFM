@@ -2,8 +2,6 @@ using TomasAI.IFM.Shared.Identity;
 using TomasAI.IFM.Framework.MarketData.FinancialModelingPrep;
 using System.Collections.Immutable;
 using TomasAI.IFM.Application.MarketData.OptionChainCache;
-using StackExchange.Redis;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
@@ -16,7 +14,6 @@ using TomasAI.IFM.Application.Storage.ReferenceDb;
 using TomasAI.IFM.Application.Storage.SecuritiesDb;
 using TomasAI.IFM.Application.Storage.SequenceIdDb;
 using TomasAI.IFM.Framework.Caching;
-using TomasAI.IFM.Framework.Caching.Redis;
 using TomasAI.IFM.Shared.MarketData.Contracts;
 using TomasAI.IFM.Shared.MarketData.Contracts.Pricing;
 using TomasAI.IFM.Framework.MarketData.DataBento;
@@ -126,10 +123,10 @@ public static class BackendServices
             services.AddSingleton<SequenceIdDbContext>();
             services.AddSingleton<ISequenceIdDbContext>(p => p.GetRequiredService<SequenceIdDbContext>());
             services.AddSingleton<ISequenceIdGenerator, PostgresSequenceIdGenerator>();
-            services.AddSingleton<IConnectionMultiplexer>(_ => ConnectionMultiplexer.Connect(config["Storage:RedisConnection"] ?? "localhost:6379"));
-            services.AddSingleton<IRedisCache, RedisCache>();
+
+
             services.AddSingleton<IJsonSerializer, SystemTextJsonSerializer>();
-            services.AddSingleton<IBlackboardService, BlackboardService>();
+
             services.AddSingleton<TomasAI.IFM.Application.Storage.TradeTickQuoteDb.TradeTickQuoteDbContext>();
             services.AddSingleton<MarketDataDbContext>();
             services.AddSingleton<IMarketDataDbContext>(p => p.GetRequiredService<MarketDataDbContext>());

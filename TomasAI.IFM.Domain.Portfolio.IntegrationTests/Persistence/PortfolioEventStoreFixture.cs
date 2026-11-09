@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Logging;
 using NSubstitute;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.EventSourceDb.Schema;
@@ -26,20 +25,13 @@ public sealed class PortfolioEventStoreFixture
         var logger = Substitute.For<ILogger<DbProvider>>();
         if (initializeSchema) new EventSourceSchemaDb(settings, logger).CreateAllAsync().GetAwaiter().GetResult();
 
-        var cache = Substitute.For<IRedisCache>();
+
         var values = new Dictionary<string, string>();
-        cache.TryGet(Arg.Any<string>(), out Arg.Any<string>()).Returns(call =>
-        {
-            var found = values.TryGetValue(call.ArgAt<string>(0), out var value);
-            call[1] = value!;
-            return found;
-        });
-        cache.When(x => x.Set(Arg.Any<string>(), Arg.Any<string>()))
-            .Do(call => values[call.ArgAt<string>(0)] = call.ArgAt<string>(1));
-        var blackboard = new BlackboardService(cache, new SystemTextJsonSerializer());
+
+
         var repositories = new Dictionary<Type, object>();
         var factory = new DbContextFactory(new DbContextResolver(type => repositories[type]));
-        EventSourceDb = new EventSourceActorDbContext(settings, factory, blackboard, logger);
+        EventSourceDb = new EventSourceActorDbContext(settings, factory, logger);
         repositories.Add(typeof(IObjectRepository<EventSourceActorDbContext>), EventSourceDb);
     }
 

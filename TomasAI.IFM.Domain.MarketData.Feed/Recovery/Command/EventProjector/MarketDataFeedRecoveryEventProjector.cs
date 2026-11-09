@@ -1,6 +1,5 @@
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
@@ -12,8 +11,8 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Recovery.Command.EventProjector;
 public sealed class MarketDataFeedRecoveryEventProjector : ConventionalEventProjector<MarketDataFeedRecoveryCommandActor>
 {
     public MarketDataFeedRecoveryEventProjector(IDurableReplayQueue queue, IEventSourceActorDbContext events,
-        IBlackboardService blackboard, IDbContextFactory databases, ILogger<MarketDataFeedRecoveryEventProjector> logger, EventProjectorReliabilityOptions? reliabilityOptions=null)
-        : base(queue,events,blackboard,logger,AuditOptions(reliabilityOptions))
+        IDbContextFactory databases, ILogger<MarketDataFeedRecoveryEventProjector> logger, EventProjectorReliabilityOptions? reliabilityOptions=null)
+        : base(queue,events,logger,AuditOptions(reliabilityOptions))
     {
         ProjectionDescriptors = [
             DescribeNotification<MarketDataFeedRecoveryStartedEvent, MarketDataFeedRecoveryId>((fact,execution)=>ProjectAsync(fact,execution.CancellationToken)).WithReadModelRebuild((source,token)=>MarketDataRecoveryLog.ProjectAsync(databases.MarketDataServiceDb.Database.ConnectionString,(MarketDataFeedRecoveryFact)source,token)),

@@ -1,6 +1,5 @@
 using System.Collections.Immutable;
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
@@ -16,11 +15,10 @@ public sealed class FuturesAnalyticsHistoricalDataLoaderEventProjector(
     IDbContextFactory databases,
     IDurableReplayQueue durableReplayQueue,
     IEventSourceActorDbContext eventSource,
-    IBlackboardService blackboard,
     ILogger<FuturesAnalyticsHistoricalDataLoaderEventProjector> logger,
     EventProjectorReliabilityOptions? reliabilityOptions = null)
     : ConventionalEventProjector<FuturesAnalyticsHistoricalDataLoaderCommandActor>(
-        durableReplayQueue, eventSource, blackboard, logger, reliabilityOptions)
+        durableReplayQueue, eventSource, logger, reliabilityOptions)
 {
     readonly ImmutableArray<EventProjectionDescriptor> descriptors =
     [

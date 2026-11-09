@@ -2,7 +2,6 @@ using TomasAI.IFM.Application.Storage.IntegrationTests.EventSourceDb;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using NSubstitute;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.TradeBroker.Contracts;
@@ -183,7 +182,7 @@ public sealed class BrokerAccountActorBddTests(EventSourceActorSnapshotRangeFixt
 
     private BrokerAccountEventProjector CreateProjector(ITradeBroker broker, IActorService service) =>
         new(Substitute.For<IBrokerAccountProjectionWriter>(), Substitute.For<IDurableReplayQueue>(),
-            fixture.ActorEventDb, Substitute.For<IBlackboardService>(), NullLogger<BrokerAccountEventProjector>.Instance,
+            fixture.ActorEventDb, NullLogger<BrokerAccountEventProjector>.Instance,
             broker, service);
 
     [Fact]
@@ -218,7 +217,7 @@ public sealed class BrokerAccountActorBddTests(EventSourceActorSnapshotRangeFixt
             OutboxPollingInterval = TimeSpan.FromMilliseconds(50)
         };
         BrokerAccountEventProjector StartableProjector() => new(writer, Substitute.For<IDurableReplayQueue>(),
-            fixture.ActorEventDb, fixture.Blackboard, NullLogger<BrokerAccountEventProjector>.Instance,
+            fixture.ActorEventDb, NullLogger<BrokerAccountEventProjector>.Instance,
             Substitute.For<ITradeBroker>(), Substitute.For<IActorService>(), options);
 
         await using (var initial = StartableProjector())

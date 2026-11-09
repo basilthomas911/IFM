@@ -9,7 +9,6 @@ using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 
 using Microsoft.Extensions.Logging;
 
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage.SecuritiesDb;
 using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Framework.Storage;
@@ -25,7 +24,6 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Domain.MarketData.Shared.DownloadLog;
-
 
 
 using TomasAI.IFM.Domain.MarketData.Shared.QueryParameters;
@@ -51,10 +49,9 @@ namespace TomasAI.IFM.Application.Storage.MarketDataDb;
 /// </summary>
 /// <param name = "connectionSettings"></param>
 /// <param name = "dbFactory">The factory supplying related database capabilities.</param>
-/// <param name="blackboardService">The existing context construction dependency.</param>
 /// <param name="sequenceIdGenerator">The database sequence allocator.</param>
 /// <param name = "logger"></param>
-public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbContextFactory dbFactory, IBlackboardService blackboardService, ISequenceIdGenerator sequenceIdGenerator, ILogger<DbProvider> logger) : ObjectDataRepository<MarketDataDbContext>(connectionSettings[MarketDataDbConnection], logger), IMarketDataDbContext
+public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbContextFactory dbFactory, ISequenceIdGenerator sequenceIdGenerator, ILogger<DbProvider> logger) : ObjectDataRepository<MarketDataDbContext>(connectionSettings[MarketDataDbConnection], logger), IMarketDataDbContext
 {
     readonly ILogger _diagnosticLogger = logger;
     public const string MarketDataDbConnection = "MarketDataDbConnection";
@@ -74,7 +71,7 @@ public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbCo
     internal const int YieldCurveLookupId = 1;
 
     internal readonly IDbContextFactory _dbFactory = IsArgumentNull.Set(dbFactory);
-    internal readonly IBlackboardService _blackboardService = IsArgumentNull.Set(blackboardService);
+
     internal readonly ISequenceIdGenerator _sequenceIdGenerator = IsArgumentNull.Set(sequenceIdGenerator);
 
     // Deterministic integration-test seams for the two sides of the online-backfill
@@ -1547,9 +1544,6 @@ public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbCo
     }
 
 
-
-
-
     /// <summary>
     /// Inserts a new record into the futures_eod_data_index table if it does not already exist.
     /// </summary>
@@ -1782,7 +1776,6 @@ public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbCo
         .ExecuteCommandAsync())
                 .ConfigureAwait(false);
     }
-
 
 
     /// <summary>Allocates stable history IDs before records are durably spooled and submitted to storage.</summary>
@@ -3774,9 +3767,6 @@ public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbCo
         var serializer = MessagePackBinarySerializer.Shared;
         return serializer.Serialize(stored)!.AsSpan().SequenceEqual(serializer.Serialize(evidence));
     }
-
-
-
 
 
     /// <summary>Publish using the MarketDataDb persistence.</summary>

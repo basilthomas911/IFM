@@ -127,7 +127,7 @@ public sealed class G0InfrastructureTests
             NatsUri = new Uri("nats://localhost:4222"),
             PostgreSql = new G0Endpoint("PostgreSQL", "localhost", 5432),
             ScyllaDb = new G0Endpoint("ScyllaDB", "localhost", 9042),
-            Redis = new G0Endpoint("Redis", "localhost", 6379),
+
             FmpAdapter = "Production",
             FmpCredentialPresent = true,
             DeterministicAdapterApproved = false,

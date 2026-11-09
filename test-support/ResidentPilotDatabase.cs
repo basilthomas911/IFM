@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using NSubstitute;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventModelActor;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.EventSourcing.Command;
@@ -88,15 +87,13 @@ public sealed class ResidentPilotDatabase(string? existingTestConnection = null)
             }
             await new TradePlanSchemaDb(settings, NullLogger<DbProvider>.Instance).CreateAllAsync().ConfigureAwait(false);
             Databases = new DbContextFactory(new DbContextResolver(type => repositories[type]));
-            var redis = Fake<IRedisCache>();
+
             var values = new System.Collections.Concurrent.ConcurrentDictionary<string, string>();
-            redis.TryGet(Arg.Any<string>(), out Arg.Any<string>()).Returns(call =>
-            { var found = values.TryGetValue(call.ArgAt<string>(0), out var value); call[1] = value!; return found; });
-            redis.When(cache => cache.Set(Arg.Any<string>(), Arg.Any<string>())).Do(call => values[call.ArgAt<string>(0)] = call.ArgAt<string>(1));
-            var blackboard = new BlackboardService(redis, new SystemTextJsonSerializer());
-            Events = new(settings, Databases, blackboard, NullLogger<DbProvider>.Instance);
+
+
+            Events = new(settings, Databases, NullLogger<DbProvider>.Instance);
             repositories.Add(typeof(IObjectRepository<EventSourceActorDbContext>), Events);
-            Market = new(settings, Databases, blackboard, Fake<TomasAI.IFM.Framework.SequenceId.ISequenceIdGenerator>(), NullLogger<DbProvider>.Instance);
+            Market = new(settings, Databases, Fake<TomasAI.IFM.Framework.SequenceId.ISequenceIdGenerator>(), NullLogger<DbProvider>.Instance);
             repositories.Add(typeof(IObjectRepository<MarketDataDbContext>), Market);
             Plans = new(settings, NullLogger<DbProvider>.Instance);
             repositories.Add(typeof(IObjectRepository<TradePlanDbContext>), Plans);

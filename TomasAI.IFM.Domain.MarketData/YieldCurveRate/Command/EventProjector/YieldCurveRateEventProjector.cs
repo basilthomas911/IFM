@@ -1,4 +1,3 @@
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Domain.MarketData.YieldCurveRate.Command.Extensions;
 using TomasAI.IFM.Application.EventProjector.Contracts;
@@ -13,9 +12,8 @@ namespace TomasAI.IFM.Domain.MarketData.YieldCurveRate.Command.EventProjector;
 
 /// <summary>Projects committed YieldCurveRate CRUD facts and delivers their correlated outcomes.</summary>
 public sealed class YieldCurveRateEventProjector(ICommandActorContext<YieldCurveRateCommandActor> context,
-    IDurableReplayQueue queue, IBlackboardService blackboard, EventProjectorReliabilityOptions? options = null)
-    : ConventionalEventProjector<YieldCurveRateCommandActor>(queue, context.DbEventSource,
-        blackboard, context.Logger, options)
+    IDurableReplayQueue queue, EventProjectorReliabilityOptions? options = null)
+    : ConventionalEventProjector<YieldCurveRateCommandActor>(queue, context.DbEventSource, context.Logger, options)
 {
     public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors { get; } =
     [

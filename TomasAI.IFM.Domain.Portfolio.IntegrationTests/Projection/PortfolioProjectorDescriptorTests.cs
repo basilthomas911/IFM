@@ -1,7 +1,6 @@
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.PortfolioDb;
@@ -24,12 +23,12 @@ public sealed class PortfolioProjectorDescriptorTests
     {
         var replay = Substitute.For<IDurableReplayQueue>();
         var source = Substitute.For<IEventSourceActorDbContext>();
-        var blackboard = Substitute.For<IBlackboardService>();
+
         var events = Substitute.For<IPortfolioEventStore>();
         var projections = Substitute.For<IPortfolioDbWriteContext>();
-        var portfolio = new PortfolioEventProjector(replay, source, blackboard, Substitute.For<ILogger<PortfolioEventProjector>>(), events, projections);
-        var fund = new PortfolioFundEventProjector(replay, source, blackboard, Substitute.For<ILogger<PortfolioFundEventProjector>>(), events, projections);
-        var policy = new PortfolioFinancialPolicyEventProjector(replay, source, blackboard, Substitute.For<ILogger<PortfolioFinancialPolicyEventProjector>>(), events, projections);
+        var portfolio = new PortfolioEventProjector(replay, source, Substitute.For<ILogger<PortfolioEventProjector>>(), events, projections);
+        var fund = new PortfolioFundEventProjector(replay, source, Substitute.For<ILogger<PortfolioFundEventProjector>>(), events, projections);
+        var policy = new PortfolioFinancialPolicyEventProjector(replay, source, Substitute.For<ILogger<PortfolioFinancialPolicyEventProjector>>(), events, projections);
 
         portfolio.ProjectedEventTypes.Should().BeEquivalentTo([
             typeof(PortfolioCreatedEvent), typeof(PortfolioVersionAddedEvent), typeof(PortfolioOperatingStateChangedEvent),

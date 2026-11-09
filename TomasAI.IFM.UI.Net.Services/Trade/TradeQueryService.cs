@@ -267,7 +267,6 @@ public class TradeQueryService(ITradeQueryApi queryApi) : UiServiceBase<TradeQue
     /// <param name="tradeId"></param>
     /// <param name="valueDate"></param>
     /// <param name="onCompleted"></param>
-    public async Task GetIronCondorMDILimitAsync(int orderId, int tradeId, DateOnly valueDate, Action<IronCondorMDILimitDataModel> onCompleted)
-        => await ExecuteAsync(() => _queryApi.GetIronCondorMDILimitAsync(orderId, tradeId, valueDate), onCompleted);
+
 
 }

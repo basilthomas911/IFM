@@ -1,3 +1,3 @@
 namespace TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 
-public enum RecoveryInfrastructureKind { Nats, Redis, PostgreSql, ScyllaDb }
+public enum RecoveryInfrastructureKind { Nats = 0, PostgreSql = 2, ScyllaDb = 3 }

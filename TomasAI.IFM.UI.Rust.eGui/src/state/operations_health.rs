@@ -63,18 +63,29 @@ impl OperationsHealthController {
                 .endpoint
                 .as_deref()
                 .ok_or("Operations health endpoint is not configured")?;
-            let read = self
-                .client
-                .get_typed_observation::<MarketDataOperationsHealthSnapshot>(
+            let indicator_url = reqwest::Url::parse(endpoint).and_then(|url| url.join("/health/ready"))
+                .map_err(|_| "Invalid configured API health origin")?;
+            let indicator_deadline = deadline.min(tokio::time::Instant::now() + std::time::Duration::from_secs(3));
+            let (read, indicators) = tokio::join!(self.client.get_typed_observation::<MarketDataOperationsHealthSnapshot>(
                     endpoint,
                     1024 * 1024,
                     deadline,
-                )
-                .await?;
+                ), self.client.get_readiness_observation::<super::indicator_health::IndicatorReadiness>(
+                    indicator_url.as_str(), 1024 * 1024, indicator_deadline));
+            let read = read?;
             let server_utc = read
                 .server_utc
                 .ok_or("Operations health response has no API operational clock")?;
-            project(&read.value, server_utc)
+            let mut result = project(&read.value, server_utc)?;
+            let appended = match indicators {
+                Ok(read) => match read.value.entries.market_data_indicators {
+                    Some(check) => super::indicator_health::append(&mut result, check.data, read.server_utc.unwrap_or(server_utc)),
+                    None => Err("The API has no indicator health audit".into()),
+                },
+                Err(error) => Err(error),
+            };
+            if let Err(error) = appended { super::indicator_health::unavailable(&mut result, error); }
+            Ok(result)
         })
         .await
         .map_err(|_| "Health request deadline expired".to_string())

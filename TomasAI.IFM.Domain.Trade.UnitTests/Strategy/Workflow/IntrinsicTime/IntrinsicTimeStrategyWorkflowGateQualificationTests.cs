@@ -107,7 +107,6 @@ public sealed class IntrinsicTimeStrategyWorkflowGateQualificationTests
     {
         var context = new IntrinsicTimeStrategyWorkflowCommandContext(
             Substitute.For<IActorSupervisor>(), Substitute.For<TomasAI.IFM.Application.Storage.IDbContextFactory>(),
-            Substitute.For<TomasAI.IFM.Application.Blackboard.IBlackboardService>(),
             new TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Options.RegimeDiscoveryExecutionOptions(),
             new IntrinsicTimeStrategyWorkflowOptions { Enabled = true },
             Microsoft.Extensions.Logging.Abstractions.NullLogger<IntrinsicTimeStrategyWorkflowCommandActor>.Instance);

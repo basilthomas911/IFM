@@ -7,7 +7,6 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using NSubstitute;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit;
@@ -31,7 +30,7 @@ public sealed class MarkerProjectorFixture : IAsyncLifetime
     public string Direct { get; private set; } = string.Empty;
     public string Provider { get; private set; } = string.Empty;
     public EventSourceActorSnapshotRangeFixture Storage { get; private set; } = default!;
-    public IBlackboardService Blackboard { get; private set; } = default!;
+
     public async Task InitializeAsync()
     {
         await infrastructure.StartAsync();
@@ -48,17 +47,9 @@ public sealed class MarkerProjectorFixture : IAsyncLifetime
         _ = EventLogSqlLayout.ForBenchmark(Provider, batchProjectionMarkers: true); // Validate before schema creation.
         Storage = new EventSourceActorSnapshotRangeFixture(infrastructure);
         await Storage.InitializeAsync();
-        var cache = Substitute.For<IRedisCache>();
+
         var values = new ConcurrentDictionary<string, string>();
-        cache.TryGet(Arg.Any<string>(), out Arg.Any<string>()).Returns(call =>
-        {
-            var found = values.TryGetValue(call.ArgAt<string>(0), out var value);
-            call[1] = value!;
-            return found;
-        });
-        cache.When(c => c.Set(Arg.Any<string>(), Arg.Any<string>()))
-            .Do(call => values[call.ArgAt<string>(0)] = call.ArgAt<string>(1));
-        Blackboard = new BlackboardService(cache, new SystemTextJsonSerializer());
+
         using var db = new NpgsqlConnection(Direct);
         db.Open();
         using (var shape = new NpgsqlCommand("""
@@ -296,7 +287,7 @@ public sealed partial class MarkerProjectorPipelineTests(MarkerProjectorFixture 
             .Returns(call => projector.ProcessDomainEventAsync(call.ArgAt<IEvent>(1)));
         // Only transport delivery is replaced. Paging, deserialization, leases, transitions and checkpoints are real.
         var coordinator = new EventProjectorRecoveryCoordinator(fixture.Storage.ActorEventDb, queue,
-            fixture.Blackboard, Options, NullLogger.Instance);
+            Options, NullLogger.Instance);
         return await coordinator.RecoverAsync("MarkerProbeActor", projector.ProjectorName, [typeof(ProbeEvent)])
             .WaitAsync(TimeSpan.FromSeconds(30));
     }
@@ -326,7 +317,7 @@ public sealed partial class MarkerProjectorPipelineTests(MarkerProjectorFixture 
             TaskCompletionSource? entered, TaskCompletionSource? release, bool publication = false,
             IDurableReplayQueue? replayQueue = null)
             : base(replayQueue ?? Substitute.For<IDurableReplayQueue>(), fixture.Storage.ActorEventDb,
-                fixture.Blackboard, NullLogger.Instance, Options with
+                NullLogger.Instance, Options with
                 { TransactionalOutboxEnabled = publication, OutboxPollingInterval = TimeSpan.FromMilliseconds(25) })
         {
             _fixture = fixture; _name = name; _before = before; _after = after; _entered = entered; _release = release;

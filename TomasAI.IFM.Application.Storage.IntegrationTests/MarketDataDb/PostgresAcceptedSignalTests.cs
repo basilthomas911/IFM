@@ -75,7 +75,7 @@ public sealed class PostgresAcceptedSignalTests(PostgresTradePlanFixture fixture
         var id = Convert.ToInt64(await fixture.Transactions.ExecuteOnceAsync((transaction, token) =>
             transaction.ScalarAsync("SELECT EventStreamId FROM event_stream_id WHERE EventStream=$1", [stream], token)));
         await using var context = new EventSourceActorDbContext(fixture.Settings,
-            NSubstitute.Substitute.For<IDbContextFactory>(), NSubstitute.Substitute.For<TomasAI.IFM.Application.Blackboard.IBlackboardService>(),
+            NSubstitute.Substitute.For<IDbContextFactory>(),
             NullLogger<DbProvider>.Instance);
         Assert.Equal(2, await context.GetCommittedStreamVersionAsync(id));
     }

@@ -22,7 +22,7 @@
   },
   "execution": {
     "architecture": "Existing analytics Kestrel integration host, actor producer, durable command/event/projector path, completion-driven Daily to Weekly/Monthly hierarchy",
-    "broker_and_cache": "Fresh fixture-owned NATS/JetStream and Redis for each run",
+    "broker_and_cache": "Fresh fixture-owned NATS/JetStream for each run",
     "raw_tick_adapter": "Read-only Scylla export to retained, checksummed daily CSVs; every eligible tick is evaluated with the production calculator and state-changing Daily commands enter the durable actor pipeline",
     "excluded": "Native/live feed, order execution, strategy workflow; no writes to source tick tables during replay",
     "limits": "Cold start on October 1, without September warmup. Missing initial VX prices are counted skips; prior prices carry across sessions without an additional stale-price gate, matching current ITI ingress. Full realtime ingress actors and a virtual audit clock are not replayed. Business timestamps are historical; framework audit timestamps remain wall clock."

@@ -5,7 +5,6 @@ using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Events;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Events.Domain;
 using TomasAI.IFM.Application.Storage.ScheduledTaskDb;
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
@@ -19,9 +18,9 @@ using TomasAI.IFM.Shared.EventProjector;
 namespace TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Catalog.Command.EventProjector;
 /// <summary>Projects committed administrative source events into revision-fenced read models; PostgreSQL rows already committed with the source.</summary>
 public sealed class ScheduledTaskCatalogEventProjector(IScheduledTaskProjectionWriter writer, IDurableReplayQueue queue,
-    IEventSourceActorDbContext eventSource, IBlackboardService blackboard, ILogger<ScheduledTaskCatalogEventProjector> logger,
+    IEventSourceActorDbContext eventSource, ILogger<ScheduledTaskCatalogEventProjector> logger,
     EventProjectorReliabilityOptions? options = null)
-    : ConventionalEventProjector<ScheduledTaskCatalogCommandActor>(queue, eventSource, blackboard, logger, options)
+    : ConventionalEventProjector<ScheduledTaskCatalogCommandActor>(queue, eventSource, logger, options)
 {
     /// <inheritdoc />
     public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors { get; } =

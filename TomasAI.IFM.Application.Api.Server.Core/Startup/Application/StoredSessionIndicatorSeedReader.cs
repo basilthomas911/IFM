@@ -98,8 +98,17 @@ public sealed class StoredSessionIndicatorSeedReader(IDbContextFactory databases
                     alreadyDistinct: !(buckets.HasUnmappedTimes && range.Length > 1));
                 if (bar is null)
                 {
-                    logger.LogWarning("Stored indicator seed unavailable: {ContractId} {TimeFrame} {IntervalStartUtc}; no complete local trade interval.", contractId, frame, window.StartUtc);
-                    return market is null ? [] : await market.ReadIndicatorSeedBarsAsync(contractId, frame, token).ConfigureAwait(false);
+                    if (market is not null)
+                    {
+                        var acquired = await market.ReadIndicatorSeedBarsAsync(contractId, frame, token).ConfigureAwait(false);
+                        if (acquired.Length >= count)
+                        {
+                            logger.LogInformation("Qualified native history supplied {Count} {TimeFrame} seed bars for {ContractId} after a local interval gap.", acquired.Length, frame, contractId);
+                            return acquired;
+                        }
+                    }
+                    logger.LogWarning("Indicator seed unavailable from local trades and qualified native history: {ContractId} {TimeFrame} {IntervalStartUtc}.", contractId, frame, window.StartUtc);
+                    return [];
                 }
                 bars.Add(bar.IntervalEndUtc, bar);
             }

@@ -1,6 +1,5 @@
 using System.Collections.Immutable;
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
@@ -15,11 +14,10 @@ public sealed class SupervisorEventProjector(
     ICommandActorContext<SupervisorCommandActor> actorContext,
     IDurableReplayQueue durableReplayQueue,
     IEventSourceActorDbContext eventSource,
-    IBlackboardService blackboard,
     ILogger<SupervisorEventProjector> logger,
     EventProjectorReliabilityOptions? reliabilityOptions = null)
     : ConventionalEventProjector<SupervisorCommandActor>(
-        durableReplayQueue, eventSource, blackboard, logger, reliabilityOptions)
+        durableReplayQueue, eventSource, logger, reliabilityOptions)
 {
     readonly ImmutableArray<EventProjectionDescriptor> _descriptors =
     [

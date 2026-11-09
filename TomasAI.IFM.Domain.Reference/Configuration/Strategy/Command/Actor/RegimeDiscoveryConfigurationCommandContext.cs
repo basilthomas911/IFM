@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.ConfigurationDb;
@@ -27,11 +26,10 @@ public sealed class RegimeDiscoveryConfigurationCommandContext
     /// <summary>Initializes the context.</summary>
     public RegimeDiscoveryConfigurationCommandContext(
         IActorSupervisor supervisor,
-        IBlackboardService blackboardService,
         ILogger<RegimeDiscoveryConfigurationCommandActor> logger)
         : base(supervisor, new ActorMailboxId(ActorType.Command, RegimeDiscoveryConfigurationCommandActor.ActorName))
     {
-        BlackboardService = IsArgumentNull.Set(blackboardService);
+
         Logger = IsArgumentNull.Set(logger);
         dbEventSource = ResolveOnce<IEventSourceActorDbContext>();
         configurationDb = ResolveOnce<IConfigurationDbContext>();
@@ -53,7 +51,7 @@ public sealed class RegimeDiscoveryConfigurationCommandContext
     /// <inheritdoc />
     public IDurableReplayQueue DurableReplayQueue => queue.Value;
     /// <inheritdoc />
-    public IBlackboardService BlackboardService { get; }
+
     /// <inheritdoc />
     public IEventSourceActorStateFactory StateFactory => stateFactory.Value;
     /// <inheritdoc />

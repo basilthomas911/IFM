@@ -12,8 +12,7 @@ namespace TomasAI.IFM.Domain.MarketData.DownloadLog.Command.EventProjector;
 /// <summary>Replays only committed log outcomes; provider imports are never projection work.</summary>
 public sealed class DownloadLogEventProjector(ICommandActorContext<DownloadLogCommandActor> actorContext,
     EventProjectorReliabilityOptions? reliabilityOptions = null)
-    : BaseEventProjector<DownloadLogCommandActor>(actorContext.DurableReplayQueue, actorContext.DbEventSource,
-        actorContext.BlackboardService, actorContext.Logger, reliabilityOptions)
+    : BaseEventProjector<DownloadLogCommandActor>(actorContext.DurableReplayQueue, actorContext.DbEventSource, actorContext.Logger, reliabilityOptions)
 {
     public override string ActorName => nameof(DownloadLogCommandActor);
     public override string ProjectorName => nameof(DownloadLogEventProjector);

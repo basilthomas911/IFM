@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Application.Storage.MarketDataDb.Schema;
 using TomasAI.IFM.Application.Storage.IntegrationTests.TradePlanDb;
@@ -23,7 +22,7 @@ public sealed class PostgresEmulatorQuoteSnapshotTests(PostgresTradePlanFixture 
             fixture.Connection, "System.Data.Postgres");
         await new MarketDataSchemaDb(settings, NullLogger<DbProvider>.Instance).CreateAllAsync();
         var factory = Substitute.For<IDbContextFactory>();
-        var db = new MarketDataDbContext(settings, factory, Substitute.For<IBlackboardService>(),
+        var db = new MarketDataDbContext(settings, factory,
             Substitute.For<ISequenceIdGenerator>(), NullLogger<DbProvider>.Instance);
         factory.MarketDataDb.Returns(db);
         var underlying = $"EMULATOR{Guid.NewGuid():N}";

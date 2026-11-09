@@ -53,6 +53,7 @@ project.lock.json
 project.fragment.lock.json
 artifacts/
 /.artifacts/
+/TomasAI.IFM.Application.Api.Server/.artifacts/indicator-health/
 /.verification/
 /TomasAI.IFM.Application.Api.Server/Logs/
 

@@ -12,7 +12,7 @@ public sealed class EventLogQualificationTests
         Path.GetTempPath(),
         $"Host=127.0.0.1;Port=25432;Database=ifm_eventlog_bench_{RunId}_synthetic_host",
         "nats://127.0.0.1:24222",
-        "127.0.0.1:26379,abortConnect=false",
+
         29042);
 
     [Theory]
@@ -27,7 +27,7 @@ public sealed class EventLogQualificationTests
             Path.GetTempPath(),
             $"Host=127.0.0.1;Port=25432;Database=ifm_eventlog_bench_{run}_synthetic_host",
             "nats://127.0.0.1:24222",
-            "127.0.0.1:26379,abortConnect=false",
+
             29042));
 
     [Fact]
@@ -46,7 +46,6 @@ public sealed class EventLogQualificationTests
     [InlineData("ConnectionStrings:TradeDbConnection", "Contact Points=localhost;Port=9042;Default Keyspace=trade_test_db")]
     [InlineData("Nats:Consumer:Url", "nats://localhost:4222")]
     [InlineData("AppSettings:Databento:DataSource", "DatabentoLive")]
-    [InlineData("AppSettings:RedisUri", "localhost:6379")]
     [InlineData("TradeBroker:Emulator:LedgerPath", "shared-ledger.json")]
     [InlineData("ConnectionStrings:Unexpected", "Host=localhost")]
     [InlineData("Kestrel:Endpoints:Other:Url", "http://0.0.0.0:80")]

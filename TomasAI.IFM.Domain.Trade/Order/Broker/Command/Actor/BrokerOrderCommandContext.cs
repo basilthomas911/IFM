@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.TradeBroker.Contracts;
@@ -23,10 +22,10 @@ public sealed class BrokerOrderCommandContext : CommandActorContext, IBrokerOrde
     private readonly Lazy<IEventProjector<BrokerOrderCommandActor>> _projector;
     private readonly Lazy<IEventSourceActorStateRepository<BrokerOrderCommandState>> _repository;
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "This typed context adapts services for its actor and intentionally retains the actor logger category.")]
-    public BrokerOrderCommandContext(IActorSupervisor supervisor, IDbContextFactory dbFactory, IBlackboardService blackboardService, ILogger<BrokerOrderCommandActor> logger) : base(supervisor, new ActorMailboxId(ActorType.Command, BrokerOrderCommandActor.ActorName))
+    public BrokerOrderCommandContext(IActorSupervisor supervisor, IDbContextFactory dbFactory, ILogger<BrokerOrderCommandActor> logger) : base(supervisor, new ActorMailboxId(ActorType.Command, BrokerOrderCommandActor.ActorName))
     {
         DbFactory = dbFactory;
-        BlackboardService = blackboardService;
+
         Logger = logger;
         _eventSource = ResolveOnce<IEventSourceActorDbContext>();
         _replay = ResolveOnce<IDurableReplayQueue>();
@@ -40,7 +39,7 @@ public sealed class BrokerOrderCommandContext : CommandActorContext, IBrokerOrde
     }
 
     public IDbContextFactory DbFactory { get; }
-    public IBlackboardService BlackboardService { get; }
+
     public ILogger<BrokerOrderCommandActor> Logger { get; }
     public IEventSourceActorDbContext DbEventSource => _eventSource.Value;
     public IDurableReplayQueue DurableReplayQueue => _replay.Value;

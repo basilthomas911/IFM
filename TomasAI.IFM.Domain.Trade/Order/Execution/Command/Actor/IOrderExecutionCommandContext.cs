@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.Portfolio.GeneralLedger;
@@ -18,7 +17,6 @@ public interface IOrderExecutionCommandContext : ICommandActorContext<OrderExecu
 
     IDurableReplayQueue DurableReplayQueue { get; }
 
-    IBlackboardService BlackboardService { get; }
 
     IActorService ActorService { get; }
 

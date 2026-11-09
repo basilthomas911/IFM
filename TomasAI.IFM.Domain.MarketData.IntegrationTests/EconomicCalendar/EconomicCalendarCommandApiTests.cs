@@ -213,7 +213,7 @@ public class EconomicCalendarCommandApiTests(TomasAI.IFM.IntegrationTesting.Kest
 
     async Task ClearEventStreamAsync(ActorSubject subject)
     {
-        dbFixture.BlackboardService.EventSourcing.EventStreamId.Remove($"{subject.ThreadId}");
+
         var eventStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{subject.ThreadId}");
         if (eventStreamId > 0)
             await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(eventStreamId);

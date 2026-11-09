@@ -1,6 +1,5 @@
 using System.Globalization;
 using Microsoft.Extensions.Logging.Abstractions;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Application.Storage.MarketDataDb.Schema;
@@ -63,7 +62,7 @@ internal static class Program
             var context = new MarketDataDbContext(
                 settings,
                 factory,
-                UnavailableBlackboardService.Instance,
+
                 UnavailableSequenceIdGenerator.Instance,
                 NullLogger<DbProvider>.Instance);
             repositories.Add(typeof(IObjectRepository<MarketDataDbContext>), context);
@@ -332,17 +331,5 @@ internal static class Program
             => throw new NotSupportedException("Development seeding does not inspect sequence high watermarks.");
     }
 
-    sealed class UnavailableBlackboardService : IBlackboardService
-    {
-        public static UnavailableBlackboardService Instance { get; } = new();
-        public IEventSourcingBlackboard EventSourcing => Unavailable<IEventSourcingBlackboard>();
-        public IMarketDataBlackboard MarketData => Unavailable<IMarketDataBlackboard>();
-        public IMarketDataAnalyticsBlackboard MarketDataAnalytics => Unavailable<IMarketDataAnalyticsBlackboard>();
-        public IMarketDataFeedBlackboard MarketDataFeed => Unavailable<IMarketDataFeedBlackboard>();
-        public IMarketDataSecuritiesBlackboard MarketDataSecurities => Unavailable<IMarketDataSecuritiesBlackboard>();
-        public IReferenceBlackboard Reference => Unavailable<IReferenceBlackboard>();
-        public ITradeBlackboard Trade => Unavailable<ITradeBlackboard>();
-        static T Unavailable<T>() => throw new NotSupportedException(
-            $"Development seeding attempted to access Blackboard service '{typeof(T).Name}'.");
-    }
+
 }

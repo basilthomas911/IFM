@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.Trade.Futures.Option.Position.VerticalSpread.Command.State;
@@ -16,10 +15,10 @@ public sealed class FuturesVerticalSpreadTradePositionCommandContext : CommandAc
     readonly Lazy<IEventProjector<FuturesVerticalSpreadTradePositionCommandActor>> p;
     readonly Lazy<IResidentEventSourceActorStateRepository<VerticalSpreadPositionCommandState>> s;
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "This typed context adapts services for its actor and intentionally retains the actor logger category.")]
-    public FuturesVerticalSpreadTradePositionCommandContext(IActorSupervisor v, IDbContextFactory f, IBlackboardService b, ILogger<FuturesVerticalSpreadTradePositionCommandActor> l) : base(v, new(ActorType.Command, FuturesVerticalSpreadTradePositionCommandActor.ActorName))
+    public FuturesVerticalSpreadTradePositionCommandContext(IActorSupervisor v, IDbContextFactory f, ILogger<FuturesVerticalSpreadTradePositionCommandActor> l) : base(v, new(ActorType.Command, FuturesVerticalSpreadTradePositionCommandActor.ActorName))
     {
         DbFactory = f;
-        BlackboardService = b;
+
         Logger = l;
         d = R<IEventSourceActorDbContext>();
         r = R<IDurableReplayQueue>();
@@ -29,7 +28,7 @@ public sealed class FuturesVerticalSpreadTradePositionCommandContext : CommandAc
     }
 
     public IDbContextFactory DbFactory { get; }
-    public IBlackboardService BlackboardService { get; }
+
     public ILogger<FuturesVerticalSpreadTradePositionCommandActor> Logger { get; }
     public IEventSourceActorDbContext DbEventSource => d.Value;
     public IDurableReplayQueue DurableReplayQueue => r.Value;

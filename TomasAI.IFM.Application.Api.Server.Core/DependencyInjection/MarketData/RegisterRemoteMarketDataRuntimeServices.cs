@@ -30,12 +30,10 @@ using Serilog;
 using Serilog.Events;
 using SimpleInjector;
 using SimpleInjector.Lifestyles;
-using StackExchange.Redis;
 using System.Buffers;
 using System.Reflection;
 using System.Text.Json.Serialization;
 using TomasAI.IFM.Application.Actor.Client;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Application.MarketData.Databento.Historical;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
@@ -107,7 +105,6 @@ using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.Actor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Development;
 using DomainApplicationActorAssembly = TomasAI.IFM.Domain.Application.Actor.ApplicationActorAssembly;
 using TomasAI.IFM.Framework.Caching;
-using TomasAI.IFM.Framework.Caching.Redis;
 using TomasAI.IFM.Framework.Messaging;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
@@ -185,12 +182,20 @@ public static partial class CoreServiceRegistration
         services.AddSingleton<MarketDataClientReceiver>();
         services.AddSingleton<MarketDataRemoteAdmission>();
         services.AddSingleton<IRealtimeSourceAdmission>(p => p.GetRequiredService<MarketDataRemoteAdmission>());
-        services.AddHostedService(p => p.GetRequiredService<MarketDataClientReceiver>());
         if (!focusedActorIntegration)
         {
+            // Focused actor fixtures omit Feed's tick publisher mailbox and do
+            // not own a remote Host subscription.
+            services.AddHostedService(p => p.GetRequiredService<MarketDataClientReceiver>());
             services.AddSingleton<TomasAI.IFM.Application.Api.Server.Core.Startup.Application.StoredSessionIndicatorSeedReader>();
             services.AddSingleton<TomasAI.IFM.Application.Api.Server.Core.Startup.Application.StoredSessionIndicatorWarmup>();
             services.AddHostedService<TomasAI.IFM.Application.Api.Server.Core.HostedServices.SessionAnalyticsStartupService>();
+            services.AddSingleton<TomasAI.IFM.Application.Api.Server.Core.Startup.Application.IndicatorHealthReader>();
+            services.AddSingleton<TomasAI.IFM.Application.Api.Server.Core.Startup.Application.IIndicatorHealthReader>(p => p.GetRequiredService<TomasAI.IFM.Application.Api.Server.Core.Startup.Application.IndicatorHealthReader>());
+            services.AddSingleton<TomasAI.IFM.Application.Api.Server.Core.HostedServices.IndicatorHealthMonitor>();
+            services.AddHostedService(p => p.GetRequiredService<TomasAI.IFM.Application.Api.Server.Core.HostedServices.IndicatorHealthMonitor>());
+            services.AddHealthChecks().AddCheck<TomasAI.IFM.Application.Api.Server.Core.HostedServices.IndicatorHealthMonitor>(
+                "market_data_indicators", tags: ["application", "ready"]);
         }
         services.AddHostedService<TomasAI.IFM.Application.Api.Server.Core.HostedServices.OptionFeedRecoveryNotificationService>();
         services.AddSingleton<IOptionPipelineRecoveryRuntime, OptionPipelineRecoveryRuntime>();

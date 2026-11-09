@@ -2,7 +2,6 @@ using Microsoft.Extensions.Logging;
 using NSubstitute;
 using System;
 using System.Threading.Tasks;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Framework.Storage;
@@ -84,7 +83,6 @@ public sealed class MarketDataProjectionBatchValidationTests
         var context = new MarketDataDbContext(
             connectionSettings,
             dbFactory,
-            Substitute.For<IBlackboardService>(),
             Substitute.For<ISequenceIdGenerator>(),
             Substitute.For<ILogger<DbProvider>>());
         return (context, dbFactory);

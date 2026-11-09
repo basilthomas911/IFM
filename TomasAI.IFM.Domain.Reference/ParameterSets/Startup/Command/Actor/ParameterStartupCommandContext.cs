@@ -2,7 +2,6 @@ using TomasAI.IFM.Domain.Reference.ParameterSets.Startup.Command.State;
 using TomasAI.IFM.Domain.Reference.ParameterSets.Assignment.Command.State;
 using TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.ConfigurationDb;
@@ -33,11 +32,10 @@ public sealed class ParameterStartupCommandContext
     /// <summary>Initializes the context.</summary>
     public ParameterStartupCommandContext(
         IActorSupervisor supervisor,
-        IBlackboardService blackboardService,
         ILogger<ParameterStartupCommandActor> logger)
         : base(supervisor, new ActorMailboxId(ActorType.Command, ParameterStartupCommandActor.ActorName))
     {
-        BlackboardService = IsArgumentNull.Set(blackboardService);
+
         Logger = IsArgumentNull.Set(logger);
         accessPolicy = new(() => IsArgumentNull.Set(Container.Resolve<IParameterAccessPolicy>())!);
         dbEventSource = ResolveOnce<IEventSourceActorDbContext>();
@@ -60,7 +58,7 @@ public sealed class ParameterStartupCommandContext
     /// <inheritdoc />
     public IDurableReplayQueue DurableReplayQueue => queue.Value;
     /// <inheritdoc />
-    public IBlackboardService BlackboardService { get; }
+
     /// <inheritdoc />
     public IEventSourceActorStateFactory StateFactory => stateFactory.Value;
     /// <inheritdoc />

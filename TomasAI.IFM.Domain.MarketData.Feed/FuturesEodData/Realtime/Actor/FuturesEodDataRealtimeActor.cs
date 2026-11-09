@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Realtime.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.Command.Extensions;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Realtime.Contracts;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.Event.Extensions;
@@ -104,7 +103,6 @@ public class FuturesEodDataRealtimeActor(IRealtimeActorContext<FuturesEodDataRea
         };
 
     readonly FuturesEodDataEventParameters _parameters = new(
-        ((IFuturesEodDataRealtimeContext)actorContext).BlackboardService,
         ((IFuturesEodDataRealtimeContext)actorContext).StatusConsoleWriter,
         actorContext.Logger);
 

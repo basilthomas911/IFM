@@ -33,11 +33,13 @@ public sealed class DownloadLogActorFlowTests(TomasAI.IFM.IntegrationTesting.Kes
         using var focused = factory.WithWebHostBuilder(builder =>
         {
             builder.UseSetting("IFM_TEST_ACTOR_DOMAIN", "TomasAI.IFM.Domain.MarketData");
+            builder.UseSetting("MarketDataHost:Enabled", "false");
             builder.UseSetting("IFM_TEST_NATS_URL", Environment.GetEnvironmentVariable("IFM_DOWNLOADLOG_TEST_NATS_URL") ?? DomainActorIntegrationInfrastructureFixture.NatsUrl);
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<IReferenceDataApi>();
                 services.AddSingleton(reference);
+                ConfigureReferenceBackend(services, reference);
             });
         });
         var coordinator = new FmpMarketDataImportCoordinator(new MarketDataCommandApi(focused.Services.GetRequiredService<IActorProducer>()),
@@ -82,11 +84,13 @@ public sealed class DownloadLogActorFlowTests(TomasAI.IFM.IntegrationTesting.Kes
         using var focused = factory.WithWebHostBuilder(builder =>
         {
             builder.UseSetting("IFM_TEST_ACTOR_DOMAIN", "TomasAI.IFM.Domain.MarketData");
+            builder.UseSetting("MarketDataHost:Enabled", "false");
             builder.UseSetting("IFM_TEST_NATS_URL", Environment.GetEnvironmentVariable("IFM_DOWNLOADLOG_TEST_NATS_URL") ?? DomainActorIntegrationInfrastructureFixture.NatsUrl);
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<IReferenceDataApi>();
                 services.AddSingleton(reference);
+                ConfigureReferenceBackend(services, reference);
             });
         });
         var coordinator = new FmpMarketDataImportCoordinator(new MarketDataCommandApi(focused.Services.GetRequiredService<IActorProducer>()),
@@ -101,7 +105,9 @@ public sealed class DownloadLogActorFlowTests(TomasAI.IFM.IntegrationTesting.Kes
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(45));
             while (true)
             {
-                var reply = await queries.GetStatusAsync(new(dataset, "FMP", "US", date), attempt.CommandId, cancellationToken: timeout.Token);
+                var provider = dataset == MarketDataDownloadDataset.TreasuryCurve
+                    ? TomasAI.IFM.Framework.MarketData.ReferenceData.UsTreasuryCurve.Source : "FMP";
+                var reply = await queries.GetStatusAsync(new(dataset, provider, "US", date), attempt.CommandId, cancellationToken: timeout.Token);
                 Assert.True(reply.Success, reply.ErrorMessage);
                 if (reply.Value!.CompletionConfirmed)
                 {
@@ -114,6 +120,23 @@ public sealed class DownloadLogActorFlowTests(TomasAI.IFM.IntegrationTesting.Kes
         }
         await calendar.Received(1).GetAsync(date, date, Arg.Any<IReadOnlySet<string>?>(), Arg.Any<CancellationToken>());
         await treasury.Received(1).GetRangeAsync(date, date, Arg.Any<CancellationToken>());
+    }
+
+    // Imports call the Host-owned backend API after the Rust Host migration.
+    // Supply that boundary explicitly; replacing IReferenceDataApi alone leaves
+    // the remote client trying to reach a Host this fixture does not own.
+    static void ConfigureReferenceBackend(IServiceCollection services, IReferenceDataApi reference)
+    {
+        var backend = Substitute.For<IMarketDataApi>();
+        backend.ReadTreasuryCurvesAsync(Arg.Any<DateOnly>(), Arg.Any<DateOnly>(), Arg.Any<CancellationToken>())
+            .Returns(async call => (await reference.TreasuryCurve.GetRangeAsync(
+                call.ArgAt<DateOnly>(0), call.ArgAt<DateOnly>(1), call.Arg<CancellationToken>())).ToArray());
+        backend.ReadEconomicCalendarAsync(Arg.Any<DateOnly>(), Arg.Any<DateOnly>(), Arg.Any<string[]?>(), Arg.Any<CancellationToken>())
+            .Returns(async call => (await reference.EconomicCalendar.GetAsync(
+                call.ArgAt<DateOnly>(0), call.ArgAt<DateOnly>(1),
+                call.Arg<string[]?>()?.ToHashSet(StringComparer.OrdinalIgnoreCase), call.Arg<CancellationToken>())).ToArray());
+        services.RemoveAll<IMarketDataApi>();
+        services.AddSingleton(backend);
     }
 
     [Theory]

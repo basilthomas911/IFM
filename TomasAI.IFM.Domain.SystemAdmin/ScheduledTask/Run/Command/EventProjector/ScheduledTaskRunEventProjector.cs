@@ -5,7 +5,6 @@ using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.Domain;
 using TomasAI.IFM.Application.Storage.ScheduledTaskDb;
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
@@ -23,9 +22,9 @@ public sealed class ScheduledTaskRunEventProjector : ConventionalEventProjector<
 {
     /// <summary>Initializes the durable run projections and their live host publication.</summary>
     public ScheduledTaskRunEventProjector(IScheduledTaskProjectionWriter writer, IDurableReplayQueue queue,
-        IEventSourceActorDbContext eventSource, IBlackboardService blackboard, ILogger<ScheduledTaskRunEventProjector> logger,
+        IEventSourceActorDbContext eventSource, ILogger<ScheduledTaskRunEventProjector> logger,
         EventProjectorReliabilityOptions? options = null)
-        : base(queue, eventSource, blackboard, logger, options)
+        : base(queue, eventSource, logger, options)
         => ProjectionDescriptors = CreateDescriptors(writer);
 
     /// <inheritdoc />

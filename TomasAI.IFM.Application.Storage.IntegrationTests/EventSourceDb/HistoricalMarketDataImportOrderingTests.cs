@@ -43,8 +43,7 @@ public sealed class HistoricalMarketDataImportOrderingTests(EventSourceActorSnap
         await new MarketDataSchemaDb(settings, logger).CreateAllAsync();
         var repositories = new Dictionary<Type, object>();
         var factory = new DbContextFactory(new DbContextResolver(type => repositories[type]));
-        var db = new MarketDataDbContext(settings, factory, fixture.Blackboard,
-            Substitute.For<ISequenceIdGenerator>(), logger);
+        var db = new MarketDataDbContext(settings, factory, Substitute.For<ISequenceIdGenerator>(), logger);
         repositories.Add(typeof(IObjectRepository<MarketDataDbContext>), db);
 
         var at = new DateTime(2026, 10, 7, 12, 0, 0, DateTimeKind.Utc);

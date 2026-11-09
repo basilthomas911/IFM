@@ -6,21 +6,19 @@ using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventModelActor;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Domain.Reference.Services;
 
 /// <summary>
 /// Provides reference lookup functionality for currencies, exchanges, multipliers, security types, and symbols using
-/// actor and blackboard services.
+/// projected actor queries and an immutable process-local index.
 /// </summary>
 /// <remarks>ReferenceLookupActorService maintains a cache of lookup type mappings to optimize repeated existence
 /// checks. The cache is automatically populated from the actor service if not already available. This service is
 /// thread-safe for concurrent existence checks.</remarks>
 /// <param name="actorService">The actor service used to query reference data from external sources.</param>
-/// <param name="blackboardService">The blackboard service used to cache and retrieve reference lookup data.</param>
-public sealed class ReferenceLookupActorService(IActorService actorService, IBlackboardService blackboardService)
+public sealed class ReferenceLookupActorService(IActorService actorService)
     : IReferenceLookupService, IDisposable
 {
     const long LocalCacheLifetimeMilliseconds = 30_000;
@@ -28,7 +26,7 @@ public sealed class ReferenceLookupActorService(IActorService actorService, IBla
         new Dictionary<string, FrozenSet<string>>(StringComparer.Ordinal)
             .ToFrozenDictionary(StringComparer.Ordinal);
     readonly IActorService _actorService = IsArgumentNull.Set(actorService);
-    readonly IBlackboardService _blackboardService = IsArgumentNull.Set(blackboardService);
+
     readonly SemaphoreSlim _refreshGate = new(1, 1);
     int disposed;
 
@@ -97,23 +95,24 @@ public sealed class ReferenceLookupActorService(IActorService actorService, IBla
                 && now < _expiresAt)
                 return;
 
-            var lookupTypeMap = _blackboardService.Reference.ReferenceLookup.Get();
-            if (lookupTypeMap is null)
+            for (var attempt = 0; attempt < 3; attempt++)
             {
+                cancellationToken.ThrowIfCancellationRequested();
+                generation = ReferenceLookupCacheGeneration.Current;
                 var serviceResult = await _actorService.RequestAsync<LookupTypeCollection, GetLookupTypesQuery>(
                     new GetLookupTypesQuery
                     {
                         Subject = new ActorSubject(ActorType.Query, GetLookupTypesQuery.Actor, GetLookupTypesQuery.Verb, ActorEntityId.Default.Format()),
                         EntityId = ActorEntityId.Default
                     }, cancellationToken).ConfigureAwait(false);
-                lookupTypeMap = serviceResult?.Value is { } values
-                    ? CreateLookupTypeMap(values)
-                    : [];
-                if (lookupTypeMap.Count > 0)
-                    _blackboardService.Reference.ReferenceLookup.Set(lookupTypeMap);
+                if (serviceResult?.Value is not { } values)
+                    throw new InvalidOperationException("Projected reference lookup data could not be loaded.");
+                var lookupTypeMap = CreateLookupTypeMap(values);
+                if (generation != ReferenceLookupCacheGeneration.Current) continue;
+                Publish(lookupTypeMap, generation, now);
+                return;
             }
-
-            Publish(lookupTypeMap, generation, now);
+            throw new InvalidOperationException("Projected reference lookups changed repeatedly during refresh; retry the request.");
         }
         finally
         {
@@ -122,7 +121,7 @@ public sealed class ReferenceLookupActorService(IActorService actorService, IBla
     }
 
     /// <summary>
-    /// Retrieves the lookup type map from the blackboard cache, populating it from the actor service if not already cached.
+    /// Checks the immutable local index prepared from the projected lookup query.
     /// </summary>
     /// <returns>A dictionary mapping lookup type names to their associated short codes.</returns>
     bool Exists(string lookupTypeName, string shortCode)
@@ -130,13 +129,7 @@ public sealed class ReferenceLookupActorService(IActorService actorService, IBla
         if (shortCode is null)
             return false;
         var lookupIndex = Volatile.Read(ref _lookupIndex);
-        if (lookupIndex is null)
-        {
-            var lookupTypeMap = _blackboardService.Reference.ReferenceLookup.Get();
-            if (lookupTypeMap is null)
-                return false;
-            lookupIndex = Publish(lookupTypeMap, ReferenceLookupCacheGeneration.Current, Environment.TickCount64);
-        }
+        if (lookupIndex is null) return false;
         return lookupIndex.TryGetValue(lookupTypeName, out var shortCodes)
             && shortCodes.Contains(shortCode);
     }

@@ -2,7 +2,6 @@ using TomasAI.IFM.Application.Storage.SecuritiesDb;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
@@ -35,7 +34,7 @@ public sealed class EventProjectorDescriptorTests
         var dbFactory = Substitute.For<IDbContextFactory>();
         var queue = Substitute.For<IDurableReplayQueue>();
         var eventSource = Substitute.For<IEventSourceActorDbContext>();
-        var blackboard = Substitute.For<IBlackboardService>();
+
         IEventProjector[] projectors =
         [
             new MarketDataFeedEventProjector(TypedActorContextFactory.Command(eventSource, Substitute.For<ILogger<MarketDataFeedCommandActor>>()), Substitute.For<ILogger<MarketDataFeedEventProjector>>()),
@@ -166,7 +165,7 @@ public sealed class EventProjectorDescriptorTests
         var actorContext = TypedActorContextFactory.Command(Substitute.For<IEventSourceActorDbContext>(), Substitute.For<ILogger<FuturesTickDataCommandActor>>());
         actorContext.DbFactory.Returns(dbFactory);
         actorContext.DurableReplayQueue.Returns(Substitute.For<IDurableReplayQueue>());
-        actorContext.BlackboardService.Returns(Substitute.For<IBlackboardService>());
+
         return new FuturesTickDataEventProjector(actorContext,
             Substitute.For<ILogger<FuturesTickDataEventProjector>>());
     }
@@ -179,7 +178,7 @@ public sealed class EventProjectorDescriptorTests
         var actorContext = TypedActorContextFactory.Command(Substitute.For<IEventSourceActorDbContext>(), Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>());
         actorContext.DbFactory.Returns(dbFactory);
         actorContext.DurableReplayQueue.Returns(Substitute.For<IDurableReplayQueue>());
-        actorContext.BlackboardService.Returns(Substitute.For<IBlackboardService>());
+
         return new FuturesOptionTickDataEventProjector(actorContext,
             Substitute.For<ILogger<FuturesOptionTickDataEventProjector>>());
     }

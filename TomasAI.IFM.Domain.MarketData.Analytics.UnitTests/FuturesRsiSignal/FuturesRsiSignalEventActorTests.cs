@@ -2,7 +2,6 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Framework.Caching;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -32,14 +31,12 @@ public class FuturesRsiSignalEventActorTests : IClassFixture<MarketDataAnalytics
             IActorSupervisor supervisor,
             IMarketDataApi marketDataApi,
             IStatusConsoleWriter statusConsoleWriter,
-            ILogger<FuturesRsiSignalEventActor> logger,
-            IBlackboardService blackboardService)
+            ILogger<FuturesRsiSignalEventActor> logger)
             : base(new FuturesRsiSignalEventContext(
                 supervisor,
                 marketDataApi,
                 statusConsoleWriter,
-                logger,
-                blackboardService))
+                logger))
         {
         }
 

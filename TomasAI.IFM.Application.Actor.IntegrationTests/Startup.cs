@@ -17,12 +17,10 @@ using Serilog;
 using Serilog.Events;
 using SimpleInjector;
 using SimpleInjector.Lifestyles;
-using StackExchange.Redis;
 using System.Reflection;
 using System.Text.Json.Serialization;
 using TomasAI.IFM.Application.Api.Nats.Client;
 using TomasAI.IFM.Application.Actor.Client;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Application.MarketData.Databento.Historical;
@@ -56,7 +54,6 @@ using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Query;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.RegimeDiscovery;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Framework.Caching;
-using TomasAI.IFM.Framework.Caching.Redis;
 using TomasAI.IFM.Framework.Messaging;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
@@ -274,10 +271,8 @@ public static class Startup
                 services.AddFinancialModelingPrepMarketData(options => options.Enabled = false);
                 services.AddFinancialModelingPrepReferenceDataApi();
                 services.AddSingleton<IHttpContextAccessor, HttpContextAccessor>();
-                var redisUri = config["IFM_TEST_REDIS_URL"] ?? config.GetValue<string>("AppSettings:RedisUri")!;
-                services.AddSingleton<IConnectionMultiplexer>(_ => ConnectionMultiplexer.Connect(redisUri));
-                services.AddSingleton<IRedisCache, RedisCache>();
-                services.AddSingleton<IBlackboardService, BlackboardService>();
+
+
                 services.AddSingleton<IDataCacheService, DataCacheService>();
                 services.AddSingleton<IReferenceLookupService, ReferenceLookupActorService>();
 
@@ -546,7 +541,6 @@ public static class Startup
                     provider.GetRequiredService<RegimeDiscoveryMarketSignalSnapshotProvider>());
                 services.AddSingleton<IRegimeDiscoveryMarketSignalCache>(provider =>
                     provider.GetRequiredService<RegimeDiscoveryMarketSignalSnapshotProvider>());
-
 
 
                 services.AddSingleton<IMarketConditionEventRiskAdapter, MarketConditionEventRiskAdapter>();

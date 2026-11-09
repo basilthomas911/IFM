@@ -51,7 +51,9 @@ internal static class HostRecoveryVerificationRunner
             root = root.Parent;
         if (root is null) throw new InvalidOperationException("Repository root not found.");
         var output = new DirectoryInfo(AppContext.BaseDirectory);
-        var configuration = output.Parent?.Parent?.Name == "bin" ? output.Name : output.Parent!.Name;
+        var configuration = typeof(HostRecoveryVerificationRunner).Assembly
+            .GetCustomAttributes(typeof(System.Reflection.AssemblyConfigurationAttribute), false)
+            .Cast<System.Reflection.AssemblyConfigurationAttribute>().Single().Configuration;
         var workerPath = Path.Combine(root.FullName, "TomasAI.IFM.Application.MarketData.Host.Worker",
             "bin", configuration, "net10.0", "TomasAI.IFM.Application.MarketData.Host.Worker.dll");
 

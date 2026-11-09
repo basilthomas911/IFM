@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
@@ -17,7 +16,7 @@ public interface IMarketDataFeedCommandContext : ICommandActorContext<MarketData
     /// <summary>Gets the Market Data database.</summary>
     IMarketDataDbContext MarketDataDb { get; }
     /// <summary>Gets the blackboard service.</summary>
-    IBlackboardService BlackboardService { get; }
+
     /// <summary>Gets the actor logger.</summary>
     ILogger<MarketDataFeedCommandActor> Logger { get; }
     /// <summary>Gets the event-source database.</summary>

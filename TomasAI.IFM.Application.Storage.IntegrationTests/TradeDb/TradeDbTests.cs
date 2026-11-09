@@ -9,7 +9,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage.SequenceIdDb;
 using TomasAI.IFM.Application.Storage.TradeDb;
 using TomasAI.IFM.Framework.Caching;
@@ -69,11 +68,10 @@ public class TradeDbFixture : IDisposable
         logger.When(_ => { }).Do(_ => { });
         new TomasAI.IFM.Application.Storage.TradeDb.Schema.TradeSchemaDb(dbConn, logger)
             .CreateAllAsync().GetAwaiter().GetResult();
-        var redisCache = Substitute.For<IRedisCache>();
+
         var redisCacheMap = new Dictionary<string, string>();
-        redisCache.Get(Arg.Any<string>()).Returns(callInfo => redisCacheMap[callInfo.Arg<string>()]);
-        redisCache.When(_ => _.Set(Arg.Any<string>(), Arg.Any<string>())).Do(_ => { redisCacheMap.Add(_.ArgAt<string>(0), _.ArgAt<string>(1)); });
-        var blackboardServce = new BlackboardService(redisCache, new SystemTextJsonSerializer());
+
+
         var dbFactory = new DbContextFactory(dbResolver);
         var dbCache = new DbCache();
         diContainer.Add(typeof(IObjectRepository<TradeDbContext>), new TradeDbContext(dbConn, dbFactory, SequenceIdGenerator, logger));
@@ -503,7 +501,7 @@ public class TradeDbTests : IClassFixture<TradeDbFixture>
     /// <summary>
     /// Unit tests for the GetTradeQuantityAsync method in TradeDbContext class.
     /// This method tests that the trade quantity is correctly calculated by summing
-    /// the quantities of all option legs associated with a trade and dividing by 
+    /// the quantities of all option legs associated with a trade and dividing by
     /// the number of legs to get the average quantity.
     /// </summary>
     [Fact]

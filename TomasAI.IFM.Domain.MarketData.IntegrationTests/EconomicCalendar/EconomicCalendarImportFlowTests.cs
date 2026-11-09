@@ -5,6 +5,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Domain.MarketData.EconomicCalendar.Event;
+using TomasAI.IFM.Domain.MarketData.EconomicCalendar.Command;
+using TomasAI.IFM.Domain.MarketData.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.EconomicCalendar.Event.Actor;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.Events;
@@ -46,7 +48,10 @@ public sealed class EconomicCalendarImportFlowTests(MarketDataFixture fixture)
         var settings = new DbConnectionSettings().Add(EventSourceActorDbContext.EventSourceActorDbConnection,
             Environment.GetEnvironmentVariable("IFM_TEST_POSTGRES_CONNECTION")
                 ?? throw new InvalidOperationException("Isolated PostgreSQL is required."), "System.Data.Postgres");
-        context.Container.Resolve<IPostgresEventTransaction>().Returns(new PostgresEventTransaction(settings));
+        var transactions = new PostgresEventTransaction(settings);
+        context.Container.Resolve<IPostgresEventTransaction>().Returns(transactions);
+        context.RequestAsync<ApplyEconomicCalendarsImportCommand, EconomicCalendarId>(Arg.Any<ApplyEconomicCalendarsImportCommand>())
+            .Returns(call => call.Arg<ApplyEconomicCalendarsImportCommand>().ExecuteAsync(transactions));
         EconomicCalendarsImportedCompleteEvent? completed = null;
         context.SendAsync<EconomicCalendarsImportedCompleteEvent, EconomicCalendarId>(
                 Arg.Do<EconomicCalendarsImportedCompleteEvent>(value => completed = value))

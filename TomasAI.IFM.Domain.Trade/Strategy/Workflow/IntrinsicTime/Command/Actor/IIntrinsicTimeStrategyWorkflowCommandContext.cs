@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.State;
@@ -29,7 +28,7 @@ public interface IIntrinsicTimeStrategyWorkflowCommandContext : ICommandActorCon
     IDurableReplayQueue DurableReplayQueue { get; }
 
     /// <summary>Gets the blackboard service required by the projector base.</summary>
-    IBlackboardService BlackboardService { get; }
+
 
     /// <summary>Gets the event-source state factory.</summary>
     IEventSourceActorStateFactory StateFactory { get; }

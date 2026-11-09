@@ -1456,8 +1456,8 @@
     ],
     "subjects": [],
     "resolvedUiCallSites": [
-      "TomasAI.IFM.UI.Net.ViewModels/Trade/IronCondor/IronCondorViewModel.cs:1710",
-      "TomasAI.IFM.UI.Net.ViewModels/Trade/IronCondor/IronCondorViewModel.cs:1713"
+      "TomasAI.IFM.UI.Net.ViewModels/Trade/IronCondor/IronCondorViewModel.cs:1703",
+      "TomasAI.IFM.UI.Net.ViewModels/Trade/IronCondor/IronCondorViewModel.cs:1706"
     ],
     "nativeOwner": "services/trade_monitor_queries.rs; state/trade_monitors/mod.rs",
     "status": "Implemented; see native contract/controller tests"
@@ -6995,41 +6995,6 @@
     ],
     "subjects": [
       "(ActorType.Query, GetTradePositionTradeTypesQuery.Actor, GetTradePositionTradeTypesQuery.Verb, entityId.Format())"
-    ],
-    "resolvedUiCallSites": [],
-    "nativeOwner": null,
-    "status": "Pending reachability review or native port"
-  },
-  {
-    "source": "TomasAI.IFM.Application.Api.Nats.Client/OptionTradeQueryApi.cs",
-    "line": 230,
-    "client": "OptionTradeQueryApi",
-    "method": "GetIronCondorMDILimitAsync",
-    "parameters": [
-      {
-        "name": "orderId",
-        "type": "int",
-        "optional": null
-      },
-      {
-        "name": "tradeId",
-        "type": "int",
-        "optional": null
-      },
-      {
-        "name": "valueDate",
-        "type": "DateOnly",
-        "optional": null
-      }
-    ],
-    "result": "Task\u003CServiceResult\u003CIronCondorMDILimitDataModel\u003E\u003E",
-    "calls": [
-      "entityId.Format",
-      "(RequestAsync\u003CGetIronCondorMDILimitQuery, IronCondorMDILimitDataModel\u003E(query.Subject, query)).ConfigureAwait",
-      "RequestAsync\u003CGetIronCondorMDILimitQuery, IronCondorMDILimitDataModel\u003E"
-    ],
-    "subjects": [
-      "(ActorType.Query, GetIronCondorMDILimitQuery.Actor, GetIronCondorMDILimitQuery.Verb, entityId.Format())"
     ],
     "resolvedUiCallSites": [],
     "nativeOwner": null,

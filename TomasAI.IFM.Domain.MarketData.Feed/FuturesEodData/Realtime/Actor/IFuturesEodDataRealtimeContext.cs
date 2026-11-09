@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Configuration;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Realtime.Contracts;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -22,8 +21,8 @@ public interface IFuturesEodDataRealtimeContext : IRealtimeActorContext<FuturesE
     IRealtimeProjector<FuturesEodDataRealtimeActor> Projector { get; }
     /// <summary>Gets the MarketDataApi service.</summary>
     IMarketDataApi MarketDataApi { get; }
-    /// <summary>Gets the BlackboardService service.</summary>
-    IBlackboardService BlackboardService { get; }
+
+
     /// <summary>Gets the StatusConsoleWriter service.</summary>
     IStatusConsoleWriter StatusConsoleWriter { get; }
     /// <summary>Enables the bounded, process-local trade handoff for basic latency testing.</summary>

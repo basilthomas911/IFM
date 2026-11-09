@@ -8,7 +8,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Threading;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage.SequenceIdDb;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Application.Storage.SecuritiesDb;
@@ -70,11 +69,9 @@ public class MarketDataFixture : IAsyncLifetime
             .Add("TradeTickQuoteDbConnection", infrastructure.CqlConnectionString, "System.Data.ScyllaDb");
         var repositories = new Dictionary<Type, IObjectRepository>();
         var factory = new DbContextFactory(new DbContextResolver(type => repositories[type]));
-        var redis = Substitute.For<IRedisCache>();
+
         var cached = new Dictionary<string, string>();
-        redis.Get(Arg.Any<string>()).Returns(call => cached.GetValueOrDefault(call.Arg<string>()));
-        redis.When(cache => cache.Set(Arg.Any<string>(), Arg.Any<string>()))
-            .Do(call => cached[call.ArgAt<string>(0)] = call.ArgAt<string>(1));
+
         SeqIdDatabase = new(settings, factory, logger);
         repositories.Add(typeof(IObjectRepository<SequenceIdDbContext>), SeqIdDatabase);
         SequenceIdGenerator = new PostgresSequenceIdGenerator(SeqIdDatabase);
@@ -82,7 +79,7 @@ public class MarketDataFixture : IAsyncLifetime
         repositories.Add(typeof(IObjectRepository<SecuritiesDbContext>), SecDatabase);
         TickDatabase = new(settings, logger);
         repositories.Add(typeof(IObjectRepository<Storage.TradeTickQuoteDb.TradeTickQuoteDbContext>), TickDatabase);
-        DevDatabase = new(settings, factory, new BlackboardService(redis, new SystemTextJsonSerializer()), SequenceIdGenerator, logger);
+        DevDatabase = new(settings, factory,  SequenceIdGenerator, logger);
         repositories.Add(typeof(IObjectRepository<Storage.MarketDataDb.MarketDataDbContext>), DevDatabase);
     }
 
@@ -1022,29 +1019,6 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
     }
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     static async Task AssertProjectionScopesReadyAsync(
         MarketDataDbContext db,
         string projectionName,
@@ -1399,9 +1373,6 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         result.Should().Contain(x => x.ContractId == SampleData.FuturesContract1.ContractId);
         result.Should().Contain(x => x.ContractId == SampleData.FuturesContract2.ContractId);
     }
-
-
-
 
 
     /// <summary>

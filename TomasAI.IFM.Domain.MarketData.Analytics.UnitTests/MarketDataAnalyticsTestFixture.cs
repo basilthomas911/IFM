@@ -1,7 +1,6 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Command.Actor;
@@ -134,15 +133,14 @@ public class MarketDataAnalyticsTestFixture : IDisposable
         IActorSupervisor? supervisor = null,
         IMarketDataApi? marketDataApi = null,
         IStatusConsoleWriter statusConsoleWriter = null,
-        ILogger<FuturesRsiSignalEventActor>? logger = null,
-        IBlackboardService blackboardService = null)
+        ILogger<FuturesRsiSignalEventActor>? logger = null)
     {
         var sv = supervisor ?? Substitute.For<IActorSupervisor>();
         var marketData = marketDataApi ?? Substitute.For<IMarketDataApi>();
         var scw = statusConsoleWriter ?? Substitute.For<IStatusConsoleWriter>();
         var lg = logger ?? Substitute.For<ILogger<FuturesRsiSignalEventActor>>();
-        var bb = blackboardService ?? Substitute.For<IBlackboardService>();
-        return new TestableFuturesRsiSignalEventActor(sv, marketData, scw, lg, bb);
+
+        return new TestableFuturesRsiSignalEventActor(sv, marketData, scw, lg);
     }
 
     public TestableFuturesAtrSignalCommandActor CreateAtrCommandActor(

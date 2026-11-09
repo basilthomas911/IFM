@@ -1,6 +1,5 @@
 using System.Collections.Immutable;
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
@@ -16,9 +15,8 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.Portfolio.CapacityReservation.Emulator;
 
 /// <summary>Durably projects committed financial history and publishes completion notifications.</summary>
-public sealed class EmulatorExecutionProjector(IDurableReplayQueue queue, IEventSourceActorDbContext eventSource, IBlackboardService blackboard,
-    IFinancialHistoryProjection history, ILogger<EmulatorExecutionProjector> logger, EventProjectorReliabilityOptions? options = null, EmulatorExecutionStore? financial = null)
-    : ConventionalEventProjector<EmulatorExecutionCommandActor>(queue, eventSource, blackboard, logger, options)
+public sealed class EmulatorExecutionProjector(IDurableReplayQueue queue, IEventSourceActorDbContext eventSource, IFinancialHistoryProjection history, ILogger<EmulatorExecutionProjector> logger, EventProjectorReliabilityOptions? options = null, EmulatorExecutionStore? financial = null)
+    : ConventionalEventProjector<EmulatorExecutionCommandActor>(queue, eventSource, logger, options)
 {
     static readonly ImmutableArray<Type> Types = [typeof(EmulatorOrderSubmittedEvent)];
     readonly ImmutableArray<EventProjectionDescriptor> _descriptors = [

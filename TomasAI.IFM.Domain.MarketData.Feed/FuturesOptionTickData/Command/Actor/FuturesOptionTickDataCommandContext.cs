@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
@@ -24,11 +23,11 @@ IFuturesOptionTickDataCommandContext
 
     /// <summary>Initializes the typed command context.</summary>
     public FuturesOptionTickDataCommandContext(IActorSupervisor supervisor, IDbContextFactory dbFactory,
-        IBlackboardService blackboardService, ILogger<FuturesOptionTickDataCommandActor> logger)
+        ILogger<FuturesOptionTickDataCommandActor> logger)
         : base(supervisor, new ActorMailboxId(ActorType.Command, FuturesOptionTickDataCommandActor.ActorName))
     {
         DbFactory = IsArgumentNull.Set(dbFactory);
-        BlackboardService = IsArgumentNull.Set(blackboardService);
+
         Logger = IsArgumentNull.Set(logger);
         _dbEventSource = ResolveOnce<IEventSourceActorDbContext>();
         _durableReplayQueue = ResolveOnce<IDurableReplayQueue>();
@@ -42,7 +41,7 @@ IFuturesOptionTickDataCommandContext
     /// <inheritdoc/>
     public IMarketDataDbContext MarketDataDb => DbFactory.MarketDataDb;
     /// <inheritdoc/>
-    public IBlackboardService BlackboardService { get; }
+
     /// <inheritdoc/>
     public ILogger<FuturesOptionTickDataCommandActor> Logger { get; }
     /// <inheritdoc/>

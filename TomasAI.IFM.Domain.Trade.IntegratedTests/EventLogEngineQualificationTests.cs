@@ -9,7 +9,7 @@ public sealed class EventLogEngineQualificationTests
         ["IFM_TEST_POSTGRES_CONNECTION"] = "Host=127.0.0.1;Port=15432;Database=ifm_eventlog_bench_092020260032_synthetic_host",
         ["IFM_POSTGRES_EVENTSOURCE_TEST_CONNECTION"] = "Host=127.0.0.1;Port=15432;Database=ifm_eventlog_bench_092020260032_synthetic_host",
         ["IFM_TEST_TRADE_CONNECTION"] = "Host=127.0.0.1;Port=15432;Database=ifm_eventlog_bench_092020260032_synthetic_host",
-        ["IFM_TEST_REDIS_URL"] = "127.0.0.1:16379",
+
         ["IFM_FINANCIAL_TEST_NATS_URL"] = "nats://127.0.0.1:14223"
     };
 
@@ -30,7 +30,7 @@ public sealed class EventLogEngineQualificationTests
     [InlineData("IFM_TEST_POSTGRES_CONNECTION")]
     [InlineData("IFM_POSTGRES_EVENTSOURCE_TEST_CONNECTION")]
     [InlineData("IFM_TEST_TRADE_CONNECTION")]
-    [InlineData("IFM_TEST_REDIS_URL")]
+
     [InlineData("IFM_FINANCIAL_TEST_NATS_URL")]
     public void Invalid_setting_fails_before_fixture_connections(string key)
     {

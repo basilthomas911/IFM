@@ -40,7 +40,8 @@ public sealed class FuturesBbSignalCommandActor(ICommandActorContext<FuturesBbSi
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap = new Dictionary<string, Func<IActorMessage, ICommand>>(StringComparer.Ordinal)
     {
         [GenerateFuturesBbSignalCommand.Verb] = message =>
-            message.AsCommand<GenerateFuturesBbSignalCommand>()
+            message.AsCommand<GenerateFuturesBbSignalCommand>(),
+        [SeedFuturesBbSignalsCommand.Verb] = message => message.AsCommand<SeedFuturesBbSignalsCommand>()
     };
     /// <inheritdoc />
     protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(
@@ -58,7 +59,8 @@ public sealed class FuturesBbSignalCommandActor(ICommandActorContext<FuturesBbSi
         FuturesBbSignalCommandState, ServiceResult<GuidResult>>>()
         {
             [typeof(GenerateFuturesBbSignalCommand)] = static (command, _, state) =>
-                ((GenerateFuturesBbSignalCommand)command).Execute(state)
+                ((GenerateFuturesBbSignalCommand)command).Execute(state),
+            [typeof(SeedFuturesBbSignalsCommand)] = static (command, _, state) => ((SeedFuturesBbSignalsCommand)command).Execute(state)
         };
     /// <inheritdoc />
     protected override ValueTask OnValidateAsync(ICommandActorContext<FuturesBbSignalCommandActor> context,
@@ -81,6 +83,16 @@ public sealed class FuturesBbSignalCommandActor(ICommandActorContext<FuturesBbSi
                     .ValidateCommandId(generate.CommandId, generate.CommandName)
                     .ValidateEntityId(generate.EntityId, generate.CommandName)
                     .ValidateSources(generate);
+            },
+            [typeof(SeedFuturesBbSignalsCommand)] = static command =>
+            {
+                var seed = (SeedFuturesBbSignalsCommand)command;
+                var errors = new List<ValidationError>().ValidateCommandId(seed.CommandId, seed.CommandName)
+                    .ValidateEntityId(seed.EntityId, seed.CommandName);
+                if (seed.Observations is not { Length: >= 40 and <= 64 })
+                { errors.Add(new("BB.SEED.COUNT", "Bollinger initialization requires 40..64 ordered bars.")); return errors; }
+                var emaSeed = new SeedFuturesEmaSignalsCommand { CommandId = seed.CommandId, Subject = seed.Subject, EntityId = seed.EntityId, Observations = seed.Observations };
+                return TomasAI.IFM.Domain.MarketData.Analytics.FuturesEmaSignal.Command.Validation.SeedFuturesEmaSignalsValidation.ValidateSeedBatch(errors, emaSeed);
             }
         };
     /// <inheritdoc />

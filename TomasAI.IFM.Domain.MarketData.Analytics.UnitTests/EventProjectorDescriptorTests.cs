@@ -1,7 +1,6 @@
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
@@ -30,17 +29,17 @@ public sealed class EventProjectorDescriptorTests
         var dbFactory = Substitute.For<IDbContextFactory>();
         var queue = Substitute.For<IDurableReplayQueue>();
         var eventSource = Substitute.For<IEventSourceActorDbContext>();
-        var blackboard = Substitute.For<IBlackboardService>();
+
         IEventProjector[] projectors =
         [
-            new FuturesAdxSignalEventProjector(dbFactory, queue, eventSource, blackboard, Substitute.For<ILogger<FuturesAdxSignalEventProjector>>()),
-            new FuturesAtrSignalEventProjector(dbFactory, queue, eventSource, blackboard, Substitute.For<ILogger<FuturesAtrSignalEventProjector>>()),
-            new FuturesMacdSignalEventProjector(dbFactory, queue, eventSource, blackboard, Substitute.For<ILogger<FuturesMacdSignalEventProjector>>()),
-            new FuturesRsiSignalEventProjector(dbFactory, queue, eventSource, blackboard, Substitute.For<ILogger<FuturesRsiSignalEventProjector>>()),
-            new FuturesItiSignalEventProjector(dbFactory, queue, eventSource, blackboard, Substitute.For<ILogger<FuturesItiSignalEventProjector>>()),
-            new FuturesTdiSignalEventProjector(dbFactory, queue, eventSource, blackboard, Substitute.For<ILogger<FuturesTdiSignalEventProjector>>()),
-            new FuturesTradeSignalEventProjector(dbFactory, queue, eventSource, blackboard, Substitute.For<ILogger<FuturesTradeSignalEventProjector>>()),
-            new MarketOutlookSnapshotEventProjector(dbFactory, queue, eventSource, blackboard,
+            new FuturesAdxSignalEventProjector(dbFactory, queue, eventSource, Substitute.For<ILogger<FuturesAdxSignalEventProjector>>()),
+            new FuturesAtrSignalEventProjector(dbFactory, queue, eventSource, Substitute.For<ILogger<FuturesAtrSignalEventProjector>>()),
+            new FuturesMacdSignalEventProjector(dbFactory, queue, eventSource, Substitute.For<ILogger<FuturesMacdSignalEventProjector>>()),
+            new FuturesRsiSignalEventProjector(dbFactory, queue, eventSource, Substitute.For<ILogger<FuturesRsiSignalEventProjector>>()),
+            new FuturesItiSignalEventProjector(dbFactory, queue, eventSource, Substitute.For<ILogger<FuturesItiSignalEventProjector>>()),
+            new FuturesTdiSignalEventProjector(dbFactory, queue, eventSource, Substitute.For<ILogger<FuturesTdiSignalEventProjector>>()),
+            new FuturesTradeSignalEventProjector(dbFactory, queue, eventSource, Substitute.For<ILogger<FuturesTradeSignalEventProjector>>()),
+            new MarketOutlookSnapshotEventProjector(dbFactory, queue, eventSource,
                 Substitute.For<ILogger<MarketOutlookSnapshotEventProjector>>())
         ];
 
@@ -67,7 +66,6 @@ public sealed class EventProjectorDescriptorTests
             Substitute.For<IDbContextFactory>(),
             Substitute.For<IDurableReplayQueue>(),
             Substitute.For<IEventSourceActorDbContext>(),
-            Substitute.For<IBlackboardService>(),
             Substitute.For<ILogger<FuturesItiSignalEventProjector>>());
 
         projector.ProjectedEventTypes.Should().BeEquivalentTo(
@@ -86,7 +84,6 @@ public sealed class EventProjectorDescriptorTests
             dbFactory,
             Substitute.For<IDurableReplayQueue>(),
             Substitute.For<IEventSourceActorDbContext>(),
-            Substitute.For<IBlackboardService>(),
             Substitute.For<ILogger<MarketOutlookSnapshotEventProjector>>());
         var descriptor = projector.ProjectionDescriptors.Should().ContainSingle().Subject;
         var source = new MarketOutlookSnapshotInsertedEvent();
@@ -106,7 +103,6 @@ public sealed class EventProjectorDescriptorTests
             Substitute.For<IDbContextFactory>(),
             Substitute.For<IDurableReplayQueue>(),
             Substitute.For<IEventSourceActorDbContext>(),
-            Substitute.For<IBlackboardService>(),
             Substitute.For<ILogger<FuturesVwapSignalEventProjector>>());
 
         var descriptor = projector.ProjectionDescriptors.Should().ContainSingle().Subject;
@@ -127,7 +123,6 @@ public sealed class EventProjectorDescriptorTests
             dbFactory,
             Substitute.For<IDurableReplayQueue>(),
             Substitute.For<IEventSourceActorDbContext>(),
-            Substitute.For<IBlackboardService>(),
             Substitute.For<ILogger<FuturesTradeSignalEventProjector>>());
         var descriptor = projector.ProjectionDescriptors.Single(item =>
             item.SourceEventType == typeof(FuturesTradeSignalUpdatedEvent));
@@ -172,7 +167,6 @@ public sealed class EventProjectorDescriptorTests
             dbFactory,
             Substitute.For<IDurableReplayQueue>(),
             Substitute.For<IEventSourceActorDbContext>(),
-            Substitute.For<IBlackboardService>(),
             Substitute.For<ILogger<FuturesItiSignalEventProjector>>());
         var descriptor = projector.ProjectionDescriptors.Single(item =>
             item.SourceEventType == typeof(FuturesItiSignalGeneratedEvent));
@@ -220,7 +214,6 @@ public sealed class EventProjectorDescriptorTests
             dbFactory,
             Substitute.For<IDurableReplayQueue>(),
             Substitute.For<IEventSourceActorDbContext>(),
-            Substitute.For<IBlackboardService>(),
             Substitute.For<ILogger<FuturesTdiSignalEventProjector>>());
         var descriptor = projector.ProjectionDescriptors.Single(item =>
             item.SourceEventType == typeof(FuturesTdiSignalGeneratedEvent));

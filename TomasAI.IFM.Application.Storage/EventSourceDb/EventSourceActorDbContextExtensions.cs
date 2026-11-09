@@ -1,15 +1,11 @@
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventProjector.ReadModels;
 using TomasAI.IFM.Shared.Exceptions;
 using TomasAI.IFM.Shared.Storage;
-
-
-
 
 
 using TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit;
@@ -19,9 +15,6 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.EventSourcing.ViewModels;
 using TomasAI.IFM.Shared.EventProjector;
-
-
-
 
 
 namespace TomasAI.IFM.Application.Storage.EventSourceDb;
@@ -46,19 +39,8 @@ internal static class EventSourceActorDbContextExtensions
         /// <param name="eventStream">The event stream name.</param>
         /// <param name="cancellationToken">The token used to cancel the operation.</param>
         /// <returns>The typed result of the event-source operation.</returns>
-        internal async Task<long> ResolveEventStreamIdAsync(string eventStream, CancellationToken cancellationToken)
-        {
-        var pending = context._blackboardService.EventSourcing.EventStreamId.GetAsync(eventStream, InsertEntityTypeAsync);
-        return (await pending.AsTask().WaitAsync(cancellationToken)
-            .ConfigureAwait(false)).EventStreamId;
-
-        async Task<EventStreamIdReadModel> InsertEntityTypeAsync(string eventStream)
-        {
-            var eventStreamId = await context.InsertEventStreamAsync(eventStream, cancellationToken)
-            .ConfigureAwait(false);
-            return new EventStreamIdReadModel(eventStreamId, eventStream);
-        }
-        }
+        internal Task<long> ResolveEventStreamIdAsync(string eventStream, CancellationToken cancellationToken)
+            => context._streamIdentities.GetAsync(eventStream, context._streamIdentityLoader, cancellationToken).AsTask();
         /// <summary>Checks  batch size before the persistence operation.</summary>
         /// <param name="batchSize">The maximum number of records to return or claim.</param>
         internal void ValidateBatchSize(int batchSize)
@@ -428,15 +410,7 @@ internal static class EventSourceActorDbContextExtensions
         /// <returns>A <see langword="long"/> representing the unique identifier of the specified event stream.</returns>
         internal async Task<long> GetEventStreamAsync(string eventStream)
         {
-            return (await (context._blackboardService.EventSourcing.EventStreamId.GetAsync(eventStream, InsertEventStream))
-            .ConfigureAwait(false)).EventStreamId;
-
-            async Task<EventStreamIdReadModel> InsertEventStream(string eventStream)
-            {
-                var eventStreamId = await (context.InsertEventStreamAsync(eventStream))
-            .ConfigureAwait(false);
-                return new EventStreamIdReadModel(eventStreamId, eventStream);
-            }
+            return await context.ResolveEventStreamIdAsync(eventStream, CancellationToken.None).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -584,7 +558,7 @@ internal static class EventSourceActorDbContextExtensions
         /// <summary>
         /// Asynchronously retrieves the last N events from a specified event stream.
         /// </summary>
-        /// <remarks>The method queries the event source database to fetch the specified number of recent events 
+        /// <remarks>The method queries the event source database to fetch the specified number of recent events
         /// from the given event stream. The events are returned in ascending order of their version.</remarks>
         /// <param name="eventStreamId">The unique identifier of the event stream from which to retrieve events.</param>
         /// <param name="lastNRange">The number of most recent events to retrieve from the event stream.</param>

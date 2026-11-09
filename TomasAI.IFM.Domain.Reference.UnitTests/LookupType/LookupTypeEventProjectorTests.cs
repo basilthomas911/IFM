@@ -1,7 +1,6 @@
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.Reference.LookupType.Command.Actor;
 using TomasAI.IFM.Domain.Reference.LookupType.Command.EventProjector;
@@ -18,7 +17,7 @@ public sealed class LookupTypeEventProjectorTests
         context.DbFactory.Returns(Substitute.For<IDbContextFactory>());
         context.DurableReplayQueue.Returns(Substitute.For<IDurableReplayQueue>());
         context.DbEventSource.Returns(Substitute.For<IEventSourceActorDbContext>());
-        context.BlackboardService.Returns(Substitute.For<IBlackboardService>());
+
         context.Logger.Returns(Substitute.For<ILogger<LookupTypeCommandActor>>());
         var projector = new LookupTypeEventProjector(context);
 

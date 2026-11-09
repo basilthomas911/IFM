@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.EventSourceDb.Schema;
 using TomasAI.IFM.Application.Storage.EventSourceDb.EventLog;
@@ -35,7 +34,7 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.EventSourceDb;
 public sealed partial class EventSourceActorSnapshotRangeFixture
 {
     internal EventSourceActorDbContext CreateBenchmarkActorEventDb(bool batched)
-        => new(_connectionSettings, DbFactory, _blackboard, _logger,
+        => new(_connectionSettings, DbFactory, _logger,
             new EventLogPersistenceOptions { WriteMode = EventLogWriteMode.BinaryCopy }, null, batched);
 }
 

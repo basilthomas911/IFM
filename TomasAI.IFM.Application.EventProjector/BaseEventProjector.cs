@@ -2,7 +2,6 @@ using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 using System.Collections.Frozen;
 using System.Reflection;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Framework.Messaging.Nats;
@@ -31,7 +30,6 @@ namespace TomasAI.IFM.Application.EventProjector;
 public abstract class BaseEventProjector<TActor>(
     IDurableReplayQueue durableReplayQueue,
     IEventSourceActorDbContext dbEventSource,
-    IBlackboardService blackboardService,
     ILogger logger,
     EventProjectorReliabilityOptions? reliabilityOptions = null) : IEventProjector<TActor>, IEventProjectorReadiness, ISupervisorProjectorMetricsSource, IAsyncDisposable
     where TActor : ICommandActor<TActor>
@@ -151,7 +149,6 @@ public abstract class BaseEventProjector<TActor>(
     /// </summary>
     public IDurableReplayQueue DurableReplayQueue { get; init; } = IsArgumentNull.Set(durableReplayQueue);
 
-    public IBlackboardService BlackboardService { get; init; } = IsArgumentNull.Set(blackboardService);
 
     /// <summary>
     /// Gets the runtime context of the command actor that started this projector.
@@ -391,10 +388,7 @@ public abstract class BaseEventProjector<TActor>(
             // Persist the recoverable marker before publishing. If publication fails after the event-log
             // transaction committed, startup recovery will find this state and enqueue the source event again.
             await (DbEventSource.InsertEventProjectorStateAsync(projectionState)).ConfigureAwait(false);
-            BlackboardService.EventSourcing.EventProjectorState.Set(
-                domainEvent.EventId,
-                ProjectorName,
-                projectionState);
+
             await DurableReplayQueue.EnqueueAsync(ProjectorName, domainEvent).ConfigureAwait(false);
         }
     }
@@ -448,10 +442,7 @@ public abstract class BaseEventProjector<TActor>(
         if (_reliabilityOptions.FencedExecutionEnabled)
             return await ProcessDomainEventWithOutcomeAsync(domainEvent).ConfigureAwait(false);
 
-        var currentState = BlackboardService.EventSourcing.EventProjectorState.Get(
-            domainEvent.EventId,
-            ProjectorName)
-            ?? await (DbEventSource.GetEventProjectorStateAsync(domainEvent.EventId, ProjectorName)).ConfigureAwait(false);
+        var currentState = await (DbEventSource.GetEventProjectorStateAsync(domainEvent.EventId, ProjectorName)).ConfigureAwait(false);
 
         if (currentState is null)
         {
@@ -462,10 +453,6 @@ public abstract class BaseEventProjector<TActor>(
         if (IsTerminal(currentState))
             return EventProjectorDeliveryResult.Completed;
 
-        BlackboardService.EventSourcing.EventProjectorState.Set(
-            domainEvent.EventId,
-            ProjectorName,
-            currentState);
         await (ProcessDomainEventAsync(domainEvent)).ConfigureAwait(false);
         return EventProjectorDeliveryResult.Completed;
     }
@@ -707,16 +694,10 @@ public abstract class BaseEventProjector<TActor>(
         IEvent domainEvent,
         EventProjectionDescriptor descriptor)
     {
-        var currentState = BlackboardService.EventSourcing.EventProjectorState.Get(
-                domainEvent.EventId,
-                ProjectorName)
-            ?? await (DbEventSource.GetEventProjectorStateAsync(domainEvent.EventId, ProjectorName)).ConfigureAwait(false)
+        var currentState = await (DbEventSource.GetEventProjectorStateAsync(domainEvent.EventId, ProjectorName)).ConfigureAwait(false)
             ?? throw new InvalidOperationException(
                 $"Projection state was not initialized for event {domainEvent.EventId} and projector '{ProjectorName}'.");
-        BlackboardService.EventSourcing.EventProjectorState.Set(
-            domainEvent.EventId,
-            ProjectorName,
-            currentState);
+
 
         try
         {
@@ -734,8 +715,7 @@ public abstract class BaseEventProjector<TActor>(
                             UpdatedTimestamp = DateTime.UtcNow
                         };
                         await PersistLegacyStateAsync(
-                            currentState,
-                            clearCache: IsTerminal(currentState)).ConfigureAwait(false);
+                            currentState).ConfigureAwait(false);
                         break;
 
                     case EventProjectorStageType.ApplyProjection:
@@ -774,8 +754,7 @@ public abstract class BaseEventProjector<TActor>(
                             UpdatedTimestamp = DateTime.UtcNow
                         };
                         await PersistLegacyStateAsync(
-                            currentState,
-                            clearCache: IsTerminal(currentState)).ConfigureAwait(false);
+                            currentState).ConfigureAwait(false);
                         break;
 
                     case EventProjectorStageType.PublishCompletedEvent:
@@ -789,7 +768,7 @@ public abstract class BaseEventProjector<TActor>(
                             Outcome = EventProjectorOutcomeType.Completed,
                             UpdatedTimestamp = DateTime.UtcNow
                         };
-                        await PersistLegacyStateAsync(currentState, clearCache: true).ConfigureAwait(false);
+                        await PersistLegacyStateAsync(currentState).ConfigureAwait(false);
                         break;
 
                     case EventProjectorStageType.PublishFailedEvent:
@@ -801,7 +780,7 @@ public abstract class BaseEventProjector<TActor>(
                                 Outcome = EventProjectorOutcomeType.Failed,
                                 UpdatedTimestamp = DateTime.UtcNow
                             };
-                            await PersistLegacyStateAsync(currentState, clearCache: true).ConfigureAwait(false);
+                            await PersistLegacyStateAsync(currentState).ConfigureAwait(false);
                             break;
                         }
                         var failedEvent = descriptor.FailedEventFactory(
@@ -815,7 +794,7 @@ public abstract class BaseEventProjector<TActor>(
                             Outcome = EventProjectorOutcomeType.Failed,
                             UpdatedTimestamp = DateTime.UtcNow
                         };
-                        await PersistLegacyStateAsync(currentState, clearCache: true).ConfigureAwait(false);
+                        await PersistLegacyStateAsync(currentState).ConfigureAwait(false);
                         break;
 
                     default:
@@ -837,19 +816,14 @@ public abstract class BaseEventProjector<TActor>(
         }
     }
 
-    async Task PersistLegacyStateAsync(EventProjectorStateReadModel state, bool clearCache = false)
+    async Task PersistLegacyStateAsync(EventProjectorStateReadModel state)
     {
         await DbEventSource.InsertEventProjectorStateAsync(state).ConfigureAwait(false);
-        if (clearCache)
-            BlackboardService.EventSourcing.EventProjectorState.Clear(state.EventId, ProjectorName);
-        else
-            BlackboardService.EventSourcing.EventProjectorState.Set(state.EventId, ProjectorName, state);
     }
 
     async ValueTask TerminalizeLegacyUnregisteredAsync(IEvent domainEvent)
     {
-        var state = BlackboardService.EventSourcing.EventProjectorState.Get(domainEvent.EventId, ProjectorName)
-            ?? await (DbEventSource.GetEventProjectorStateAsync(domainEvent.EventId, ProjectorName)).ConfigureAwait(false)
+        var state = await (DbEventSource.GetEventProjectorStateAsync(domainEvent.EventId, ProjectorName)).ConfigureAwait(false)
             ?? CreateInitialState(domainEvent.EventId);
         state = state with
         {
@@ -858,7 +832,7 @@ public abstract class BaseEventProjector<TActor>(
             ErrorMessage = $"Event type '{domainEvent.GetType().FullName}' is not registered by projector '{ProjectorName}'.",
             UpdatedTimestamp = DateTime.UtcNow
         };
-        await PersistLegacyStateAsync(state, clearCache: true).ConfigureAwait(false);
+        await PersistLegacyStateAsync(state).ConfigureAwait(false);
     }
 
     async Task<EventProjectorDeliveryResult> HandleMaximumAttemptsAsync(IEvent domainEvent)
@@ -871,8 +845,7 @@ public abstract class BaseEventProjector<TActor>(
                 return await ExecutionEngine.TerminalizeUnregisteredAsync(domainEvent).ConfigureAwait(false);
         }
 
-        var state = BlackboardService.EventSourcing.EventProjectorState.Get(domainEvent.EventId, ProjectorName)
-            ?? await (DbEventSource.GetEventProjectorStateAsync(domainEvent.EventId, ProjectorName)).ConfigureAwait(false)
+        var state = await (DbEventSource.GetEventProjectorStateAsync(domainEvent.EventId, ProjectorName)).ConfigureAwait(false)
             ?? CreateInitialState(domainEvent.EventId);
         state = state with
         {
@@ -881,7 +854,7 @@ public abstract class BaseEventProjector<TActor>(
             ErrorMessage = $"Maximum {_reliabilityOptions.MaximumReplayAttempts} attempts reached for event {domainEvent.EventId} of type {domainEvent.GetType().Name}.",
             UpdatedTimestamp = DateTime.UtcNow
         };
-        await PersistLegacyStateAsync(state, clearCache: true).ConfigureAwait(false);
+        await PersistLegacyStateAsync(state).ConfigureAwait(false);
         return EventProjectorDeliveryResult.Completed;
     }
 
@@ -937,10 +910,7 @@ public abstract class BaseEventProjector<TActor>(
             await (DbEventSource.InsertEventProjectorStateAsync(
                 currentState,
                 cancellationToken)).ConfigureAwait(false);
-            BlackboardService.EventSourcing.EventProjectorState.Set(
-                eventLog.EventVersion,
-                ProjectorName,
-                currentState);
+
             await DurableReplayQueue.EnqueueAsync(ProjectorName, domainEvent, cancellationToken).ConfigureAwait(false);
             queued++;
         }
@@ -956,7 +926,6 @@ public abstract class BaseEventProjector<TActor>(
         => new(
             DbEventSource,
             DurableReplayQueue,
-            BlackboardService,
             _reliabilityOptions,
             Logger,
             ShouldDiscardProjection);

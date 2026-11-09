@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.Trade.Futures.Position.Workflow.Command.State;
@@ -16,10 +15,10 @@ public sealed class FuturesExitPositionWorkflowCommandContext : CommandActorCont
     readonly Lazy<IEventProjector<FuturesExitPositionWorkflowCommandActor>> projector;
     readonly Lazy<IEventSourceActorStateRepository<FuturesExitPositionWorkflowCommandState>> repository;
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "This typed context adapts services for its actor and intentionally retains the actor logger category.")]
-    public FuturesExitPositionWorkflowCommandContext(IActorSupervisor supervisor, IDbContextFactory dbFactory, IBlackboardService blackboard, ILogger<FuturesExitPositionWorkflowCommandActor> logger) : base(supervisor, new(ActorType.Command, FuturesExitPositionWorkflowCommandActor.ActorName))
+    public FuturesExitPositionWorkflowCommandContext(IActorSupervisor supervisor, IDbContextFactory dbFactory, ILogger<FuturesExitPositionWorkflowCommandActor> logger) : base(supervisor, new(ActorType.Command, FuturesExitPositionWorkflowCommandActor.ActorName))
     {
         DbFactory = dbFactory;
-        BlackboardService = blackboard;
+
         Logger = logger;
         eventSource = Resolve<IEventSourceActorDbContext>();
         replay = Resolve<IDurableReplayQueue>();
@@ -29,7 +28,7 @@ public sealed class FuturesExitPositionWorkflowCommandContext : CommandActorCont
     }
 
     public IDbContextFactory DbFactory { get; }
-    public IBlackboardService BlackboardService { get; }
+
     public ILogger<FuturesExitPositionWorkflowCommandActor> Logger { get; }
     public IEventSourceActorDbContext DbEventSource => eventSource.Value;
     public IDurableReplayQueue DurableReplayQueue => replay.Value;

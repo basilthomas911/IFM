@@ -5,7 +5,6 @@ using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Npgsql;
 using NSubstitute;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.MarketData.Pricing;
 using TomasAI.IFM.Application.MarketData.Databento.Workers;
 using TomasAI.IFM.Application.MarketData.Subscriptions.Persistence;
@@ -262,7 +261,7 @@ public sealed partial class CompositionBusinessProjectionTests
                 .Add(MarketDataServiceDbContext.MarketDataServiceDbConnection, c.ConnectionString, "System.Data.Postgres");
             var logger = Substitute.For<ILogger<DbProvider>>();
             var factory = Substitute.For<IDbContextFactory>();
-            f.Events = new(f.settings, factory, Substitute.For<IBlackboardService>(), logger);
+            f.Events = new(f.settings, factory, logger);
             factory.ActorEventSourceDb.Returns(f.Events);
             var marketDataService = new MarketDataServiceDbContext(
                 f.settings,

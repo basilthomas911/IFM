@@ -26,8 +26,6 @@ internal static class EventLogEngineQualification
             throw new InvalidOperationException("Qualification PostgreSQL must be loopback and run-scoped.");
         if (read("IFM_TEST_TRADE_CONNECTION") != postgres)
             throw new InvalidOperationException("Qualification TradeDb must use the owned PostgreSQL endpoint.");
-        if (!System.Text.RegularExpressions.Regex.IsMatch(read("IFM_TEST_REDIS_URL") ?? string.Empty, @"\A127\.0\.0\.1:\d+(,.*)?\z"))
-            throw new InvalidOperationException("Qualification Redis endpoint mismatch.");
         if (!Uri.TryCreate(read("IFM_FINANCIAL_TEST_NATS_URL"), UriKind.Absolute, out var nats)
             || nats.Scheme != "nats" || nats.Host != "127.0.0.1" || nats.Port <= 0)
             throw new InvalidOperationException("Qualification NATS endpoint mismatch.");
@@ -44,7 +42,7 @@ internal static class EventLogEngineQualification
             var values = new Dictionary<string, string?>
             {
                 ["IFM_TEST_POSTGRES_CONNECTION"] = postgres,
-                ["IFM_TEST_REDIS_URL"] = Environment.GetEnvironmentVariable("IFM_TEST_REDIS_URL"),
+
                 ["IFM_TEST_NATS_URL"] = Environment.GetEnvironmentVariable("IFM_FINANCIAL_TEST_NATS_URL"),
                 ["AppSettings:Databento:DeploymentProfile"] = "SyntheticCi",
                 ["TradeBroker:Emulator:AccountAlias"] = $"EventLogQualification-{run}"

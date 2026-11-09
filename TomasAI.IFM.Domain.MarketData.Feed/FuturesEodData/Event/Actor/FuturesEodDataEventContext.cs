@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Command.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Contracts;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -19,13 +18,12 @@ public sealed class FuturesEodDataEventContext : EventActorContext, IFuturesEodD
     public FuturesEodDataEventContext(
         IActorSupervisor supervisor,
         ILogger<FuturesEodDataEventActor> logger,
-        IBlackboardService blackboardService,
         IStatusConsoleWriter statusConsoleWriter)
         : base(supervisor, new ActorMailboxId(ActorType.Event, FuturesEodDataEventActor.Actor))
     {
         Supervisor = IsArgumentNull.Set(supervisor);
         Logger = IsArgumentNull.Set(logger);
-        BlackboardService = IsArgumentNull.Set(blackboardService);
+
         StatusConsoleWriter = IsArgumentNull.Set(statusConsoleWriter);
     }
     /// <inheritdoc/>
@@ -33,7 +31,7 @@ public sealed class FuturesEodDataEventContext : EventActorContext, IFuturesEodD
     /// <inheritdoc/>
     public ILogger<FuturesEodDataEventActor> Logger { get; }
     /// <inheritdoc/>
-    public IBlackboardService BlackboardService { get; }
+
     /// <inheritdoc/>
     public IStatusConsoleWriter StatusConsoleWriter { get; }
 }

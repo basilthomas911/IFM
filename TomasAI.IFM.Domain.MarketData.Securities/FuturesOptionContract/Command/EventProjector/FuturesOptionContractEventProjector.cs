@@ -3,7 +3,6 @@ using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Shared.EventSourcing;
 using System.Collections.Immutable;
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
@@ -19,8 +18,7 @@ public sealed class FuturesOptionContractEventProjector(
     ICommandActorContext<FuturesOptionContractCommandActor> actorContext,
     EventProjectorReliabilityOptions? reliabilityOptions = null)
     : ConventionalEventProjector<FuturesOptionContractCommandActor>(
-        actorContext.DurableReplayQueue, actorContext.DbEventSource,
-        actorContext.BlackboardService, actorContext.Logger, reliabilityOptions)
+        actorContext.DurableReplayQueue, actorContext.DbEventSource, actorContext.Logger, reliabilityOptions)
 {
     readonly ImmutableArray<EventProjectionDescriptor> _descriptors =
     [

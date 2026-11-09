@@ -9,7 +9,7 @@ $repoRoot=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 $hostDirectory=Join-Path $repoRoot 'TomasAI.IFM.Application.Api.Server\bin\Release\net10.0'
 $artifactDirectory=Join-Path $repoRoot ("BenchmarkDotNet.Artifacts\event-log-v2\acceptance-"+$RunId)
 $database="ifm_eventlog_bench_${RunId}_synthetic_host"
-$containers=@("ifm-acceptance-$RunId-postgres","ifm-acceptance-$RunId-scylla","ifm-acceptance-$RunId-redis","ifm-acceptance-$RunId-nats")
+$containers=@("ifm-acceptance-$RunId-postgres","ifm-acceptance-$RunId-scylla","ifm-acceptance-$RunId-nats")
 function DockerChecked([string[]]$Arguments) {
     $result=& docker @Arguments
     if($LASTEXITCODE -ne 0){ throw "Docker operation failed: $($Arguments[0])" }
@@ -20,7 +20,6 @@ function AssertOwned([string]$Name) {
     if($item.Config.Labels.'ifm.qualification.run' -ne $RunId){throw "Refusing unowned container: $Name"}
     if($Name.EndsWith('-postgres')){$image='postgres:17.2';$port='5432/tcp'}
     elseif($Name.EndsWith('-scylla')){$image='scylladb/scylla:6.2.2';$port='9042/tcp'}
-    elseif($Name.EndsWith('-redis')){$image='redis:latest';$port='6379/tcp'}
     elseif($Name.EndsWith('-nats')){$image='nats:2.12.0-alpine';$port='4222/tcp'}
     else {throw 'Unknown qualification container role'}
     $binding=$item.HostConfig.PortBindings.$port
@@ -32,7 +31,7 @@ if($Action -eq 'Prepare') {
     DockerChecked @('run','-d','--name',$containers[0],'--label',"ifm.qualification.run=$RunId",'-p','127.0.0.1::5432','-e','POSTGRES_USER=postgres','-e','POSTGRES_PASSWORD=ifm-benchmark-only','-e',"POSTGRES_DB=$database",'postgres:17.2')
     DockerChecked @('run','-d','--name',$containers[1],'--label',"ifm.qualification.run=$RunId",'-p','127.0.0.1::9042','scylladb/scylla:6.2.2','--smp','1','--memory','1G','--overprovisioned','1','--developer-mode','1')
     DockerChecked @('run','-d','--name',$containers[2],'--label',"ifm.qualification.run=$RunId",'-p','127.0.0.1::6379','redis:latest')
-    DockerChecked @('run','-d','--name',$containers[3],'--label',"ifm.qualification.run=$RunId",'-p','127.0.0.1::4222','nats:2.12.0-alpine','-js')
+    DockerChecked @('run','-d','--name',$containers[2],'--label',"ifm.qualification.run=$RunId",'-p','127.0.0.1::4222','nats:2.12.0-alpine','-js')
 }
 if($Action -eq 'Prepare' -or $Action -eq 'InitializeStores') {
     foreach($name in $containers){AssertOwned $name}
@@ -64,8 +63,7 @@ if($Action -eq 'Cleanup') {
 }
 $postgresPort=((DockerChecked @('port',$containers[0],'5432/tcp')) -split ':')[-1].Trim()
 $scyllaPort=((DockerChecked @('port',$containers[1],'9042/tcp')) -split ':')[-1].Trim()
-$redisPort=((DockerChecked @('port',$containers[2],'6379/tcp')) -split ':')[-1].Trim()
-$natsPort=((DockerChecked @('port',$containers[3],'4222/tcp')) -split ':')[-1].Trim()
+$natsPort=((DockerChecked @('port',$containers[2],'4222/tcp')) -split ':')[-1].Trim()
 $env:DOTNET_ENVIRONMENT='Test'
 $env:ASPNETCORE_ENVIRONMENT='Test'
 $env:DATABENTO_API_KEY=''
@@ -74,12 +72,10 @@ $env:POSTGRES_TEST_KEY='{"userid":"postgres","password":"ifm-benchmark-only"}'
 $env:SCYLLADB_TEST_KEY='{"userid":"cassandra","password":"cassandra"}'
 $env:IFM_NATS_URL="nats://127.0.0.1:$natsPort"
 $env:IFM_QUALIFICATION_NATS_URL=$env:IFM_NATS_URL
-$env:IFM_QUALIFICATION_REDIS_URL="127.0.0.1:$redisPort,abortConnect=false"
 $env:IFM_QUALIFICATION_SCYLLA_PORT=$scyllaPort
 $env:IFM_POSTGRES_EVENTSOURCE_TEST_CONNECTION="Host=127.0.0.1;Port=$postgresPort;Database=$database"
 $env:IFM_QUALIFICATION_POSTGRES_CONNECTION=$env:IFM_POSTGRES_EVENTSOURCE_TEST_CONNECTION
 $env:IFM_TEST_POSTGRES_CONNECTION=$env:IFM_POSTGRES_EVENTSOURCE_TEST_CONNECTION
-$env:IFM_TEST_REDIS_URL=$env:IFM_QUALIFICATION_REDIS_URL
 $env:IFM_TEST_NATS_URL=$env:IFM_NATS_URL
 $env:IFM_FINANCIAL_TEST_NATS_URL=$env:IFM_NATS_URL
 $env:IFM_TEST_TRADE_CONNECTION="Contact Points=127.0.0.1;Port=$scyllaPort;Default Keyspace=ifm_synthetic_${RunId}_trade"

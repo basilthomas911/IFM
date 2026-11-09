@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Configuration;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Realtime.Contracts;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -21,7 +20,6 @@ public sealed class FuturesEodDataRealtimeContext : EventActorContext, IFuturesE
         ILogger<FuturesEodDataRealtimeActor> logger,
         IRealtimeProjector<FuturesEodDataRealtimeActor> projector,
         IMarketDataApi marketDataApi,
-        IBlackboardService blackboardService,
         IStatusConsoleWriter statusConsoleWriter,
         IConfiguration? configuration = null)
         : base(supervisor, new ActorMailboxId(ActorType.Realtime, FuturesEodDataRealtimeActor.ActorName))
@@ -30,7 +28,7 @@ public sealed class FuturesEodDataRealtimeContext : EventActorContext, IFuturesE
         Logger = IsArgumentNull.Set(logger);
         Projector = IsArgumentNull.Set(projector);
         MarketDataApi = IsArgumentNull.Set(marketDataApi);
-        BlackboardService = IsArgumentNull.Set(blackboardService);
+
         StatusConsoleWriter = IsArgumentNull.Set(statusConsoleWriter);
         EnableAsyncTradeWorker = bool.TryParse(
             configuration?["MarketData:FuturesEodAsyncTradeWorker"], out var enabled) && enabled;
@@ -44,7 +42,7 @@ public sealed class FuturesEodDataRealtimeContext : EventActorContext, IFuturesE
     /// <inheritdoc/>
     public IMarketDataApi MarketDataApi { get; }
     /// <inheritdoc/>
-    public IBlackboardService BlackboardService { get; }
+
     /// <inheritdoc/>
     public IStatusConsoleWriter StatusConsoleWriter { get; }
     /// <inheritdoc/>

@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Actor;
@@ -28,7 +27,7 @@ public static class IntrinsicTimeStrategyWorkflowCommandContextExtensions
         /// <summary>Gets the projector queue dependency.</summary>
         public IDurableReplayQueue DurableReplayQueue => Typed(context).DurableReplayQueue;
         /// <summary>Gets the projector blackboard.</summary>
-        public IBlackboardService BlackboardService => Typed(context).BlackboardService;
+
         /// <summary>Gets the event-source state factory.</summary>
         public IEventSourceActorStateFactory StateFactory => Typed(context).StateFactory;
         /// <summary>Gets the actor service.</summary>

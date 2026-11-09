@@ -8,6 +8,7 @@ public static class DatabentoIndicatorSeedSourceVersion
     {
         var dataset = registration.Dataset ?? defaultDataset;
         // Bump the recipe version when seed qualification or provider decoding changes.
-        return $"native-databento-seed-v1|{dataset.Length}:{dataset}|{registration.ProviderContractName}";
+        var recipe = dataset == "XCBF.PITCH" ? "native-databento-trade-seed-v2" : "native-databento-seed-v1";
+        return $"{recipe}|{dataset.Length}:{dataset}|{registration.ProviderContractName}";
     }
 }

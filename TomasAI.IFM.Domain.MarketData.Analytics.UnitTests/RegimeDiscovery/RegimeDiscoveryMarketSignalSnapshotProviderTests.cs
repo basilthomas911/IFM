@@ -10,6 +10,57 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.RegimeDiscovery;
 /// <summary>Qualifies RD-5 atomic snapshot capture and explicit data availability outcomes.</summary>
 public sealed class RegimeDiscoveryMarketSignalSnapshotProviderTests
 {
+    /// <summary>Historical replay and live workers have independent sequence domains; newer market evidence must advance the cache.</summary>
+    [Fact]
+    public async Task Newer_market_observation_replaces_historical_seed_with_larger_sequence()
+    {
+        var provider = new RegimeDiscoveryMarketSignalSnapshotProvider();
+        var contract = $"ES-{Guid.NewGuid():N}";
+        var historical = Observation(contract) with { MarketDataAsOfUtc = DateTime.UtcNow.AddHours(-2), SourceSequence = 9_000_000 };
+        var live = historical with { MarketDataAsOfUtc = DateTime.UtcNow.AddSeconds(-1), SourceSequence = 5, Value = 123m };
+        provider.Upsert(historical);
+        provider.Upsert(live);
+
+        var result = await provider.CaptureAsync(Request(contract));
+
+        result.IsSuccess.Should().BeTrue();
+        result.Snapshot!.Observations.Single().Value.Should().Be(123m);
+        result.Snapshot.Observations.Single().SourceSequence.Should().Be(5);
+    }
+
+    /// <summary>A delayed restore must not replace a newer market observation merely because its sequence is larger.</summary>
+    [Fact]
+    public async Task Older_restore_cannot_replace_newer_live_evidence()
+    {
+        var provider = new RegimeDiscoveryMarketSignalSnapshotProvider();
+        var contract = $"ES-{Guid.NewGuid():N}";
+        var live = Observation(contract) with { SourceSequence = 5, Value = 123m };
+        provider.Upsert(live);
+        provider.Upsert(live with { MarketDataAsOfUtc = live.MarketDataAsOfUtc.AddHours(-1), SourceSequence = 9_000_000, Value = 99m });
+
+        var result = await provider.CaptureAsync(Request(contract));
+
+        result.Snapshot!.Observations.Single().Value.Should().Be(123m);
+    }
+
+    /// <summary>Duplicates do not change the revision, and equal-timestamp corrections retain source-sequence ordering.</summary>
+    [Fact]
+    public async Task Duplicate_does_not_change_revision_but_equal_timestamp_correction_does()
+    {
+        var provider = new RegimeDiscoveryMarketSignalSnapshotProvider();
+        var contract = $"ES-{Guid.NewGuid():N}";
+        var observation = Observation(contract);
+        provider.Upsert(observation);
+        var before = provider.Revision;
+        provider.Upsert(observation);
+        provider.Revision.Should().Be(before);
+        provider.Upsert(observation with { SourceSequence = 2, Value = 101m });
+
+        var result = await provider.CaptureAsync(Request(contract));
+
+        result.Snapshot!.Observations.Single().Value.Should().Be(101m);
+    }
+
     [Fact]
     public async Task Structure_restore_uses_daily_ema_and_keeps_newer_live_intervals()
     {

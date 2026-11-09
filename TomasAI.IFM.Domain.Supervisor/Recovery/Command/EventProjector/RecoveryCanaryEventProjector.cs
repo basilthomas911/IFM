@@ -1,6 +1,5 @@
 using System.Collections.Immutable;
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
@@ -16,11 +15,10 @@ public sealed class RecoveryCanaryEventProjector(
     ICommandActorContext<RecoveryCanaryCommandActor> actorContext,
     IDurableReplayQueue durableReplayQueue,
     IEventSourceActorDbContext eventSource,
-    IBlackboardService blackboard,
     ILogger<RecoveryCanaryEventProjector> logger,
     EventProjectorReliabilityOptions? reliabilityOptions = null)
     : ConventionalEventProjector<RecoveryCanaryCommandActor>(
-        durableReplayQueue, eventSource, blackboard, logger, reliabilityOptions)
+        durableReplayQueue, eventSource, logger, reliabilityOptions)
 {
     readonly ImmutableArray<EventProjectionDescriptor> _descriptors =
     [

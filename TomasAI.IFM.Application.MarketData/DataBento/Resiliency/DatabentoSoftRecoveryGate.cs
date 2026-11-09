@@ -14,10 +14,10 @@ public sealed class DatabentoSoftRecoveryGate
         this.probes = probes.ToArray();
         this.policy = policy.Validate();
         this.time = time;
-        if (this.probes.Length < 4 || this.probes.Any(p => p is null || string.IsNullOrWhiteSpace(p.Name))
+        if (this.probes.Length < 3 || this.probes.Any(p => p is null || string.IsNullOrWhiteSpace(p.Name))
             || this.probes.Select(p => p.Name).Distinct(StringComparer.Ordinal).Count() != this.probes.Length
             || Enum.GetValues<RecoveryInfrastructureKind>().Except(this.probes.Select(p => p.Kind)).Any())
-            throw new InvalidOperationException("Soft recovery requires unique probes for all four infrastructure families.");
+            throw new InvalidOperationException("Soft recovery requires unique probes for all three infrastructure families.");
     }
 
     public async Task<DatabentoSoftGateResult> QualifyAsync(CancellationToken cancellationToken)

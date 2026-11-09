@@ -1,5 +1,4 @@
 using TomasAI.IFM.Application.EventProjector;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.EventProjector.Contracts;
@@ -14,10 +13,9 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.Reference.StrategyCatalog.Command.EventProjector;
 
 public sealed class StrategyCatalogEventProjector(
-    IDurableReplayQueue queue, IEventSourceActorDbContext eventSource, IBlackboardService blackboard,
-    ILogger<StrategyCatalogCommandActor> logger, StrategyCatalogService catalog,
+    IDurableReplayQueue queue, IEventSourceActorDbContext eventSource, ILogger<StrategyCatalogCommandActor> logger, StrategyCatalogService catalog,
     EventProjectorReliabilityOptions? options = null)
-    : ConventionalEventProjector<StrategyCatalogCommandActor>(queue, eventSource, blackboard, logger, options)
+    : ConventionalEventProjector<StrategyCatalogCommandActor>(queue, eventSource, logger, options)
 {
     readonly IReadOnlyCollection<EventProjectionDescriptor> descriptors =
     [

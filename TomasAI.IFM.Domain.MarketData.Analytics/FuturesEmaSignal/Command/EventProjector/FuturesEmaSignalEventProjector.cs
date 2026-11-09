@@ -2,7 +2,6 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Persistence;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using System.Collections.Immutable;
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
@@ -18,11 +17,10 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesEmaSignal.Command.Event
 /// <summary>Projects EMA events to the configured read model after the source transaction.</summary>
 public sealed class FuturesEmaSignalEventProjector(IDbContextFactory dbFactory,
     IDurableReplayQueue durableReplayQueue, IEventSourceActorDbContext dbEventSource,
-    IBlackboardService blackboardService, ILogger<FuturesEmaSignalEventProjector> logger,
+    ILogger<FuturesEmaSignalEventProjector> logger,
     EventProjectorReliabilityOptions? reliabilityOptions = null,
     IPostgresEventTransaction? transactions = null)
-    : ConventionalEventProjector<FuturesEmaSignalCommandActor>(durableReplayQueue, dbEventSource,
-        blackboardService, logger, reliabilityOptions)
+    : ConventionalEventProjector<FuturesEmaSignalCommandActor>(durableReplayQueue, dbEventSource, logger, reliabilityOptions)
 {
     readonly ImmutableArray<EventProjectionDescriptor> descriptors =
     [

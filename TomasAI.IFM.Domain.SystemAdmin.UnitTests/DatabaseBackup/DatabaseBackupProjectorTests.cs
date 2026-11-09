@@ -2,7 +2,6 @@ using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Projection;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Backup.Command.EventProjector;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts;
@@ -81,7 +80,6 @@ public sealed class DatabaseBackupProjectorTests
         db,
         Substitute.For<IDurableReplayQueue>(),
         Substitute.For<IEventSourceActorDbContext>(),
-        Substitute.For<IBlackboardService>(),
         Substitute.For<ILogger<DatabaseBackupEventProjector>>());
 
     static DatabaseBackupRequestedDomainEvent Event(long eventId)

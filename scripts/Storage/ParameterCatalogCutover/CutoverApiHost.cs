@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
@@ -18,7 +18,7 @@ sealed class CutoverApiHost:IAsyncDisposable
         try
         {
             var nats=Environment.GetEnvironmentVariable("IFM_PARAMETER_CUTOVER_NATS")??throw new InvalidOperationException("A private cutover NATS endpoint is required.");
-            var redis=Environment.GetEnvironmentVariable("IFM_PARAMETER_CUTOVER_REDIS")??throw new InvalidOperationException("A private cutover Redis endpoint is required.");
+
             if(!nats.StartsWith("nats://127.0.0.1:",StringComparison.Ordinal)||!redis.StartsWith("127.0.0.1:",StringComparison.Ordinal))
                 throw new InvalidOperationException("Cutover transport endpoints must be private loopback listeners.");
             owner.host=owner.source.WithWebHostBuilder(builder=>
@@ -28,7 +28,7 @@ sealed class CutoverApiHost:IAsyncDisposable
                     .UseSetting("IFM_TEST_ACTOR_DOMAIN","TomasAI.IFM.Domain.Reference")
                     .UseSetting("IFM_TEST_POSTGRES_CONNECTION",connection)
                     .UseSetting("IFM_TEST_NATS_URL",nats)
-                    .UseSetting("IFM_TEST_REDIS_URL",redis)
+
                     .UseSetting("IntrinsicTimeStrategyWorkflow:ProvisionDevelopmentMarketConditionAssessmentDefaults","false");
                 builder.ConfigureServices(services=>services.RemoveAll<IHostedService>());
             });

@@ -26,7 +26,9 @@ public static class RegimeDiscoverySignalCacheAdapter
     public static void Publish(FuturesEmaSignalReadModel signal)
     {
         ArgumentNullException.ThrowIfNull(signal);
-        LatestEmaSignals[(signal.Metadata.ContractId, signal.Metadata.TimeFrame)] = signal;
+        var newest = LatestEmaSignals.AddOrUpdate((signal.Metadata.ContractId, signal.Metadata.TimeFrame), signal,
+            (_, current) => signal.Metadata.MarketDataAsOfUtc >= current.Metadata.MarketDataAsOfUtc ? signal : current);
+        if (newest != signal) return;
         Publish(signal.Metadata, RegimeDiscoverySignalMetric.CurrentPrice, signal.Price, signal.IsWarm);
         PublishNullable(signal.Metadata, RegimeDiscoverySignalMetric.Ema20, signal.Ema20, signal.IsWarm);
         if (signal.Ema20 is { } ema20)
@@ -51,7 +53,9 @@ public static class RegimeDiscoverySignalCacheAdapter
     public static void Publish(FuturesBbSignalReadModel signal)
     {
         ArgumentNullException.ThrowIfNull(signal);
-        LatestBbSignals[(signal.Metadata.ContractId, signal.Metadata.TimeFrame)] = signal;
+        var newest = LatestBbSignals.AddOrUpdate((signal.Metadata.ContractId, signal.Metadata.TimeFrame), signal,
+            (_, current) => signal.Metadata.MarketDataAsOfUtc >= current.Metadata.MarketDataAsOfUtc ? signal : current);
+        if (newest != signal) return;
         PublishNullable(signal.Metadata, RegimeDiscoverySignalMetric.BollingerWidth, signal.Width20, signal.IsWarm);
         PublishNullable(signal.Metadata, RegimeDiscoverySignalMetric.BollingerWidthRatio, signal.Width20Ratio, signal.IsWarm);
         PublishNullable(signal.Metadata, RegimeDiscoverySignalMetric.BollingerPosition, signal.Position20, signal.IsWarm);

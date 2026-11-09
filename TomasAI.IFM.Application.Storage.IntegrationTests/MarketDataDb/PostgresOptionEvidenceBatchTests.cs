@@ -2,7 +2,6 @@ using System.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using NSubstitute;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.MarketData.Pricing;
 using TomasAI.IFM.Application.Storage.IntegrationTests.EventSourceDb;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
@@ -100,7 +99,7 @@ public sealed class PostgresOptionEvidenceBatchTests(EventSourceActorSnapshotRan
     }
 
     static MarketDataDbContext Store(IDbConnectionSettings settings)
-        => new(settings, Substitute.For<IDbContextFactory>(), Substitute.For<IBlackboardService>(),
+        => new(settings, Substitute.For<IDbContextFactory>(),
             Substitute.For<ISequenceIdGenerator>(), NullLogger<DbProvider>.Instance);
 
     static OptionTradeEvidence Evidence(int sequence)

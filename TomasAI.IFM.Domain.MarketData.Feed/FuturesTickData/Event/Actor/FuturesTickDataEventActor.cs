@@ -10,7 +10,6 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 using ApplicationMarketDataApi = TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi;
@@ -31,7 +30,7 @@ public class FuturesTickDataEventActor(IEventActorContext<FuturesTickDataEventAc
     protected IFuturesTickDataEventContext EventContext { get; } = IsArgumentNull.Named(actorContext as IFuturesTickDataEventContext, nameof(actorContext))!;
 
     readonly ILogger<FuturesTickDataEventActor> _logger = IsArgumentNull.Set(actorContext.Logger);
-    readonly FuturesTickDataEventParameters _eventParameters = new(((IFuturesTickDataEventContext)actorContext).MarketDataApi, ((IFuturesTickDataEventContext)actorContext).BlackboardService, ((IFuturesTickDataEventContext)actorContext).StatusConsoleWriter, actorContext.Logger);
+    readonly FuturesTickDataEventParameters _eventParameters = new(((IFuturesTickDataEventContext)actorContext).MarketDataApi, ((IFuturesTickDataEventContext)actorContext).StatusConsoleWriter, actorContext.Logger);
     readonly IReadOnlyDictionary<Type, Func<IEvent, IFuturesTickDataEventContext, IEventActorContext, FuturesTickDataEventParameters, ILogger<FuturesTickDataEventActor>, ValueTask<bool>>> _receiveMap = new Dictionary<Type, Func<IEvent, IFuturesTickDataEventContext, IEventActorContext, FuturesTickDataEventParameters, ILogger<FuturesTickDataEventActor>, ValueTask<bool>>>()
     {
         [typeof(FuturesTickDataStreamingStartedEvent)] = async (evt, context, eventApi, eventParams, logger) =>

@@ -19,7 +19,6 @@ using NATS.Client.Core;
 using Npgsql;
 using TomasAI.IFM.Framework.Storage.Postgres;
 using NSubstitute;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventModelActor;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
@@ -166,7 +165,7 @@ public sealed class AuditIntegrationTests
         var databases=Substitute.For<IDbContextFactory>();
         var store=new MarketDataServiceDbContext(settings,databases,Substitute.For<ISequenceIdDbContext>(),NullLogger<DbProvider>.Instance);
         databases.MarketDataServiceDb.Returns(store);
-        var projector=new MarketDataFeedRecoveryEventProjector(Substitute.For<IDurableReplayQueue>(),fixture.Source,Substitute.For<IBlackboardService>(),databases,logging.CreateLogger<MarketDataFeedRecoveryEventProjector>());
+        var projector=new MarketDataFeedRecoveryEventProjector(Substitute.For<IDurableReplayQueue>(),fixture.Source,databases,logging.CreateLogger<MarketDataFeedRecoveryEventProjector>());
         foreach(var fact in fixture.Facts)
         {
             var descriptor=projector.ProjectionDescriptors.Single(d=>d.SourceEventType==fact.GetType());
@@ -212,7 +211,7 @@ public sealed class AuditIntegrationTests
         // A transient allowlist must not turn this mandatory audit projector into an in-memory queue.
         var reliability=new EventProjectorReliabilityOptions {InitialReplayDelay=TimeSpan.FromMilliseconds(100),DurableProjectorAllowlist=[]};
         await using(var queue=new NatsJSDurableReplayQueue(options)) {
-            var projector=new MarketDataFeedRecoveryEventProjector(queue,fixture.Source,Substitute.For<IBlackboardService>(),databases,NullLogger<MarketDataFeedRecoveryEventProjector>.Instance,reliability);
+            var projector=new MarketDataFeedRecoveryEventProjector(queue,fixture.Source,databases,NullLogger<MarketDataFeedRecoveryEventProjector>.Instance,reliability);
             await projector.StartAsync(context,deadline.Token);
             try {
                 while((await MarketDataRecoveryLog.QueryAsync(Connection,record.ValueDate,record.Dataset,record.OperationId,token:deadline.Token)).Count==0) await Task.Delay(10,deadline.Token);
@@ -221,7 +220,7 @@ public sealed class AuditIntegrationTests
         }
         // A fresh projector and broker connection replay no duplicate business row.
         await using(var queue=new NatsJSDurableReplayQueue(options)) {
-            var projector=new MarketDataFeedRecoveryEventProjector(queue,fixture.Source,Substitute.For<IBlackboardService>(),databases,NullLogger<MarketDataFeedRecoveryEventProjector>.Instance,reliability);
+            var projector=new MarketDataFeedRecoveryEventProjector(queue,fixture.Source,databases,NullLogger<MarketDataFeedRecoveryEventProjector>.Instance,reliability);
             await projector.StartAsync(context,deadline.Token);
             try {await projector.ProcessDomainEventAsync(fact);Assert.Single(await MarketDataRecoveryLog.QueryAsync(Connection,record.ValueDate,record.Dataset,record.OperationId));}
             finally {await projector.StopAsync();}
@@ -249,9 +248,9 @@ public sealed class AuditIntegrationTests
             var settings=new DbConnectionSettings().Add(EventSourceActorDbContext.EventSourceActorDbConnection,Connection,"System.Data.Postgres");
             await new EventSourceSchemaDb(settings,NullLogger<DbProvider>.Instance).CreateAllAsync();
             await using(var database=new PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(Connection)){await database.OpenAsync();await using var sql=new NpgsqlCommand(MarketDataServiceSchemaSql.CreateSchema+MarketDataServiceSchemaSql.CreateRecoveryLog,database);await sql.ExecuteNonQueryAsync();}
-            var dbs=Substitute.For<IDbContextFactory>();var blackboard=Substitute.For<IBlackboardService>();
-            blackboard.EventSourcing.EventStreamId.Returns(new EventStreamIdCacheModel(Substitute.For<IRedisCache>(),new SystemTextJsonSerializer()));
-            var source=new EventSourceActorDbContext(settings,dbs,blackboard,NullLogger<DbProvider>.Instance);
+            var dbs=Substitute.For<IDbContextFactory>();
+
+            var source=new EventSourceActorDbContext(settings,dbs,NullLogger<DbProvider>.Instance);
             dbs.ActorEventSourceDb.Returns(source);
             var factory=Substitute.For<IEventSourceActorStateFactory>();factory.CreateState<MarketDataFeedRecoveryState>().Returns(_=>new MarketDataFeedRecoveryState());
             var actors=Substitute.For<IActorService>();var projector=Substitute.For<IEventProjector<MarketDataFeedRecoveryCommandActor>>();

@@ -22,6 +22,9 @@ public sealed class StoredSessionIndicatorWarmup(StoredSessionIndicatorSeedReade
 {
     readonly System.Collections.Concurrent.ConcurrentDictionary<(DateOnly Date, string ContractId, TimeFrameType Frame), DateTimeOffset> completed = new();
     readonly System.Collections.Concurrent.ConcurrentDictionary<(DateOnly Date, string ContractId, TimeFrameType Frame), byte> shortSeeds = new();
+    readonly System.Collections.Concurrent.ConcurrentDictionary<(string Contract, TimeFrameType Frame), string> failures = new();
+    /// <summary>Gets the most recent acquisition/initialization failure without exposing command actor state.</summary>
+    public string? Failure(string contract, TimeFrameType frame) => failures.GetValueOrDefault((contract, frame));
     readonly BoundedInFlight<(DateOnly Date, string ContractId, TimeFrameType Frame), bool> initializing =
         new(64, TimeSpan.FromMinutes(4), lifetime?.ApplicationStopping ?? default);
     static readonly System.Diagnostics.Metrics.Meter StartupMeter = new("TomasAI.IFM.IndicatorStartup", "1.0");
@@ -68,9 +71,9 @@ public sealed class StoredSessionIndicatorWarmup(StoredSessionIndicatorSeedReade
         if (!market.TryGetOnTheRunFuturesContract("ES", out var contract)) return false;
         // At most four independent timeframe attempts run at once. Each attempt
         // still sends its own indicator commands in order.
-        TimeFrameType[] frames = [TimeFrameType.FifteenMinutes, TimeFrameType.OneHour, TimeFrameType.Daily, TimeFrameType.FourHours];
+        TimeFrameType[] frames = [TimeFrameType.FiveMinutes, TimeFrameType.FifteenMinutes, TimeFrameType.OneHour, TimeFrameType.Daily, TimeFrameType.FourHours];
         var cutoff = clock.GetUtcNow().AddSeconds(-30);
-        var pending = frames.Select(frame => (Frame: frame, Through: frame is TimeFrameType.FifteenMinutes or TimeFrameType.OneHour
+        var pending = frames.Select(frame => (Frame: frame, Through: frame is TimeFrameType.FiveMinutes or TimeFrameType.FifteenMinutes or TimeFrameType.OneHour or TimeFrameType.FourHours
                 ? RsiHistoricalSeedWindowModel.Create(frame, 1, cutoff, calendar).LastOrDefault().EndUtc
                 : DateTimeOffset.MinValue))
             .Where(target => !completed.TryGetValue((date, contract.ContractId, target.Frame), out var through)
@@ -78,11 +81,14 @@ public sealed class StoredSessionIndicatorWarmup(StoredSessionIndicatorSeedReade
         var fastFrames = Task.WhenAll(
             WarmShortFrameAsync(contract.ContractId, date, TimeFrameType.FifteenSeconds, token),
             WarmShortFrameAsync(contract.ContractId, date, TimeFrameType.OneMinute, token));
+        var curveBands = WarmCurveBandsAsync(date, token);
         var results = await Task.WhenAll(pending.Select(target => TryWarmFrameAsync(target.Frame))).ConfigureAwait(false);
         for (var index = 0; index < pending.Length; index++)
             if (results[index]) completed[(date, contract.ContractId, pending[index].Frame)] = pending[index].Through;
         TrimRetainedState(date);
-        return (await fastFrames.ConfigureAwait(false)).All(static result => result) && results.All(static result => result);
+        var fastResults = await fastFrames.ConfigureAwait(false);
+        var curveResult = await curveBands.ConfigureAwait(false);
+        return fastResults.All(static result => result) && curveResult && results.All(static result => result);
 
         async Task<bool> TryWarmFrameAsync(TimeFrameType frame)
         {
@@ -105,6 +111,60 @@ public sealed class StoredSessionIndicatorWarmup(StoredSessionIndicatorSeedReade
             }
             return false;
         }
+    }
+
+    /// <summary>Warms only the EMA/Bollinger producers that actually run for both VX contracts.</summary>
+    async Task<bool> WarmCurveBandsAsync(DateOnly date, CancellationToken token)
+    {
+        if (!market.TryGetFuturesTermStructureContracts("VX", out var curve)) return false;
+        var results = new System.Collections.Concurrent.ConcurrentBag<bool>();
+        var work = new[] { curve.Front.ContractId, curve.Back.ContractId }
+            .SelectMany(contract => IndicatorHealthRegistry.IntradayFrames.Select(frame => (Contract: contract, Frame: frame)));
+        await Parallel.ForEachAsync(work, new ParallelOptions { MaxDegreeOfParallelism = 2, CancellationToken = token }, async (item, ct) =>
+        {
+            try
+            {
+                if (await RestoreBollingerAsync(databases, item.Contract, date, item.Frame, ct).ConfigureAwait(false))
+                { failures.TryRemove((item.Contract, item.Frame), out _); results.Add(true); return; }
+                using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                deadline.CancelAfter(TimeSpan.FromMinutes(4));
+                var bars = await market.ReadIndicatorSeedBarsAsync(item.Contract, item.Frame, deadline.Token).ConfigureAwait(false);
+                if (bars.Length < 40) { failures[(item.Contract, item.Frame)] = $"Qualified historical seed has {bars.Length} bars; at least 40 required."; results.Add(false); return; }
+                await SeedBandStateAsync(item.Contract, item.Frame, bars, deadline.Token).ConfigureAwait(false);
+                results.Add(await AwaitBollingerAsync(databases, item.Contract, date, item.Frame, null, deadline.Token).ConfigureAwait(false));
+            }
+            catch (Exception error) when (!ct.IsCancellationRequested)
+            { failures[(item.Contract, item.Frame)] = error.Message.Length > 1500 ? error.Message[..1500] : error.Message;
+                logger.LogWarning(error, "VX indicator initialization failed for {Contract} {Frame}.", item.Contract, item.Frame); results.Add(false); }
+        }).ConfigureAwait(false);
+        return results.All(static result => result);
+    }
+
+    /// <summary>Aligns the ES live continuation route with historical initialization without changing original trade provenance.</summary>
+    internal static MarketSeriesIdentity LiveIndicatorSeries(string contractId)
+        => contractId.Length == 10 && contractId.StartsWith("ES", StringComparison.Ordinal)
+            && contractId.AsSpan(2).IndexOfAnyExceptInRange('0', '9') < 0
+                ? MarketSeriesIdentity.ForFuturesSeries(new("ES", "calendar-front", "unadjusted", 1))
+                : MarketSeriesIdentity.ForContract(contractId);
+
+    async Task SeedBandStateAsync(string contractId, TimeFrameType frame, FuturesTradeSessionBarReadModel[] original, CancellationToken token)
+    {
+        var series = LiveIndicatorSeries(contractId);
+        var bars = original.Select(bar => bar with { MarketSeriesIdentity = series,
+            ObservationId = FuturesTradeSessionBarId.Create(series, frame, bar.IntervalEndUtc, bar.LastSourceSequence) }).ToArray();
+        var id = new FuturesTradeSessionBarEntityId(series, frame);
+        foreach (var bar in bars)
+            _ = await ((IHistoricalObservationStore)databases.MarketDataDb).TryWriteObservationAsync(bar, token).ConfigureAwait(false);
+        Require(await actors.RequestAsync<SeedFuturesEmaSignalsCommand, FuturesTradeSessionBarEntityId>(new()
+        {
+            CommandId = Guid.CreateVersion7(), PostEvents = true, EntityId = id, Observations = bars,
+            Subject = new(ActorType.Command, SeedFuturesEmaSignalsCommand.Actor, SeedFuturesEmaSignalsCommand.Verb, id.Format())
+        }, token).ConfigureAwait(false));
+        Require(await actors.RequestAsync<SeedFuturesBbSignalsCommand, FuturesTradeSessionBarEntityId>(new()
+        {
+            CommandId = Guid.CreateVersion7(), PostEvents = true, EntityId = id, Observations = bars,
+            Subject = new(ActorType.Command, SeedFuturesBbSignalsCommand.Actor, SeedFuturesBbSignalsCommand.Verb, id.Format())
+        }, token).ConfigureAwait(false));
     }
 
     /// <summary>Bounds restart hints even when many contracts or out-of-order dates are requested. Eviction only causes an idempotent requalification.</summary>
@@ -140,20 +200,30 @@ public sealed class StoredSessionIndicatorWarmup(StoredSessionIndicatorSeedReade
         }
         FuturesTradeSessionBarReadModel[]? acquiredSeed = null;
         var cutoff = clock.GetUtcNow();
-        if (!seedShortFrame && await RestoreCommittedIndicatorsAsync(databases, contractId, date, frame, token).ConfigureAwait(false) is { } oldestObservation)
+        if (await RestoreCommittedIndicatorsAsync(databases, contractId, date, frame, token).ConfigureAwait(false) is { } oldestObservation)
         {
             var latestStart = RsiHistoricalSeedWindowModel.Create(frame, 1, cutoff, calendar)[0].StartUtc;
             if (oldestObservation >= latestStart)
             {
-            // Market structure needs the current bar and the preceding 20 completed bars.
-            var structure = await reader.ReadAtAsync(contractId, frame, 21, cutoff, token).ConfigureAwait(false);
-            if (structure.Length >= 21 && oldestObservation >= structure[^1].IntervalStartUtc)
-            {
-                RegimeDiscoverySignalCacheAdapter.RestoreBars(structure);
-                return true;
-            }
-            if (structure.Length == 48)
-                acquiredSeed = structure;
+                if (seedShortFrame && await HasCommittedShortFrameHistoryAsync(contractId, date, frame, latestStart, token).ConfigureAwait(false))
+                {
+                    // Restoring read models does not attach the live processors. Their
+                    // ordinary Start commands reload snapshots without resetting them.
+                    await AttachRestoredShortFrameAsync(contractId, date, frame, token).ConfigureAwait(false);
+                    return true;
+                }
+                if (!seedShortFrame)
+                {
+                    // Market structure needs the current bar and the preceding 20 completed bars.
+                    var structure = await reader.ReadAtAsync(contractId, frame, 21, cutoff, token).ConfigureAwait(false);
+                    if (structure.Length >= 21 && oldestObservation >= structure[^1].IntervalStartUtc)
+                    {
+                        RegimeDiscoverySignalCacheAdapter.RestoreBars(structure);
+                        return true;
+                    }
+                    if (structure.Length == 48)
+                        acquiredSeed = structure;
+                }
             }
         }
         var bars = acquiredSeed ?? await reader.ReadAtAsync(contractId, frame, 48, cutoff, token).ConfigureAwait(false);
@@ -229,24 +299,10 @@ public sealed class StoredSessionIndicatorWarmup(StoredSessionIndicatorSeedReade
 
         if (frame != TimeFrameType.Daily)
         {
-            await StageAsync("EMA.BATCH", async () =>
-            {
-                var id = new FuturesTradeSessionBarEntityId(bars[0].MarketSeriesIdentity, frame);
-                // Use the historical acquisition store. Minute OHLCV cannot
-                // supply the exact trade count required by the live publisher.
-                foreach (var bar in bars)
-                    _ = await ((IHistoricalObservationStore)databases.MarketDataDb).TryWriteObservationAsync(bar, token).ConfigureAwait(false);
-                // The normal EMA completion supplies the matching centerlines
-                // to Bollinger. Regime trend EMAs still use the Daily baseline.
-                Require(await actors.RequestAsync<SeedFuturesEmaSignalsCommand, FuturesTradeSessionBarEntityId>(new()
-                {
-                    CommandId = Guid.CreateVersion7(), PostEvents = true, EntityId = id, Observations = bars,
-                    Subject = new(ActorType.Command, SeedFuturesEmaSignalsCommand.Actor, SeedFuturesEmaSignalsCommand.Verb, id.Format())
-                }, token).ConfigureAwait(false));
-            }).ConfigureAwait(false);
+            await StageAsync("EMA.BB.BATCH", () => SeedBandStateAsync(contractId, frame, bars, token)).ConfigureAwait(false);
         }
 
-        if (await RestoreBollingerAsync(databases, contractId, date, frame, token, minimumBandAsOf).ConfigureAwait(false))
+        if (await AwaitBollingerAsync(databases, contractId, date, frame, minimumBandAsOf, token).ConfigureAwait(false))
             return true;
 
         logger.LogWarning("Stored {TimeFrame} Bollinger inputs for {ContractId} are not yet warm; initialization remains retryable.", frame, contractId);
@@ -274,6 +330,53 @@ public sealed class StoredSessionIndicatorWarmup(StoredSessionIndicatorSeedReade
         }
     }
 
+    /// <summary>Checks the retained RSI13/TDI dependency before bypassing historical initialization.</summary>
+    async Task<bool> HasCommittedShortFrameHistoryAsync(string contractId, DateOnly date, TimeFrameType frame,
+        DateTimeOffset minimumAsOf, CancellationToken token)
+    {
+        var rsi = await databases.MarketDataDb.GetLastFuturesRsiSignalAsync(contractId, date, frame, 13, token).ConfigureAwait(false);
+        var tdi = await databases.MarketDataDb.GetLastFuturesTdiSignalAsync(contractId, date, frame,
+            FuturesTdiConfiguration.StandardConfigurationId, token).ConfigureAwait(false);
+        return rsi is { IsWarm: true, Metadata.IsValid: true } && rsi.Metadata.MarketDataAsOfUtc >= minimumAsOf
+            && tdi is { SchemaVersion: >= 2 } && tdi.SourceEventTimestamp >= minimumAsOf.UtcDateTime;
+    }
+
+    /// <summary>Restarts live subscriptions using the aggregates' existing complete snapshots.</summary>
+    async Task AttachRestoredShortFrameAsync(string contractId, DateOnly date, TimeFrameType frame, CancellationToken token)
+    {
+        var activation = new FuturesIntradaySignalActivation(frame, new(contractId, date, frame, 13),
+            new(contractId, date, frame, 14), new(contractId, date, frame, 14), new(contractId, date, frame));
+        foreach (var period in new[] { 13, 14 })
+        {
+            var id = activation.Rsi with { PeriodLength = period };
+            Require(await actors.RequestAsync<StartFuturesRsiSignalCommand, FuturesRsiSignalEntityId>(new(id)
+            { CommandId = Guid.CreateVersion7(), PostEvents = true,
+                Subject = new(ActorType.Command, StartFuturesRsiSignalCommand.Actor, StartFuturesRsiSignalCommand.Verb, id.Format()) }, token).ConfigureAwait(false));
+        }
+        Require(await actors.RequestAsync<StartFuturesAdxSignalCommand, FuturesAdxSignalEntityId>(new(activation.Adx)
+        { CommandId = Guid.CreateVersion7(), PostEvents = true,
+            Subject = new(ActorType.Command, StartFuturesAdxSignalCommand.Actor, StartFuturesAdxSignalCommand.Verb, activation.Adx.Format()) }, token).ConfigureAwait(false));
+        Require(await actors.RequestAsync<StartFuturesAtrSignalCommand, FuturesAtrSignalEntityId>(new(activation.Atr)
+        { CommandId = Guid.CreateVersion7(), PostEvents = true,
+            Subject = new(ActorType.Command, StartFuturesAtrSignalCommand.Actor, StartFuturesAtrSignalCommand.Verb, activation.Atr.Format()) }, token).ConfigureAwait(false));
+        Require(await actors.RequestAsync<StartFuturesMacdSignalCommand, FuturesMacdSignalEntityId>(new(activation.Macd)
+        { CommandId = Guid.CreateVersion7(), PostEvents = true,
+            Subject = new(ActorType.Command, StartFuturesMacdSignalCommand.Actor, StartFuturesMacdSignalCommand.Verb, activation.Macd.Format()) }, token).ConfigureAwait(false));
+    }
+
+    /// <summary>Waits for the durable EMA completion/Bollinger projection instead of treating command acceptance as completion.</summary>
+    internal static async Task<bool> AwaitBollingerAsync(IDbContextFactory databases, string contractId, DateOnly date,
+        TimeFrameType frame, DateTimeOffset? minimumAsOf, CancellationToken token)
+    {
+        var deadline = System.Diagnostics.Stopwatch.StartNew();
+        do
+        {
+            if (await RestoreBollingerAsync(databases, contractId, date, frame, token, minimumAsOf).ConfigureAwait(false)) return true;
+            await Task.Delay(TimeSpan.FromMilliseconds(100), token).ConfigureAwait(false);
+        } while (deadline.Elapsed < TimeSpan.FromSeconds(5));
+        return false;
+    }
+
     /// <summary>Republishes committed warm observations independently of historical replay.</summary>
     async Task<DateTimeOffset?> RestoreCommittedIndicatorsAsync(IDbContextFactory databases, string contractId,
         DateOnly date, TimeFrameType frame, CancellationToken token)
@@ -296,9 +399,9 @@ public sealed class StoredSessionIndicatorWarmup(StoredSessionIndicatorSeedReade
         if (tdi is not null) RegimeDiscoverySignalCacheAdapter.Publish(tdi);
         var bandsRestored = await RestoreBollingerAsync(databases, contractId, date, frame, token).ConfigureAwait(false);
         if (!bandsRestored || !RegimeDiscoverySignalCacheAdapter.TryGetLatestBb(contractId, frame, out var bands)
-            || adx is not { IsWarm: true, Metadata: not null }
-            || atr is not { IsWarm: true, AtrRatio: not null, Metadata: not null }
-            || macd is not { IsWarm: true, Metadata: not null } || rsi is not { IsWarm: true, Metadata: not null })
+            || adx is not { IsWarm: true, Metadata.IsValid: true }
+            || atr is not { IsWarm: true, AtrRatio: not null, Metadata.IsValid: true }
+            || macd is not { IsWarm: true, Metadata.IsValid: true } || rsi is not { IsWarm: true, Metadata.IsValid: true })
             return null;
 
         // Warm observations from before the latest closed interval can be shown,
@@ -323,7 +426,7 @@ public sealed class StoredSessionIndicatorWarmup(StoredSessionIndicatorSeedReade
         if (frame == TimeFrameType.Daily && RegimeDiscoverySignalCacheAdapter.TryGetLatestBb(contractId, frame, out var baseline)
             && baseline is { IsWarm: true, Width20: > 0, Width20Ratio: > 0, Position20: not null, Metadata.IsValid: true }) return true;
         var signal = await databases.MarketDataDb.GetLatestFuturesBollingerBandSignalForTimeFrameAsync(
-            MarketSeriesIdentity.ForContract(contractId), date, frame, token).ConfigureAwait(false);
+            frame == TimeFrameType.Daily ? MarketSeriesIdentity.ForContract(contractId) : LiveIndicatorSeries(contractId), date, frame, token).ConfigureAwait(false);
         if (signal is not { IsWarm: true, Width20: > 0, Width20Ratio: > 0, Position20: not null, Metadata.IsValid: true }) return false;
         RegimeDiscoverySignalCacheAdapter.Publish(signal);
         return minimumAsOfUtc is null || signal.Metadata.MarketDataAsOfUtc >= minimumAsOfUtc;

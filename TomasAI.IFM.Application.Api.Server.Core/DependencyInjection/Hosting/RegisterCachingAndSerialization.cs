@@ -21,12 +21,10 @@ using Serilog;
 using Serilog.Events;
 using SimpleInjector;
 using SimpleInjector.Lifestyles;
-using StackExchange.Redis;
 using System.Buffers;
 using System.Reflection;
 using System.Text.Json.Serialization;
 using TomasAI.IFM.Application.Actor.Client;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Application.MarketData.Databento.Historical;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
@@ -98,7 +96,6 @@ using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.Actor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Development;
 using DomainApplicationActorAssembly = TomasAI.IFM.Domain.Application.Actor.ApplicationActorAssembly;
 using TomasAI.IFM.Framework.Caching;
-using TomasAI.IFM.Framework.Caching.Redis;
 using TomasAI.IFM.Framework.Messaging;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
@@ -161,11 +158,6 @@ public static partial class CoreServiceRegistration
         services.AddHttpClient();
         services.AddSingleton<TomasAI.IFM.Application.Api.Server.Core.Observability.HealthChecks.BackendDiagnosticReads>();
         services.AddSingleton<TomasAI.IFM.Application.Api.Server.Core.Observability.HealthChecks.ActorHealthSnapshotReader>();
-        var redisUri = config["IFM_TEST_REDIS_URL"] ?? config.GetValue<string>("AppSettings:RedisUri")!;
-        services.AddSingleton(sp => new TomasAI.IFM.Application.Api.Server.Core.HostedServices.RedisConnectionStartup(
-            redisUri, sp.GetRequiredService<ILogger<TomasAI.IFM.Application.Api.Server.Core.HostedServices.RedisConnectionStartup>>()));
-        services.AddHostedService(sp => sp.GetRequiredService<TomasAI.IFM.Application.Api.Server.Core.HostedServices.RedisConnectionStartup>());
-        services.AddSingleton<IRecoveryInfrastructureProbe, RedisRecoveryInfrastructureProbe>();
         services.AddSingleton<IRecoveryInfrastructureProbe, NatsRecoveryInfrastructureProbe>();
 
     }

@@ -38,13 +38,9 @@ public sealed partial class ApiServerLifecycle
     static async Task RunServerAsync(WebApplication app, string[] args, Microsoft.Extensions.Logging.ILogger logger, IApiFatalRecoveryShutdown? fatalRecoveryShutdown)
     {
         DevelopmentExecutionProjectionRecovery.Map(app);
-        using var redisDeadline = CancellationTokenSource.CreateLinkedTokenSource(app.Lifetime.ApplicationStopping);
-        redisDeadline.CancelAfter(TimeSpan.FromSeconds(30));
-        var redisReady = app.Services.GetRequiredService<TomasAI.IFM.Application.Api.Server.Core.HostedServices.RedisConnectionStartup>()
-            .GetAsync(redisDeadline.Token);
         if (EventLogQualification.Active is { } qualification)
         {
-            _ = await redisReady.ConfigureAwait(false);
+
             await app.Services.GetRequiredService<ApplicationSchemaInitializer>()
                 .InitializeAsync(CancellationToken.None);
             await qualification.InitializeCandidateAsync(CancellationToken.None);
@@ -53,7 +49,7 @@ public sealed partial class ApiServerLifecycle
         var preflightFailures = new System.Collections.Concurrent.ConcurrentQueue<Exception>();
         var configurationReady = false;
         await Task.WhenAll(
-            RunPreflightAsync("Redis connection", async () => { _ = await redisReady.ConfigureAwait(false); }),
+
             RunPreflightAsync("Aggregate checkpoint schema", async () =>
             {
                 using var schemaDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
@@ -62,7 +58,7 @@ public sealed partial class ApiServerLifecycle
             }),
             RunPreflightAsync("Broker order projection", async () =>
             {
-                _ = await redisReady.ConfigureAwait(false);
+
                 using var deadline = CancellationTokenSource.CreateLinkedTokenSource(app.Lifetime.ApplicationStopping);
                 deadline.CancelAfter(TimeSpan.FromSeconds(30));
                 var container = app.Services.GetRequiredService<SimpleInjector.Container>();
@@ -111,7 +107,7 @@ public sealed partial class ApiServerLifecycle
                 await new TomasAI.IFM.Application.Storage.ConfigurationDb.Schema.ConfigurationSchemaDb(
                     app.Services.GetRequiredService<TomasAI.IFM.Shared.Storage.IDbConnectionSettings>(),
                     app.Services.GetRequiredService<ILogger<TomasAI.IFM.Framework.Storage.DbProvider>>()).CreateAllAsync();
-                _ = await redisReady.ConfigureAwait(false);
+
                 var migratedParameters = await app.Services.GetRequiredService<TomasAI.IFM.Domain.Reference.ParameterSets.Migration.ParameterCatalogMigrationService>()
                     .ExecuteAsync(app.Lifetime.ApplicationStopping);
                 logger.LogInformation("Typed parameter catalog migration completed: {SourceFacts} source facts replayed", migratedParameters);

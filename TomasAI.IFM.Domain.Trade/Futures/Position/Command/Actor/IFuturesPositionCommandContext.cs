@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.Trade.Futures.Position.Command.State;
@@ -12,7 +11,6 @@ public interface IFuturesPositionCommandContext : ICommandActorContext<FuturesTr
 {
     IDbContextFactory DbFactory { get; }
 
-    IBlackboardService BlackboardService { get; }
 
     ILogger<FuturesTradePositionCommandActor> Logger { get; }
 

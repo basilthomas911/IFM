@@ -53,7 +53,7 @@ public static class FuturesRsiSignalStarted
                 if (e.RestoredSignal is { IsWarm: true, Metadata.IsValid: true } restored)
                 {
                     TomasAI.IFM.Domain.MarketData.Analytics.RegimeDiscovery.RegimeDiscoverySignalCacheAdapter.Publish(restored);
-                    context.BlackboardService.MarketDataAnalytics.FuturesRsiSignal.Set(e.EntityId, restored);
+
                 }
                 FuturesTradeSessionBarAttachmentRegistry<FuturesRsiSignalEntityId>.Attach(e.EntityId);
                 return true;

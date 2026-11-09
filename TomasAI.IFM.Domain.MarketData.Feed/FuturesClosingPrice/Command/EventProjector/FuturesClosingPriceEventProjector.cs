@@ -1,9 +1,8 @@
-﻿using TomasAI.IFM.Application.EventSourcing.Projections.MarketData;
+using TomasAI.IFM.Application.EventSourcing.Projections.MarketData;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using System.Collections.Immutable;
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
@@ -20,7 +19,7 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesClosingPrice.Command.EventPr
 public sealed class FuturesClosingPriceEventProjector(
     ICommandActorContext<FuturesClosingPriceCommandActor> actorContext,
     ILogger<FuturesClosingPriceEventProjector> logger, EventProjectorReliabilityOptions? reliabilityOptions = null)
-    : ConventionalEventProjector<FuturesClosingPriceCommandActor>(actorContext.DurableReplayQueue, actorContext.DbEventSource, actorContext.BlackboardService, logger, reliabilityOptions)
+    : ConventionalEventProjector<FuturesClosingPriceCommandActor>(actorContext.DurableReplayQueue, actorContext.DbEventSource, logger, reliabilityOptions)
 {
     readonly ImmutableArray<EventProjectionDescriptor> _descriptors =
     [

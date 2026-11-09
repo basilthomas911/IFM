@@ -11,7 +11,6 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Application.Storage.SecuritiesDb;
@@ -50,7 +49,7 @@ public sealed class DatabentoOptionStatisticsBackfill
             .Add("SecuritiesDbConnection", "Contact Points=localhost;Port=9042;Default Keyspace=securities_test_db", "System.Data.ScyllaDb");
         var factory = Substitute.For<IDbContextFactory>();
         var logger = Substitute.For<ILogger<DbProvider>>();
-        var db = new MarketDataDbContext(settings, factory, Substitute.For<IBlackboardService>(), Substitute.For<ISequenceIdGenerator>(), logger);
+        var db = new MarketDataDbContext(settings, factory, Substitute.For<ISequenceIdGenerator>(), logger);
         var securities = new SecuritiesDbContext(settings, factory, logger);
         factory.MarketDataDb.Returns(db);
         factory.SecuritiesDb.Returns(securities);

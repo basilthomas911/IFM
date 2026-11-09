@@ -21,6 +21,76 @@ namespace TomasAI.IFM.Application.MarketData.Rust.Host.Tests;
 /// <summary>Qualifies original minute coverage and the no-purchase ceiling in the actual native Host seed implementation.</summary>
 public sealed class NativeIndicatorSeedTests(ITestOutputHelper output)
 {
+    [Fact]
+    public async Task Cfe_history_uses_original_trades_from_both_publishers_instead_of_ambiguous_minute_bars()
+    {
+        var provider = Provider(0m);
+        provider.OpenRangeAsync(Arg.Any<HistoricalProviderRequest>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                var request = call.Arg<HistoricalProviderRequest>();
+                Assert.Equal(HistoricalDataSchema.Trades, request.Schema);
+                return new Reader(Enumerable.Range(0, (int)(request.EndUtc - request.StartUtc).TotalHours)
+                    .SelectMany(hour => new[]
+                    {
+                        new HistoricalProviderRecord { Kind = HistoricalProviderRecordKind.Trade, Symbol = "VXZ6", InstrumentId = "42", PublisherId = "105",
+                            EventTimestampUtc = request.StartUtc.AddHours(hour).AddSeconds(1), CloseOrPrice = 100, VolumeOrSize = 2, SourceSequence = 1 },
+                        new HistoricalProviderRecord { Kind = HistoricalProviderRecordKind.Trade, Symbol = "VXZ6", InstrumentId = "42", PublisherId = "106",
+                            EventTimestampUtc = request.StartUtc.AddHours(hour).AddSeconds(2), CloseOrPrice = 102, VolumeOrSize = 3, SourceSequence = 2 }
+                    }).ToArray());
+            });
+        var bars = await Create(provider, dataset: "XCBF.PITCH").ReadAsync(Contract, TimeFrameType.OneHour, default);
+        Assert.Equal(48, bars.Length);
+        Assert.All(bars, bar => { Assert.Equal(5, bar.Volume); Assert.Equal(2, bar.TradeCount); Assert.Equal(100, bar.Open); Assert.Equal(102, bar.Close); });
+        Assert.Single(provider.ReceivedCalls(), call => call.GetMethodInfo().Name == nameof(provider.OpenRangeAsync));
+    }
+
+    [Fact]
+    public async Task Cfe_history_splits_estimated_oversized_ranges_before_opening_bounded_streams()
+    {
+        var provider = Provider(0m);
+        provider.EstimateAsync(Arg.Any<HistoricalProviderRequest>(), Arg.Any<CancellationToken>()).Returns(call =>
+        {
+            var request = call.Arg<HistoricalProviderRequest>();
+            return new HistoricalProviderEstimate(0, 100, request.EndUtc - request.StartUtc > TimeSpan.FromDays(2) ? 500_000 : 100, Now);
+        });
+        provider.OpenRangeAsync(Arg.Any<HistoricalProviderRequest>(), Arg.Any<int>(), Arg.Any<CancellationToken>()).Returns(call =>
+        {
+            var request = call.Arg<HistoricalProviderRequest>();
+            Assert.True(request.EndUtc - request.StartUtc <= TimeSpan.FromDays(2));
+            return new Reader(Enumerable.Range(0, (int)(request.EndUtc - request.StartUtc).TotalHours).Select(hour => new HistoricalProviderRecord
+            {
+                Kind = HistoricalProviderRecordKind.Trade, Symbol = "VXZ6", InstrumentId = "42", PublisherId = "105",
+                EventTimestampUtc = request.StartUtc.AddHours(hour).AddSeconds(1), CloseOrPrice = 100, VolumeOrSize = 2, SourceSequence = hour + 1
+            }).ToArray());
+        });
+        var bars = await Create(provider, dataset: "XCBF.PITCH").ReadAsync(Contract, TimeFrameType.OneHour, default);
+        Assert.Equal(48, bars.Length);
+        Assert.Equal(2, provider.ReceivedCalls().Count(call => call.GetMethodInfo().Name == nameof(provider.OpenRangeAsync)));
+    }
+
+    [Fact]
+    public async Task Exact_historical_redelivery_does_not_double_count_original_minutes()
+    {
+        var provider = Provider(0m);
+        provider.OpenRangeAsync(Arg.Any<HistoricalProviderRequest>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(call => new Reader(Minutes(call.Arg<HistoricalProviderRequest>()).SelectMany(row => new[] { row, row with { SourceSequence = row.SourceSequence + 1 } }).ToArray()));
+        var bars = await Create(provider).ReadAsync(Contract, TimeFrameType.OneHour, default);
+        Assert.Equal(48, bars.Length);
+        Assert.All(bars, bar => Assert.Equal(600, bar.Volume));
+    }
+
+    [Fact]
+    public async Task Conflicting_historical_redelivery_remains_an_explicit_error_with_original_evidence()
+    {
+        var provider = Provider(0m);
+        provider.OpenRangeAsync(Arg.Any<HistoricalProviderRequest>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(call => new Reader(Minutes(call.Arg<HistoricalProviderRequest>()).SelectMany(row => new[] { row, row with { VolumeOrSize = 11 } }).ToArray()));
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => Create(provider).ReadAsync(Contract, TimeFrameType.OneHour, default));
+        Assert.Contains("Conflicting historical", error.Message);
+        Assert.Contains("instrument=42", error.Message);
+    }
+
     static readonly DateTimeOffset Now = new(2026, 11, 1, 22, 0, 0, TimeSpan.Zero);
     const string Contract = "ES20261218";
 
@@ -435,10 +505,10 @@ public sealed class NativeIndicatorSeedTests(ITestOutputHelper output)
     }
 
     static NativeFuturesSeedReplay Create(IMarketDataHistoricalProvider provider, IDbContextFactory? database = null,
-        INativeSeedReplaySource? replay = null, DateTimeOffset? now = null, string symbol = "ESZ6") => new(replay!, new()
+        INativeSeedReplaySource? replay = null, DateTimeOffset? now = null, string symbol = "ESZ6", string dataset = "GLBX.MDP3") => new(replay!, new()
     {
         FeedOptions = DatabentoFeedOptions.ForProfile(FeedDeploymentProfile.Development, "GLBX.MDP3") with { DataSource = FeedDataSourceMode.DatabentoLive },
-        Contracts = [new() { DomainContractId = "ES20261218", ProviderContractName = symbol, AssetTypeId = AssetTypeId.Futures, Dataset = "GLBX.MDP3" }]
+        Contracts = [new() { DomainContractId = "ES20261218", ProviderContractName = symbol, AssetTypeId = AssetTypeId.Futures, Dataset = dataset }]
     }, new CmeFuturesMarketSessionCalendar(), new Clock(now ?? Now), historical: provider, databases: database);
 
     static HistoricalProviderRecord[] Minutes(HistoricalProviderRequest request) => Enumerable.Range(0, (int)(request.EndUtc - request.StartUtc).TotalMinutes)

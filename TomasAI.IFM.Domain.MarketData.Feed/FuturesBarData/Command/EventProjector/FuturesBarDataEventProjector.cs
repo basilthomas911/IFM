@@ -1,10 +1,9 @@
-﻿using TomasAI.IFM.Application.EventSourcing.Projections.MarketData;
+using TomasAI.IFM.Application.EventSourcing.Projections.MarketData;
 using System.Collections.Immutable;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Shared.EventSourcing;
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
@@ -19,7 +18,7 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Command.EventProject
 public sealed class FuturesBarDataEventProjector(
     ICommandActorContext<FuturesBarDataCommandActor> actorContext,
     ILogger<FuturesBarDataEventProjector> logger, EventProjectorReliabilityOptions? reliabilityOptions = null)
-    : ConventionalEventProjector<FuturesBarDataCommandActor>(actorContext.DurableReplayQueue, actorContext.DbEventSource, actorContext.BlackboardService, logger, reliabilityOptions)
+    : ConventionalEventProjector<FuturesBarDataCommandActor>(actorContext.DurableReplayQueue, actorContext.DbEventSource, logger, reliabilityOptions)
 {
     readonly ImmutableArray<EventProjectionDescriptor> _descriptors =
     [

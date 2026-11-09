@@ -2,7 +2,6 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Framework.Caching;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Shared.EventModelActor;

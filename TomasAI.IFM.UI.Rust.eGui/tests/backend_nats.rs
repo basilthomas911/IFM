@@ -4139,11 +4139,16 @@ async fn operational_health_closed_market_uses_independent_api_clock() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let endpoint = format!("http://{}/health", listener.local_addr().unwrap());
     let worker = std::thread::spawn(move || {
+        for _ in 0..2 {
         let (mut stream, _) = listener.accept().unwrap();
         let mut buffer = [0u8; 4096];
-        stream.read(&mut buffer).unwrap();
+        let count = stream.read(&mut buffer).unwrap();
         let body = r#"{"schemaVersion":1,"revision":1,"observedOnUtc":"2000-01-03T12:30:00Z","overallStatus":"Inactive","sessionState":"Closed","valueDate":null,"stages":[{"stage":"Actor routing/API","status":"Green","required":true,"reasonCode":"Healthy","reason":"API remains available"}],"datasets":[]}"#;
+        let body = if String::from_utf8_lossy(&buffer[..count]).starts_with("GET /health/ready ") {
+            r#"{"entries":{"market_data_indicators":{"data":{"state":"ScheduledStopped","auditedAtUtc":null,"entries":[]}}}}"#
+        } else { body };
         write!(stream,"HTTP/1.1 200 OK\r\nX-IFM-Server-Utc: 2000-01-03T12:30:00Z\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",body.len()).unwrap();
+        }
     });
     let backend = Backend::connect(Settings {
         url: std::env::var("IFM_STANDALONE_TEST_NATS_URL").unwrap(),

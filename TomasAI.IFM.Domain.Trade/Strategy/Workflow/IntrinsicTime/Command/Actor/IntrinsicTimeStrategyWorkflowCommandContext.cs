@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.State;
@@ -21,10 +20,10 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandContext : CommandActorCo
     readonly Lazy<IEventSourceActorStateRepository<IntrinsicTimeStrategyWorkflowCommandState>> _stateRepository;
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "This typed context adapts services for its actor and intentionally retains the actor logger category.")]
     /// <summary>Initializes the workflow Command context and its readonly application dependencies.</summary>
-    public IntrinsicTimeStrategyWorkflowCommandContext(IActorSupervisor supervisor, IDbContextFactory dbFactory, IBlackboardService blackboardService, RegimeDiscoveryExecutionOptions executionOptions, IntrinsicTimeStrategyWorkflowOptions workflowOptions, ILogger<IntrinsicTimeStrategyWorkflowCommandActor> logger) : base(supervisor, new ActorMailboxId(ActorType.Command, IntrinsicTimeStrategyWorkflowCommandActor.ActorName))
+    public IntrinsicTimeStrategyWorkflowCommandContext(IActorSupervisor supervisor, IDbContextFactory dbFactory, RegimeDiscoveryExecutionOptions executionOptions, IntrinsicTimeStrategyWorkflowOptions workflowOptions, ILogger<IntrinsicTimeStrategyWorkflowCommandActor> logger) : base(supervisor, new ActorMailboxId(ActorType.Command, IntrinsicTimeStrategyWorkflowCommandActor.ActorName))
     {
         DbFactory = IsArgumentNull.Set(dbFactory);
-        BlackboardService = IsArgumentNull.Set(blackboardService);
+
         TimeProvider = TimeProvider.System;
         ExecutionOptions = IsArgumentNull.Set(executionOptions);
         WorkflowStartsEnabled = IsArgumentNull.Set(workflowOptions).Enabled;
@@ -40,7 +39,7 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandContext : CommandActorCo
     /// <inheritdoc/>
     public IDbContextFactory DbFactory { get; }
     /// <inheritdoc/>
-    public IBlackboardService BlackboardService { get; }
+
     /// <inheritdoc/>
     public TimeProvider TimeProvider { get; }
     /// <inheritdoc/>

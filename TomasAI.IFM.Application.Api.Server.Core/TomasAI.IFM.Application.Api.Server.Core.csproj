@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 <ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.EventSourcing/TomasAI.IFM.Application.EventSourcing.csproj" /></ItemGroup>
   <ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.ServerManager.Contracts/TomasAI.IFM.Application.ServerManager.Contracts.csproj" /></ItemGroup>
 <PropertyGroup><TargetFramework>net10.0</TargetFramework><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings><GenerateDocumentationFile>true</GenerateDocumentationFile><NoWarn>$(NoWarn);CS1591</NoWarn></PropertyGroup>
@@ -18,7 +18,7 @@
 		<PackageReference Include="SimpleInjector.Integration.AspNetCore" Version="5.5.0" />
 		<PackageReference Include="Swashbuckle.AspNetCore" Version="10.2.3" />
 		<PackageReference Include="Swashbuckle.AspNetCore.Annotations" Version="10.2.3" />
-		    <PackageReference Include="StackExchange.Redis" Version="3.0.17" />
+
 			</ItemGroup>
 <ItemGroup>
 		<ProjectReference Include="..\TomasAI.IFM.Application.Actor.Client\TomasAI.IFM.Application.Actor.csproj" />

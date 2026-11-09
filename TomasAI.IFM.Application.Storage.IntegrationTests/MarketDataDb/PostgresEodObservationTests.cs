@@ -27,7 +27,6 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using NSubstitute;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage.MarketDataDb.Schema;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
@@ -58,8 +57,8 @@ public sealed class PostgresEodObservationTests
         await new MarketDataSchemaDb(settings, NullLogger<DbProvider>.Instance).CreateAllAsync();
         var repositories = new Dictionary<Type, IObjectRepository>();
         var factory = new DbContextFactory(new DbContextResolver(type => repositories[type]));
-        var board = new BlackboardService(Substitute.For<IRedisCache>(), new SystemTextJsonSerializer());
-        var db = new Storage.MarketDataDb.MarketDataDbContext(settings, factory, board, Substitute.For<ISequenceIdGenerator>(), NullLogger<DbProvider>.Instance);
+
+        var db = new Storage.MarketDataDb.MarketDataDbContext(settings, factory, Substitute.For<ISequenceIdGenerator>(), NullLogger<DbProvider>.Instance);
         repositories.Add(typeof(IObjectRepository<Storage.MarketDataDb.MarketDataDbContext>), db);
         var date = new DateOnly(2026, 11, 2);
         var first = SampleData.FuturesItiSignal1 with
@@ -114,8 +113,8 @@ public sealed class PostgresEodObservationTests
         await new MarketDataSchemaDb(settings, NullLogger<DbProvider>.Instance).CreateAllAsync();
         var repositories = new Dictionary<Type, IObjectRepository>();
         var factory = new DbContextFactory(new DbContextResolver(type => repositories[type]));
-        var board = new BlackboardService(Substitute.For<IRedisCache>(), new SystemTextJsonSerializer());
-        var db = new Storage.MarketDataDb.MarketDataDbContext(settings, factory, board, Substitute.For<ISequenceIdGenerator>(), NullLogger<DbProvider>.Instance);
+
+        var db = new Storage.MarketDataDb.MarketDataDbContext(settings, factory, Substitute.For<ISequenceIdGenerator>(), NullLogger<DbProvider>.Instance);
         repositories.Add(typeof(IObjectRepository<Storage.MarketDataDb.MarketDataDbContext>), db);
         var timestamp = new DateTime(2026, 10, 13, 7, 33, 30, DateTimeKind.Utc).AddMilliseconds(482);
         var original = new EconomicCalendarReadModel(timestamp, "US", "Precision regression", "1", "2", "3", timestamp, "Test");
@@ -424,7 +423,7 @@ public sealed class PostgresEodObservationTests
         var repositories = new Dictionary<Type,IObjectRepository>();
         var factory = new DbContextFactory(new DbContextResolver(type => repositories[type]));
         var db = new Storage.MarketDataDb.MarketDataDbContext(settings,factory,
-            new BlackboardService(Substitute.For<IRedisCache>(),new SystemTextJsonSerializer()),
+
             Substitute.For<ISequenceIdGenerator>(),NullLogger<DbProvider>.Instance);
         repositories.Add(typeof(IObjectRepository<Storage.MarketDataDb.MarketDataDbContext>),db);
         var transactions = new PostgresEventTransaction(settings);
@@ -513,10 +512,10 @@ public sealed class PostgresEodObservationTests
         await new MarketDataSchemaDb(settings, NullLogger<DbProvider>.Instance).CreateAllAsync();
         var repositories = new Dictionary<Type, IObjectRepository>();
         var factory = new DbContextFactory(new DbContextResolver(type => repositories[type]));
-        var board = new BlackboardService(Substitute.For<IRedisCache>(), new SystemTextJsonSerializer());
+
         var observationIds = Substitute.For<ISequenceIdGenerator>();
         observationIds.GetSequenceIdAsync(SequenceName.FuturesOptionTickPriceData_TickId).Returns(100L, 101L);
-        var db = new Storage.MarketDataDb.MarketDataDbContext(settings, factory, board,
+        var db = new Storage.MarketDataDb.MarketDataDbContext(settings, factory,
             observationIds, NullLogger<DbProvider>.Instance);
         repositories.Add(typeof(IObjectRepository<Storage.MarketDataDb.MarketDataDbContext>), db);
         await VerifyReferenceCatalogAsync(infrastructure.PostgresConnectionString, factory, repositories);

@@ -33,6 +33,13 @@ internal static class MonitorFixtures{
   Field("<EstablishedTrade>k__BackingField",Trade);Field("_fundOrderTrade",new PortfolioFundOrderTradeEditorModel{TradeType=TradeType.ShortIronCondor});
   Field("_positionHistoryRows",new Dictionary<(DateOnly,StrategyPositionPhase),StrategyPositionSnapshot>());Field("_savedCurrencySnapshots",new Dictionary<DateOnly,IronCondorTradePlanSnapshot>());Field("_tradeHistory",new List<TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradeHistoryReadModel>());
   foreach(var input in inputs)type.GetMethod("RememberPositionHistory",flags)!.Invoke(vm,[input]);type.GetMethod("PublishPositionHistory",flags)!.Invoke(vm,null);
-  FixtureFiles.WriteAllBytes(Path.Combine(output,"monitor-position-rows.msgpack"),BridgeDocument.Encode(((IronCondorViewModel)vm).TradeHistory,camelCase:true,enumNames:true));
+  // The native grid also exposes cumulative financial columns. These historical
+  // synthetic inputs contain no cumulative valuation, so those cells stay empty.
+  var rows=((IronCondorViewModel)vm).TradeHistory.Select(row=>{
+   var map=BridgeDocument.Map(row,camelCase:true,enumNames:true);
+   map["realizedPnl"]=null;map["totalCommission"]=null;map["netPnl"]=null;
+   return map;
+  }).ToArray();
+  FixtureFiles.WriteAllBytes(Path.Combine(output,"monitor-position-rows.msgpack"),BridgeDocument.Encode(rows));
  }
 }

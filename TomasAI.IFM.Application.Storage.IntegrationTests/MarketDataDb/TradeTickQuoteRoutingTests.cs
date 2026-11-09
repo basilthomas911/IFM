@@ -9,7 +9,6 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage.TradeTickQuoteDb;
 using TomasAI.IFM.Application.Storage.TradeTickQuoteDb.Schema;
 using TomasAI.IFM.Framework.Caching;
@@ -42,8 +41,8 @@ public sealed class TradeTickQuoteRoutingTests
             [typeof(IObjectRepository<TradeTickQuoteDbContext>)] = raw
         };
         var factory = new DbContextFactory(new DbContextResolver(type => repositories[type]));
-        var board = new BlackboardService(Substitute.For<IRedisCache>(), new SystemTextJsonSerializer());
-        var market = new Storage.MarketDataDb.MarketDataDbContext(settings, factory, board,
+
+        var market = new Storage.MarketDataDb.MarketDataDbContext(settings, factory,
             Substitute.For<ISequenceIdGenerator>(), logger);
         // No MarketData schema or factory repository exists: any accidental raw PostgreSQL access fails.
         var date = new DateOnly(2026, 10, 7);

@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Logging;
 using NSubstitute;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.SequenceIdDb;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
@@ -21,7 +20,7 @@ public class MarketDataFeedFixture : IDisposable
     public IMarketDataDbContext MarketDataDb { get; private set; }
     public SequenceIdDbContext SeqIdDatabase { get; private set; }
     public ISequenceIdGenerator SequenceIdGenerator { get; private set; }
-    public IBlackboardService BlackboardService { get; private set; }
+
     public MarketDataFeedFixture()
     {
         SetSeqIdDatabase();
@@ -43,13 +42,11 @@ public class MarketDataFeedFixture : IDisposable
         var dbFactory = new DbContextFactory(dbResolver);
         var marketDataDbLogger = Substitute.For<ILogger<DbProvider>>();
         marketDataDbLogger.When(_ => { }).Do(_ => { });
-        var redisCahe = Substitute.For<IRedisCache>();
-        redisCahe.When(_ => { }).Do(_ => { });
-        var blackboardService = new BlackboardService(redisCahe, new SystemTextJsonSerializer());
-        BlackboardService = blackboardService;
+
+
         var logger = Substitute.For<ILogger<DbProvider>>();
         logger.When(_ => { }).Do(_ => { });
-        diContainer.Add(typeof(IObjectRepository<MarketDataDbContext>), new MarketDataDbContext(dbConn, dbFactory, blackboardService, SequenceIdGenerator, logger));
+        diContainer.Add(typeof(IObjectRepository<MarketDataDbContext>), new MarketDataDbContext(dbConn, dbFactory, SequenceIdGenerator, logger));
         diContainer.Add(typeof(IObjectRepository<TradeTickQuoteDbContext>), new TradeTickQuoteDbContext(dbConn, logger));
         DbFactory = dbFactory;
         MarketDataDb = dbFactory.MarketDataDb as IMarketDataDbContext;

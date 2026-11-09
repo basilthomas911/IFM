@@ -97,7 +97,7 @@ impl HealthClient {
         maximum: usize,
         deadline: tokio::time::Instant,
     ) -> Result<HealthObservation, String> {
-        self.get_observation_inner(endpoint, maximum, deadline)
+        self.get_observation_inner(endpoint, maximum, deadline, false)
             .await
             .map_err(|error| audit_failure("GET", endpoint, error))
     }
@@ -110,18 +110,29 @@ impl HealthClient {
         maximum: usize,
         deadline: tokio::time::Instant,
     ) -> Result<HealthObservation<T>, String> {
-        self.get_observation_inner(endpoint, maximum, deadline)
+        self.get_observation_inner(endpoint, maximum, deadline, false)
             .await
             .map_err(|error| audit_failure("GET", endpoint, error))
     }
 
 
-    /// Reads the bounded HTTP health response using the selected decoder.
+    /// Reads the API's structured readiness report even when it correctly returns HTTP 503.
+    pub async fn get_readiness_observation<T: serde::de::DeserializeOwned>(
+        &self,
+        endpoint: &str,
+        maximum: usize,
+        deadline: tokio::time::Instant,
+    ) -> Result<HealthObservation<T>, String> {
+        self.get_observation_inner(endpoint, maximum, deadline, true).await
+    }
+
+
     async fn get_observation_inner<T: serde::de::DeserializeOwned>(
         &self,
         endpoint: &str,
         maximum: usize,
         deadline: tokio::time::Instant,
+        readiness: bool,
     ) -> Result<HealthObservation<T>, String> {
         let url = reqwest::Url::parse(endpoint).map_err(|_| "Invalid health endpoint")?;
         if !matches!(url.scheme(), "http" | "https") {
@@ -134,7 +145,8 @@ impl HealthClient {
                     error.without_url()
                 )
             })?;
-            if response.status() != reqwest::StatusCode::OK {
+            if response.status() != reqwest::StatusCode::OK
+                && !(readiness && response.status() == reqwest::StatusCode::SERVICE_UNAVAILABLE) {
                 return Err(format!(
                     "Health unavailable (HTTP {})",
                     response.status().as_u16()

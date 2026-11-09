@@ -1,7 +1,6 @@
 using Npgsql;
 using NATS.Client.JetStream;
 using NATS.Client.JetStream.Models;
-using StackExchange.Redis;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Framework.Storage.Postgres;
 using TomasAI.IFM.Framework.Storage.ScyllaDb;
@@ -43,37 +42,6 @@ public sealed class NatsRecoveryInfrastructureProbe(
             .ConfigureAwait(false);
         acknowledgement.EnsureSuccess();
         return new(Name, Kind, true, "Shared connection and isolated JetStream publish acknowledgement succeeded.");
-    }
-}
-
-/// <summary>Checks an isolated expiring Redis write/read and removes the probe key.</summary>
-public sealed class RedisRecoveryInfrastructureProbe(TomasAI.IFM.Application.Api.Server.Core.HostedServices.RedisConnectionStartup connections)
-    : IRecoveryInfrastructureProbe
-{
-    public string Name => "Redis";
-    public RecoveryInfrastructureKind Kind => RecoveryInfrastructureKind.Redis;
-
-    public async Task<RecoveryProbeResult> CheckAsync(CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        var connection = await connections.GetAsync(cancellationToken).ConfigureAwait(false);
-        var database = connection.GetDatabase();
-        var key = (RedisKey)("ifm:recovery:probe:" + Guid.NewGuid().ToString("N"));
-        var value = Guid.NewGuid().ToString("N");
-        try
-        {
-            if (!await database.StringSetAsync(key, value, TimeSpan.FromSeconds(30)).WaitAsync(cancellationToken)
-                    .ConfigureAwait(false))
-                return new(Name, Kind, false, "Isolated Redis probe write was rejected.");
-            var read = await database.StringGetAsync(key).WaitAsync(cancellationToken).ConfigureAwait(false);
-            return new(Name, Kind, read == value,
-                read == value ? "Isolated expiring Redis write/read succeeded." : "Redis readback differed.");
-        }
-        finally
-        {
-            try { await database.KeyDeleteAsync(key).WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false); }
-            catch (Exception) { /* The probe key expires independently. */ }
-        }
     }
 }
 

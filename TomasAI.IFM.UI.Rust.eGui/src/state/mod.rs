@@ -5,6 +5,7 @@ pub mod database_backup;
 pub mod futures_contract;
 pub mod lookup;
 pub mod operations_health;
+pub mod indicator_health;
 pub mod option_contract;
 pub mod parameters;
 pub mod portfolio;

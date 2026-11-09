@@ -3,7 +3,6 @@ using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.MarketData.Feed.Event.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.Command.Extensions;
 using NATS.Client.Core;
-using TomasAI.IFM.Application.Blackboard;
 using global::TomasAI.IFM.Shared.EventModelActor;
 using global::TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -28,7 +27,6 @@ public class MarketDataFeedEventActor(IEventActorContext<MarketDataFeedEventActo
     readonly MarketDataFeedEventParameters _eventParameters = new(
         ((IMarketDataFeedEventContext)actorContext).MarketDataLifecycle,
         ((IMarketDataFeedEventContext)actorContext).OptionTradeLiveFeedMap,
-        ((IMarketDataFeedEventContext)actorContext).BlackboardService,
         ((IMarketDataFeedEventContext)actorContext).StatusConsoleWriter, actorContext.Logger);
     readonly IReadOnlyDictionary<Type, Func<IEvent, IMarketDataFeedEventContext, IEventActorContext, IEventActorContext, MarketDataFeedEventParameters, ILogger<MarketDataFeedEventActor>, ValueTask<bool>>> _receiveMap = new Dictionary<Type, Func<IEvent, IMarketDataFeedEventContext, IEventActorContext, IEventActorContext, MarketDataFeedEventParameters, ILogger<MarketDataFeedEventActor>, ValueTask<bool>>>()
     {
@@ -72,7 +70,6 @@ public class MarketDataFeedEventActor(IEventActorContext<MarketDataFeedEventActo
     }
 
 
-
     /// <summary>
     /// Parses an incoming NATS message and resolves it to a corresponding event based on the message
     /// subject and verb.
@@ -113,7 +110,7 @@ public class MarketDataFeedEventActor(IEventActorContext<MarketDataFeedEventActo
         var receiveFunc = ResolveMappedEventHandler(@event, _receiveMap);
         _ = await (receiveFunc.Invoke(@event, EventContext, EventContext, EventContext, _eventParameters, _logger)).ConfigureAwait(false);
     }
-[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")] 
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]
     /// <summary>
     /// Handles an exception that occurs during event actor processing and returns a failed service result containing
     /// error details.

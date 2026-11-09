@@ -17,7 +17,7 @@ public sealed class TradeOrderEventProjector : ConventionalEventProjector<TradeO
 {
     readonly ITradeOrderCommandContext context;
     readonly ImmutableArray<EventProjectionDescriptor> descriptors;
-    public TradeOrderEventProjector(ICommandActorContext<TradeOrderCommandActor> actorContext, EventProjectorReliabilityOptions? options = null) : base(Typed(actorContext).DurableReplayQueue, Typed(actorContext).DbEventSource, Typed(actorContext).BlackboardService, Typed(actorContext).Logger, options)
+    public TradeOrderEventProjector(ICommandActorContext<TradeOrderCommandActor> actorContext, EventProjectorReliabilityOptions? options = null) : base(Typed(actorContext).DurableReplayQueue, Typed(actorContext).DbEventSource, Typed(actorContext).Logger, options)
     {
         context = Typed(actorContext);
         descriptors = [DescribeNotification<TradeOrderChangedEvent, TomasAI.IFM.Domain.Trade.Shared.TradeOrderId>(ProjectAsync, publishProcessingAfterApply: true).WithReadModelRebuild(async (source, token) => await context.DbFactory.TradeDb.UpsertTradeOrderAsync(((TradeOrderChangedEvent)source).TradeOrderDefinition, ((TradeOrderChangedEvent)source).ReceivedOn, token).ConfigureAwait(false))];

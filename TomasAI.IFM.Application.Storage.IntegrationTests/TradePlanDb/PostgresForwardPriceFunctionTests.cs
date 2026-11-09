@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using NATS.Client.Core;
 using NSubstitute;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
@@ -35,10 +34,9 @@ public sealed class PostgresForwardPriceFunctionTests(PostgresTradePlanFixture f
     public async Task Forward_function_commits_before_reply_and_plan_persists_signed_risk_or_zero_with_error(bool lossScenario, bool fail)
     {
         var databases = Substitute.For<IDbContextFactory>();
-        var blackboard = Substitute.For<IBlackboardService>();
-        blackboard.EventSourcing.EventStreamId.Returns(new EventStreamIdCacheModel(
-            Substitute.For<TomasAI.IFM.Framework.Caching.IRedisCache>(),new TomasAI.IFM.Framework.Serialization.SystemTextJsonSerializer()));
-        await using var source = new EventSourceActorDbContext(fixture.Settings,databases,blackboard,NullLogger<DbProvider>.Instance);
+
+
+        await using var source = new EventSourceActorDbContext(fixture.Settings,databases,NullLogger<DbProvider>.Instance);
         databases.ActorEventSourceDb.Returns(source); databases.TradePlanDb.Returns(fixture.Plans);
         var forwardRepository = new IronCondorForwardPriceFunctionStateRepository(Substitute.For<IEventSourceActorStateFactory>(),source,
             Substitute.For<IActorService>(),NullLogger<IronCondorForwardPriceFunctionStateRepository>.Instance);

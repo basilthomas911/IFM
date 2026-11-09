@@ -1,7 +1,6 @@
 using System.Reflection;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
@@ -84,7 +83,7 @@ public sealed class DownloadLogVerificationTests
         ctx.Logger.Returns(NullLogger<DownloadLogCommandActor>.Instance); ctx.DbFactory.Returns(factory);
         ctx.DbEventSource.Returns(Substitute.For<IEventSourceActorDbContext>());
         ctx.DurableReplayQueue.Returns(Substitute.For<IDurableReplayQueue>());
-        ctx.BlackboardService.Returns(Substitute.For<IBlackboardService>());
+
         return ctx;
     }
 

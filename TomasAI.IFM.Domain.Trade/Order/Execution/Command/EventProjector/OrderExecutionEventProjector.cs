@@ -26,7 +26,7 @@ public sealed class OrderExecutionEventProjector : ConventionalEventProjector<Or
 {
     readonly IOrderExecutionCommandContext context;
     readonly ImmutableArray<EventProjectionDescriptor> descriptors;
-    public OrderExecutionEventProjector(ICommandActorContext<OrderExecutionCommandActor> actorContext, EventProjectorReliabilityOptions? options = null) : base(Typed(actorContext).DurableReplayQueue, Typed(actorContext).DbEventSource, Typed(actorContext).BlackboardService, Typed(actorContext).Logger, options)
+    public OrderExecutionEventProjector(ICommandActorContext<OrderExecutionCommandActor> actorContext, EventProjectorReliabilityOptions? options = null) : base(Typed(actorContext).DurableReplayQueue, Typed(actorContext).DbEventSource, Typed(actorContext).Logger, options)
     {
         context = Typed(actorContext);
         descriptors = [DescribeNotification<OrderExecutionChangedEvent, OrderExecutionId>(ProjectAsync, publishProcessingAfterApply: true).WithReadModelRebuild(async (source, token) => await context.DbFactory.TradeDb.UpsertOrderExecutionAsync(((OrderExecutionChangedEvent)source).OrderExecutionDefinition, token).ConfigureAwait(false))];

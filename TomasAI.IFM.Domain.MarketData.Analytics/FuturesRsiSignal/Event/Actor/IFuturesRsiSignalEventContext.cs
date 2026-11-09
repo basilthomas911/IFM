@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -24,6 +23,6 @@ public interface IFuturesRsiSignalEventContext : IEventActorContext<FuturesRsiSi
     IStatusConsoleWriter StatusConsoleWriter { get; }
     /// <summary>Gets the Logger service supplied to the actor context.</summary>
     ILogger<FuturesRsiSignalEventActor> Logger { get; }
-    /// <summary>Gets the BlackboardService service supplied to the actor context.</summary>
-    IBlackboardService BlackboardService { get; }
+
+
 }

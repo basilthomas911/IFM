@@ -1278,15 +1278,9 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
             cancellationToken.ThrowIfCancellationRequested();
             var model = _appRoot.Services.TradeQueries;
             await model.GetOptionTradeSpreadBarDataAsync(orderId, tradeId, tradeType, valueDate, startDate, endDate,
-                async optionTradeSpreadBarData =>
+                optionTradeSpreadBarData =>
                 {
-                    await model.GetIronCondorMDILimitAsync(orderId, tradeId, valueDate, ironCondorMDILimit =>
-                    {
-                        var optionTradeSpreadBarUIData = optionTradeSpreadBarData
-                            .Select(e => new OptionTradeSpreadBarUIViewModel(e, ironCondorMDILimit))
-                            .ToArray();
-                        SpreadBarData = optionTradeSpreadBarUIData;
-                    });
+                    SpreadBarData = optionTradeSpreadBarData.Select(e => new OptionTradeSpreadBarUIViewModel(e)).ToArray();
                 });
         });
 
@@ -1440,7 +1434,6 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
                     _valueDate = valueDate;
                 });
             });
-
 
 
         Task EnableTradeLiveFeed()

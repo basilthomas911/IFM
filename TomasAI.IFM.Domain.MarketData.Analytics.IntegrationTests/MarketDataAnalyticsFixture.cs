@@ -1,8 +1,6 @@
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
-using StackExchange.Redis;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.SequenceIdDb;
@@ -11,7 +9,6 @@ using TomasAI.IFM.Application.Storage.MarketDataDb.Schema;
 using TomasAI.IFM.Application.Storage.SecuritiesDb;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal;
 using TomasAI.IFM.Framework.Caching;
-using TomasAI.IFM.Framework.Caching.Redis;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Serializers;
 using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Framework.SequenceId.Postgres;
@@ -28,7 +25,7 @@ public class MarketDataAnalyticsFixture : IDisposable
     public IMarketDataDbContext MarketDataDb { get; private set; }
     public SequenceIdDbContext SeqIdDatabase { get; private set; }
     public ISequenceIdGenerator SequenceIdGenerator { get; private set; }
-    public IBlackboardService BlackboardService { get; private set; }
+
     public EventSourceActorDbContext ActorEventSourceDb { get; private set; }
 
 
@@ -49,14 +46,12 @@ public class MarketDataAnalyticsFixture : IDisposable
         var dbFactory = new DbContextFactory(dbResolver);
         var marketDataDbLogger = Substitute.For<ILogger<DbProvider>>();
         marketDataDbLogger.When(_ => { }).Do(_ => { });
-        var redisCahe = Substitute.For<IRedisCache>();
-        redisCahe.When(_ => { }).Do(_ => { });
-        var blackboardService = new BlackboardService(redisCahe, new SystemTextJsonSerializer());
-        BlackboardService = blackboardService;
+
+
         var logger = Substitute.For<ILogger<DbProvider>>();
         logger.When(_ => { }).Do(_ => { });
         new MarketDataSchemaDb(dbConn, logger).CreateAllAsync().GetAwaiter().GetResult();
-        diContainer.Add(typeof(IObjectRepository<MarketDataDbContext>), new MarketDataDbContext(dbConn, dbFactory, blackboardService, SequenceIdGenerator, logger));
+        diContainer.Add(typeof(IObjectRepository<MarketDataDbContext>), new MarketDataDbContext(dbConn, dbFactory, SequenceIdGenerator, logger));
         diContainer.Add(typeof(IObjectRepository<SecuritiesDbContext>), SeqIdDatabase);
         DbFactory = dbFactory;
         MarketDataDb = (dbFactory.MarketDataDb as IMarketDataDbContext)!;
@@ -88,13 +83,11 @@ public class MarketDataAnalyticsFixture : IDisposable
         var dbResolver = new DbContextResolver(repoType => diContainer[repoType]);
         var logger = Substitute.For<ILogger<DbProvider>>();
         logger.When(_ => { }).Do(_ => { });
-        var redisUri = Environment.GetEnvironmentVariable("IFM_TEST_REDIS_URL") ?? "localhost:6379";
-        var connMultiplexer = ConnectionMultiplexer.Connect(redisUri);
-        var redisCache = new RedisCache(connMultiplexer);
-        var blackboardService = new BlackboardService(redisCache, new SystemTextJsonSerializer());
+
+
         var dbFactory = new DbContextFactory(dbResolver);
         var dbCache = new DbCache();
-        diContainer.Add(typeof(IObjectRepository<EventSourceActorDbContext>), new EventSourceActorDbContext(dbConn, dbFactory, blackboardService, logger));
+        diContainer.Add(typeof(IObjectRepository<EventSourceActorDbContext>), new EventSourceActorDbContext(dbConn, dbFactory, logger));
         ActorEventSourceDb = (dbFactory.ActorEventSourceDb as EventSourceActorDbContext)!;
     }
     public void Dispose()

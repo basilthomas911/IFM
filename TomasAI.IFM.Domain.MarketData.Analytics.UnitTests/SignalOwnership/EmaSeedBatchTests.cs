@@ -14,6 +14,42 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.SignalOwnership;
 
 public sealed class EmaSeedBatchTests
 {
+    [Fact]
+    public void Late_history_repair_rebuilds_cold_prefix_without_regressing_newer_live_state()
+    {
+        var bars = Enumerable.Range(1, 48).Select(index => Bar(index, 5000 + index / 4m)).ToArray();
+        var state = new FuturesEmaSignalCommandState();
+        var seed = Seed(bars);
+        foreach (var bar in bars.TakeLast(17))
+            Assert.True(new GenerateFuturesEmaSignalCommand { CommandId = Guid.NewGuid(), EntityId = seed.EntityId,
+                Subject = seed.Subject with { Verb = GenerateFuturesEmaSignalCommand.Verb }, Observation = bar }.Execute(state).Success);
+        Assert.Equal(17, state.FuturesEmaCheckpoint!.Count);
+        Assert.True(seed.Execute(state).Success);
+        Assert.Equal(48, state.FuturesEmaCheckpoint!.Count);
+        Assert.NotNull(state.FuturesEmaCheckpoint.Ema20);
+        Assert.True(seed.Execute(state).Success);
+        Assert.Equal(48, state.FuturesEmaCheckpoint.Count);
+    }
+
+    [Fact]
+    public void Bollinger_seed_creates_full_state_and_retries_do_not_append_duplicate_events()
+    {
+        var bars = Enumerable.Range(1, 48).Select(index => Bar(index, 5000 + index / 4m)).ToArray();
+        var ema = Seed(bars);
+        var seed = new SeedFuturesBbSignalsCommand { CommandId = Guid.NewGuid(), EntityId = ema.EntityId,
+            Subject = new(ActorType.Command, SeedFuturesBbSignalsCommand.Actor, SeedFuturesBbSignalsCommand.Verb, ema.EntityId.Format()), Observations = bars };
+        var state = new TomasAI.IFM.Domain.MarketData.Analytics.FuturesBbSignal.Command.State.FuturesBbSignalCommandState();
+        Assert.True(TomasAI.IFM.Domain.MarketData.Analytics.FuturesBbSignal.Command.SeedFuturesBbSignals.Execute(seed, state).Success);
+        Assert.True(state.FuturesBbSignal!.IsWarm);
+        Assert.Equal(20, state.FuturesBbCheckpoint!.Closes.Length);
+        Assert.Equal(20, state.FuturesBbCheckpoint.CompletedWidths20.Length);
+        var count = state.Events.Count();
+        Assert.True(TomasAI.IFM.Domain.MarketData.Analytics.FuturesBbSignal.Command.SeedFuturesBbSignals.Execute(seed, state).Success);
+        Assert.Equal(count, state.Events.Count());
+        var restored = MessagePackBinarySerializer.Shared.Deserialize<SeedFuturesBbSignalsCommand>(MessagePackBinarySerializer.Shared.Serialize(seed)!)!;
+        Assert.Equal(48, restored.Observations.Length);
+    }
+
     [Theory]
     [InlineData(21)]
     [InlineData(48)]

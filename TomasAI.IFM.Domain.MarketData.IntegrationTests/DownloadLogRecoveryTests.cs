@@ -102,6 +102,13 @@ public sealed class DownloadLogRecoveryTests(MarketDataFixture fixture) : IClass
         target.InsertMarketDataDownloadLogAsync(Arg.Any<MarketDataDownloadOutcome>(), Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(async call =>
             {
+                // Recovery also discovers earlier tests' durable markers. Inject
+                // this scenario's fault only into the current import operation.
+                if (call.Arg<MarketDataDownloadOutcome>().ImportCommandId != outcome.ImportCommandId)
+                {
+                    await fixture.MarketDataDb.InsertMarketDataDownloadLogAsync(call.Arg<MarketDataDownloadOutcome>(), call.Arg<Guid>(), call.Arg<string>(), call.Arg<CancellationToken>());
+                    return;
+                }
                 Interlocked.Increment(ref calls);
                 if (fault is "storage-outage" or "exhausted" && Volatile.Read(ref failing))
                 { attempted.TrySetResult(); throw new InvalidOperationException("Injected target unavailable"); }
@@ -181,7 +188,8 @@ public sealed class DownloadLogRecoveryTests(MarketDataFixture fixture) : IClass
     {
         var ctx = Substitute.For<IDownloadLogCommandContext>(); var factory = Substitute.For<IDbContextFactory>(); factory.MarketDataDb.Returns(target);
         ctx.DbFactory.Returns(factory); ctx.DurableReplayQueue.Returns(queue); ctx.DbEventSource.Returns(fixture.ActorEventSourceDb);
-        ctx.BlackboardService.Returns(fixture.BlackboardService); ctx.Logger.Returns(NullLogger<DownloadLogCommandActor>.Instance);
+
+        ctx.Logger.Returns(NullLogger<DownloadLogCommandActor>.Instance);
         ctx.ActorId.Returns(new ActorMailboxId(ActorType.Command, DownloadLogCommandActor.ActorName));
         return ctx;
     }

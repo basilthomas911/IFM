@@ -1,7 +1,6 @@
 using System.Collections.Frozen;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Realtime;
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Futures.Option;
@@ -33,7 +32,7 @@ public sealed class FuturesOptionTradeQueryActor(IQueryActorContext<FuturesOptio
         [GetTradePositionsQuery.Verb] = message => message.AsQuery<GetTradePositionsQuery, TradePositionReadModel[]>()!,
         [GetTradePositionTradeTypesQuery.Verb] = message => message.AsQuery<GetTradePositionTradeTypesQuery, string[]>()!,
         [GetTradePlanActionQuery.Verb] = message => message.AsQuery<GetTradePlanActionQuery, TradePlanActionReadModel[]>()!,
-        [GetIronCondorMDILimitQuery.Verb] = message => message.AsQuery<GetIronCondorMDILimitQuery, IronCondorMDILimitDataModel>()!,
+
         [GetTradeHistoryQuery.Verb] = message => message.AsQuery<GetTradeHistoryQuery, TradeHistoryReadModel[]>()!,
         [GetTradeLimitQuery.Verb] = message => message.AsQuery<GetTradeLimitQuery, TradeLimitReadModel>()!,
         [GetTradePositionQuery.Verb] = message => message.AsQuery<GetTradePositionQuery, TradePositionReadModel>()!,
@@ -110,11 +109,6 @@ public sealed class FuturesOptionTradeQueryActor(IQueryActorContext<FuturesOptio
         [typeof(GetTradePlanActionQuery)] = static async (context, query, token) =>
         {
             var result = await ((GetTradePlanActionQuery)query).ExecuteAsync(context, token).ConfigureAwait(false);
-            await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
-        },
-        [typeof(GetIronCondorMDILimitQuery)] = static async (context, query, token) =>
-        {
-            var result = await ((GetIronCondorMDILimitQuery)query).ExecuteAsync(context, token).ConfigureAwait(false);
             await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result).ConfigureAwait(false);
         },
         [typeof(GetTradeHistoryQuery)] = static async (context, query, token) =>

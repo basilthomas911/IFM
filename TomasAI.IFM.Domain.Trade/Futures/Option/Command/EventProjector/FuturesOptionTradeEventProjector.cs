@@ -18,7 +18,7 @@ public sealed class FuturesOptionTradeEventProjector : ConventionalEventProjecto
 {
     readonly IFuturesOptionTradeCommandContext _context;
     readonly ImmutableArray<EventProjectionDescriptor> _descriptors;
-    public FuturesOptionTradeEventProjector(ICommandActorContext<FuturesOptionTradeCommandActor> actorContext, EventProjectorReliabilityOptions? options = null) : base(Typed(actorContext).DurableReplayQueue, Typed(actorContext).DbEventSource, Typed(actorContext).BlackboardService, Typed(actorContext).Logger, options)
+    public FuturesOptionTradeEventProjector(ICommandActorContext<FuturesOptionTradeCommandActor> actorContext, EventProjectorReliabilityOptions? options = null) : base(Typed(actorContext).DurableReplayQueue, Typed(actorContext).DbEventSource, Typed(actorContext).Logger, options)
     {
         _context = Typed(actorContext);
         _descriptors = [DescribeNotification<OptionTradeChangedEvent, TradeEntityId>(ProjectAsync, publishProcessingAfterApply: true).WithReadModelRebuild(async (source, token) => await _context.DbFactory.TradeDb.UpsertEstablishedTradeAsync(((OptionTradeChangedEvent)source).State, token).ConfigureAwait(false))];

@@ -6,7 +6,7 @@ using System.Text.Json;
 namespace TomasAI.IFM.IntegrationTesting;
 
 /// <summary>
-/// Owns an isolated PostgreSQL, Redis, NATS/JetStream, and ScyllaDB CQL
+/// Owns isolated PostgreSQL and NATS/JetStream, optional ScyllaDB CQL and benchmark-only Redis
 /// environment whose host ports and data namespaces are unique to one test run.
 /// </summary>
 public sealed class IsolatedIntegrationInfrastructure : IAsyncDisposable
@@ -23,16 +23,18 @@ public sealed class IsolatedIntegrationInfrastructure : IAsyncDisposable
 
     readonly string scope;
     readonly bool includeCql;
+    readonly bool includeRedis;
     readonly string runId = Guid.NewGuid().ToString("N")[..12];
     readonly Dictionary<string, string?> previousEnvironment = new(StringComparer.Ordinal);
     bool started;
 
     /// <summary>Creates an isolated infrastructure owner for the named test scope.</summary>
-    public IsolatedIntegrationInfrastructure(string scope, bool includeCql = true)
+    public IsolatedIntegrationInfrastructure(string scope, bool includeCql = true, bool includeRedis = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(scope);
         this.scope = new string(scope.Where(char.IsLetterOrDigit).Select(char.ToLowerInvariant).ToArray());
         this.includeCql = includeCql;
+        this.includeRedis = includeRedis;
         if (this.scope.Length == 0)
             throw new ArgumentException("The infrastructure scope must contain a letter or digit.", nameof(scope));
     }
@@ -98,7 +100,7 @@ public sealed class IsolatedIntegrationInfrastructure : IAsyncDisposable
             await (DockerAsync(["run", "--detach", "--rm", "--name", PostgresContainer, "--label", $"ifm.integration.run={runId}",
                 "--publish", "127.0.0.1::5432", "--env", $"POSTGRES_USER={PostgresUser}",
                 "--env", $"POSTGRES_PASSWORD={PostgresPassword}", "--env", $"POSTGRES_DB={PostgresDatabase}", PostgresImage])).ConfigureAwait(false);
-            await (DockerAsync(["run", "--detach", "--rm", "--name", RedisContainer, "--label", $"ifm.integration.run={runId}",
+            if (includeRedis) await (DockerAsync(["run", "--detach", "--rm", "--name", RedisContainer, "--label", $"ifm.integration.run={runId}",
                 "--publish", "127.0.0.1::6379", RedisImage])).ConfigureAwait(false);
             await (DockerAsync(["run", "--detach", "--rm", "--name", NatsContainer, "--label", $"ifm.integration.run={runId}",
                 "--publish", "127.0.0.1::4222", NatsImage, "--jetstream"])).ConfigureAwait(false);
@@ -115,14 +117,14 @@ public sealed class IsolatedIntegrationInfrastructure : IAsyncDisposable
                     "--env", "HEAP_NEWSIZE=100M", CassandraImage])).ConfigureAwait(false);
 
             PostgresPort = await (MappedPortAsync(PostgresContainer, "5432/tcp")).ConfigureAwait(false);
-            var redisPort = await (MappedPortAsync(RedisContainer, "6379/tcp")).ConfigureAwait(false);
+            var redisPort = includeRedis ? await (MappedPortAsync(RedisContainer, "6379/tcp")).ConfigureAwait(false) : 0;
             var natsPort = await (MappedPortAsync(NatsContainer, "4222/tcp")).ConfigureAwait(false);
             CqlPort = includeCql ? await (MappedPortAsync(CqlContainer, "9042/tcp")).ConfigureAwait(false) : 0;
             var auxiliaryNatsPort = scope == "domainactors"
                 ? await (MappedPortAsync(AuxiliaryNatsContainer, "4222/tcp")).ConfigureAwait(false) : natsPort;
 
             PostgresConnectionString = $"Host=127.0.0.1;Port={PostgresPort};Database={PostgresDatabase};SSL Mode=Disable;Pooling=true";
-            RedisConnectionString = $"127.0.0.1:{redisPort},abortConnect=false";
+            RedisConnectionString = includeRedis ? $"127.0.0.1:{redisPort},abortConnect=false" : string.Empty;
             NatsUrl = $"nats://127.0.0.1:{natsPort}";
             CqlConnectionString = includeCql ? GetCqlConnectionString(CqlKeyspace) : string.Empty;
 
@@ -131,7 +133,7 @@ public sealed class IsolatedIntegrationInfrastructure : IAsyncDisposable
             SetCredentialEnvironment("POSTGRES_TEST_KEY");
 
             await (WaitForPostgresAsync()).ConfigureAwait(false);
-            await (WaitForTcpAsync(redisPort, "Redis")).ConfigureAwait(false);
+            if (includeRedis) await (WaitForTcpAsync(redisPort, "Redis")).ConfigureAwait(false);
             await (WaitForTcpAsync(natsPort, "NATS")).ConfigureAwait(false);
             if (includeCql)
             {
@@ -176,7 +178,7 @@ public sealed class IsolatedIntegrationInfrastructure : IAsyncDisposable
     {
         if (includeCql) await (DockerAsync(["rm", "--force", "--volumes", CqlContainer], allowFailure: true)).ConfigureAwait(false);
         await (DockerAsync(["rm", "--force", "--volumes", NatsContainer], allowFailure: true)).ConfigureAwait(false);
-        await (DockerAsync(["rm", "--force", "--volumes", RedisContainer], allowFailure: true)).ConfigureAwait(false);
+        if (includeRedis) await (DockerAsync(["rm", "--force", "--volumes", RedisContainer], allowFailure: true)).ConfigureAwait(false);
         await (DockerAsync(["rm", "--force", "--volumes", PostgresContainer], allowFailure: true)).ConfigureAwait(false);
         await (DockerAsync(["rm", "--force", "--volumes", AuxiliaryNatsContainer], allowFailure: true)).ConfigureAwait(false);
         foreach (var (name, value) in previousEnvironment)

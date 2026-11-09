@@ -157,7 +157,7 @@ sealed class CutoverResolver(IDbConnectionSettings settings):IDbContextResolver
         {
             // This offline tool uses only the configuration/catalog methods; no market-data providers are started.
             value=typeof(TRepo)==typeof(ConfigurationDbContext)?new ConfigurationDbContext(settings,Factory,NullLogger<DbProvider>.Instance):
-                typeof(TRepo)==typeof(MarketDataDbContext)?new MarketDataDbContext(settings,Factory,new OfflineBlackboard(),new OfflineSequences(),NullLogger<DbProvider>.Instance):
+                typeof(TRepo)==typeof(MarketDataDbContext)?new MarketDataDbContext(settings,Factory,new OfflineSequences(),NullLogger<DbProvider>.Instance):
                 throw new NotSupportedException(typeof(TRepo).Name);
             contexts.Add(typeof(TRepo),value);
         }
@@ -167,16 +167,7 @@ sealed class CutoverResolver(IDbConnectionSettings settings):IDbContextResolver
 
 
 // These capabilities are deliberately unavailable: catalog migration must never query feeds or allocate business IDs.
-sealed class OfflineBlackboard:TomasAI.IFM.Application.Blackboard.IBlackboardService
-{
-    public TomasAI.IFM.Application.Blackboard.IEventSourcingBlackboard EventSourcing=>throw new NotSupportedException();
-    public TomasAI.IFM.Application.Blackboard.IMarketDataBlackboard MarketData=>throw new NotSupportedException();
-    public TomasAI.IFM.Application.Blackboard.IMarketDataAnalyticsBlackboard MarketDataAnalytics=>throw new NotSupportedException();
-    public TomasAI.IFM.Application.Blackboard.IMarketDataFeedBlackboard MarketDataFeed=>throw new NotSupportedException();
-    public TomasAI.IFM.Application.Blackboard.IMarketDataSecuritiesBlackboard MarketDataSecurities=>throw new NotSupportedException();
-    public TomasAI.IFM.Application.Blackboard.IReferenceBlackboard Reference=>throw new NotSupportedException();
-    public TomasAI.IFM.Application.Blackboard.ITradeBlackboard Trade=>throw new NotSupportedException();
-}
+
 sealed class OfflineSequences:TomasAI.IFM.Framework.SequenceId.ISequenceIdGenerator
 {
     public ValueTask<long> GetSequenceIdAsync(TomasAI.IFM.Framework.SequenceId.SequenceName name,CancellationToken token=default)=>throw new NotSupportedException();

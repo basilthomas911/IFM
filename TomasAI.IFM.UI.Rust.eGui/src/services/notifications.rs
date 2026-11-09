@@ -64,7 +64,13 @@ impl Notifications {
             .as_str()
             .ok_or("Missing status message")?
             .to_owned();
-        Ok(self.console_message(&id, date, &message))
+        let changed = self.console_message(&id, date, &message);
+        if log["DataType"].as_str() == Some("IndicatorHealthFailure.v1") {
+            // One durable incident ID survives polling/reconnects. Ordinary
+            // console messages continue to use the nonmodal console path.
+            return Ok(self.error(format!("indicator-health:{id}"), message) || changed);
+        }
+        Ok(changed)
     }
 
 

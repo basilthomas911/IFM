@@ -2,7 +2,6 @@ using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Domain.MarketData.Analytics.Persistence;
 using System.Collections.Immutable;
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
@@ -33,11 +32,10 @@ public sealed class MarketOutlookSnapshotEventProjector
         IDbContextFactory dbFactory,
         IDurableReplayQueue durableReplayQueue,
         IEventSourceActorDbContext eventSource,
-        IBlackboardService blackboard,
         ILogger<MarketOutlookSnapshotEventProjector> logger,
         EventProjectorReliabilityOptions? reliabilityOptions = null,
         IPostgresEventTransaction? transactions = null)
-        : base(durableReplayQueue, eventSource, blackboard, logger, reliabilityOptions)
+        : base(durableReplayQueue, eventSource, logger, reliabilityOptions)
     {
         this.dbFactory = dbFactory;
         descriptors =

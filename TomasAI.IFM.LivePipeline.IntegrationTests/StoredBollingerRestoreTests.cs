@@ -60,10 +60,11 @@ public sealed class StoredBollingerRestoreTests
                 Timestamp = TimeOnly.FromDateTime(now.UtcDateTime),
                 IsWarm = true, AtrValue = 2, AtrBaseline = 2, AtrRatio = 1
             });
-        db.GetLatestFuturesBollingerBandSignalForTimeFrameAsync(series, date, frame, Arg.Any<CancellationToken>())
+        var liveSeries = StoredSessionIndicatorWarmup.LiveIndicatorSeries(contract);
+        db.GetLatestFuturesBollingerBandSignalForTimeFrameAsync(liveSeries, date, frame, Arg.Any<CancellationToken>())
             .Returns(new FuturesBbSignalReadModel
             {
-                Metadata = new() { ContractId = contract, SignalKey = new(series, MarketAnalyticsSignalKind.BollingerBand, frame, "bb"),
+                Metadata = new() { ContractId = contract, SignalKey = new(liveSeries, MarketAnalyticsSignalKind.BollingerBand, frame, "bb"),
                     ValueDate = date, MarketDataAsOfUtc = now, CalculatedAtUtc = now, SourceSequence = 48,
                     IsValid = true, SchemaVersion = 1, CalculationVersion = "test" },
                 IsWarm = true, Width20 = 80, Width20Ratio = 1.25m, Position20 = 0.6m
@@ -94,6 +95,19 @@ public sealed class StoredBollingerRestoreTests
             Arg.Is<StartFuturesAtrSignalCommand>(command => command.HistoricalSeed!.SequenceEqual(bars)), Arg.Any<CancellationToken>());
         await actors.Received(failMacdOnce ? 2 : 1).RequestAsync<StartFuturesMacdSignalCommand, FuturesMacdSignalEntityId>(
             Arg.Is<StartFuturesMacdSignalCommand>(command => command.HistoricalSeed!.SequenceEqual(bars)), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Warm_contract_seed_does_not_hide_cold_live_continuation_stream()
+    {
+        var databases = Substitute.For<IDbContextFactory>();
+        const string contract = "ES20261218";
+        var date = new DateOnly(2026, 11, 9);
+        databases.MarketDataDb.GetLatestFuturesBollingerBandSignalForTimeFrameAsync(MarketSeriesIdentity.ForContract(contract), date, TimeFrameType.FourHours, Arg.Any<CancellationToken>())
+            .Returns(new FuturesBbSignalReadModel { IsWarm = true, Width20 = 2, Width20Ratio = 1, Position20 = .5m });
+        databases.MarketDataDb.GetLatestFuturesBollingerBandSignalForTimeFrameAsync(StoredSessionIndicatorWarmup.LiveIndicatorSeries(contract), date, TimeFrameType.FourHours, Arg.Any<CancellationToken>())
+            .Returns(new FuturesBbSignalReadModel { IsWarm = false });
+        Assert.False(await StoredSessionIndicatorWarmup.RestoreBollingerAsync(databases, contract, date, TimeFrameType.FourHours, default));
     }
 
     sealed class FixedClock(DateTimeOffset now) : TimeProvider

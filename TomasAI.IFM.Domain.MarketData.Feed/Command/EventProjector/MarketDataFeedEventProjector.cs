@@ -1,9 +1,8 @@
-﻿using TomasAI.IFM.Application.EventSourcing.Projections.MarketData;
+using TomasAI.IFM.Application.EventSourcing.Projections.MarketData;
 using System.Collections.Immutable;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Shared.EventSourcing;
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
@@ -20,7 +19,7 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Command.EventProjector;
 public sealed class MarketDataFeedEventProjector(
     ICommandActorContext<MarketDataFeedCommandActor> actorContext,
     ILogger<MarketDataFeedEventProjector> logger, EventProjectorReliabilityOptions? reliabilityOptions = null)
-    : ConventionalEventProjector<MarketDataFeedCommandActor>(actorContext.DurableReplayQueue, actorContext.DbEventSource, actorContext.BlackboardService, logger, reliabilityOptions)
+    : ConventionalEventProjector<MarketDataFeedCommandActor>(actorContext.DurableReplayQueue, actorContext.DbEventSource, logger, reliabilityOptions)
 {
     readonly ImmutableArray<EventProjectionDescriptor> _descriptors =
     [

@@ -22,23 +22,22 @@ internal static class TypedActorContextFactory
     internal static TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Event.Actor.IFuturesBarDataEventContext Event(IActorSupervisor supervisor, TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Command.Model.IFuturesBarDataTimer timer, TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi marketDataApi, TomasAI.IFM.Shared.StatusConsole.ServiceApi.IStatusConsoleWriter status, ILogger<TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Event.Actor.FuturesBarDataEventActor> logger)
     { var c = Substitute.For<TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Event.Actor.IFuturesBarDataEventContext>(); c.Supervisor.Returns(supervisor); c.Logger.Returns(logger); c.FuturesBarDataTimer.Returns(timer); c.MarketDataApi.Returns(marketDataApi); c.StatusConsoleWriter.Returns(status); c.ActorId.Returns(new ActorMailboxId(ActorType.Event, TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Event.Actor.FuturesBarDataEventActor.Actor)); return c; }
 
-    internal static TomasAI.IFM.Domain.MarketData.Feed.Event.Actor.IMarketDataFeedEventContext Event(IActorSupervisor supervisor, TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi marketDataApi, TomasAI.IFM.Domain.Trade.Shared.Contracts.IOptionTradeLiveFeedMap map, TomasAI.IFM.Application.Blackboard.IBlackboardService blackboard, TomasAI.IFM.Shared.StatusConsole.ServiceApi.IStatusConsoleWriter status, ILogger<TomasAI.IFM.Domain.MarketData.Feed.Event.Actor.MarketDataFeedEventActor> logger)
-    { var c = Substitute.For<TomasAI.IFM.Domain.MarketData.Feed.Event.Actor.IMarketDataFeedEventContext>(); c.Supervisor.Returns(supervisor); c.Logger.Returns(logger); c.MarketDataLifecycle.Returns(Substitute.For<TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi>()); c.OptionTradeLiveFeedMap.Returns(map); c.BlackboardService.Returns(blackboard); c.StatusConsoleWriter.Returns(status); c.ActorId.Returns(new ActorMailboxId(ActorType.Event, TomasAI.IFM.Domain.MarketData.Feed.Event.Actor.MarketDataFeedEventActor.Actor)); return c; }
+    internal static TomasAI.IFM.Domain.MarketData.Feed.Event.Actor.IMarketDataFeedEventContext Event(IActorSupervisor supervisor, TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi marketDataApi, TomasAI.IFM.Domain.Trade.Shared.Contracts.IOptionTradeLiveFeedMap map, TomasAI.IFM.Shared.StatusConsole.ServiceApi.IStatusConsoleWriter status, ILogger<TomasAI.IFM.Domain.MarketData.Feed.Event.Actor.MarketDataFeedEventActor> logger)
+    { var c = Substitute.For<TomasAI.IFM.Domain.MarketData.Feed.Event.Actor.IMarketDataFeedEventContext>(); c.Supervisor.Returns(supervisor); c.Logger.Returns(logger); c.MarketDataLifecycle.Returns(Substitute.For<TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi>()); c.OptionTradeLiveFeedMap.Returns(map);  c.StatusConsoleWriter.Returns(status); c.ActorId.Returns(new ActorMailboxId(ActorType.Event, TomasAI.IFM.Domain.MarketData.Feed.Event.Actor.MarketDataFeedEventActor.Actor)); return c; }
 
-    internal static TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Event.Actor.IFuturesEodDataEventContext Event(IActorSupervisor supervisor, TomasAI.IFM.Application.Blackboard.IBlackboardService blackboard, TomasAI.IFM.Shared.StatusConsole.ServiceApi.IStatusConsoleWriter status, ILogger<TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Event.Actor.FuturesEodDataEventActor> logger)
-    { var c = Substitute.For<TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Event.Actor.IFuturesEodDataEventContext>(); c.Supervisor.Returns(supervisor); c.Logger.Returns(logger); c.BlackboardService.Returns(blackboard); c.StatusConsoleWriter.Returns(status); c.ActorId.Returns(new ActorMailboxId(ActorType.Event, TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Event.Actor.FuturesEodDataEventActor.Actor)); return c; }
+    internal static TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Event.Actor.IFuturesEodDataEventContext Event(IActorSupervisor supervisor, TomasAI.IFM.Shared.StatusConsole.ServiceApi.IStatusConsoleWriter status, ILogger<TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Event.Actor.FuturesEodDataEventActor> logger)
+    { var c = Substitute.For<TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Event.Actor.IFuturesEodDataEventContext>(); c.Supervisor.Returns(supervisor); c.Logger.Returns(logger);  c.StatusConsoleWriter.Returns(status); c.ActorId.Returns(new ActorMailboxId(ActorType.Event, TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Event.Actor.FuturesEodDataEventActor.Actor)); return c; }
 
     internal static TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Event.Actor.IFuturesOptionTickDataEventContext Event(IActorSupervisor supervisor, TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi marketDataApi, TomasAI.IFM.Shared.StatusConsole.ServiceApi.IStatusConsoleWriter status, ILogger<TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Event.Actor.FuturesOptionTickDataEventActor> logger)
     { var c = Substitute.For<TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Event.Actor.IFuturesOptionTickDataEventContext>(); c.Supervisor.Returns(supervisor); c.Logger.Returns(logger); c.MarketDataApi.Returns(marketDataApi); c.StatusConsoleWriter.Returns(status); c.ActorId.Returns(new ActorMailboxId(ActorType.Event, TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Event.Actor.FuturesOptionTickDataEventActor.Actor)); return c; }
 
-    internal static TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Event.Actor.IFuturesTickDataEventContext Event(IActorSupervisor supervisor, TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi marketDataApi, TomasAI.IFM.Application.Blackboard.IBlackboardService blackboard, TomasAI.IFM.Shared.StatusConsole.ServiceApi.IStatusConsoleWriter status, ILogger<TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Event.Actor.FuturesTickDataEventActor> logger)
-    { var c = Substitute.For<TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Event.Actor.IFuturesTickDataEventContext>(); c.Supervisor.Returns(supervisor); c.Logger.Returns(logger); c.MarketDataApi.Returns(marketDataApi); c.BlackboardService.Returns(blackboard); c.StatusConsoleWriter.Returns(status); c.ActorId.Returns(new ActorMailboxId(ActorType.Event, TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Event.Actor.FuturesTickDataEventActor.Actor)); return c; }
+    internal static TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Event.Actor.IFuturesTickDataEventContext Event(IActorSupervisor supervisor, TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi marketDataApi, TomasAI.IFM.Shared.StatusConsole.ServiceApi.IStatusConsoleWriter status, ILogger<TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Event.Actor.FuturesTickDataEventActor> logger)
+    { var c = Substitute.For<TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Event.Actor.IFuturesTickDataEventContext>(); c.Supervisor.Returns(supervisor); c.Logger.Returns(logger); c.MarketDataApi.Returns(marketDataApi);  c.StatusConsoleWriter.Returns(status); c.ActorId.Returns(new ActorMailboxId(ActorType.Event, TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Event.Actor.FuturesTickDataEventActor.Actor)); return c; }
 
     internal static TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Realtime.Actor.IFuturesEodDataRealtimeContext Realtime(
         IActorSupervisor supervisor,
         TomasAI.IFM.Application.EventProjector.Realtime.Contracts.IRealtimeProjector<TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Realtime.Actor.FuturesEodDataRealtimeActor> projector,
         TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi marketDataApi,
-        TomasAI.IFM.Application.Blackboard.IBlackboardService blackboard,
         TomasAI.IFM.Shared.StatusConsole.ServiceApi.IStatusConsoleWriter status,
         ILogger<TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Realtime.Actor.FuturesEodDataRealtimeActor> logger)
     {
@@ -47,7 +46,7 @@ internal static class TypedActorContextFactory
         context.Supervisor.Returns(supervisor);
         context.Projector.Returns(projector);
         context.MarketDataApi.Returns(marketDataApi);
-        context.BlackboardService.Returns(blackboard);
+
         context.StatusConsoleWriter.Returns(status);
         context.Logger.Returns(logger);
         context.ActorId.Returns(new ActorMailboxId(
@@ -63,7 +62,7 @@ internal static class TypedActorContextFactory
         context.Logger.Returns(logger);
         context.ActorId.Returns(new ActorMailboxId(ActorType.Command, MarketDataFeedCommandActor.ActorName));
         context.DbFactory.Returns(Substitute.For<IDbContextFactory>());
-        context.BlackboardService.Returns(Substitute.For<TomasAI.IFM.Application.Blackboard.IBlackboardService>());
+
         context.DurableReplayQueue.Returns(Substitute.For<IDurableReplayQueue>());
         return context;
     }
@@ -75,7 +74,7 @@ internal static class TypedActorContextFactory
         context.Logger.Returns(logger);
         context.ActorId.Returns(new ActorMailboxId(ActorType.Command, FuturesBarDataCommandActor.ActorName));
         context.DbFactory.Returns(Substitute.For<IDbContextFactory>());
-        context.BlackboardService.Returns(Substitute.For<TomasAI.IFM.Application.Blackboard.IBlackboardService>());
+
         context.DurableReplayQueue.Returns(Substitute.For<IDurableReplayQueue>());
         return context;
     }
@@ -87,7 +86,7 @@ internal static class TypedActorContextFactory
         context.Logger.Returns(logger);
         context.ActorId.Returns(new ActorMailboxId(ActorType.Command, FuturesClosingPriceCommandActor.ActorName));
         context.DbFactory.Returns(Substitute.For<IDbContextFactory>());
-        context.BlackboardService.Returns(Substitute.For<TomasAI.IFM.Application.Blackboard.IBlackboardService>());
+
         context.DurableReplayQueue.Returns(Substitute.For<IDurableReplayQueue>());
         return context;
     }
@@ -99,7 +98,7 @@ internal static class TypedActorContextFactory
         context.Logger.Returns(logger);
         context.ActorId.Returns(new ActorMailboxId(ActorType.Command, FuturesEodDataCommandActor.ActorName));
         context.DbFactory.Returns(Substitute.For<IDbContextFactory>());
-        context.BlackboardService.Returns(Substitute.For<TomasAI.IFM.Application.Blackboard.IBlackboardService>());
+
         context.DurableReplayQueue.Returns(Substitute.For<IDurableReplayQueue>());
         return context;
     }
@@ -111,7 +110,7 @@ internal static class TypedActorContextFactory
         context.Logger.Returns(logger);
         context.ActorId.Returns(new ActorMailboxId(ActorType.Command, FuturesOptionTickDataCommandActor.ActorName));
         context.DbFactory.Returns(Substitute.For<IDbContextFactory>());
-        context.BlackboardService.Returns(Substitute.For<TomasAI.IFM.Application.Blackboard.IBlackboardService>());
+
         context.DurableReplayQueue.Returns(Substitute.For<IDurableReplayQueue>());
         return context;
     }
@@ -123,7 +122,7 @@ internal static class TypedActorContextFactory
         context.Logger.Returns(logger);
         context.ActorId.Returns(new ActorMailboxId(ActorType.Command, FuturesTickDataCommandActor.ActorName));
         context.DbFactory.Returns(Substitute.For<IDbContextFactory>());
-        context.BlackboardService.Returns(Substitute.For<TomasAI.IFM.Application.Blackboard.IBlackboardService>());
+
         context.DurableReplayQueue.Returns(Substitute.For<IDurableReplayQueue>());
         return context;
     }

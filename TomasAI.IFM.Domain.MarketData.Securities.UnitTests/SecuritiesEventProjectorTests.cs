@@ -1,7 +1,6 @@
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command.EventProjector;
@@ -20,19 +19,19 @@ public sealed class SecuritiesEventProjectorTests
         var dbFactory = Substitute.For<IDbContextFactory>();
         var queue = Substitute.For<IDurableReplayQueue>();
         var eventSource = Substitute.For<IEventSourceActorDbContext>();
-        var blackboard = Substitute.For<IBlackboardService>();
+
         var futuresContext = Substitute.For<IFuturesContractCommandContext>();
         futuresContext.DbFactory.Returns(dbFactory);
         futuresContext.DurableReplayQueue.Returns(queue);
         futuresContext.DbEventSource.Returns(eventSource);
-        futuresContext.BlackboardService.Returns(blackboard);
+
         futuresContext.Logger.Returns(Substitute.For<ILogger<FuturesContractCommandActor>>());
         var optionContext = Substitute.For<IFuturesOptionContractCommandContext>();
         optionContext.DbFactory.Returns(dbFactory);
         optionContext.ActorService.Returns(Substitute.For<IActorService>());
         optionContext.DurableReplayQueue.Returns(queue);
         optionContext.DbEventSource.Returns(eventSource);
-        optionContext.BlackboardService.Returns(blackboard);
+
         optionContext.Logger.Returns(Substitute.For<ILogger<FuturesOptionContractCommandActor>>());
         IEventProjector[] projectors =
         [

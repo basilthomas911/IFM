@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
@@ -23,7 +22,7 @@ public static class FuturesEodDataCommandExtensions
         /// <summary>Gets the Market Data database.</summary>
         public IMarketDataDbContext MarketDataDb => context.FuturesEodDataContext.MarketDataDb;
         /// <summary>Gets the blackboard service.</summary>
-        public IBlackboardService BlackboardService => context.FuturesEodDataContext.BlackboardService;
+
         /// <summary>Gets the actor logger.</summary>
         public ILogger<FuturesEodDataCommandActor> Logger => context.FuturesEodDataContext.Logger;
         /// <summary>Gets the event-source database.</summary>

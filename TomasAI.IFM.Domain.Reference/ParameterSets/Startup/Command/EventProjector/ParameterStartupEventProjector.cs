@@ -20,8 +20,7 @@ public sealed class ParameterStartupEventProjector : ConventionalEventProjector<
     readonly EventProjectionDescriptor[] descriptors;
     public ParameterStartupEventProjector(ICommandActorContext<ParameterStartupCommandActor> value,
         EventProjectorReliabilityOptions? reliabilityOptions = null)
-     : base(((IParameterStartupCommandContext)(value ?? throw new ArgumentNullException(nameof(value)))).DurableReplayQueue, ((IParameterStartupCommandContext)value).DbEventSource,
-       ((IParameterStartupCommandContext)value).BlackboardService, ((IParameterStartupCommandContext)value).Logger, reliabilityOptions)
+     : base(((IParameterStartupCommandContext)(value ?? throw new ArgumentNullException(nameof(value)))).DurableReplayQueue, ((IParameterStartupCommandContext)value).DbEventSource, ((IParameterStartupCommandContext)value).Logger, reliabilityOptions)
     {
         ArgumentNullException.ThrowIfNull(value);
         context = (IParameterStartupCommandContext)value;

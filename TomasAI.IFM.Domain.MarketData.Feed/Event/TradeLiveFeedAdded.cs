@@ -46,7 +46,7 @@ public static class TradeLiveFeedAdded
                         return false;
                     }
 
-                    var riskFreeRate = await (p.BlackboardService.MarketData.RiskFreeRate.GetAsync(e.EntityId.ValueDate, async (valueDate) => await (GetRiskFreeRateAsync(context, optionTrade.MaturityDate.DayNumber - optionTrade.TradeDate.DayNumber)).ConfigureAwait(false))).ConfigureAwait(false);
+                    var riskFreeRate = await GetRiskFreeRateAsync(context, optionTrade.MaturityDate.DayNumber - optionTrade.TradeDate.DayNumber).ConfigureAwait(false);
                     var futuresContract = await (context.GetFuturesContractAsync(optionTrade.UnderlyingContractId)).ConfigureAwait(false);
                     foreach (var optionLeg in optionTrade.OptionLegs!)
                     {

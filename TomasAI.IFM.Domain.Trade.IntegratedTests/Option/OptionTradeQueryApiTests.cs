@@ -247,24 +247,6 @@ public class OptionTradeQueryApiTests(TomasAI.IFM.IntegrationTesting.KestrelWebA
         response.Value.Should().NotBeNull();
     }
 
-    [Fact]
-    public async Task GetIronCondorMDILimit_Ok()
-    {
-        // arrange...
-        var optionTrade = SampleData.CreateOptionTrade(orderId: 211, tradeId: 12);
-        var valueDate = new DateOnly(2025, 1, 15);
-
-        await dbFixture.TradeDb.DeleteOptionTradeAsync(optionTrade.OrderId, optionTrade.TradeId);
-        await dbFixture.TradeDb.InsertOptionTradeAsync(optionTrade);
-
-        // act...
-        var tradeApi = new OptionTradeQueryApi(_actorProducer);
-        var response = await tradeApi.GetIronCondorMDILimitAsync(optionTrade.OrderId, optionTrade.TradeId, valueDate);
-
-        // assert...
-        response.Should().NotBeNull();
-        response.Success.Should().BeTrue();
-    }
 
     [Fact]
     public async Task GetOptionTradeSpreadData_Ok()

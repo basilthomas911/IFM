@@ -41,7 +41,7 @@ public sealed class IntrinsicTimeStrategyWorkflowEventProjector : ConventionalEv
     readonly ICommittedCompositionSubscriptionProjector _subscriptionProjection;
     readonly IPostgresEventTransaction? _transactions;
     /// <summary>Initializes the conventional state-snapshot projector.</summary>
-    public IntrinsicTimeStrategyWorkflowEventProjector(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> actorContext, IWorkflowRiskProjection riskProjection, ICommittedCompositionSubscriptionProjector subscriptionProjection, EventProjectorReliabilityOptions? reliabilityOptions = null, IPostgresEventTransaction? transactions = null) : base((actorContext ?? throw new ArgumentNullException(nameof(actorContext))).DurableReplayQueue, actorContext.DbEventSource, actorContext.BlackboardService, actorContext.Logger, PostCommitReliability(reliabilityOptions))
+    public IntrinsicTimeStrategyWorkflowEventProjector(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> actorContext, IWorkflowRiskProjection riskProjection, ICommittedCompositionSubscriptionProjector subscriptionProjection, EventProjectorReliabilityOptions? reliabilityOptions = null, IPostgresEventTransaction? transactions = null) : base((actorContext ?? throw new ArgumentNullException(nameof(actorContext))).DurableReplayQueue, actorContext.DbEventSource, actorContext.Logger, PostCommitReliability(reliabilityOptions))
     {
         _actorContext = actorContext;
         _transactions = transactions;

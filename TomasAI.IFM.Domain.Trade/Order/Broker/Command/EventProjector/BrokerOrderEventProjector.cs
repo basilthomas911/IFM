@@ -23,7 +23,7 @@ public sealed class BrokerOrderEventProjector : ConventionalEventProjector<Broke
     private static readonly TimeSpan DispatchTimeout = TimeSpan.FromSeconds(15);
     private readonly IBrokerOrderCommandContext _context;
     private readonly ImmutableArray<EventProjectionDescriptor> _descriptors;
-    public BrokerOrderEventProjector(ICommandActorContext<BrokerOrderCommandActor> actorContext, EventProjectorReliabilityOptions? options = null) : base(Typed(actorContext).DurableReplayQueue, Typed(actorContext).DbEventSource, Typed(actorContext).BlackboardService, Typed(actorContext).Logger, options)
+    public BrokerOrderEventProjector(ICommandActorContext<BrokerOrderCommandActor> actorContext, EventProjectorReliabilityOptions? options = null) : base(Typed(actorContext).DurableReplayQueue, Typed(actorContext).DbEventSource, Typed(actorContext).Logger, options)
     {
         _context = Typed(actorContext);
         _descriptors = [DescribeNotification<BrokerOrderChangedEvent, BrokerOrderId>(ProjectAsync).WithReadModelRebuild((source, _) =>

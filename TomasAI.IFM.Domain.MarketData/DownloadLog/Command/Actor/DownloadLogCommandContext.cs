@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -30,21 +29,19 @@ public sealed class DownloadLogCommandContext :
     /// </summary>
     /// <param name="supervisor">The actor supervisor that owns the DownloadLog command actor.</param>
     /// <param name="dbFactory">The database-context factory used by DownloadLog command processing.</param>
-    /// <param name="blackboardService">The blackboard service used by DownloadLog command processing.</param>
     /// <param name="logger">The logger associated with <see cref="DownloadLogCommandActor"/>.</param>
     /// <exception cref="ArgumentNullException">
-    /// <paramref name="supervisor"/>, <paramref name="dbFactory"/>, <paramref name="blackboardService"/>, or
+    /// <paramref name="supervisor"/>, <paramref name="dbFactory"/>, or
     /// <paramref name="logger"/> is <see langword="null"/>.
     /// </exception>
     public DownloadLogCommandContext(
         IActorSupervisor supervisor,
         IDbContextFactory dbFactory,
-        IBlackboardService blackboardService,
         ILogger<DownloadLogCommandActor> logger)
         : base(supervisor, new ActorMailboxId(ActorType.Command, DownloadLogCommandActor.ActorName))
     {
         DbFactory = IsArgumentNull.Set(dbFactory);
-        BlackboardService = IsArgumentNull.Set(blackboardService);
+
         Logger = IsArgumentNull.Set(logger);
         _dbEventSource = ResolveOnce<IEventSourceActorDbContext>();
         _durableReplayQueue = ResolveOnce<IDurableReplayQueue>();
@@ -57,7 +54,7 @@ public sealed class DownloadLogCommandContext :
     public IDbContextFactory DbFactory { get; }
 
     /// <inheritdoc/>
-    public IBlackboardService BlackboardService { get; }
+
 
     /// <inheritdoc/>
     public ILogger<DownloadLogCommandActor> Logger { get; }

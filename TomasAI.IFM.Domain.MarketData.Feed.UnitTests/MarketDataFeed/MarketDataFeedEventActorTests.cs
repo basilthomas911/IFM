@@ -2,7 +2,6 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -37,12 +36,10 @@ public class MarketDataFeedEventActorTests : IClassFixture<MarketDataFeedTestFix
             IActorSupervisor supervisor,
             ApplicationMarketDataApi marketDataApi,
             IOptionTradeLiveFeedMap optionTradeLiveFeedMap,
-            IBlackboardService blackboardService,
-             IStatusConsoleWriter statusConsoleWriter,
+            IStatusConsoleWriter statusConsoleWriter,
             ILogger<MarketDataFeedEventActor> logger)
             : this(TypedActorContextFactory.Event(
-                supervisor, marketDataApi, optionTradeLiveFeedMap,
-                blackboardService, statusConsoleWriter, logger))
+                supervisor, marketDataApi, optionTradeLiveFeedMap, statusConsoleWriter, logger))
         { }
 
         TestableMarketDataFeedEventActor(IMarketDataFeedEventContext context)

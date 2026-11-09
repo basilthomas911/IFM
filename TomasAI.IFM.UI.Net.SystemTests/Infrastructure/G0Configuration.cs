@@ -19,7 +19,7 @@ public sealed class G0Configuration
     public required Uri NatsUri { get; init; }
     public required G0Endpoint PostgreSql { get; init; }
     public required G0Endpoint ScyllaDb { get; init; }
-    public required G0Endpoint Redis { get; init; }
+
     public required string FmpAdapter { get; init; }
     public required bool FmpCredentialPresent { get; init; }
     public required bool DeterministicAdapterApproved { get; init; }
@@ -66,7 +66,7 @@ public sealed class G0Configuration
             NatsUri = natsUri,
             PostgreSql = ReadEndpoint("PostgreSQL", "IFM_G0_POSTGRES", "localhost", 5432),
             ScyllaDb = ReadEndpoint("ScyllaDB", "IFM_G0_SCYLLA", "localhost", 9042),
-            Redis = ReadEndpoint("Redis", "IFM_G0_REDIS", "localhost", 6379),
+
             FmpAdapter = Read("IFM_G0_FMP_ADAPTER", ProductionAdapter),
             FmpCredentialPresent = !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("FMP_API_KEY")),
             DeterministicAdapterApproved = string.Equals(

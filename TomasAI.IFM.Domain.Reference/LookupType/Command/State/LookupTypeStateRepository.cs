@@ -7,7 +7,6 @@ using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Domain.Reference.LookupType.Command.Actor;
 using TomasAI.IFM.Domain.Reference.LookupType.Command.Extensions;
 using TomasAI.IFM.Shared.Extensions;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Domain.Reference.Services;
 using TomasAI.IFM.Domain.Reference.Shared;
 using Microsoft.Extensions.Logging;

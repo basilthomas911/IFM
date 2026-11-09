@@ -1452,10 +1452,6 @@
         "value": 0
       },
       {
-        "name": "Redis",
-        "value": 1
-      },
-      {
         "name": "PostgreSql",
         "value": 2
       },
@@ -148716,49 +148712,6 @@
     "verb": "GetIronCondorForwardDelta"
   },
   {
-    "type": "TomasAI.IFM.Domain.Trade.Shared.Queries.GetIronCondorMDILimitQuery",
-    "isEnum": false,
-    "errorId": 1023,
-    "mapByName": false,
-    "genericParameters": [],
-    "unions": [],
-    "enumValues": null,
-    "members": [
-      {
-        "name": "Subject",
-        "index": 0,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
-      },
-      {
-        "name": "EntityId",
-        "index": 1,
-        "mapKey": null,
-        "type": "TomasAI.IFM.Shared.EventModelActor.Contracts.IActorEntityId"
-      },
-      {
-        "name": "OrderId",
-        "index": 2,
-        "mapKey": null,
-        "type": "System.Int32"
-      },
-      {
-        "name": "TradeId",
-        "index": 3,
-        "mapKey": null,
-        "type": "System.Int32"
-      },
-      {
-        "name": "ValueDate",
-        "index": 4,
-        "mapKey": null,
-        "type": "System.DateOnly"
-      }
-    ],
-    "actor": "FuturesOptionTradeQuery",
-    "verb": "GetIronCondorMDILimit"
-  },
-  {
     "type": "TomasAI.IFM.Domain.Trade.Shared.Queries.GetIronCondorTradePriceQuery",
     "isEnum": false,
     "errorId": 1044,
@@ -149627,37 +149580,6 @@
         "index": 3,
         "mapKey": null,
         "type": "TomasAI.IFM.Domain.MarketData.Shared.RiskPositionType"
-      }
-    ],
-    "actor": null,
-    "verb": null
-  },
-  {
-    "type": "TomasAI.IFM.Domain.Trade.Shared.QueryParameters.GetIronCondorMDILimitParameter",
-    "isEnum": false,
-    "errorId": null,
-    "mapByName": false,
-    "genericParameters": [],
-    "unions": [],
-    "enumValues": null,
-    "members": [
-      {
-        "name": "OrderId",
-        "index": 0,
-        "mapKey": null,
-        "type": "System.Int32"
-      },
-      {
-        "name": "TradeId",
-        "index": 1,
-        "mapKey": null,
-        "type": "System.Int32"
-      },
-      {
-        "name": "ValueDate",
-        "index": 2,
-        "mapKey": null,
-        "type": "System.DateOnly"
       }
     ],
     "actor": null,

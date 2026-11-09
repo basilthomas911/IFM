@@ -30,6 +30,18 @@ fn response(status: &str, body: &str) -> Vec<u8> {
 }
 
 
+/// Failed readiness contains the actual diagnostic matrix; other HTTP reads keep their strict status contract.
+#[tokio::test]
+async fn structured_readiness_is_available_on_http_503() {
+    let client = HealthClient::new().unwrap();
+    let (url, worker) = server(response("503 Service Unavailable", r#"{"status":"Unhealthy"}"#), Duration::ZERO);
+    let report = client.get_readiness_observation::<serde_json::Value>(&url, 1024,
+        tokio::time::Instant::now() + Duration::from_secs(2)).await.unwrap();
+    assert_eq!(report.value["status"], "Unhealthy");
+    worker.join().unwrap();
+}
+
+
 /// Verifies that health transport enforces status size json and single deadline.
 #[tokio::test]
 async fn health_transport_enforces_status_size_json_and_single_deadline() {

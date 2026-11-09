@@ -1,13 +1,13 @@
 # Isolated recovery-audit verification. Does not use the trading database or running API.
 [CmdletBinding()]
-param([switch]$SkipNativeBuild)
+param([switch]$SkipNativeBuild, [string]$ResultsDirectory)
 $ErrorActionPreference='Stop'
 $workspace=Split-Path -Parent $PSScriptRoot
 $run=[Guid]::NewGuid().ToString('N').Substring(0,12)
 $database="ifm_recovery_audit_$run"
 $postgres="ifm-recovery-audit-pg-$run"
 $nats="ifm-recovery-audit-nats-$run"
-$artifact=Join-Path $workspace '.artifacts/recovery-audit'
+$artifact=if($ResultsDirectory){[IO.Path]::GetFullPath($ResultsDirectory)}else{Join-Path $workspace '.artifacts/recovery-audit'}
 New-Item -ItemType Directory -Force -Path $artifact | Out-Null
 $variables=@('IFM_RECOVERY_AUDIT_TEST_CONNECTION','IFM_RECOVERY_AUDIT_TEST_NATS','IFM_RECOVERY_AUDIT_NATIVE_TEST_EXE','DOTNET_ENVIRONMENT','ASPNETCORE_ENVIRONMENT','POSTGRES_TEST_KEY','IFM_RECOVERY_AUDIT_EVIDENCE')
 $previous=@{}

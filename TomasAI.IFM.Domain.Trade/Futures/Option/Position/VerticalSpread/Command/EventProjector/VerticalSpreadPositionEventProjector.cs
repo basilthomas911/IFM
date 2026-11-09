@@ -16,7 +16,7 @@ public sealed class VerticalSpreadPositionEventProjector : ConventionalEventProj
 {
     readonly IVerticalSpreadPositionCommandContext context;
     readonly ImmutableArray<EventProjectionDescriptor> descriptors;
-    public VerticalSpreadPositionEventProjector(ICommandActorContext<FuturesVerticalSpreadTradePositionCommandActor> actorContext, EventProjectorReliabilityOptions? options = null) : base(Typed(actorContext).DurableReplayQueue, Typed(actorContext).DbEventSource, Typed(actorContext).BlackboardService, Typed(actorContext).Logger, options)
+    public VerticalSpreadPositionEventProjector(ICommandActorContext<FuturesVerticalSpreadTradePositionCommandActor> actorContext, EventProjectorReliabilityOptions? options = null) : base(Typed(actorContext).DurableReplayQueue, Typed(actorContext).DbEventSource, Typed(actorContext).Logger, options)
     {
         context = Typed(actorContext);
         descriptors = [DescribeNotification<VerticalSpreadPositionChangedEvent, StrategyPositionId>(ProjectAsync).WithReadModelRebuild((source, _) => PositionProjectionActions.RebuildReadModelAsync(context.DbFactory, (VerticalSpreadPositionChangedEvent)source)), DescribeSnapshot<VerticalSpreadTradePlanUpdatedEvent, VerticalSpreadTradePlanId>(ProjectTradePlanAsync)];

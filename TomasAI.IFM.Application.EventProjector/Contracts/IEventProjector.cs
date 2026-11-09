@@ -1,5 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
+using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Framework.Messaging.Nats;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -67,7 +66,6 @@ public interface IEventProjector
     /// </summary>
     public IDurableReplayQueue DurableReplayQueue { get; }
 
-    public IBlackboardService BlackboardService { get; }
 
     /// <summary>
     /// Gets the runtime context of the command actor that started the projector.

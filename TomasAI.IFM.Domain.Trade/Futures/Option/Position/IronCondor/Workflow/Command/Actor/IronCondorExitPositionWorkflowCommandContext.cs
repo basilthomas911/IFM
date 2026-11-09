@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Workflow.Command.State;
@@ -16,10 +15,10 @@ public sealed class IronCondorExitPositionWorkflowCommandContext : CommandActorC
     readonly Lazy<IEventProjector<IronCondorExitPositionWorkflowCommandActor>> projector;
     readonly Lazy<IEventSourceActorStateRepository<IronCondorExitPositionWorkflowCommandState>> repository;
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "This typed context adapts services for its actor and intentionally retains the actor logger category.")]
-    public IronCondorExitPositionWorkflowCommandContext(IActorSupervisor supervisor, IDbContextFactory dbFactory, IBlackboardService blackboard, ILogger<IronCondorExitPositionWorkflowCommandActor> logger) : base(supervisor, new(ActorType.Command, IronCondorExitPositionWorkflowCommandActor.ActorName))
+    public IronCondorExitPositionWorkflowCommandContext(IActorSupervisor supervisor, IDbContextFactory dbFactory, ILogger<IronCondorExitPositionWorkflowCommandActor> logger) : base(supervisor, new(ActorType.Command, IronCondorExitPositionWorkflowCommandActor.ActorName))
     {
         DbFactory = dbFactory;
-        BlackboardService = blackboard;
+
         Logger = logger;
         eventSource = Resolve<IEventSourceActorDbContext>();
         replay = Resolve<IDurableReplayQueue>();
@@ -29,7 +28,7 @@ public sealed class IronCondorExitPositionWorkflowCommandContext : CommandActorC
     }
 
     public IDbContextFactory DbFactory { get; }
-    public IBlackboardService BlackboardService { get; }
+
     public ILogger<IronCondorExitPositionWorkflowCommandActor> Logger { get; }
     public IEventSourceActorDbContext DbEventSource => eventSource.Value;
     public IDurableReplayQueue DurableReplayQueue => replay.Value;

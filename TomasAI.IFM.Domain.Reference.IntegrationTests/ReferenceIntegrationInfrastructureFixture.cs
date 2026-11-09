@@ -41,7 +41,7 @@ public sealed class ReferenceIntegrationInfrastructureFixture : IAsyncLifetime
     IActorSupervisor? _supervisor;
 
     public string PostgresConnectionString { get; private set; } = string.Empty;
-    public string RedisConnectionString { get; private set; } = string.Empty;
+
     public string NatsUrl { get; private set; } = string.Empty;
     public string CqlConnectionString { get; private set; } = string.Empty;
     public HttpClient HttpClient { get; private set; } = default!;
@@ -53,7 +53,7 @@ public sealed class ReferenceIntegrationInfrastructureFixture : IAsyncLifetime
     public EventSourceActorDbContext ActorEventSourceDb { get; private set; } = default!;
     public TomasAI.IFM.Application.Storage.ConfigurationDb.IConfigurationDbContext ConfigurationDb { get; private set; } = default!;
     public IPostgresEventTransaction EventTransactions { get; private set; } = default!;
-    public TomasAI.IFM.Application.Blackboard.IBlackboardService BlackboardService { get; private set; } = default!;
+
 
     public async Task InitializeAsync()
     {
@@ -61,7 +61,7 @@ public sealed class ReferenceIntegrationInfrastructureFixture : IAsyncLifetime
         {
             await _infrastructure.StartAsync();
             PostgresConnectionString = _infrastructure.PostgresConnectionString;
-            RedisConnectionString = _infrastructure.RedisConnectionString;
+
             NatsUrl = _infrastructure.NatsUrl;
             CqlConnectionString = _infrastructure.CqlConnectionString;
 
@@ -84,7 +84,7 @@ public sealed class ReferenceIntegrationInfrastructureFixture : IAsyncLifetime
                 builder.UseEnvironment("Development")
                     .UseSetting("IFM_TEST_ACTOR_DOMAIN", "TomasAI.IFM.Domain.Reference")
                     .UseSetting("IFM_TEST_NATS_URL", NatsUrl)
-                    .UseSetting("IFM_TEST_REDIS_URL", RedisConnectionString)
+
                     .UseSetting("IFM_TEST_POSTGRES_CONNECTION", PostgresConnectionString);
                 foreach (var name in new[] { "MarketData", "Reference", "Securities", "Trade" })
                     builder.UseSetting($"ConnectionStrings:{name}DbConnection", PostgresConnectionString);
@@ -109,7 +109,7 @@ public sealed class ReferenceIntegrationInfrastructureFixture : IAsyncLifetime
             ActorEventSourceDb = (EventSourceActorDbContext)dbFactory.ActorEventSourceDb;
             ConfigurationDb = dbFactory.ConfigurationDb;
             EventTransactions = _host.Services.GetRequiredService<IPostgresEventTransaction>();
-            BlackboardService = _host.Services.GetRequiredService<TomasAI.IFM.Application.Blackboard.IBlackboardService>();
+
         }
         catch
         {

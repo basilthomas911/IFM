@@ -4,7 +4,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Realtime;
 
-/// <summary>Publishes the live VX snapshot to the current-session blackboard.</summary>
+/// <summary>Acknowledges VX snapshots already published by the worker-owned local cache.</summary>
 public static class VixFuturesEodDataInserted
 {
 
@@ -15,9 +15,6 @@ public static class VixFuturesEodDataInserted
         {
             ArgumentNullException.ThrowIfNull(context);
             ArgumentNullException.ThrowIfNull(domainEvent);
-            var tick = domainEvent.VixFuturesTickData;
-            if (CurrentVixEodCache.Shared.TryGet(tick.ContractId, tick.ValueDate, out var current))
-                context.BlackboardService.MarketDataFeed.VixFuturesEodData.Set(tick.ContractId, tick.ValueDate, [current!]);
             return ValueTask.CompletedTask;
         }
     }

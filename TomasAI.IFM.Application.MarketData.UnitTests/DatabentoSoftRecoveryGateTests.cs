@@ -20,7 +20,7 @@ public sealed class DatabentoSoftRecoveryGateTests
             new() { ProbeTimeout = TimeSpan.FromSeconds(2) }, TimeProvider.System);
         var operation = gate.QualifyAsync(CancellationToken.None);
         await Task.Delay(50);
-        Assert.Equal(4, Volatile.Read(ref entered));
+        Assert.Equal(3, Volatile.Read(ref entered));
         release.SetResult();
         var result = await operation;
         Assert.True(result.Qualified);
@@ -48,7 +48,7 @@ public sealed class DatabentoSoftRecoveryGateTests
     {
         var probes = Enum.GetValues<RecoveryInfrastructureKind>()
             .Select(kind => new Probe(kind.ToString(), kind, _ =>
-                kind is RecoveryInfrastructureKind.Redis or RecoveryInfrastructureKind.ScyllaDb
+                kind is RecoveryInfrastructureKind.Nats or RecoveryInfrastructureKind.ScyllaDb
                     ? Task.FromResult(new RecoveryProbeResult(kind.ToString(), kind, false, "unavailable"))
                     : Task.FromResult(new RecoveryProbeResult(kind.ToString(), kind, true, "ready"))));
         var gate = new DatabentoSoftRecoveryGate(probes,
@@ -59,7 +59,7 @@ public sealed class DatabentoSoftRecoveryGateTests
         Assert.False(result.Qualified);
         Assert.Equal(1, result.Rounds);
         Assert.Equal(2, result.Probes.Count(item => !item.Qualified));
-        Assert.Contains(result.Probes, item => item.Kind == RecoveryInfrastructureKind.Nats && item.Qualified);
+        Assert.Contains(result.Probes, item => item.Kind == RecoveryInfrastructureKind.Nats && !item.Qualified);
         Assert.Contains(result.Probes, item => item.Kind == RecoveryInfrastructureKind.PostgreSql && item.Qualified);
     }
 
@@ -77,7 +77,7 @@ public sealed class DatabentoSoftRecoveryGateTests
         var result = await gate.QualifyAsync(CancellationToken.None);
 
         Assert.False(result.Qualified);
-        Assert.Equal(4, result.Probes.Count);
+        Assert.Equal(3, result.Probes.Count);
         Assert.Equal("InvalidOperationException", Assert.Single(result.Probes, item => !item.Qualified).Detail);
     }
 
@@ -94,7 +94,7 @@ public sealed class DatabentoSoftRecoveryGateTests
 
         Assert.False(result.Qualified);
         Assert.Equal(3, result.Rounds);
-        Assert.Equal(4, result.Probes.Count(item => !item.Qualified));
+        Assert.Equal(3, result.Probes.Count(item => !item.Qualified));
     }
 
     [Fact]

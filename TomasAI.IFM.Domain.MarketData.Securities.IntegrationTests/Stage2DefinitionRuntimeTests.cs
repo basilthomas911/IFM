@@ -96,7 +96,7 @@ public sealed class Stage2DefinitionRuntimeTests
                 builder.UseEnvironment("Development")
                     .UseSetting("IFM_TEST_ACTOR_DOMAIN", "TomasAI.IFM.Domain.MarketData.Securities")
                     .UseSetting("IFM_TEST_NATS_URL", infrastructure.NatsUrl)
-                    .UseSetting("IFM_TEST_REDIS_URL", infrastructure.RedisConnectionString)
+
                     .UseSetting("IFM_TEST_POSTGRES_CONNECTION", pg);
                 builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(
                     new[] { "Securities", "Reference", "Trade", "Fund", "MarketData" }

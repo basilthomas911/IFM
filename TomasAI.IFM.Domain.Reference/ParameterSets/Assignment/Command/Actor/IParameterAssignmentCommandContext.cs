@@ -1,7 +1,6 @@
 using TomasAI.IFM.Domain.Reference.ParameterSets.Assignment.Command.State;
 using TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.ConfigurationDb;
@@ -28,7 +27,7 @@ public interface IParameterAssignmentCommandContext
     /// <summary>Gets the projector queue dependency.</summary>
     IDurableReplayQueue DurableReplayQueue { get; }
     /// <summary>Gets the blackboard dependency.</summary>
-    IBlackboardService BlackboardService { get; }
+
     /// <summary>Gets the state factory.</summary>
     IEventSourceActorStateFactory StateFactory { get; }
     /// <summary>Gets actor infrastructure.</summary>

@@ -36,9 +36,7 @@ public sealed class IronCondorPositionLivePublicationTests
         context.DbEventSource.GetEventProjectorRecoveryPageAsync("projector", Arg.Any<IReadOnlyCollection<string>>(),
             0, Arg.Any<DateTime>(), Arg.Any<int>(), Arg.Any<CancellationToken>()).Returns([Row(mark), Row(financial)]);
         var recovery = new TomasAI.IFM.Application.EventProjector.EventProjectorRecoveryCoordinator(context.DbEventSource,
-            context.DurableReplayQueue, new TomasAI.IFM.Application.Blackboard.BlackboardService(
-                Substitute.For<TomasAI.IFM.Framework.Caching.IRedisCache>(),
-                Substitute.For<TomasAI.IFM.Framework.Serialization.IJsonSerializer>()), new(), NullLogger.Instance,
+            context.DurableReplayQueue,  new(), NullLogger.Instance,
             IronCondorPositionProjectionPolicy.IsDisposableMark);
         var result = await recovery.RecoverAsync("actor", "projector", [typeof(IronCondorPositionChangedEvent)]);
         Assert.Equal(1, result.Queued);

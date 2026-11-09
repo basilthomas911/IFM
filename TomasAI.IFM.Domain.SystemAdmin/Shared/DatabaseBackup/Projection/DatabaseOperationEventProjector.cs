@@ -1,7 +1,6 @@
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Projection;
 using System.Collections.Immutable;
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
@@ -33,10 +32,9 @@ public abstract class DatabaseOperationEventProjector<TActor> : BaseEventProject
         ISystemAdminDbContext systemAdminDb,
         IDurableReplayQueue durableReplayQueue,
         IEventSourceActorDbContext eventSource,
-        IBlackboardService blackboard,
         ILogger logger,
         EventProjectorReliabilityOptions? reliabilityOptions = null)
-        : base(durableReplayQueue, eventSource, blackboard, logger, reliabilityOptions)
+        : base(durableReplayQueue, eventSource, logger, reliabilityOptions)
     {
         _descriptors = [.. EventTypes.Select(type => Describe(type, systemAdminDb))];
     }

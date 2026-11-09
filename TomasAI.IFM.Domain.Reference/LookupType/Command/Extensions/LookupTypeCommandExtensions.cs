@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.Reference.LookupType.Command.Actor;
@@ -20,7 +19,7 @@ public static class LookupTypeCommandExtensions
         /// <summary>Gets the database-context factory.</summary>
         public IDbContextFactory DbFactory => Typed(context).DbFactory;
         /// <summary>Gets the blackboard service.</summary>
-        public IBlackboardService BlackboardService => Typed(context).BlackboardService;
+
         /// <summary>Gets the command actor logger.</summary>
         public ILogger<LookupTypeCommandActor> Logger => Typed(context).Logger;
         /// <summary>Gets the event-source database context.</summary>

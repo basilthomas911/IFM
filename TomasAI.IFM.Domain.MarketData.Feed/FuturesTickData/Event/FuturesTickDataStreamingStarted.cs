@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using System;
 using TomasAI.IFM.Domain.MarketData.Feed.Event.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.Command.Extensions;
@@ -62,12 +62,6 @@ public static class FuturesTickDataStreamingStarted
                     e.Contract.ContractId,
                     owner).ConfigureAwait(false);
                 p.Streams.Track(owner, e.Contract.ContractId, e.Contract);
-                if (e.Contract.Id.IsVxContract)
-                {
-                    p.BlackboardService.MarketDataFeed.VixFuturesContractId.Set(
-                        e.ValueDate,
-                        e.Contract.ContractId);
-                }
                 await (eventApi.FuturesTickDataStreamingStartedCompleteAsync(e)).ConfigureAwait(false);
                 await (p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesTickDataEvent, $"Futures {e.Contract.ContractId} streaming started")).ConfigureAwait(false);
                 logger.LogInformationEvent(ServiceId, "{Source}: futures {e.Contract.ContractId} streaming started", source, e.Contract.ContractId);

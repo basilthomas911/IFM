@@ -124,7 +124,38 @@ pub fn legacy(
             ));
         }
     }
-    Ok(rows.into_values().collect())
+    let mut normalized = normalize_ema_baselines(&rows.into_values().collect::<Vec<_>>());
+    normalized.sort_by_key(|row| (
+        registry.enum_value(FRAME, text(row, "TimeFrame")).unwrap_or_default(),
+        registry.enum_value(LEGACY, text(row, "Metric")).unwrap_or_default(),
+    ));
+    Ok(normalized)
+}
+
+
+/// Mirrors the server's Daily EMA baseline mapping and duplicate merge policy.
+fn normalize_ema_baselines(rows: &[Json]) -> Vec<Json> {
+    let mut normalized: Vec<Json> = Vec::new();
+    for source in rows {
+        let mut row = source.clone();
+        if matches!(text(&row, "Metric"), "Ema20" | "Ema50" | "Ema200" | "Ema20Slope" | "Ema50Slope" | "Ema200Slope")
+            && row["TimeFrame"] != "Daily"
+        {
+            row["TimeFrame"] = json!("Daily");
+            row["MaximumAgeSeconds"] = json!(345600);
+        }
+        if let Some(existing) = normalized.iter_mut().find(|value|
+            value["Metric"] == row["Metric"] && value["TimeFrame"] == row["TimeFrame"])
+        {
+            existing["Enabled"] = json!(existing["Enabled"] == true || row["Enabled"] == true);
+            existing["IsRequired"] = json!(existing["IsRequired"] == true || row["IsRequired"] == true);
+            existing["MaximumAgeSeconds"] = json!(existing["MaximumAgeSeconds"].as_i64().unwrap_or_default()
+                .max(row["MaximumAgeSeconds"].as_i64().unwrap_or_default()));
+        } else {
+            normalized.push(row);
+        }
+    }
+    normalized
 }
 
 
@@ -158,7 +189,8 @@ pub fn from_legacy(
 ) -> Result<(Vec<Json>, Vec<Json>), String> {
     let set = set_n(set)?;
     let mut groups: BTreeMap<(i64, i64, i64), Vec<&Json>> = BTreeMap::new();
-    for row in rows {
+    let normalized = normalize_ema_baselines(rows);
+    for row in &normalized {
         if let Some((metric, period)) = definition(text(row, "Metric")) {
             groups
                 .entry((

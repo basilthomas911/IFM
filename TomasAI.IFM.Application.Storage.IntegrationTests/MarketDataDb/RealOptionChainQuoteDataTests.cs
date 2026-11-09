@@ -5,7 +5,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Command.Actor;
@@ -54,15 +53,14 @@ public sealed class RealOptionChainQuoteDataTests
         var connection = new DbConnectionSettings().Add("MarketDataDbConnection",
             LegacyStorageFixtureIsolation.Scylla("ifm_storage_legacy_option_quote"), "System.Data.ScyllaDb");
         var factory = Substitute.For<IDbContextFactory>();
-        var db = new MarketDataDbContext(connection, factory,
-            Substitute.For<IBlackboardService>(), Substitute.For<ISequenceIdGenerator>(),
+        var db = new MarketDataDbContext(connection, factory, Substitute.For<ISequenceIdGenerator>(),
             Substitute.For<ILogger<DbProvider>>());
         factory.MarketDataDb.Returns(db);
         var actor = Substitute.For<IFuturesOptionTickDataCommandContext>();
         actor.DbFactory.Returns(factory);
         actor.DbEventSource.Returns(Substitute.For<IEventSourceActorDbContext>());
         actor.DurableReplayQueue.Returns(Substitute.For<IDurableReplayQueue>());
-        actor.BlackboardService.Returns(Substitute.For<IBlackboardService>());
+
         var projector = new FuturesOptionTickDataEventProjector(actor,
             Substitute.For<ILogger<FuturesOptionTickDataEventProjector>>());
         var descriptor = projector.ProjectionDescriptors.Single(item =>
@@ -106,8 +104,7 @@ public sealed class RealOptionChainQuoteDataTests
         var connection = new DbConnectionSettings().Add("MarketDataDbConnection",
             LegacyStorageFixtureIsolation.Scylla("ifm_storage_legacy_option_quote"), "System.Data.ScyllaDb");
         var factory = Substitute.For<IDbContextFactory>();
-        var db = new MarketDataDbContext(connection, factory,
-            Substitute.For<IBlackboardService>(), Substitute.For<ISequenceIdGenerator>(),
+        var db = new MarketDataDbContext(connection, factory, Substitute.For<ISequenceIdGenerator>(),
             Substitute.For<ILogger<DbProvider>>());
         factory.MarketDataDb.Returns(db);
         var underlying = $"OPTIONCHAININTEGRATION{Guid.NewGuid():N}";

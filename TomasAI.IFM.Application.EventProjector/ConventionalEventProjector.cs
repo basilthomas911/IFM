@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -14,13 +13,11 @@ namespace TomasAI.IFM.Application.EventProjector;
 public abstract class ConventionalEventProjector<TActor>(
     IDurableReplayQueue durableReplayQueue,
     IEventSourceActorDbContext dbEventSource,
-    IBlackboardService blackboardService,
     ILogger logger,
     EventProjectorReliabilityOptions? reliabilityOptions = null)
     : BaseEventProjector<TActor>(
         durableReplayQueue,
         dbEventSource,
-        blackboardService,
         logger,
         reliabilityOptions)
     where TActor : ICommandActor<TActor>

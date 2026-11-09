@@ -34,7 +34,7 @@ public sealed class CreationSnapshotRepositoryTests
         Assert.False(state.Updated);
         await fixture.Store.Received(1).MapReduceActorEventStreamFromCreationAsync<TestState>(
             42, Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), token);
-        await fixture.Store.DidNotReceiveWithAnyArgs().GetCommittedStreamVersionAsync(default, default);
+        await fixture.Store.DidNotReceiveWithAnyArgs().GetCommittedStreamVersionAsync(0L, default);
     }
 
     [Fact]

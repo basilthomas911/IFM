@@ -3,7 +3,6 @@ using System.Collections.Immutable;
 using System.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.MarketData.Pricing;
 using TomasAI.IFM.Application.MarketData.Databento.Workers;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
@@ -278,7 +277,6 @@ public sealed partial class CompositionBusinessProjectionTests
         => new(
             settings,
             Substitute.For<IDbContextFactory>(),
-            Substitute.For<IBlackboardService>(),
             Substitute.For<ISequenceIdGenerator>(),
             NullLogger<DbProvider>.Instance);
 

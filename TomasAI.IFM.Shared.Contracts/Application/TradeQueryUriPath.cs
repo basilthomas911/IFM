@@ -22,7 +22,6 @@ public static class TradeQueryUriPath
     public const string GetIronCondorTradePrice = "/api/trade/ironcondortradeprice";
     public const string GetTradePlanSummary = "/api/trade/tradeplansummary";
     public const string GetTradePositionTradeTypes = "/api/trade/tradepositiontradetypes";
-    public const string GetIronCondorMDILimit = "/api/trade/ironcondormdilimit";
 }
 
 /// <summary>

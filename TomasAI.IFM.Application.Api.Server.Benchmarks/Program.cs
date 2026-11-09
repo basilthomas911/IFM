@@ -83,13 +83,6 @@ if (args.Contains("--verify-api-performance-fixtures", StringComparer.Ordinal))
         Console.WriteLine("PostgreSQL indicator fixture passed: serial and bounded restoration reads.");
     }
     finally { await indicatorReads.Cleanup(); }
-    var redis = new TomasAI.IFM.Application.Api.Server.Benchmarks.ApiServerPerformanceRedisBenchmarks();
-    try
-    {
-        await redis.Setup(); redis.SynchronousBefore(); await redis.AsynchronousAfter();
-        Console.WriteLine("Redis readiness fixture passed: synchronous and asynchronous connections.");
-    }
-    finally { await redis.Cleanup(); }
     return;
 }
 

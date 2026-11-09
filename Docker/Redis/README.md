@@ -1,6 +1,7 @@
-# Redis Development Container
+# Retired Redis Development Container
 
-The current Redis 7.0.9 container uses an old anonymous Docker volume. This composition references that exact volume
-through `IFM_REDIS_VOLUME` so adopting compose does not silently start with an empty cache. A later cleanup may issue
-`SAVE`, copy `/data` into a named `ifm_redis_data` volume, validate it, and update this file. Redis is cache state and
-is not part of the database backup recovery contract.
+Redis and Blackboard were removed from the supported application on November 8, 2026. The old composition is retired. Development starts using typed process-local caches and authoritative PostgreSQL data.
+
+The IFM-owned `redis` container is stopped with automatic restart disabled. Its original anonymous volume is preserved. A verified RDB copy and container configuration are retained at `E:\IFM\RedisRemoval\20261108\baseline`. Do not remove that recovery data without a separate retention decision.
+
+The isolated historical comparison benchmark can start a disposable Redis container. Normal application and integration startup do not require this service.

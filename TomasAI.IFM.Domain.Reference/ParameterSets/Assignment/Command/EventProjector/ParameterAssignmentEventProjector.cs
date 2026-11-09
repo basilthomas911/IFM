@@ -20,8 +20,7 @@ public sealed class ParameterAssignmentEventProjector : ConventionalEventProject
     readonly EventProjectionDescriptor[] descriptors;
     public ParameterAssignmentEventProjector(ICommandActorContext<ParameterAssignmentCommandActor> value,
         EventProjectorReliabilityOptions? reliabilityOptions = null)
-     : base(((IParameterAssignmentCommandContext)(value ?? throw new ArgumentNullException(nameof(value)))).DurableReplayQueue, ((IParameterAssignmentCommandContext)value).DbEventSource,
-       ((IParameterAssignmentCommandContext)value).BlackboardService, ((IParameterAssignmentCommandContext)value).Logger, reliabilityOptions)
+     : base(((IParameterAssignmentCommandContext)(value ?? throw new ArgumentNullException(nameof(value)))).DurableReplayQueue, ((IParameterAssignmentCommandContext)value).DbEventSource, ((IParameterAssignmentCommandContext)value).Logger, reliabilityOptions)
     {
         ArgumentNullException.ThrowIfNull(value);
         context = (IParameterAssignmentCommandContext)value;

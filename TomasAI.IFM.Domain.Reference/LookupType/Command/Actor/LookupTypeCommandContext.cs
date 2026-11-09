@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -24,12 +23,11 @@ public sealed class LookupTypeCommandContext :
     public LookupTypeCommandContext(
         IActorSupervisor supervisor,
         IDbContextFactory dbFactory,
-        IBlackboardService blackboardService,
         ILogger<LookupTypeCommandActor> logger)
         : base(supervisor, new ActorMailboxId(ActorType.Command, LookupTypeCommandActor.Actor))
     {
         DbFactory = IsArgumentNull.Set(dbFactory);
-        BlackboardService = IsArgumentNull.Set(blackboardService);
+
         Logger = IsArgumentNull.Set(logger);
         _dbEventSource = ResolveOnce<IEventSourceActorDbContext>();
         _durableReplayQueue = ResolveOnce<IDurableReplayQueue>();
@@ -41,7 +39,7 @@ public sealed class LookupTypeCommandContext :
     /// <inheritdoc/>
     public IDbContextFactory DbFactory { get; }
     /// <inheritdoc/>
-    public IBlackboardService BlackboardService { get; }
+
     /// <inheritdoc/>
     public ILogger<LookupTypeCommandActor> Logger { get; }
     /// <inheritdoc/>

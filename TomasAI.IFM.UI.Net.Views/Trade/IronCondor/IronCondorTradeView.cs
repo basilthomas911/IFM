@@ -1130,14 +1130,14 @@ public partial class IronCondorTradeView : DarkTradingView, IAsyncFormControl
         graphSpreadDistribution.Series[1].Points.Clear();
         graphSpreadDistribution.Series[2].Points.Clear();
         graphSpreadDistribution.Series[3].Points.Clear();
-        graphSpreadDistribution.Series[4].Points.Clear();
+
         foreach (var e in optionTradeSpreadBarData)
         {
             graphSpreadDistribution.Series[0].Points.AddXY(e.BarDate, e.LossLimit);
             graphSpreadDistribution.Series[1].Points.AddXY(e.BarDate, e.WinLimit);
             graphSpreadDistribution.Series[2].Points.AddXY(e.BarDate, e.ForwardSpread);
             graphSpreadDistribution.Series[3].Points.AddXY(e.BarDate, e.NetSpread);
-            graphSpreadDistribution.Series[4].Points.AddXY(e.BarDate, e.MDIWarningLimit);
+
         }
         graphSpreadDistribution.ChartAreas[0].RecalculateAxesScale();
         graphSpreadDistribution.Series.ResumeUpdates();

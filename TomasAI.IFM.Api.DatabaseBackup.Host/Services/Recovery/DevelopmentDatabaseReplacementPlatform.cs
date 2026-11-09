@@ -205,17 +205,10 @@ public sealed class DevelopmentDatabaseReplacementPlatform(
 
     public async ValueTask StartApplicationInRecoveryAsync(DatabaseCutoverRequest request, CancellationToken token)
     {
-        // Redis survives a database restore; its numeric event IDs and derived read
-        // values may describe data newer than the restored database. Writers are stopped.
-        var cachePrefixes = Enum.GetNames<TomasAI.IFM.Shared.Caching.DataCacheName>()
-            .Where(name => name != "Undefined").ToArray();
-        const string invalidate = "local allowed={} for _,v in ipairs(ARGV) do allowed[v]=true end local cursor='0' local removed=0 repeat local r=redis.call('SCAN',cursor,'COUNT',1000) cursor=r[1] for _,k in ipairs(r[2]) do local p=string.match(k,'^([^:]+):') if allowed[p] then removed=removed+redis.call('UNLINK',k) end end until cursor=='0' return removed";
-        var deleted = await Docker(new[] { "exec", options.RedisContainer, "redis-cli", "--raw", "EVAL", invalidate, "0" }
-            .Concat(cachePrefixes).ToArray(), token);
-        if (!long.TryParse(deleted.Trim(), out var removed) || removed < 0)
-            throw new InvalidOperationException("Restored database cache invalidation did not return a valid result.");
+        // All cache owners are process-local. The cutover stops every writer before database
+        // replacement; this fresh validation process and subsequent host restart own empty caches.
         await File.WriteAllTextAsync(Path.Combine(OperationRoot(request), "derived-cache-invalidation.json"),
-            JsonSerializer.Serialize(new { RemovedKeys = removed, Prefixes = cachePrefixes, CompletedUtc = DateTimeOffset.UtcNow }), token);
+            JsonSerializer.Serialize(new { Strategy = "stopped-processes-and-fresh-cache-owners", CompletedUtc = DateTimeOffset.UtcNow }), token);
         // Composition root and real providers run; no HTTP listeners, actors, schedules or writers start.
         var start = new ProcessStartInfo(ApiExe) { WorkingDirectory = Path.GetDirectoryName(ApiExe)!,
             UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };

@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Application.Storage.SecuritiesDb;
@@ -29,8 +28,7 @@ public sealed class RealFrozenOptionChainIntegrationTests
                 "Contact Points=localhost;Port=9042;Default Keyspace=securities_test_db", "System.Data.ScyllaDb");
         var factory = Substitute.For<IDbContextFactory>();
         var databaseLogger = Substitute.For<ILogger<DbProvider>>();
-        var marketData = new MarketDataDbContext(settings, factory,
-            Substitute.For<IBlackboardService>(), Substitute.For<ISequenceIdGenerator>(), databaseLogger);
+        var marketData = new MarketDataDbContext(settings, factory, Substitute.For<ISequenceIdGenerator>(), databaseLogger);
         var securities = new SecuritiesDbContext(settings, factory, databaseLogger);
         factory.MarketDataDb.Returns(marketData);
         factory.SecuritiesDb.Returns(securities);
@@ -87,8 +85,5 @@ public sealed class RealFrozenOptionChainIntegrationTests
         }
     }
 }
-
-
-
 
 

@@ -107,7 +107,7 @@ public static class FuturesEodDataRealtimeContextExtensions
                     return;
                 }
                 var processed = await trade.ExecuteWithCacheAsync(
-                    actorContext, context.MarketDataApi, context.BlackboardService,
+                    actorContext, context.MarketDataApi,
                     context.StatusConsoleWriter, context.Projector, context.Logger,
                     state.ReadCache).ConfigureAwait(false);
                 outcome = processed ? "Succeeded" : "Rejected";
@@ -148,8 +148,7 @@ public static class FuturesEodDataRealtimeContextExtensions
                 throw new InvalidOperationException(
                     $"Futures EOD trade worker limit ({MaximumTradeWorkers}) reached for {contractId}.");
             worker = new FuturesEodTradeWorker(TradeWorkerCapacityPerContract,
-                trade => trade.ExecuteWithCacheAsync(actorContext, context.MarketDataApi,
-                    context.BlackboardService, context.StatusConsoleWriter,
+                trade => trade.ExecuteWithCacheAsync(actorContext, context.MarketDataApi, context.StatusConsoleWriter,
                     context.Projector, context.Logger, state.ReadCache), context.Logger);
             state.Workers.Add(contractId, worker);
             global::TomasAI.IFM.Domain.MarketData.Feed.ActorLifecycleDiagnosticLog.Write16(context.Logger, null, contractId, TradeWorkerCapacityPerContract);

@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
@@ -22,11 +21,11 @@ IFuturesEodDataCommandContext
 
     /// <summary>Initializes the typed command context.</summary>
     public FuturesEodDataCommandContext(IActorSupervisor supervisor, IDbContextFactory dbFactory,
-        IBlackboardService blackboardService, ILogger<FuturesEodDataCommandActor> logger)
+        ILogger<FuturesEodDataCommandActor> logger)
         : base(supervisor, new ActorMailboxId(ActorType.Command, FuturesEodDataCommandActor.ActorName))
     {
         DbFactory = IsArgumentNull.Set(dbFactory);
-        BlackboardService = IsArgumentNull.Set(blackboardService);
+
         Logger = IsArgumentNull.Set(logger);
         _dbEventSource = ResolveOnce<IEventSourceActorDbContext>();
         _durableReplayQueue = ResolveOnce<IDurableReplayQueue>();
@@ -39,7 +38,7 @@ IFuturesEodDataCommandContext
     /// <inheritdoc/>
     public IMarketDataDbContext MarketDataDb => DbFactory.MarketDataDb;
     /// <inheritdoc/>
-    public IBlackboardService BlackboardService { get; }
+
     /// <inheritdoc/>
     public ILogger<FuturesEodDataCommandActor> Logger { get; }
     /// <inheritdoc/>

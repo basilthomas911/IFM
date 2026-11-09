@@ -1,7 +1,6 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.MarketData.Feed.Command;
 using TomasAI.IFM.Domain.MarketData.Feed.Event;
@@ -163,17 +162,17 @@ public class MarketDataFeedTestFixture : IDisposable
         IActorSupervisor? supervisor = null,
         ApplicationMarketDataApi marketDataApi = null,
         IOptionTradeLiveFeedMap optionTradeLiveFeedMap = null,
-        IBlackboardService blackboardService = null,
+
         IStatusConsoleWriter statusConsoleWriter = null,
         ILogger<MarketDataFeedEventActor>? logger = null)
     {
         var su = supervisor ?? Substitute.For<IActorSupervisor>();
         var mda = marketDataApi ?? Substitute.For<ApplicationMarketDataApi>();
         var lfm = optionTradeLiveFeedMap ?? Substitute.For<IOptionTradeLiveFeedMap>();
-        var bb = blackboardService ?? Substitute.For<IBlackboardService>();
+
         var scw = statusConsoleWriter ?? Substitute.For<IStatusConsoleWriter>();
         var lg = logger ?? Substitute.For<ILogger<MarketDataFeedEventActor>>();
-        return new TestableMarketDataFeedEventActor(su, mda, lfm, bb, scw, lg);
+        return new TestableMarketDataFeedEventActor(su, mda, lfm, scw, lg);
     }
 
     public TestableFuturesOptionTickDataCommandActor CreateFuturesOptionTickDataCommandActor(
@@ -250,12 +249,11 @@ public class MarketDataFeedTestFixture : IDisposable
 
     public TestableFuturesEodDataEventActor CreateActor(
         IActorSupervisor supervisor,
-        IBlackboardService blackboardService,
         IStatusConsoleWriter statusConsoleWriter,
         ILogger<FuturesEodDataEventActor> logger)
     {
         return new TestableFuturesEodDataEventActor(
-            supervisor, blackboardService, statusConsoleWriter, logger);
+            supervisor, statusConsoleWriter, logger);
     }
 
     public void Dispose() { }

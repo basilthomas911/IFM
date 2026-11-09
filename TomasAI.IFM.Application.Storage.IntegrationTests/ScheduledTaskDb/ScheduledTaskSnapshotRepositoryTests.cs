@@ -6,7 +6,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Catalog.Command.Actor;
@@ -304,7 +303,7 @@ public sealed class ScheduledTaskSnapshotRepositoryTests(TradePlanDb.PostgresTra
     {
         EventSourceActorDbContext source = null!;
         var factory = new DbContextFactory(new DbContextResolver(_ => source));
-        var cache = Substitute.For<IRedisCache>();
-        return source = new(fixture.Settings, factory, new BlackboardService(cache, new SystemTextJsonSerializer()), NullLogger<DbProvider>.Instance);
+
+        return source = new(fixture.Settings, factory,  NullLogger<DbProvider>.Instance);
     }
 }

@@ -20,7 +20,7 @@ public sealed class EventLogQualification
             artifactRoot,
             RequiredLoopbackPostgres("IFM_QUALIFICATION_POSTGRES_CONNECTION", runId),
             RequiredLoopbackUri("IFM_QUALIFICATION_NATS_URL", "nats"),
-            RequiredLoopbackEndpoint("IFM_QUALIFICATION_REDIS_URL"),
+
             RequiredScyllaPort(),
             useExistingScylla)
     {
@@ -32,7 +32,7 @@ public sealed class EventLogQualification
         string artifactRoot,
         string postgresConnection,
         string natsUrl,
-        string redisEndpoint,
+
         int scyllaPort,
         bool useExistingScylla = false)
     {
@@ -42,13 +42,13 @@ public sealed class EventLogQualification
         var root = Path.GetFullPath(artifactRoot);
         var pg = ValidateLoopbackPostgres(postgresConnection, runId);
         BrokerUrl = ValidateLoopbackUri(natsUrl, "IFM_QUALIFICATION_NATS_URL", "nats");
-        var redis = ValidateLoopbackEndpoint(redisEndpoint, "IFM_QUALIFICATION_REDIS_URL");
+
         var settings = new Dictionary<string, string?>
         {
             ["urls"] = HttpUrl,
             ["Telemetry:Metrics:Enabled"] = "false",
             ["Kestrel:Endpoints:Http:Url"] = HttpUrl,
-            ["AppSettings:RedisUri"] = redis,
+
             ["AppSettings:Databento:DeploymentProfile"] = "SyntheticCi",
             ["AppSettings:Databento:DataSource"] = "Synthetic",
             ["AppSettings:Databento:Synthetic:RecordCount"] = "1000",
@@ -108,21 +108,6 @@ public sealed class EventLogQualification
     {
         var uri = new Uri(value);
         if (uri.Scheme != scheme || uri.Host != "127.0.0.1" || uri.Port <= 0)
-            throw new InvalidOperationException($"{name} must be a loopback endpoint.");
-        return value;
-    }
-
-    static string RequiredLoopbackEndpoint(string name)
-    {
-        var value = Environment.GetEnvironmentVariable(name)
-            ?? throw new InvalidOperationException($"{name} is required.");
-        return ValidateLoopbackEndpoint(value, name);
-    }
-
-    static string ValidateLoopbackEndpoint(string value, string name)
-    {
-        if (!System.Net.IPEndPoint.TryParse(value.Split(',')[0], out var endpoint)
-            || !System.Net.IPAddress.IsLoopback(endpoint.Address) || endpoint.Port <= 0)
             throw new InvalidOperationException($"{name} must be a loopback endpoint.");
         return value;
     }

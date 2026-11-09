@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Command.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Contracts;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -22,8 +21,8 @@ public interface IMarketDataFeedEventContext : IEventActorContext<MarketDataFeed
     TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi MarketDataLifecycle { get; }
     /// <summary>Gets the OptionTradeLiveFeedMap service.</summary>
     IOptionTradeLiveFeedMap OptionTradeLiveFeedMap { get; }
-    /// <summary>Gets the BlackboardService service.</summary>
-    IBlackboardService BlackboardService { get; }
+
+
     /// <summary>Gets the StatusConsoleWriter service.</summary>
     IStatusConsoleWriter StatusConsoleWriter { get; }
 }

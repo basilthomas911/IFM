@@ -2,7 +2,6 @@ using System.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Npgsql;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Application.Storage.MarketDataDb.Schema;
 using TomasAI.IFM.Application.Storage.IntegrationTests.EventSourceDb;
@@ -29,7 +28,7 @@ public sealed class StoredSessionBarTests(EventSourceActorSnapshotRangeFixture f
         var settings = new DbConnectionSettings().Add(MarketDataDbContext.MarketDataDbConnection, baseConnection, "System.Data.Postgres");
         await new MarketDataSchemaDb(settings, NullLogger<DbProvider>.Instance).CreateAsync(["market_data"]);
         var factory = Substitute.For<IDbContextFactory>();
-        var db = new MarketDataDbContext(settings, factory, Substitute.For<IBlackboardService>(), Substitute.For<ISequenceIdGenerator>(), NullLogger<DbProvider>.Instance);
+        var db = new MarketDataDbContext(settings, factory, Substitute.For<ISequenceIdGenerator>(), NullLogger<DbProvider>.Instance);
         var end = new DateTimeOffset(2026, 4, 30, 23, 15, 0, TimeSpan.Zero);
         var date = new DateOnly(2026, 5, 1);
         var contract = "ES-" + Guid.NewGuid().ToString("N");
@@ -45,7 +44,7 @@ public sealed class StoredSessionBarTests(EventSourceActorSnapshotRangeFixture f
         };
         Assert.True(await db.TryWriteObservationAsync(bar, default));
         Assert.False(await db.TryWriteObservationAsync(bar, default));
-        var restarted = new MarketDataDbContext(settings, factory, Substitute.For<IBlackboardService>(), Substitute.For<ISequenceIdGenerator>(), NullLogger<DbProvider>.Instance);
+        var restarted = new MarketDataDbContext(settings, factory, Substitute.For<ISequenceIdGenerator>(), NullLogger<DbProvider>.Instance);
         var restored = await restarted.GetStoredTradeSessionBarAsync(contract, bar.TimeFrame, date, end);
         var batch = await restarted.GetStoredTradeSessionBarsAsync(contract, frame, date, [end, end, end.AddMinutes(15)]);
         Assert.Equal(restored, Assert.Single(batch));
@@ -79,7 +78,7 @@ public sealed class StoredSessionBarTests(EventSourceActorSnapshotRangeFixture f
         await schema.CreateAsync(["market_data"]);
         await schema.CreateAsync(["indicator_seed_coverage"]);
         var factory = Substitute.For<IDbContextFactory>();
-        MarketDataDbContext Open() => new(settings, factory, Substitute.For<IBlackboardService>(),
+        MarketDataDbContext Open() => new(settings, factory,
             Substitute.For<ISequenceIdGenerator>(), NullLogger<DbProvider>.Instance);
 
         var db = Open();

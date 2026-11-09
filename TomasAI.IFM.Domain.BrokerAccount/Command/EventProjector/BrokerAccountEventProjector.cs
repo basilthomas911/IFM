@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.TradeBroker.Contracts;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
@@ -16,9 +15,9 @@ namespace TomasAI.IFM.Domain.BrokerAccount.Command.EventProjector;
 
 /// <summary>Projects committed account event payloads into PostgreSQL with durable retry.</summary>
 public sealed class BrokerAccountEventProjector(IBrokerAccountProjectionWriter writer, IDurableReplayQueue queue,
-    IEventSourceActorDbContext eventSource, IBlackboardService blackboard, ILogger<BrokerAccountEventProjector> logger,
+    IEventSourceActorDbContext eventSource, ILogger<BrokerAccountEventProjector> logger,
     ITradeBroker broker, IActorService actorService, EventProjectorReliabilityOptions? options = null)
-    : ConventionalEventProjector<BrokerAccountCommandActor>(queue, eventSource, blackboard, logger, options)
+    : ConventionalEventProjector<BrokerAccountCommandActor>(queue, eventSource, logger, options)
 {
     public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors { get; } =
     [

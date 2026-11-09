@@ -40,7 +40,6 @@ public sealed class PostgresWorkflowSnapshotTests(PostgresTradePlanFixture fixtu
         factory.TradeDb.Returns(database);
         var context = new IntrinsicTimeStrategyWorkflowCommandContext(
             Substitute.For<IActorSupervisor>(), factory,
-            Substitute.For<TomasAI.IFM.Application.Blackboard.IBlackboardService>(),
             new TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Options.RegimeDiscoveryExecutionOptions(),
             new TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.Actor.IntrinsicTimeStrategyWorkflowOptions(),
             NullLogger<IntrinsicTimeStrategyWorkflowCommandActor>.Instance);

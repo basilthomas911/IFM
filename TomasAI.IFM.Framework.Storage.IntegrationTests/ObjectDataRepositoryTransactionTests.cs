@@ -5,38 +5,42 @@ using NSubstitute;
 using Xunit;
 using FluentAssertions;
 using TomasAI.IFM.Shared.Storage;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using Microsoft.Extensions.Logging;
 
 namespace TomasAI.IFM.Framework.Storage.IntegratedTests;
 
-public class EventDatabaseFixture : IDisposable
+public class EventDatabaseFixture : IAsyncLifetime
 {
-    public EventDatabaseFixture()
+    readonly TomasAI.IFM.IntegrationTesting.IsolatedIntegrationInfrastructure infrastructure = new("redisfree-transactions", includeCql: false);
+
+    public async Task InitializeAsync()
     {
+        await infrastructure.StartAsync();
         var dbConn = new DbConnectionSettings()
-             .Add("EventSourceActorDbConnection", "Host=localhost;Port=5432;Database=event-source-test-db", "System.Data.Postgres");
+             .Add("EventSourceActorDbConnection", infrastructure.PostgresConnectionString, "System.Data.Postgres");
         var diContainer = new Dictionary<Type, EventSourceActorDbContext>();
         var dbResolver = new DbContextResolver(repoType => diContainer[repoType]);
         DbFactory = new DbContextFactory(dbResolver);
         var dbCache = new DbCache();
         var logger = Substitute.For<ILogger<DbProvider>>();
         logger.When(_ => { }).Do(_ => { });
-        var blackboardService = Substitute.For<IBlackboardService>();
-        blackboardService.When(_ => { }).Do(_ => { });
 
-        diContainer.Add(typeof(IObjectRepository<EventSourceActorDbContext>), new EventSourceActorDbContext(dbConn, DbFactory, blackboardService, logger));
+
+        await new TomasAI.IFM.Application.Storage.EventSourceDb.Schema.EventSourceSchemaDb(dbConn, logger).CreateAllAsync();
+        diContainer.Add(typeof(IObjectRepository<EventSourceActorDbContext>), new EventSourceActorDbContext(dbConn, DbFactory, logger));
         Db = DbFactory.ActorEventSourceDb as EventSourceActorDbContext;
     }
 
-    public EventSourceActorDbContext Db { get; }
+    public EventSourceActorDbContext Db { get; private set; } = null!;
 
-    public IDbContextFactory DbFactory { get; }
+    public IDbContextFactory DbFactory { get; private set; } = null!;
 
-    public void Dispose()
+    public async Task DisposeAsync()
     {
+        if (Db is not null) await Db.DisposeAsync();
+        await infrastructure.DisposeAsync();
     }
 }
 
@@ -117,7 +121,7 @@ public class ObjectDataRepositoryTransactionTests(EventDatabaseFixture fixture) 
         => await _fixture.Db.UseTest($"delete from command_log where commandid = '{commandId}'").ExecuteCommandAsync();
 
     Task<int> CountCommandAsync(Guid commandId)
-        => _fixture.Db.UseTest($"select count(*) from command_log where commandid = '{commandId}'")
+        => _fixture.Db.UseTest($"select count(*)::integer from command_log where commandid = '{commandId}'")
             .ExecuteScalarAsync(MapToInt);
 
     static int MapToInt(IObjectDataRecord record)

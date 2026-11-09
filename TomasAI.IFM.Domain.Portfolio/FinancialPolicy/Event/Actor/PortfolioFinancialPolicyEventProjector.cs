@@ -2,7 +2,6 @@ using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Shared.EventSourcing;
 using System.Collections.Immutable;
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
@@ -20,10 +19,9 @@ using TomasAI.IFM.Shared.EventProjector;
 namespace TomasAI.IFM.Domain.Portfolio.Projection;
 
 public sealed class PortfolioFinancialPolicyEventProjector(
-    IDurableReplayQueue replayQueue, IEventSourceActorDbContext eventSource, IBlackboardService blackboard,
-    ILogger<PortfolioFinancialPolicyEventProjector> logger, IPortfolioEventStore events, IPortfolioDbWriteContext projections,
+    IDurableReplayQueue replayQueue, IEventSourceActorDbContext eventSource, ILogger<PortfolioFinancialPolicyEventProjector> logger, IPortfolioEventStore events, IPortfolioDbWriteContext projections,
     EventProjectorReliabilityOptions? options = null, IPostgresEventTransaction? transactions = null)
-    : ConventionalEventProjector<PortfolioFinancialPolicyCommandActor>(replayQueue, eventSource, blackboard, logger, options)
+    : ConventionalEventProjector<PortfolioFinancialPolicyCommandActor>(replayQueue, eventSource, logger, options)
 {
     static readonly ImmutableArray<Type> Types =
     [

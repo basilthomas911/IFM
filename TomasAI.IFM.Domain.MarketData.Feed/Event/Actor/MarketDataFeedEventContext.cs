@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Command.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Contracts;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -21,7 +20,6 @@ public sealed class MarketDataFeedEventContext : EventActorContext, IMarketDataF
         ILogger<MarketDataFeedEventActor> logger,
         TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi marketDataLifecycle,
         IOptionTradeLiveFeedMap optionTradeLiveFeedMap,
-        IBlackboardService blackboardService,
         IStatusConsoleWriter statusConsoleWriter)
         : base(supervisor, new ActorMailboxId(ActorType.Event, MarketDataFeedEventActor.Actor))
     {
@@ -29,7 +27,7 @@ public sealed class MarketDataFeedEventContext : EventActorContext, IMarketDataF
         Logger = IsArgumentNull.Set(logger);
         MarketDataLifecycle = IsArgumentNull.Set(marketDataLifecycle);
         OptionTradeLiveFeedMap = IsArgumentNull.Set(optionTradeLiveFeedMap);
-        BlackboardService = IsArgumentNull.Set(blackboardService);
+
         StatusConsoleWriter = IsArgumentNull.Set(statusConsoleWriter);
     }
     /// <inheritdoc/>
@@ -41,7 +39,7 @@ public sealed class MarketDataFeedEventContext : EventActorContext, IMarketDataF
     /// <inheritdoc/>
     public IOptionTradeLiveFeedMap OptionTradeLiveFeedMap { get; }
     /// <inheritdoc/>
-    public IBlackboardService BlackboardService { get; }
+
     /// <inheritdoc/>
     public IStatusConsoleWriter StatusConsoleWriter { get; }
 }

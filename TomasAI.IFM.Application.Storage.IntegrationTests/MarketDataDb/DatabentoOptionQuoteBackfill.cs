@@ -12,7 +12,6 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Application.Storage.SecuritiesDb;
@@ -54,7 +53,7 @@ public sealed class DatabentoOptionQuoteBackfill
             .Add("SecuritiesDbConnection", connection, "System.Data.Postgres");
         var factory = Substitute.For<IDbContextFactory>();
         var logger = Substitute.For<ILogger<DbProvider>>();
-        var db = new MarketDataDbContext(settings, factory, Substitute.For<IBlackboardService>(), Substitute.For<ISequenceIdGenerator>(), logger);
+        var db = new MarketDataDbContext(settings, factory, Substitute.For<ISequenceIdGenerator>(), logger);
         var securities = new SecuritiesDbContext(settings, factory, logger);
         factory.MarketDataDb.Returns(db);
         factory.SecuritiesDb.Returns(securities);
@@ -144,8 +143,5 @@ public sealed class DatabentoOptionQuoteBackfill
         Console.WriteLine($"Verified {latest.Count} quoted contracts from {records} BBO records; partition contains {stored.Count} rows. Missing selected contracts: {selected.Length - latest.Count}.");
     }
 }
-
-
-
 
 

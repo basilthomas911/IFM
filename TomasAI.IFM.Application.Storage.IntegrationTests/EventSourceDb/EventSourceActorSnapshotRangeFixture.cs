@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Logging;
 using NSubstitute;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.EventSourceDb.EventLog;
@@ -19,7 +18,7 @@ public sealed partial class EventSourceActorSnapshotRangeFixture : IAsyncLifetim
     readonly IsolatedIntegrationInfrastructure _infrastructure;
     readonly bool _ownsInfrastructure;
     IDbConnectionSettings _connectionSettings = null!;
-    IBlackboardService _blackboard = null!;
+
     ILogger<DbProvider> _logger = null!;
     string _authenticatedConnectionString = string.Empty;
 
@@ -59,17 +58,9 @@ public sealed partial class EventSourceActorSnapshotRangeFixture : IAsyncLifetim
         _logger = Substitute.For<ILogger<DbProvider>>();
         await CreateSchemaDb().CreateAllAsync();
 
-        var cache = Substitute.For<IRedisCache>();
+
         var cacheValues = new System.Collections.Concurrent.ConcurrentDictionary<string, string>();
-        cache.TryGet(Arg.Any<string>(), out Arg.Any<string>()).Returns(call =>
-        {
-            var found = cacheValues.TryGetValue(call.ArgAt<string>(0), out var value);
-            call[1] = value!;
-            return found;
-        });
-        cache.When(instance => instance.Set(Arg.Any<string>(), Arg.Any<string>()))
-            .Do(call => cacheValues[call.ArgAt<string>(0)] = call.ArgAt<string>(1));
-        _blackboard = new BlackboardService(cache, new SystemTextJsonSerializer());
+
 
         ActorEventDb = CreateActorEventDb();
         repositories.Add(typeof(IObjectRepository<EventSourceActorDbContext>), ActorEventDb);
@@ -85,11 +76,11 @@ public sealed partial class EventSourceActorSnapshotRangeFixture : IAsyncLifetim
 
     public DbContextFactory DbFactory { get; private set; } = null!;
     public EventSourceActorDbContext ActorEventDb { get; private set; } = null!;
-    public IBlackboardService Blackboard => _blackboard;
+
     public string ConnectionString => _authenticatedConnectionString;
 
     internal EventSourceSchemaDb CreateSchemaDb() => new(_connectionSettings, _logger);
 
     public EventSourceActorDbContext CreateActorEventDb(EventLogPersistenceOptions? options = null)
-        => new(_connectionSettings, DbFactory, _blackboard, _logger, options);
+        => new(_connectionSettings, DbFactory, _logger, options);
 }

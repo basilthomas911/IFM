@@ -6,7 +6,6 @@ using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events.Domain;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.ScheduledTaskDb;
@@ -38,7 +37,7 @@ public sealed class ScheduledTaskReadModelRebuildTests
                     : ValueTask.CompletedTask;
             });
         await using var projector = new ScheduledTaskRunEventProjector(writer, Substitute.For<IDurableReplayQueue>(),
-            Substitute.For<IEventSourceActorDbContext>(), Substitute.For<IBlackboardService>(),
+            Substitute.For<IEventSourceActorDbContext>(),
             NullLogger<ScheduledTaskRunEventProjector>.Instance);
         await projector.StartAsync(context);
         var descriptor = Assert.Single(projector.ProjectionDescriptors, item => item.SourceEventType == typeof(ScheduledTaskRunRequestedEvent));
@@ -79,11 +78,11 @@ public sealed class ScheduledTaskReadModelRebuildTests
         var writer=Substitute.For<IScheduledTaskProjectionWriter,IScheduledTaskTransactionalProjectionWriter>();
         ((IScheduledTaskTransactionalProjectionWriter)writer).ProviderName.Returns("System.Data.Postgres");
         var queue=Substitute.For<IDurableReplayQueue>();var events=Substitute.For<IEventSourceActorDbContext>();
-        var blackboard=Substitute.For<IBlackboardService>();
+
         var descriptors=new List<EventProjectionDescriptor>();
-        descriptors.AddRange(new ScheduledTaskEventProjector(writer,queue,events,blackboard,NullLogger<ScheduledTaskEventProjector>.Instance).ProjectionDescriptors);
-        descriptors.AddRange(new ScheduledTaskCatalogEventProjector(writer,queue,events,blackboard,NullLogger<ScheduledTaskCatalogEventProjector>.Instance).ProjectionDescriptors);
-        descriptors.AddRange(new ScheduledTaskRunEventProjector(writer,queue,events,blackboard,NullLogger<ScheduledTaskRunEventProjector>.Instance).ProjectionDescriptors);
+        descriptors.AddRange(new ScheduledTaskEventProjector(writer,queue,events,NullLogger<ScheduledTaskEventProjector>.Instance).ProjectionDescriptors);
+        descriptors.AddRange(new ScheduledTaskCatalogEventProjector(writer,queue,events,NullLogger<ScheduledTaskCatalogEventProjector>.Instance).ProjectionDescriptors);
+        descriptors.AddRange(new ScheduledTaskRunEventProjector(writer,queue,events,NullLogger<ScheduledTaskRunEventProjector>.Instance).ProjectionDescriptors);
         using var cancellation=new CancellationTokenSource();
         foreach(var descriptor in descriptors)
         {
@@ -98,6 +97,6 @@ public sealed class ScheduledTaskReadModelRebuildTests
             Assert.Equal("ProjectAsync",call.GetMethodInfo().Name);
             Assert.Same(snapshot,call.GetArguments()[0]);Assert.Equal(cancellation.Token,call.GetArguments()[1]);
         }
-        Assert.Empty(queue.ReceivedCalls());Assert.Empty(events.ReceivedCalls());Assert.Empty(blackboard.ReceivedCalls());
+        Assert.Empty(queue.ReceivedCalls());Assert.Empty(events.ReceivedCalls());
     }
 }

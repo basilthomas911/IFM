@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Logging;
 using System.Reflection;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
@@ -19,7 +18,7 @@ public sealed class ApplicationEventProjectorTests
         var projector = new ApplicationEventProjector(
             Stub<IDurableReplayQueue>(),
             Stub<IEventSourceActorDbContext>(),
-            Stub<IBlackboardService>(),
+
             Stub<ILogger<ApplicationEventProjector>>());
 
         Assert.Collection(
@@ -45,8 +44,7 @@ public sealed class ApplicationEventProjectorTests
     public void Concurrent_descriptor_type_reads_share_one_immutable_collection()
     {
         var projector = new ApplicationEventProjector(
-            Stub<IDurableReplayQueue>(), Stub<IEventSourceActorDbContext>(),
-            Stub<IBlackboardService>(), Stub<ILogger<ApplicationEventProjector>>());
+            Stub<IDurableReplayQueue>(), Stub<IEventSourceActorDbContext>(), Stub<ILogger<ApplicationEventProjector>>());
         var reads = new IReadOnlyCollection<Type>[32];
         Parallel.For(0, reads.Length, index => reads[index] = projector.ProjectedEventTypes);
         Assert.All(reads, types => Assert.Same(reads[0], types));
@@ -64,7 +62,7 @@ public sealed class ApplicationEventProjectorTests
         var projector = new ApplicationEventProjector(
             Stub<IDurableReplayQueue>(),
             Stub<IEventSourceActorDbContext>(),
-            Stub<IBlackboardService>(),
+
             Stub<ILogger<ApplicationEventProjector>>(),
             new EventProjectorReliabilityOptions
             {

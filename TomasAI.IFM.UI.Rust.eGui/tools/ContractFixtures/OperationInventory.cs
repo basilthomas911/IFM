@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Runtime.CompilerServices;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -7,10 +8,16 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 // guessed executable recipes. Each pending operation still needs a native owner.
 internal static class OperationInventory
 {
-    public static void Export(string output)
+    public static void Export(string output, [CallerFilePath] string sourceFile = "")
     {
         var repository = new DirectoryInfo(output);
         while (repository != null && !Directory.Exists(Path.Combine(repository.FullName,"TomasAI.IFM.Application.Api.Nats.Client"))) repository = repository.Parent;
+        // Generated fixtures can live on E:; source discovery must not depend on the output drive.
+        if (repository is null)
+        {
+            repository = new DirectoryInfo(Path.GetDirectoryName(sourceFile)!);
+            while (repository != null && !Directory.Exists(Path.Combine(repository.FullName,"TomasAI.IFM.Application.Api.Nats.Client"))) repository = repository.Parent;
+        }
         if(repository == null) throw new InvalidOperationException("Cannot find API client sources for operation inventory");
         var uiReferences=UiApiReferences.Scan(repository.FullName);
         var rows = new List<object>();

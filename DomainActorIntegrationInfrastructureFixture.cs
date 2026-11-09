@@ -165,8 +165,8 @@ public static class DomainActorIntegrationInfrastructureFixture
         SetEnvironment("IFM_NATS_URL", infrastructure.NatsUrl);
         SetEnvironment("IFM_DOWNLOADLOG_TEST_NATS_URL", infrastructure.AuxiliaryNatsUrl);
         SetEnvironment("IFM_QUALIFICATION_NATS_URL", infrastructure.NatsUrl);
-        SetEnvironment("IFM_TEST_REDIS_URL", infrastructure.RedisConnectionString);
-        SetEnvironment("IFM_QUALIFICATION_REDIS_URL", infrastructure.RedisConnectionString);
+
+
         SetEnvironment("IFM_TEST_POSTGRES_CONNECTION", postgresTestConnection);
         SetEnvironment("IFM_POSTGRES_EVENTSOURCE_TEST_CONNECTION", postgresTestConnection);
         SetEnvironment("IFM_QUALIFICATION_POSTGRES_CONNECTION", postgresTestConnection);

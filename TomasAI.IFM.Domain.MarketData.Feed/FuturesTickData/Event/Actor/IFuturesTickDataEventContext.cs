@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Command.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Contracts;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -20,8 +19,8 @@ public interface IFuturesTickDataEventContext : IEventActorContext<FuturesTickDa
     ILogger<FuturesTickDataEventActor> Logger { get; }
     /// <summary>Gets the MarketDataApi service.</summary>
     ApplicationMarketDataApi MarketDataApi { get; }
-    /// <summary>Gets the BlackboardService service.</summary>
-    IBlackboardService BlackboardService { get; }
+
+
     /// <summary>Gets the StatusConsoleWriter service.</summary>
     IStatusConsoleWriter StatusConsoleWriter { get; }
 }

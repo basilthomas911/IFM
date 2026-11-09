@@ -13,7 +13,7 @@ public sealed class DevelopmentDatabaseReplacementOptions
     public string NativeRestoreContainer { get; set; } = "ifm-database-backup-development-database-backup-host-1";
     public string PostgreSqlContainer { get; set; } = "ifm_db";
     public string ScyllaContainer { get; set; } = "ifm-scylladb";
-    public string RedisContainer { get; set; } = "redis";
+
     public string ScyllaFreshContainer { get; set; } = "ifm-scylla-restore-validation";
     public string ApiHealthUrl { get; set; } = "http://localhost:22543/health/launch-ready";
     public string[] AllowedPostgreSqlProfiles { get; set; } = ["development-on-demand"];
