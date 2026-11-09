@@ -464,7 +464,11 @@ impl StrategyController {
                     "Down"
                 }
             } else {
-                "Other"
+                match mode.as_str() {
+                    "TrendOvershootExtended" => "OvershootExtended",
+                    "TrendOvershootReversal" => "OvershootReversal",
+                    _ => "Other",
+                }
             };
             let local = at.with_timezone(&chrono_tz::America::New_York);
             result.signals.push(GraphPoint {
@@ -605,5 +609,17 @@ mod typed_state_tests {
             snapshot.graph_end_utc,
             signal_at.max(header.occurred()).timestamp_millis() as f64 / 1000.0
         );
+        // Preserve event-mode identity through the real controller projection;
+        // overshoots must not fall into the ordinary navy event series.
+        for (mode, marker) in [
+            (crate::models::trade_contracts::IntrinsicTimeModeType::TrendOvershootExtended, "OvershootExtended"),
+            (crate::models::trade_contracts::IntrinsicTimeModeType::TrendOvershootReversal, "OvershootReversal"),
+            (crate::models::trade_contracts::IntrinsicTimeModeType::TrendExtremeChanged, "Other"),
+        ] {
+            state.signals.values_mut().next().unwrap().intrinsic_time_mode = Some(mode);
+            let snapshot = state.snapshot(&registry).unwrap();
+            assert_eq!(snapshot.signals[0].direction, marker);
+            assert_eq!(snapshot.signals[0].price, state.signals.values().next().unwrap().intrinsic_price.unwrap());
+        }
     }
 }

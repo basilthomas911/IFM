@@ -13,6 +13,13 @@ use crate::{Catalog, DetailsView, Snapshot, strings};
 use eframe::egui;
 use serde::Deserialize;
 
+/// Overshoot colors shared by the plotted events and bottom legend.
+const OVERSHOOT_EXTENDED_COLOR: egui::Color32 = egui::Color32::GREEN;
+const OVERSHOOT_REVERSAL_COLOR: egui::Color32 = egui::Color32::RED;
+
+/// Slightly larger than the ordinary two-point event circles.
+const OVERSHOOT_RADIUS: f32 = 3.5;
+
 /// One backend workflow execution row with its actor pipeline and selection action.
 #[derive(Clone, Debug, Default, Deserialize, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -119,6 +126,10 @@ pub struct StrategyWorkspace {
     down: Vec<[f64; 2]>,
     /// Cached non-directional ITI event marker points.
     other: Vec<[f64; 2]>,
+    /// Cached overshoot extensions plotted as bright green circles.
+    overshoot_extended: Vec<[f64; 2]>,
+    /// Cached overshoot reversals plotted as bright red circles.
+    overshoot_reversal: Vec<[f64; 2]>,
 }
 impl StrategyWorkspace {
     /// Create the strategy workspace with Strategy Updates initially selected for the main shell.
@@ -164,6 +175,8 @@ impl StrategyWorkspace {
             self.up.clear();
             self.down.clear();
             self.other.clear();
+            self.overshoot_extended.clear();
+            self.overshoot_reversal.clear();
             for point in &snapshot.signals {
                 if !point.utc_seconds.is_finite() || !point.price.is_finite() {
                     continue;
@@ -176,6 +189,8 @@ impl StrategyWorkspace {
                 match point.direction.as_str() {
                     "Up" => self.up.push(xy),
                     "Down" => self.down.push(xy),
+                    "OvershootExtended" => self.overshoot_extended.push(xy),
+                    "OvershootReversal" => self.overshoot_reversal.push(xy),
                     _ => self.other.push(xy),
                 }
             }
@@ -209,8 +224,8 @@ impl StrategyWorkspace {
                                     ),
                                     ("Direction Up", "up", egui::Color32::from_rgb(50, 205, 50)),
                                     ("Direction Down", "down", egui::Color32::RED),
-                                    ("Overshoot Extended", "circle", egui::Color32::GREEN),
-                                    ("Overshoot Reversal", "circle", egui::Color32::RED),
+                                    ("Overshoot Extended", "circle", OVERSHOOT_EXTENDED_COLOR),
+                                    ("Overshoot Reversal", "circle", OVERSHOOT_REVERSAL_COLOR),
                                 ] {
                                     // Wrap each marker and caption as one legend entry.
                                     let caption_width = ui
@@ -363,6 +378,17 @@ impl StrategyWorkspace {
                                 .color(egui::Color32::YELLOW)
                                 .width(2.0_f32),
                         );
+                        for (label, points, color) in [
+                            ("Overshoot Extended", &self.overshoot_extended, OVERSHOOT_EXTENDED_COLOR),
+                            ("Overshoot Reversal", &self.overshoot_reversal, OVERSHOOT_REVERSAL_COLOR),
+                        ] {
+                            plot.points(
+                                egui_plot::Points::new(label, points.clone())
+                                    .color(color)
+                                    .shape(egui_plot::MarkerShape::Circle)
+                                    .radius(OVERSHOOT_RADIUS),
+                            );
+                        }
                         for (key, points, color) in [
                             (
                                 strings::UP_EVENT,
