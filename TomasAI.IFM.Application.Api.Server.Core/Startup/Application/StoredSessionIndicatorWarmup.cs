@@ -44,14 +44,24 @@ public sealed class StoredSessionIndicatorWarmup(StoredSessionIndicatorSeedReade
         {
             TrimRetainedState(date);
             var key = (date, contractId, frame);
-            if (shortSeeds.ContainsKey(key)) return true;
+            if (shortSeeds.ContainsKey(key) && await ShortFrameCurrentAsync(contractId, date, frame, token).ConfigureAwait(false))
+            { shortSeeds[key] = 0; return true; }
             return await initializing.RunAsync(key, async ownerToken =>
             {
-                if (shortSeeds.ContainsKey(key)) return true;
                 using var budget = CancellationTokenSource.CreateLinkedTokenSource(ownerToken);
                 budget.CancelAfter(TimeSpan.FromSeconds(90));
-                if (!await WarmFrameAsync(contractId, date, frame, budget.Token, seedShortFrame: true).ConfigureAwait(false)) return false;
-                shortSeeds.TryAdd(key, 0);
+                var repairGap = false;
+                if (shortSeeds.ContainsKey(key))
+                {
+                    if (await ShortFrameCurrentAsync(contractId, date, frame, budget.Token).ConfigureAwait(false))
+                    { shortSeeds[key] = 0; return true; }
+                    repairGap = true;
+                    if (shortSeeds.TryUpdate(key, 1, 0))
+                        logger.LogWarning("Historical indicator gap repair started for {ContractId} {TimeFrame} on {ValueDate}; retained initialization no longer covers the completed interval.", contractId, frame, date);
+                }
+                if (!await WarmFrameAsync(contractId, date, frame, budget.Token, seedShortFrame: true, requireNativeHistory: repairGap).ConfigureAwait(false)) return false;
+                if (repairGap && !await ShortFrameCurrentAsync(contractId, date, frame, budget.Token).ConfigureAwait(false)) return false;
+                shortSeeds[key] = 0;
                 TrimRetainedState(date);
                 logger.LogInformation("Historical startup seed verified for {ContractId} {TimeFrame} on {ValueDate}: RSI13/14, ADX, ATR, MACD and Bollinger state.", contractId, frame, date);
                 return true;
@@ -64,7 +74,18 @@ public sealed class StoredSessionIndicatorWarmup(StoredSessionIndicatorSeedReade
         }
     }
 
-    /// <summary>Restores session baselines and reconciles each newly closed 15-minute and hourly interval.</summary>
+    /// <summary>Requalifies cached initialization against committed outputs, including RSI13/TDI history.</summary>
+    async Task<bool> ShortFrameCurrentAsync(string contractId, DateOnly date, TimeFrameType frame, CancellationToken token)
+    {
+        using var budget = CancellationTokenSource.CreateLinkedTokenSource(token);
+        budget.CancelAfter(TimeSpan.FromSeconds(10));
+        var latest = RsiHistoricalSeedWindowModel.Create(frame, 1, clock.GetUtcNow().AddSeconds(-15), calendar)[0].StartUtc;
+        return await RestoreCommittedIndicatorsAsync(databases, contractId, date, frame, budget.Token).ConfigureAwait(false) is { } oldest
+            && oldest >= latest
+            && await HasCommittedShortFrameHistoryAsync(contractId, date, frame, latest, budget.Token).ConfigureAwait(false);
+    }
+
+    /// <summary>Restores session baselines and reconciles each newly closed interval.</summary>
     public async Task<bool> WarmAsync(DateOnly date, CancellationToken token)
     {
         TrimRetainedState(date);
@@ -186,7 +207,7 @@ public sealed class StoredSessionIndicatorWarmup(StoredSessionIndicatorSeedReade
             entries.TryRemove(key, out _);
     }
 
-    async Task<bool> WarmFrameAsync(string contractId, DateOnly date, TimeFrameType frame, CancellationToken token, bool seedShortFrame = false)
+    async Task<bool> WarmFrameAsync(string contractId, DateOnly date, TimeFrameType frame, CancellationToken token, bool seedShortFrame = false, bool requireNativeHistory = false)
     {
         // Independent frames each retain their own admission. A slow frame cannot occupy
         // every permit and prevent the others starting. Six startup frames admit at most twelve commands.
@@ -226,8 +247,13 @@ public sealed class StoredSessionIndicatorWarmup(StoredSessionIndicatorSeedReade
                 }
             }
         }
-        var bars = acquiredSeed ?? await reader.ReadAtAsync(contractId, frame, 48, cutoff, token).ConfigureAwait(false);
-        if (bars.Length != 48) return false;
+        // A transport gap means local tick persistence may also be incomplete.
+        // Repair must use the native owner's qualified full coverage, not aggregate
+        // whatever subset of ticks survived the same overloaded realtime path.
+        var bars = requireNativeHistory
+            ? await market.ReadIndicatorSeedBarsAsync(contractId, frame, token).ConfigureAwait(false)
+            : acquiredSeed ?? await reader.ReadAtAsync(contractId, frame, 48, cutoff, token).ConfigureAwait(false);
+        if (bars.Length != 48 || bars.Any(bar => !bar.IsComplete || !bar.IsValid)) return false;
         var revision = SeedRevision(bars);
         var progress = seedProgress.AddOrUpdate((date, contractId, frame), _ => new(revision),
             (_, previous) => previous.Revision == revision ? previous : new(revision));

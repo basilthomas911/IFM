@@ -37,6 +37,43 @@ namespace TomasAI.IFM.Domain.Trade.IntegratedTests.Strategy.Workflow.IntrinsicTi
 [Trait("Category", "Integration")]
 public sealed partial class TradeSelectionRuntimeTests(TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint> sourceFactory, TradeDatabaseFixture database, Xunit.Abstractions.ITestOutputHelper output) : IClassFixture<TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint>>, IClassFixture<TradeDatabaseFixture>
 {
+    [Theory]
+    [InlineData(TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType.Daily)]
+    [InlineData(TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType.Weekly)]
+    [InlineData(TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType.Monthly)]
+    public async Task Expired_market_permission_does_not_lose_a_durable_NoTrade_result(TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType horizon)
+    {
+        await using var factory = Host(); _ = factory.CreateClient();
+        var producer = factory.Services.GetRequiredService<IActorProducer>();
+        await producer.StartAsync(new(ActorType.Realtime, "SelectionDeadlineVerification"));
+        try
+        {
+            await factory.Services.GetRequiredService<TradeSchemaDb>().CreateAllAsync();
+            var command = await TradeSelectionFixture.Command(horizon: horizon, atUtc: DateTime.UtcNow);
+            command = TradeSelectionTestInputs.Authority(command, command.SelectionBinding.PortfolioSnapshot with
+            { Fund = command.SelectionBinding.PortfolioSnapshot.Fund with { PermittedTradeStrategyFamilies = [] } });
+            var expiry = command.EvaluatedAtUtc.AddMilliseconds(100);
+            command = TradeSelectionTestInputs.Evidence(command, assessmentChange: assessment => TradeSelectionTestInputs.Set(assessment, "ValidUntilUtc", expiry));
+            command = TradeSelectionDispatch.Create(command.WorkflowView, Guid.NewGuid());
+            await Task.Delay(TimeSpan.FromMilliseconds(Math.Max(0, (expiry - DateTime.UtcNow).TotalMilliseconds) + 20));
+            var reply = await producer.RequestFunctionAsync<ExecuteTradeSelectionPipelineCommand, TradeSelectionExecutionId,
+                FunctionResult<TradeSelectionFunctionCompletedEvent, TradeSelectionFunctionFailedEvent>>(command.Subject, command, command.EntityId);
+            reply.Value!.IsCompleted.Should().BeTrue(reply.Value.Failed?.ErrorMessage ?? reply.ErrorMessage);
+            var result = TradeSelectionContracts.ReadResult(reply.Value.Completed!.Result);
+            result.Outcome.Should().Be(SelectionOutcome.NoTrade);
+            result.PrimaryReasonCode.Should().Be("TS.NO_AUTHORIZED_CANDIDATE");
+            result.ValidUntilUtc.Should().Be(expiry);
+            var projection = await database.TradeDb.GetTradeSelectionInvocationAsync(command.WorkflowId, command.CommandId);
+            projection!.Result.PayloadSha256.Should().Be(reply.Value.Completed.Result.PayloadSha256);
+            var repository = factory.Services.GetRequiredService<SimpleInjector.Container>()
+                .GetInstance<IEventSourceFunctionStateRepository<TradeSelectionFunctionState, ExecuteTradeSelectionPipelineCommand>>();
+            var restored = await repository.LoadStateAsync(command);
+            restored.IsCompleted.Should().BeTrue();
+            restored.Matches(command).Should().BeTrue();
+        }
+        finally { await global::SupervisorTestLifecycle.ShutdownAsync(factory.Services); await producer.StopAsync(); }
+    }
+
     [Fact, Trait("Gate", "TS-05"), Trait("Gate", "TS-07")]
     public async Task Production_Function_over_NATS_projects_and_appends_Postgres_with_idempotent_replay()
     {

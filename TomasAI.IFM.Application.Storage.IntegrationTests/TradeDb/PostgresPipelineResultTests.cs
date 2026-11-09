@@ -16,6 +16,7 @@ using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.MarketCondition.M
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Model;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Framework.SequenceId;
@@ -31,23 +32,28 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.TradeDb;
 public sealed class PostgresPipelineResultTests(PostgresTradePlanFixture fixture)
 {
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task Native_assessment_repository_commits_source_audit_and_both_read_models_together(bool fail)
+    [InlineData(TimeFrameType.Daily, false)]
+    [InlineData(TimeFrameType.Daily, true)]
+    [InlineData(TimeFrameType.Weekly, false)]
+    [InlineData(TimeFrameType.Weekly, true)]
+    [InlineData(TimeFrameType.Monthly, false)]
+    [InlineData(TimeFrameType.Monthly, true)]
+    public async Task Native_assessment_repository_commits_source_audit_and_both_read_models_together(TimeFrameType horizon, bool fail)
     {
         await fixture.Transactions.ExecuteOnceAsync((db,ct)=>db.ExecuteAsync(TradeSchemaSql.Create,[],ct));
-        var request=AssessmentFixture.Command();
+        var request=AssessmentFixture.Command(horizon);
         var snapshot=new MarketConditionAssessmentSnapshot
         {
             SnapshotId=Guid.NewGuid(),MarketProfileId=request.MarketProfileId,InstrumentRoot=request.InstrumentRoot,
             TargetHorizon=request.TargetHorizon,ReferenceInstrumentId="ES.TEST",EvaluatedAtUtc=request.RequestedAtUtc,
             Quote=new(5000,5000.25m,10,10),SessionState=MarketSessionStatus.Open,EventContext=AssessmentEventContext.Clear,
             Observations=request.ParameterSet.Sources.Select(x=>new AssessmentObservation
-            { SourceId=x.SourceId,ObservedAtUtc=request.RequestedAtUtc.AddSeconds(-1),ReceivedAtUtc=request.RequestedAtUtc,
+            { SourceId=x.SourceId,ObservedAtUtc=request.RequestedAtUtc.AddSeconds(x.SourceId=="NormalizedMovement"?-54:-1),ReceivedAtUtc=request.RequestedAtUtc,
               Sequence=10,Availability=MarketSourceAvailability.Available,Validity=MarketSourceValidity.Valid,Value=0,Unit="ratio" }).ToArray(),
             CalendarEvidence=new(){CheckedAtUtc=request.RequestedAtUtc,CoverageConfirmed=true,ValidUntilUtc=request.RequestedAtUtc.AddHours(1)}
         }.Seal();
         var result=new MarketConditionAssessmentCalculator().Calculate(request,snapshot,request.CommandId);
+        result.Assessment.StressState.Should().Be(AssessmentStress.Normal);
         var candidate=new MarketConditionAssessmentCompletedEvent
         {
             Subject=new(ActorType.Function,MarketConditionAssessmentCompletedEvent.Actor,MarketConditionAssessmentCompletedEvent.Verb,request.EntityId.Format()),
@@ -73,7 +79,13 @@ public sealed class PostgresPipelineResultTests(PostgresTradePlanFixture fixture
         if(fail)await FluentActions.Awaiting(Save).Should().ThrowAsync<InvalidOperationException>();else await Save();
         (await fixture.EventCountAsync(request.StreamId)).Should().Be(fail?0:1);
         var exact=await context.GetMarketConditionAssessmentAsync(request.WorkflowId);
-        if(fail)exact.Should().BeNull();else exact!.Id.Should().Be(candidate.Id);
+        if(fail)exact.Should().BeNull();else
+        {
+            exact!.Id.Should().Be(candidate.Id);
+            exact.Result.ReadAssessmentResult().Assessment.StressState.Should().Be(AssessmentStress.Normal);
+            exact.Snapshot.Observations.Single(x=>x.SourceId=="NormalizedMovement").ObservedAtUtc
+                .Should().Be(request.RequestedAtUtc.AddSeconds(-54));
+        }
         var history=await context.GetMarketConditionAssessmentHistoryAsync(request.MarketProfileId,request.InstrumentRoot,
             request.TargetHorizon,request.RequestedAtUtc.AddSeconds(1),100);
         history.Any(x=>x.WorkflowId==request.WorkflowId).Should().Be(!fail);

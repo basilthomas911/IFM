@@ -76,7 +76,29 @@ public sealed class StoredBollingerRestoreTests
         actors.RequestAsync<StartFuturesAtrSignalCommand, FuturesAtrSignalEntityId>(Arg.Any<StartFuturesAtrSignalCommand>(), Arg.Any<CancellationToken>()).Returns(accepted);
         var macdCalls = 0;
         actors.RequestAsync<StartFuturesMacdSignalCommand, FuturesMacdSignalEntityId>(Arg.Any<StartFuturesMacdSignalCommand>(), Arg.Any<CancellationToken>())
-            .Returns(_ => { if (Interlocked.Increment(ref macdCalls) == 1 && failMacdOnce) throw new IOException("injected MACD failure"); return accepted; });
+            .Returns(_ =>
+            {
+                if (Interlocked.Increment(ref macdCalls) == 1 && failMacdOnce) throw new IOException("injected MACD failure");
+                // Model the read models committed by the accepted initialization.
+                // A cached success is now requalified against these outputs.
+                var metadata = new MarketAnalyticsSignalMetadata { ContractId = contract, ValueDate = date,
+                    SignalKey = new(liveSeries, MarketAnalyticsSignalKind.BollingerBand, frame, "test"),
+                    MarketDataAsOfUtc = bars[^1].LastMarketEventUtc, CalculatedAtUtc = now, IsValid = true,
+                    SchemaVersion = 1, CalculationVersion = "test" };
+                db.GetLastFuturesAdxSignalAsync(contract, date, frame, 14, Arg.Any<CancellationToken>())
+                    .Returns(new FuturesAdxSignalReadModel { Metadata = metadata, IsWarm = true });
+                db.GetLastFuturesAtrSignalAsync(contract, date, frame, 14, Arg.Any<CancellationToken>())
+                    .Returns(new FuturesAtrSignalReadModel { Metadata = metadata, IsWarm = true, AtrValue = 2, AtrBaseline = 2, AtrRatio = 1 });
+                db.GetLastFuturesMacdSignalAsync(contract, date, frame, 9, 12, 26, Arg.Any<CancellationToken>())
+                    .Returns(new FuturesMacdSignalReadModel { Metadata = metadata, IsWarm = true });
+                foreach (var period in new[] { 13, 14 })
+                    db.GetLastFuturesRsiSignalAsync(contract, date, frame, period, Arg.Any<CancellationToken>())
+                        .Returns(new FuturesRsiSignalReadModel { Metadata = metadata, IsWarm = true, PeriodLength = period });
+                db.GetLastFuturesTdiSignalAsync(contract, date, frame, FuturesTdiConfiguration.StandardConfigurationId, Arg.Any<CancellationToken>())
+                    .Returns(new FuturesTdiSignalReadModel { ContractId = contract, ValueDate = date, TimePeriod = frame,
+                        SchemaVersion = 2, SourceEventTimestamp = bars[^1].LastMarketEventUtc.UtcDateTime });
+                return accepted;
+            });
         var market = Substitute.For<IMarketDataApi>();
         var reader = new StoredSessionIndicatorSeedReader(databases, calendar, clock, NullLogger<StoredSessionIndicatorSeedReader>.Instance, market);
         var warmup = new StoredSessionIndicatorWarmup(reader, actors, market, databases, calendar, clock,

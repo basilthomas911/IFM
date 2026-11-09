@@ -23,6 +23,9 @@ public sealed class ActorAdmissionController
     readonly long[] _typeByteLimits;
     readonly long[] _typeMessages;
     readonly long[] _typeBytes;
+    readonly ActorAdmissionOptions _options;
+    readonly long _messageReserve;
+    readonly long _byteReserve;
     const int StripeCount = 32;
     readonly ObservationStripe[]? _observation;
 
@@ -40,6 +43,9 @@ public sealed class ActorAdmissionController
     {
         ArgumentNullException.ThrowIfNull(options);
         options.Validate();
+        _options = options;
+        _messageReserve = options.ProtectedRealtimeActors.Length == 0 ? 0 : options.ProtectedRealtimeMessageReserve;
+        _byteReserve = options.ProtectedRealtimeActors.Length == 0 ? 0 : options.ProtectedRealtimeByteReserve;
         _mode = options.Mode;
         _globalMessageLimit = options.GlobalMessageLimit;
         _globalByteLimit = options.GlobalByteLimit;
@@ -88,8 +94,9 @@ public sealed class ActorAdmissionController
 
         var payloadBytes = Math.Max(0, message.AdmissionSizeBytes);
         var actorTypeIndex = NormalizeActorType(actorType);
+        var protectedRealtime = actorType == ActorType.Realtime && _options.IsProtectedRealtime(message.Subject);
         if (_mode == ActorAdmissionMode.Enforce)
-            return TryReserveEnforced(actorType, actorTypeIndex, payloadBytes, out charge);
+            return TryReserveEnforced(actorType, actorTypeIndex, payloadBytes, protectedRealtime, out charge);
 
         if (_observation is not null)
         {
@@ -112,7 +119,8 @@ public sealed class ActorAdmissionController
             messages,
             bytes,
             typeMessages,
-            typeBytes);
+            typeBytes,
+            protectedRealtime);
         if (reason != ActorAdmissionReason.None)
             ActorRuntimeMetrics.RecordAdmissionWouldReject(actorType, reason);
 
@@ -154,25 +162,30 @@ public sealed class ActorAdmissionController
         ActorType actorType,
         int actorTypeIndex,
         int payloadBytes,
+        bool protectedRealtime,
         out ActorAdmissionCharge charge)
     {
         charge = default;
         if (payloadBytes > _maximumPayloadBytes)
             return Reject(actorType, ActorAdmissionReason.PayloadTooLarge);
-        if (!TryAddWithinLimit(ref _messages, 1, _globalMessageLimit))
+        var messagesLimit = _globalMessageLimit - (protectedRealtime ? 0 : _messageReserve);
+        var bytesLimit = _globalByteLimit - (protectedRealtime ? 0 : _byteReserve);
+        var typeMessagesLimit = _typeMessageLimits[actorTypeIndex] - (actorType == ActorType.Realtime && !protectedRealtime ? _messageReserve : 0);
+        var typeBytesLimit = _typeByteLimits[actorTypeIndex] - (actorType == ActorType.Realtime && !protectedRealtime ? _byteReserve : 0);
+        if (!TryAddWithinLimit(ref _messages, 1, messagesLimit))
             return Reject(actorType, ActorAdmissionReason.GlobalMessageLimit);
-        if (!TryAddWithinLimit(ref _bytes, payloadBytes, _globalByteLimit))
+        if (!TryAddWithinLimit(ref _bytes, payloadBytes, bytesLimit))
         {
             Interlocked.Decrement(ref _messages);
             return Reject(actorType, ActorAdmissionReason.GlobalByteLimit);
         }
-        if (!TryAddWithinLimit(ref _typeMessages[actorTypeIndex], 1, _typeMessageLimits[actorTypeIndex]))
+        if (!TryAddWithinLimit(ref _typeMessages[actorTypeIndex], 1, typeMessagesLimit))
         {
             Interlocked.Add(ref _bytes, -payloadBytes);
             Interlocked.Decrement(ref _messages);
             return Reject(actorType, ActorAdmissionReason.ActorTypeMessageLimit);
         }
-        if (!TryAddWithinLimit(ref _typeBytes[actorTypeIndex], payloadBytes, _typeByteLimits[actorTypeIndex]))
+        if (!TryAddWithinLimit(ref _typeBytes[actorTypeIndex], payloadBytes, typeBytesLimit))
         {
             Interlocked.Decrement(ref _typeMessages[actorTypeIndex]);
             Interlocked.Add(ref _bytes, -payloadBytes);
@@ -212,18 +225,22 @@ public sealed class ActorAdmissionController
         long messages,
         long bytes,
         long typeMessages,
-        long typeBytes)
+        long typeBytes,
+        bool protectedRealtime)
     {
         if (_maximumPayloadBytes > 0 && payloadBytes > _maximumPayloadBytes)
             return ActorAdmissionReason.PayloadTooLarge;
-        if (_globalMessageLimit > 0 && messages > _globalMessageLimit)
+        var messageLimit = _globalMessageLimit - (protectedRealtime ? 0 : _messageReserve);
+        var byteLimit = _globalByteLimit - (protectedRealtime ? 0 : _byteReserve);
+        if (_globalMessageLimit > 0 && messages > messageLimit)
             return ActorAdmissionReason.GlobalMessageLimit;
-        if (_globalByteLimit > 0 && bytes > _globalByteLimit)
+        if (_globalByteLimit > 0 && bytes > byteLimit)
             return ActorAdmissionReason.GlobalByteLimit;
-        var typeMessageLimit = _typeMessageLimits[actorTypeIndex];
+        var realtimeOrdinary = actorTypeIndex == (int)ActorType.Realtime && !protectedRealtime;
+        var typeMessageLimit = _typeMessageLimits[actorTypeIndex] - (realtimeOrdinary ? _messageReserve : 0);
         if (typeMessageLimit > 0 && typeMessages > typeMessageLimit)
             return ActorAdmissionReason.ActorTypeMessageLimit;
-        var typeByteLimit = _typeByteLimits[actorTypeIndex];
+        var typeByteLimit = _typeByteLimits[actorTypeIndex] - (realtimeOrdinary ? _byteReserve : 0);
         return typeByteLimit > 0 && typeBytes > typeByteLimit
             ? ActorAdmissionReason.ActorTypeByteLimit
             : ActorAdmissionReason.None;

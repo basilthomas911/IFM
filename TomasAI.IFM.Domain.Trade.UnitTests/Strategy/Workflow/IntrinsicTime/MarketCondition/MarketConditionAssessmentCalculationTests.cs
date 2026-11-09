@@ -12,6 +12,29 @@ namespace TomasAI.IFM.Domain.Trade.UnitTests.Strategy.Workflow.IntrinsicTime.Mar
 [Trait("Gate", "MC-R05")]
 public sealed class MarketConditionAssessmentCalculationTests
 {
+    /// <summary>A one-minute ATR remains current through its next publication grace, then becomes stale.</summary>
+    [Theory]
+    [InlineData(0, true)]
+    [InlineData(17, true)]
+    [InlineData(54, true)]
+    [InlineData(74, true)]
+    [InlineData(75, false)]
+    [InlineData(76, false)]
+    public void Completed_minute_movement_uses_bar_boundary_and_publication_grace(int secondsAfterClose, bool fresh)
+    {
+        var close = new DateTime(2026, 11, 9, 13, 7, 0, DateTimeKind.Utc);
+        var c = AssessmentFixture.Command(atUtc: close.AddSeconds(secondsAfterClose));
+        var source = close.AddSeconds(-1);
+        var s = Snapshot(c);
+        s = s with { Observations = s.Observations.Select(x => x.SourceId == "NormalizedMovement"
+            ? x with { ObservedAtUtc = source, ReceivedAtUtc = source, Value = 0.5m } : x).ToArray() };
+        var result = Calculate(c, s).Assessment;
+        result.StressState.Should().Be(fresh ? AssessmentStress.Normal : AssessmentStress.Unknown);
+        result.LimitationReasons.Contains("MC.ASSESSMENT.NORMALIZEDMOVEMENT.STALE").Should().Be(!fresh);
+        result.EvidenceItems.Single(x => x.SourceId == "NormalizedMovement" && x.Feature == "SourceObservation")
+            .ObservedAtUtc.Should().Be(source);
+    }
+
     [Fact]
     public void Newer_covering_calendar_success_replaces_old_scope_for_expiry_without_rejuvenating_download_time()
     {

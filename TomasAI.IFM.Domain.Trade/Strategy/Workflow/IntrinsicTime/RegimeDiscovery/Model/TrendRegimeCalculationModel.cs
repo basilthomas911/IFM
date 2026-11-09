@@ -145,7 +145,7 @@ public sealed class TrendRegimeCalculationModel
         evidence.Add(RegimeDiscoveryMath.Evidence(RegimeEvidenceArea.Trend, "TDI_CONFIRMATION", tdi, tdi?.Value ?? 0m, configuration.ItiWeight * 0.25m, false));
         if (!RegimeDiscoveryMath.IsAvailable(tdi))
         {
-            reasons.Add(RegimeDiscoveryMath.MissingReason(RegimeEvidenceArea.Trend, tdi, false));
+            reasons.Add(RegimeDiscoveryMath.OptionalMissingReason(RegimeEvidenceArea.Trend, RegimeDiscoverySignalMetric.Tdi, frame.TimeFrame, tdi));
         }
 
         return new(true, RegimeDiscoveryMath.WeightedScore(components), components.Where(component => component.Weight > 0m && component.IsAvailable).Min(component => component.FreshnessFactor), [rsiScore, adxScore, macdScore]);

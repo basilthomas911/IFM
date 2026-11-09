@@ -140,6 +140,14 @@ internal static class RegimeDiscoveryMath
         SignalIdentity = observation?.SignalIdentity ?? string.Empty
     };
     internal static RegimeDiscoveryReason MissingReason(RegimeEvidenceArea area, RegimeDiscoverySignalObservation? observation, bool required) => Reason(required ? RegimeDiscoveryReasonCodes.RequiredDataMissing : RegimeDiscoveryReasonCodes.OptionalDataMissing, required ? RegimeReasonSeverity.Failure : RegimeReasonSeverity.Warning, area, observation);
+    /// <summary>Distinguishes intentionally inactive optional producers from missing active evidence.</summary>
+    internal static RegimeDiscoveryReason OptionalMissingReason(RegimeEvidenceArea area, RegimeDiscoverySignalMetric metric, TimeFrameType frame, RegimeDiscoverySignalObservation? observation)
+    {
+        var inactive = metric is RegimeDiscoverySignalMetric.RealizedVolatilityPercentile or RegimeDiscoverySignalMetric.PriorVolatilityComposite
+            || metric == RegimeDiscoverySignalMetric.Tdi && frame == TimeFrameType.Daily;
+        return Reason(inactive ? RegimeDiscoveryReasonCodes.OptionalDataInactive : RegimeDiscoveryReasonCodes.OptionalDataMissing,
+            inactive ? RegimeReasonSeverity.Information : RegimeReasonSeverity.Warning, area, observation) with { TimeFrame = frame };
+    }
     internal static RegimeDiscoveryEvidence[] OrderEvidence(IEnumerable<RegimeDiscoveryEvidence> evidence) => evidence.OrderBy(item => item.Area).ThenBy(item => item.EvidenceId, StringComparer.Ordinal).ThenBy(item => item.TimeFrame).ThenBy(item => item.SignalIdentity, StringComparer.Ordinal).ToArray();
     internal static RegimeDiscoveryReason[] OrderReasons(IEnumerable<RegimeDiscoveryReason> reasons) => reasons.DistinctBy(item => (item.Code, item.TimeFrame, item.SignalIdentity)).OrderBy(item => item.Area).ThenBy(item => item.Code, StringComparer.Ordinal).ThenBy(item => item.TimeFrame).ThenBy(item => item.SignalIdentity, StringComparer.Ordinal).ToArray();
 }

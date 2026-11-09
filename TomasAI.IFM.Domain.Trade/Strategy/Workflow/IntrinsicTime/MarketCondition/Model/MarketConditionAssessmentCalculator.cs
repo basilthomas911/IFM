@@ -44,7 +44,15 @@ public sealed class MarketConditionAssessmentCalculator : IMarketConditionAssess
                 || !HasTrustworthyMetadata(o, at, p.FutureClockSkewSeconds))
                 throw Invalid($"Untrustworthy {o.SourceId} metadata. Observed={o.ObservedAtUtc:O}, Received={o.ReceivedAtUtc:O}, Evaluated={at:O}, Sequence={o.Sequence}.");
             var age = Age(at, o.ObservedAtUtc);
-            var usable = o.Availability == MarketSourceAvailability.Available && age < binding.MaximumAgeSeconds;
+            // NormalizedMovement comes from a completed one-minute ATR bar, not
+            // a tick. The configured age is its publication grace after the next
+            // minute closes. Preserve original source time and all tick deadlines.
+            var sourceExpiry = string.Equals(binding.SourceId, "NormalizedMovement", StringComparison.Ordinal)
+                ? new DateTime(o.ObservedAtUtc.Ticks - o.ObservedAtUtc.Ticks % TimeSpan.TicksPerMinute, DateTimeKind.Utc)
+                    .AddMinutes(2).AddSeconds(binding.MaximumAgeSeconds)
+                : o.ObservedAtUtc.AddSeconds(binding.MaximumAgeSeconds);
+            var maximumAge = (decimal)(sourceExpiry - o.ObservedAtUtc).TotalSeconds;
+            var usable = o.Availability == MarketSourceAvailability.Available && at < sourceExpiry;
             fresh.Add(o.SourceId, usable);
             var reason = ((usable) switch
             {
@@ -55,13 +63,14 @@ public sealed class MarketConditionAssessmentCalculator : IMarketConditionAssess
                     _ => o.Reason
                 })});
             evidence.Add(new(p.TargetHorizon, o.SourceId, "SourceObservation", o.Value, o.Unit, o.ObservedAtUtc, age, o.Availability, reason, o.Sequence));
-            evidence.Add(new(p.TargetHorizon, o.SourceId, "MaximumAge", binding.MaximumAgeSeconds, "seconds", at, 0, MarketSourceAvailability.Available, "Frozen source threshold"));
+            evidence.Add(new(p.TargetHorizon, o.SourceId, "MaximumAge", maximumAge, "seconds", at, 0, MarketSourceAvailability.Available,
+                string.Equals(binding.SourceId, "NormalizedMovement", StringComparison.Ordinal) ? "Completed one-minute bar plus frozen publication grace" : "Frozen source threshold"));
             if (!usable)
                 reasons.Add(reason);
             if (!binding.Required)
                 continue;
-            fitness = Math.Min(fitness, Math.Clamp(1m - age / binding.MaximumAgeSeconds, 0m, 1m));
-            expiry = Min(expiry, o.ObservedAtUtc.AddSeconds(binding.MaximumAgeSeconds));
+            fitness = Math.Min(fitness, Math.Clamp(1m - age / maximumAge, 0m, 1m));
+            expiry = Min(expiry, sourceExpiry);
         }
 
         if (regime.ProducedAtUtc > at.AddSeconds(p.FutureClockSkewSeconds) || regime.MarketDataAsOfUtc > regime.ProducedAtUtc.AddSeconds(p.FutureClockSkewSeconds))

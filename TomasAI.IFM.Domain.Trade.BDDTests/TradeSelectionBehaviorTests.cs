@@ -10,6 +10,22 @@ namespace TomasAI.IFM.Domain.Trade.BDDTests;
 public sealed class TradeSelectionBehaviorTests
 {
     [Theory]
+    [InlineData(TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType.Daily)]
+    [InlineData(TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType.Weekly)]
+    [InlineData(TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType.Monthly)]
+    public async Task Given_short_lived_quotes_when_dispatching_then_processing_budget_does_not_extend_trade_permission(TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType horizon)
+    {
+        var given = await TradeSelectionFixture.Command(horizon: horizon);
+        var expiry = given.EvaluatedAtUtc.AddMilliseconds(100);
+        given = TradeSelectionTestInputs.Evidence(given, assessmentChange: assessment => TradeSelectionTestInputs.Set(assessment, "ValidUntilUtc", expiry));
+        var when = TradeSelectionDispatch.Create(given.WorkflowView, Guid.NewGuid());
+        when.ExpiresAtUtc.Should().BeAfter(expiry);
+        var result = TradeSelectionEvaluator.Evaluate(when);
+        result.ValidUntilUtc.Should().Be(expiry);
+        result.DecisionContext.AssessmentResultEnvelope.ReadAssessmentResult().Assessment.ValidUntilUtc.Should().Be(expiry);
+    }
+
+    [Theory]
     [InlineData("LongFuture", "Long", "Bullish", "None")]
     [InlineData("ShortFuture", "Short", "Bearish", "None")]
     [InlineData("BullCallDebit", "Long", "Bullish", "Debit")]

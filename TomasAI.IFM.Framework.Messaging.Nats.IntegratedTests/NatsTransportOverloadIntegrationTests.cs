@@ -21,6 +21,69 @@ public sealed class NatsTransportOverloadIntegrationTests
     static readonly TimeSpan TestTimeout = TimeSpan.FromSeconds(10);
     readonly string _url = Environment.GetEnvironmentVariable("IFM_NATS_URL") ?? "nats://localhost:4222";
 
+    /// <summary>Real Core NATS retains a burst while admission is blocked and keeps optional dispatch independent.</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Protected_realtime_burst_waits_without_loss_and_optional_lane_keeps_running(bool useOwnedPayload)
+    {
+        var protectedSubject = new ActorSubject(ActorType.Realtime, "Protected" + Guid.NewGuid().ToString("N"), "Updated", "ES");
+        var optionalSubject = new ActorSubject(ActorType.Realtime, "Optional" + Guid.NewGuid().ToString("N"), "Updated", "ES");
+        var queues = Substitute.For<IActorThreadQueues>();
+        var optionalQueues = Substitute.For<IActorThreadQueues>();
+        var supervisor = CreateSupervisor(protectedSubject.ActorId, queues);
+        var optionalActor = Substitute.For<IActor>();
+        var optionalMailbox = Substitute.For<IActorMailbox>();
+        optionalActor.Mailbox.Returns(optionalMailbox); optionalMailbox.ThreadQueues.Returns(optionalQueues);
+        supervisor.Children.Returns(new Dictionary<ActorMailboxId, IActor>
+        { [protectedSubject.ActorId] = supervisor.Children[protectedSubject.ActorId], [optionalSubject.ActorId] = optionalActor });
+        supervisor.ActorExists(Arg.Any<ActorMailboxId>()).Returns(true);
+        supervisor.GetRealtimeRoutes(Arg.Any<ActorTypeId>()).Returns(ImmutableArray<RealtimeActorRoute>.Empty);
+        var blocked = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var optionalSeen = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var complete = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var open = false;
+        const int count = 10000; // Exceeds the Development realtime actor-type budget.
+        var received = new List<int>();
+        queues.TryAdmitAsync(Arg.Any<IActorMessage>(), protectedSubject, Arg.Any<CancellationToken>()).Returns(call =>
+        {
+            if (!Volatile.Read(ref open)) { blocked.TrySetResult(); return ValueTask.FromResult(ActorAdmissionResult.Rejected(ActorAdmissionReason.ActorTypeMessageLimit)); }
+            var message = call.Arg<IActorMessage>();
+            received.Add((int)message.AsEvent<NatsRealtimeRoutingIntegrationTests.TaggedRealtimeEvent>()!.EventId);
+            message.Dispose();
+            if (received.Count == count) complete.TrySetResult();
+            return ValueTask.FromResult(ActorAdmissionResult.AcceptedResult);
+        });
+        optionalQueues.TryAdmitAsync(Arg.Any<IActorMessage>(), optionalSubject, Arg.Any<CancellationToken>()).Returns(_ =>
+        { optionalSeen.TrySetResult(); return ValueTask.FromResult(ActorAdmissionResult.Rejected(ActorAdmissionReason.ActorTypeMessageLimit)); });
+        var admission = CreateEnforcedAdmissionOptions();
+        admission.ProtectedRealtimeActors = [protectedSubject.Name]; admission.ProtectedRealtimeMessageReserve = 1; admission.ProtectedRealtimeByteReserve = 64;
+        var options = new NatsConsumerOptions { Url = _url, DispatcherCount = 1, DispatcherCapacity = 8, SubscriptionCapacity = 64,
+            UseOwnedRealtimePayloads = useOwnedPayload,
+            FireAndForgetTraffic = new Dictionary<ActorType, CoreNatsTrafficClass> { [ActorType.Realtime] = CoreNatsTrafficClass.Optional } };
+        var logger = Substitute.For<ILogger>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(call => call.Arg<LogLevel>() >= LogLevel.Warning);
+        await using var consumer = new NatsActorConsumer(options, logger, admissionOptions: admission);
+        await consumer.StartAsync(supervisor, ActorType.Realtime, "protected-burst");
+        await using var client = new NatsClient(_url);
+        await client.ConnectAsync();
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        var serializer = NatsMessagePackSerializer<NatsRealtimeRoutingIntegrationTests.TaggedRealtimeEvent>.Default;
+        await client.PublishAsync(protectedSubject.ToString(), new NatsRealtimeRoutingIntegrationTests.TaggedRealtimeEvent { Subject = protectedSubject, EventId = 0 }, serializer: serializer, cancellationToken: timeout.Token);
+        await blocked.Task.WaitAsync(timeout.Token);
+        await client.PublishAsync(optionalSubject.ToString(), new NatsRealtimeRoutingIntegrationTests.TaggedRealtimeEvent { Subject = optionalSubject, EventId = 0 }, serializer: serializer, cancellationToken: timeout.Token);
+        Assert.True(await Task.WhenAny(optionalSeen.Task, Task.Delay(TimeSpan.FromSeconds(3), timeout.Token)) == optionalSeen.Task,
+            $"Optional calls={optionalQueues.ReceivedCalls().Count()}, protected calls={queues.ReceivedCalls().Count()}, children={string.Join(',', supervisor.Children.Keys)}\n" +
+            string.Join(Environment.NewLine, logger.ReceivedCalls().Where(call => call.GetMethodInfo().Name == "Log")
+                .Select(call => string.Join(" ", call.GetArguments().Select(arg => arg?.ToString())))));
+        Assert.Empty(received);
+        Volatile.Write(ref open, true);
+        for (var index = 1; index < count; index++)
+            await client.PublishAsync(protectedSubject.ToString(), new NatsRealtimeRoutingIntegrationTests.TaggedRealtimeEvent { Subject = protectedSubject, EventId = index }, serializer: serializer, cancellationToken: timeout.Token);
+        await complete.Task.WaitAsync(timeout.Token);
+        Assert.Equal(Enumerable.Range(0, count), received);
+    }
+
     [Theory]
     [InlineData(ActorType.Command, true)]
     [InlineData(ActorType.Command, false)]

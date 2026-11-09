@@ -16,6 +16,66 @@ namespace TomasAI.IFM.Domain.Trade.UnitTests.Strategy.Workflow.IntrinsicTime.Reg
 /// <summary>Qualifies deterministic RD-11 and RD-12 specialist and Fusion calculations.</summary>
 public sealed class RegimeDiscoveryCalculationModelTests
 {
+    /// <summary>Inactive optional evidence must never bypass the real VX backwardation boundary.</summary>
+    [Theory]
+    [InlineData("1.049999", false)]
+    [InlineData("1.05", true)]
+    [InlineData("1.051781", true)]
+    public void Backwardation_no_new_trade_boundary_is_preserved_without_realized_volatility(string ratio, bool blocked)
+    {
+        var input = Replace(CreateInput(), RegimeDiscoverySignalMetric.VxFrontSecondRatio, TimeFrameType.Daily,
+            decimal.Parse(ratio, System.Globalization.CultureInfo.InvariantCulture));
+        input = input with { Snapshot = input.Snapshot with { Observations = input.Snapshot.Observations
+            .Where(x => x.Metric != RegimeDiscoverySignalMetric.RealizedVolatilityPercentile).ToArray() } };
+        new VolatilityRegimeCalculationModel().Calculate(input).NoNewTrade.Should().Be(blocked);
+    }
+
+    /// <summary>Inactive volatility inputs do not lower coverage or force degraded quality.</summary>
+    [Fact]
+    public void Inactive_realized_volatility_does_not_reduce_confidence_coverage()
+    {
+        var input = CreateInput();
+        input = input with { Snapshot = input.Snapshot with { Observations = input.Snapshot.Observations
+            .Where(x => x.Metric != RegimeDiscoverySignalMetric.RealizedVolatilityPercentile).ToArray() } };
+        var actual = new VolatilityRegimeCalculationModel().Calculate(input);
+        var withoutInactiveWeight = new VolatilityRegimeCalculationModel().Calculate(input with
+        {
+            ParameterSet = input.ParameterSet with { Volatility = input.ParameterSet.Volatility with { RealizedVolatilityWeight = 0m } }
+        });
+        actual.Confidence.Should().Be(withoutInactiveWeight.Confidence);
+        actual.Reasons.Should().Contain(x => x.Code == RegimeDiscoveryReasonCodes.OptionalDataInactive && x.Severity == RegimeReasonSeverity.Information);
+        actual.Reasons.Should().NotContain(x => x.Code == RegimeDiscoveryReasonCodes.OptionalDataMissing);
+        actual.Evidence.Single(x => x.EvidenceId == "REALIZED_VOLATILITY").Weight.Should().Be(0m);
+    }
+
+    /// <summary>Daily TDI is unsupported; missing intraday TDI remains an active evidence penalty.</summary>
+    [Theory]
+    [InlineData(TimeFrameType.Daily, RegimeOverallQuality.High)]
+    [InlineData(TimeFrameType.OneHour, RegimeOverallQuality.Degraded)]
+    public void Only_inactive_optional_trend_evidence_is_excluded_from_quality_penalty(TimeFrameType frame, RegimeOverallQuality expected)
+    {
+        var input = CreateInput();
+        var observations = input.Snapshot.Observations.ToList();
+        foreach (var observation in input.Snapshot.Observations.Where(x => x.SignalKey.TimeFrame == TimeFrameType.OneHour))
+            if (!observations.Any(x => x.Metric == observation.Metric && x.SignalKey.TimeFrame == frame))
+                Add(observations, frame, observation.Metric, observation.Value);
+        input = input with
+        {
+            ParameterSet = input.ParameterSet with { Horizon = input.ParameterSet.Horizon with
+            { TimeFrames = [new() { TimeFrame = frame, IsRequired = true, Weight = 1m, MaximumAgeSeconds = 86400 }] } },
+            Snapshot = input.Snapshot with { Observations = observations.ToArray() }
+        };
+        var trend = new TrendRegimeCalculationModel().Calculate(input) with
+            { Confidence = 0.9m, Score = 0.5m, Direction = RegimeDirection.Up, Phase = TrendRegimePhase.Established };
+        var volatility = new VolatilityRegimeResult { IsComplete = true, Confidence = 0.9m, Score = 0.2m, Level = VolatilityRegimeLevel.Normal };
+        var structure = new MarketStructureRegimeResult { IsComplete = true, Confidence = 0.9m, Score = 0.5m, Direction = RegimeDirection.Up, Classification = MarketStructureClassification.Trending };
+        var fusion = new MarketRegimeFusionModel();
+        fusion.Calculate(trend, volatility, structure, input.ParameterSet.Fusion).Quality.Should().Be(expected);
+        var restricted = fusion.Calculate(trend, volatility with { NoNewTrade = true }, structure, input.ParameterSet.Fusion);
+        restricted.Restrictions.Should().Contain(RegimeRestriction.NoNewTrade);
+        restricted.Quality.Should().Be(RegimeOverallQuality.Degraded);
+    }
+
     /// <summary>Confirms the approved Trend formula produces the expected golden score.</summary>
     [Fact]
     public void Trend_golden_vector_is_deterministic()

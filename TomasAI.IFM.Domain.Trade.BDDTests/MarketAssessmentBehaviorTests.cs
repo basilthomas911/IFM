@@ -8,6 +8,22 @@ namespace TomasAI.IFM.Domain.Trade.BDDTests;
 
 public sealed class MarketAssessmentBehaviorTests
 {
+    /// <summary>Every horizon consumes a completed minute without treating it as a stale tick.</summary>
+    [Theory]
+    [InlineData(TimeFrameType.Daily)]
+    [InlineData(TimeFrameType.Weekly)]
+    [InlineData(TimeFrameType.Monthly)]
+    public void Given_a_completed_minute_atr_when_a_signal_arrives_54_seconds_later_then_stress_is_known(TimeFrameType horizon)
+    {
+        var sample = TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.MarketCondition.Model.MarketConditionAssessmentReferenceGenerator.CreateScenario(horizon, "directional");
+        var snapshot = sample.Snapshot with { Observations = sample.Snapshot.Observations.Select(x => x.SourceId == "NormalizedMovement"
+            ? x with { ObservedAtUtc = sample.Snapshot.EvaluatedAtUtc.AddSeconds(-54), ReceivedAtUtc = sample.Snapshot.EvaluatedAtUtc.AddSeconds(-54), Value = 0.5m } : x).ToArray() };
+        var result = new TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.MarketCondition.Model.MarketConditionAssessmentCalculator()
+            .Calculate(sample.Command, snapshot.Seal(), sample.Command.CommandId);
+        result.Assessment.LimitationReasons.Should().NotContain("MC.ASSESSMENT.NORMALIZEDMOVEMENT.STALE");
+        result.Assessment.StressState.Should().NotBe(AssessmentStress.Unknown);
+    }
+
     [Theory]
     [InlineData(TimeFrameType.Daily)]
     [InlineData(TimeFrameType.Weekly)]

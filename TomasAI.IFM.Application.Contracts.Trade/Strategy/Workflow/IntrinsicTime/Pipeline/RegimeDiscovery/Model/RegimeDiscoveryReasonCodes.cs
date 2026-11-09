@@ -15,6 +15,8 @@ public static class RegimeDiscoveryReasonCodes
     public const string RequiredDataMissing = "RD.DATA.REQUIRED_MISSING";
     /// <summary>An optional signal is missing.</summary>
     public const string OptionalDataMissing = "RD.DATA.OPTIONAL_MISSING";
+    /// <summary>An optional input has no active producer and does not reduce evidence quality.</summary>
+    public const string OptionalDataInactive = "RD.DATA.OPTIONAL_INACTIVE";
     /// <summary>A signal is stale.</summary>
     public const string DataStale = "RD.DATA.STALE";
     /// <summary>A signal is not warm.</summary>

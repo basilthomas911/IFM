@@ -105,7 +105,10 @@ public static class CompleteTradeSelection
                 return Ok(command);
             }
 
-            if (now >= result.ValidUntilUtc)
+            // A terminal refusal grants no permission to trade. Retain its
+            // original reason after market evidence expires; Selected still
+            // requires live permission before any composition or reservation.
+            if (result.Outcome != SelectionOutcome.NoTrade && now >= result.ValidUntilUtc)
             {
                 return PrepareEvidenceExpired(command, state, current, now);
             }

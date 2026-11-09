@@ -312,14 +312,14 @@ Freeze all inputs, policies, capabilities and evaluation time. Given the same in
 
 ## 11. Time and expiry
 
-At receipt require `now < ExpectedCompletionAtUtc`, binding.ValidUntilUtc and accepted assessment.ValidUntilUtc. Deadline is the minimum of workflow deadline, RequestedAtUtc + MaximumExecutionMilliseconds, binding validity and assessment validity. Actor independently verifies it. FutureClockSkewSeconds applies to observed/produced timestamps, never to expiry; it cannot extend permission. Regime as-of/production relationships follow existing contracts; do not invent a regime expiry field or fresh lookup.
+At receipt require `now < ExpectedCompletionAtUtc` and binding.ValidUntilUtc. The frozen evaluation instant must be strictly before accepted assessment.ValidUntilUtc. Processing deadline is the minimum of workflow deadline, RequestedAtUtc + MaximumExecutionMilliseconds and binding validity. It does not extend market permission: the result retains the original assessment expiry below. Actor independently verifies processing and evaluation bounds. FutureClockSkewSeconds applies to observed/produced timestamps, never to expiry; it cannot extend permission. Regime as-of/production relationships follow existing contracts; do not invent a regime expiry field or fresh lookup.
 
 ```text
 Result.ValidUntilUtc = min(EvaluatedAtUtc + ResultLifetimeSeconds,
     accepted assessment.ValidUntilUtc, binding.ValidUntilUtc, workflow deadline)
 ```
 
-Execution deadline governs committing a decision; result validity governs consuming that committed result. Recheck the relevant bounds before terminal commit and workflow handoff. Use injected TimeProvider and a workflow-frozen evaluation instant; monotonic elapsed milliseconds are diagnostic. An expired result cannot be refreshed by replay or projection. Common policy limits apply to the entire bounded evaluation, not separately per candidate.
+Execution deadline governs committing a decision; result validity governs consuming a Selected result. A verified NoTrade result may be recorded after market permission expires because it cannot initiate composition or a reservation; retain its original reason, evaluation instant and validity. Selected results require unexpired permission at workflow acceptance and handoff. Recheck the relevant bounds before terminal commit and workflow handoff. Use injected TimeProvider and a workflow-frozen evaluation instant; monotonic elapsed milliseconds are diagnostic. An expired result cannot be refreshed by replay or projection. Common policy limits apply to the entire bounded evaluation, not separately per candidate.
 
 ## 12. Typed result and complete decision context
 

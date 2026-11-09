@@ -40,12 +40,15 @@ public sealed class VolatilityRegimeCalculationModel
         var atrScore = RegimeDiscoveryMath.Piecewise(atrRatio!.Value, (0.75m, 0m), (1m, 0.40m), (1.50m, 0.75m), (2m, 1m));
         var termStructureScore = RegimeDiscoveryMath.Piecewise(vxRatio!.Value, (0.95m, 0.10m), (1m, 0.30m), (1.05m, 0.60m), (1.10m, 0.90m));
         var realizedAvailable = RegimeDiscoveryMath.IsAvailable(realized);
+        // No production producer is enabled for this optional metric. Its absence
+        // must not count as missing coverage; supplied evidence retains its existing calculation.
+        var realizedWeight = realizedAvailable ? config.RealizedVolatilityWeight : 0m;
         var values = new[]
         {
             new WeightedValue(frontScore, config.VixWeight, levelInput.FreshnessFactor),
             new WeightedValue(atrScore, config.AtrRatioWeight, atrRatio.FreshnessFactor),
             new WeightedValue(termStructureScore, config.TermStructureWeight, vxRatio.FreshnessFactor),
-            new WeightedValue(realizedAvailable ? RegimeDiscoveryMath.Clamp(realized!.Value) : 0m, config.RealizedVolatilityWeight, realized?.FreshnessFactor ?? 0m, realizedAvailable)
+            new WeightedValue(realizedAvailable ? RegimeDiscoveryMath.Clamp(realized!.Value) : 0m, realizedWeight, realized?.FreshnessFactor ?? 0m, realizedAvailable)
         };
         var score = RegimeDiscoveryMath.WeightedScore(values);
         var confidence = RegimeDiscoveryMath.Confidence(values);
@@ -75,7 +78,7 @@ public sealed class VolatilityRegimeCalculationModel
             RegimeDiscoveryMath.Evidence(RegimeEvidenceArea.Volatility, "VX_FRONT_LEVEL", levelInput, frontScore, config.VixWeight, true),
             RegimeDiscoveryMath.Evidence(RegimeEvidenceArea.Volatility, "ATR_RATIO", atrRatio, atrScore, config.AtrRatioWeight, true),
             RegimeDiscoveryMath.Evidence(RegimeEvidenceArea.Volatility, "VX_TERM_STRUCTURE", vxRatio, termStructureScore, config.TermStructureWeight, true),
-            RegimeDiscoveryMath.Evidence(RegimeEvidenceArea.Volatility, "REALIZED_VOLATILITY", realized, realizedAvailable ? realized!.Value : 0m, config.RealizedVolatilityWeight, false)
+            RegimeDiscoveryMath.Evidence(RegimeEvidenceArea.Volatility, "REALIZED_VOLATILITY", realized, realizedAvailable ? realized!.Value : 0m, realizedWeight, false)
         };
         var reasons = new List<RegimeDiscoveryReason>
         {
@@ -95,7 +98,7 @@ public sealed class VolatilityRegimeCalculationModel
         if (change == VolatilityRegimeChange.Contracting)
             reasons.Add(RegimeDiscoveryMath.Reason(RegimeDiscoveryReasonCodes.VolatilityContracting, RegimeReasonSeverity.Information, RegimeEvidenceArea.Volatility));
         if (!realizedAvailable)
-            reasons.Add(RegimeDiscoveryMath.MissingReason(RegimeEvidenceArea.Volatility, realized, false));
+            reasons.Add(RegimeDiscoveryMath.OptionalMissingReason(RegimeEvidenceArea.Volatility, RegimeDiscoverySignalMetric.RealizedVolatilityPercentile, evidenceFrame, realized));
         return new VolatilityRegimeResult
         {
             IsComplete = true,

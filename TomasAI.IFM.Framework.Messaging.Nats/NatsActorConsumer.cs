@@ -73,6 +73,7 @@ public class NatsActorConsumer(
 
     // striped dispatch channels for concurrent mailbox delivery
     Channel<(IActorMessage Msg, ActorSubject Subject)>[]? _stripeChannels;
+    Channel<(IActorMessage Msg, ActorSubject Subject)>[]? _protectedStripeChannels;
     Task[]? _dispatcherTasks;
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "The parameter name is part of the existing published actor API.")]
@@ -163,7 +164,10 @@ public class NatsActorConsumer(
             // create striped dispatch channels and start dispatcher tasks
             var dispatcherCount = Math.Max(1, _options.DispatcherCount);
             _stripeChannels = new Channel<(IActorMessage, ActorSubject)>[dispatcherCount];
-            _dispatcherTasks = new Task[dispatcherCount];
+            var protectedCount = actorType == ActorType.Realtime && _admissionOptions.ProtectedRealtimeActors.Length > 0
+                ? Math.Min(8, dispatcherCount) : 0;
+            _protectedStripeChannels = new Channel<(IActorMessage, ActorSubject)>[protectedCount];
+            _dispatcherTasks = new Task[dispatcherCount + protectedCount];
             for (var i = 0; i < dispatcherCount; i++)
             {
                 _stripeChannels[i] = Channel.CreateBounded<(IActorMessage, ActorSubject)>(
@@ -175,6 +179,13 @@ public class NatsActorConsumer(
                     });
                 var reader = _stripeChannels[i].Reader;
                 _dispatcherTasks[i] = DispatchLoopAsync(reader);
+            }
+            for (var i = 0; i < protectedCount; i++)
+            {
+                _protectedStripeChannels[i] = Channel.CreateBounded<(IActorMessage, ActorSubject)>(
+                    new BoundedChannelOptions(Math.Min(64, GetDispatcherCapacity()))
+                    { SingleWriter = true, SingleReader = true, FullMode = BoundedChannelFullMode.Wait });
+                _dispatcherTasks[dispatcherCount + i] = DispatchLoopAsync(_protectedStripeChannels[i].Reader);
             }
 
             _subscriptionReady = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -313,6 +324,8 @@ public class NatsActorConsumer(
                 foreach (var ch in _stripeChannels)
                     ch.Writer.TryComplete();
             }
+            if (_protectedStripeChannels is not null)
+                foreach (var ch in _protectedStripeChannels) ch.Writer.TryComplete();
 
             // Await all dispatcher tasks.
             if (_dispatcherTasks is not null)
@@ -321,6 +334,7 @@ public class NatsActorConsumer(
                 catch (OperationCanceledException) { /* expected */ }
             }
             _stripeChannels = null;
+            _protectedStripeChannels = null;
             _dispatcherTasks = null;
 
             _cts.Dispose();
@@ -423,7 +437,6 @@ public class NatsActorConsumer(
     async ValueTask RealtimeMessageLoopAsync(CancellationToken cancellationToken)
     {
         var stripes = _stripeChannels!;
-        var stripeCount = stripes.Length;
         _logger.LogInformationEvent(
             _serviceId,            "{Component}.{Method} "+"NATS realtime consumer started with shared owned pooled payloads",nameof(NatsActorConsumer),nameof(RealtimeMessageLoopAsync));
 
@@ -461,8 +474,10 @@ public class NatsActorConsumer(
                     try
                     {
                         branch = payload.CreateBranch(destination);
-                        var stripe = (destination.ThreadId.GetHashCode() & 0x7FFF_FFFF) % stripeCount;
-                        await stripes[stripe].Writer.WriteAsync(
+                        var dispatch = _protectedStripeChannels is { Length: > 0 } protectedChannels
+                            && _admissionOptions.IsProtectedRealtime(destination) ? protectedChannels : stripes;
+                        var stripe = (destination.ThreadId.GetHashCode() & 0x7FFF_FFFF) % dispatch.Length;
+                        await dispatch[stripe].Writer.WriteAsync(
                             (branch, destination),
                             cancellationToken).ConfigureAwait(false);
                         branchTransferred = true;
@@ -499,7 +514,6 @@ public class NatsActorConsumer(
     async ValueTask PubSubMessageLoopAsync(CancellationToken ctsRequestToken)
     {
         var stripes = _stripeChannels!;
-        var stripeCount = stripes.Length;
         _logger.LogInformationEvent(_serviceId,"{Component}.{Method} "+"{ActorType} consumer started",nameof(NatsActorConsumer),nameof(PubSubMessageLoopAsync),_actorType);
         while (!ctsRequestToken.IsCancellationRequested)
         {
@@ -533,11 +547,13 @@ public class NatsActorConsumer(
 
                     foreach (var destination in destinations)
                     {
-                        var stripe = (destination.ThreadId.GetHashCode() & 0x7FFF_FFFF) % stripeCount;
+                        var dispatch = _protectedStripeChannels is { Length: > 0 } protectedChannels
+                            && _admissionOptions.IsProtectedRealtime(destination) ? protectedChannels : stripes;
+                        var stripe = (destination.ThreadId.GetHashCode() & 0x7FFF_FFFF) % dispatch.Length;
                         NatsActorMessage? pendingMessage = new(msg, destination);
                         try
                         {
-                            await stripes[stripe].Writer.WriteAsync(
+                            await dispatch[stripe].Writer.WriteAsync(
                                 (pendingMessage, destination), ctsRequestToken).ConfigureAwait(false);
                             pendingMessage = null; // The dispatch stripe owns the admitted message.
                         }
@@ -705,12 +721,12 @@ public class NatsActorConsumer(
                 var settled = false;
                 try
                 {
-                    var actor = _supervisor.Children.GetValueOrDefault(msgSubject.ActorId)
-                        ?? throw new InvalidOperationException(string.Concat("Actor not found in context children for mailbox ", msgSubject.ActorId.ToString()));
-                    var admission = await actor.Mailbox.ThreadQueues.TryAdmitAsync(
-                        msg,
-                        msgSubject,
-                        CancellationToken.None).ConfigureAwait(false);
+                    var actor = _supervisor.Children.GetValueOrDefault(msgSubject.ActorId);
+                    var protectedInput = _admissionOptions.IsProtectedRealtime(msgSubject);
+                    var admission = protectedInput
+                        ? await NatsProtectedRealtimeDelivery.AdmitAsync(_supervisor, msg, msgSubject, _cts.Token).ConfigureAwait(false)
+                        : await (actor ?? throw new InvalidOperationException(string.Concat("Actor not found in context children for mailbox ", msgSubject.ActorId.ToString())))
+                            .Mailbox.ThreadQueues.TryAdmitAsync(msg, msgSubject, CancellationToken.None).ConfigureAwait(false);
                     if (!admission.Accepted)
                     {
                         settled = true;
@@ -719,11 +735,16 @@ public class NatsActorConsumer(
                             _actorType,
                             admission.Reason,
                             _admissionOptions.OverloadErrorCode,
-                            GetFireAndForgetTrafficClass(_actorType),
+                            protectedInput ? CoreNatsTrafficClass.RequiredNonDurable : GetFireAndForgetTrafficClass(_actorType),
                             _logger).ConfigureAwait(false);
                         continue;
                     }
                     transferred = true;
+                }
+                catch (OperationCanceledException) when (_cts.IsCancellationRequested)
+                {
+                    // Owned pending inputs are released by finally; session startup/history repair
+                    // requalifies interrupted intervals before they can be used for trading.
                 }
                 catch (Exception ex)
                 {

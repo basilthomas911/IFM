@@ -40,13 +40,16 @@ public static class TradeSelectionDispatch
             {
                 view.ExpiresAtUtc,
                 view.UpdatedAtUtc.AddMilliseconds(policy.MaximumExecutionMilliseconds),
-                binding.ValidUntilUtc,
-                assessment.Assessment.ValidUntilUtc!.Value
+                binding.ValidUntilUtc
             }.Min(),
             SelectionBinding = binding,
             RegimeResultEnvelope = view.RegimeDiscovery.Result!,
             AssessmentResultEnvelope = view.MarketCondition.Result!
         };
+        // The frozen evaluation must be valid when requested. Evidence expiry
+        // limits permission to trade, not the budget to persist a NoTrade decision.
+        TradeSelectionContracts.Require(command.EvaluatedAtUtc < assessment.Assessment.ValidUntilUtc,
+            "TS.TIME.EXPIRED", "Assessment evidence expired before selection was requested.");
         // Normalize historical trigger constructor defaults once, before persisting the dispatch.
         command = command.NormalizeContent();
         TradeSelectionContracts.ValidateRequest(command);

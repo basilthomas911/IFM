@@ -14,6 +14,73 @@ namespace TomasAI.IFM.Shared.UnitTests.EventModelActor;
 public sealed class ActorAdmissionControllerTests
 {
     [Fact]
+    public void Global_byte_pressure_cannot_consume_the_protected_realtime_reserve_and_charges_balance()
+    {
+        var options = CreateEnforcedOptions(16, 512, 8, 512);
+        options.ProtectedRealtimeActors = ["FuturesTradeSessionBarSignal"];
+        options.ProtectedRealtimeMessageReserve = 1;
+        options.ProtectedRealtimeByteReserve = 64;
+        var controller = new ActorAdmissionController(options);
+        var ordinary = new SizedActorMessage(64);
+        var protectedInput = new SizedActorMessage(64) { Subject = new(ActorType.Realtime, "FuturesTradeSessionBarSignal", "Updated", "ES") };
+        var charges = new List<ActorAdmissionCharge>();
+        for (var i = 0; i < 7; i++)
+        {
+            controller.TryReserve(ordinary, ActorType.Command, out var charge).Accepted.Should().BeTrue();
+            charges.Add(charge);
+        }
+        controller.TryReserve(ordinary, ActorType.Command, out _).Reason.Should().Be(ActorAdmissionReason.GlobalByteLimit);
+        controller.TryReserve(protectedInput, ActorType.Realtime, out var reserved).Accepted.Should().BeTrue();
+        charges.Add(reserved);
+        controller.TryReserve(protectedInput, ActorType.Realtime, out _).Reason.Should().Be(ActorAdmissionReason.GlobalByteLimit);
+        controller.CurrentByteCount.Should().Be(512);
+        foreach (var charge in charges) controller.Release(charge);
+        controller.CurrentMessageCount.Should().Be(0);
+        controller.CurrentByteCount.Should().Be(0);
+    }
+
+    [Fact]
+    public void Protected_realtime_keeps_reserved_slots_when_ordinary_realtime_is_full_without_exceeding_limits()
+    {
+        var options = CreateEnforcedOptions(8, 1024, 4, 512);
+        options.ProtectedRealtimeActors = ["FuturesTradeSessionBarSignal"];
+        options.ProtectedRealtimeMessageReserve = 1;
+        options.ProtectedRealtimeByteReserve = 64;
+        var controller = new ActorAdmissionController(options);
+        var ordinary = new SizedActorMessage(64) { Subject = new(ActorType.Realtime, "Optional", "Updated", "ES") };
+        var protectedInput = new SizedActorMessage(64) { Subject = new(ActorType.Realtime, "FuturesTradeSessionBarSignal", "Updated", "ES") };
+        var charges = new List<ActorAdmissionCharge>();
+        for (var i = 0; i < 3; i++)
+        {
+            controller.TryReserve(ordinary, ActorType.Realtime, out var charge).Accepted.Should().BeTrue();
+            charges.Add(charge);
+        }
+        controller.TryReserve(ordinary, ActorType.Realtime, out _).Reason.Should().Be(ActorAdmissionReason.ActorTypeMessageLimit);
+        controller.TryReserve(protectedInput, ActorType.Realtime, out var reserved).Accepted.Should().BeTrue();
+        charges.Add(reserved);
+        controller.TryReserve(protectedInput, ActorType.Realtime, out _).Reason.Should().Be(ActorAdmissionReason.ActorTypeMessageLimit);
+        controller.CurrentMessageCount.Should().Be(4);
+        foreach (var charge in charges) controller.Release(charge);
+        controller.CurrentMessageCount.Should().Be(0);
+        controller.CurrentByteCount.Should().Be(0);
+    }
+
+    [Fact]
+    public void Protected_reserve_rejects_invalid_configuration_and_matches_only_routed_realtime_destinations()
+    {
+        var options = CreateEnforcedOptions(8, 1024, 4, 512);
+        options.ProtectedRealtimeActors = ["FuturesTradeSessionBarSignal"];
+        options.ProtectedRealtimeMessageReserve = 4;
+        options.ProtectedRealtimeByteReserve = 64;
+        FluentActions.Invoking(options.Validate).Should().Throw<InvalidOperationException>();
+        options.ProtectedRealtimeMessageReserve = 1;
+        options.Validate();
+        options.IsProtectedRealtime(new(ActorType.Command, "FuturesTradeSessionBarSignal", "Updated", "ES")).Should().BeFalse();
+        options.IsProtectedRealtime(new(ActorType.Realtime, "Optional", "Updated", "ES")).Should().BeFalse();
+        options.IsProtectedRealtime(new(ActorType.Realtime, "FuturesTradeSessionBarSignal", "Updated", "ES")).Should().BeTrue();
+    }
+
+    [Fact]
     public void ObserveOnly_AllowsUnsetCapacityLimits()
     {
         var options = new ActorAdmissionOptions { Mode = ActorAdmissionMode.ObserveOnly };
@@ -329,7 +396,7 @@ public sealed class ActorAdmissionControllerTests
     sealed class SizedActorMessage(int admissionSizeBytes) : IActorMessage
     {
         public int AdmissionSizeBytes { get; } = admissionSizeBytes;
-        public ActorSubject Subject { get; } = new(ActorType.Command, "AdmissionTest", "Run", "1");
+        public ActorSubject Subject { get; init; } = new(ActorType.Command, "AdmissionTest", "Run", "1");
         public ActorSubject ReplySubject { get; set; }
         public TCommand? AsCommand<TCommand>() where TCommand : class, ICommand => default;
         public TEvent? AsEvent<TEvent>() where TEvent : class, IEvent => default;

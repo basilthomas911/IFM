@@ -16,6 +16,17 @@ public sealed class ActorAdmissionOptions
     public int MaximumPayloadBytes { get; set; }
     public long DefaultActorTypeMessageLimit { get; set; }
     public long DefaultActorTypeByteLimit { get; set; }
+    /// <summary>Realtime destinations whose ordered inputs wait for capacity instead of being discarded.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Configuration binding uses this actor-name array; runtime consumers treat it as immutable.")]
+    public string[] ProtectedRealtimeActors { get; set; } = [];
+    /// <summary>Capacity inside the existing global and realtime limits reserved from ordinary traffic.</summary>
+    public int ProtectedRealtimeMessageReserve { get; set; }
+    /// <summary>Payload capacity inside the existing limits reserved from ordinary traffic.</summary>
+    public long ProtectedRealtimeByteReserve { get; set; }
+
+    /// <summary>Identifies protected destinations using the routed subject, never the source actor name.</summary>
+    public bool IsProtectedRealtime(ActorSubject subject) => subject.ActorType == ActorType.Realtime
+        && Array.IndexOf(ProtectedRealtimeActors, subject.Name) >= 0;
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2227", Justification = "Configuration binding replaces the collection from appsettings; the setter is part of the options binding contract.")]
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Preserve the concrete collection type in the existing configuration/message/actor listener contract.")]
     public Dictionary<ActorType, ActorTypeAdmissionOptions> ActorTypes { get; set; } = [];
@@ -37,6 +48,16 @@ public sealed class ActorAdmissionOptions
         ValidateNonNegative(MaximumPayloadBytes, nameof(MaximumPayloadBytes));
         ValidateNonNegative(DefaultActorTypeMessageLimit, nameof(DefaultActorTypeMessageLimit));
         ValidateNonNegative(DefaultActorTypeByteLimit, nameof(DefaultActorTypeByteLimit));
+        ValidateNonNegative(ProtectedRealtimeMessageReserve, nameof(ProtectedRealtimeMessageReserve));
+        ValidateNonNegative(ProtectedRealtimeByteReserve, nameof(ProtectedRealtimeByteReserve));
+        if (ProtectedRealtimeActors is null || ProtectedRealtimeActors.Any(string.IsNullOrWhiteSpace)
+            || ProtectedRealtimeActors.Any(name => name.Contains('.', StringComparison.Ordinal) || name.Contains('*', StringComparison.Ordinal) || name.Contains('>', StringComparison.Ordinal)))
+            throw new InvalidOperationException("Protected realtime actors must be explicit actor names.");
+        if (ProtectedRealtimeActors.Length > 0 && Mode == ActorAdmissionMode.Enforce
+            && (ProtectedRealtimeMessageReserve <= 0 || ProtectedRealtimeByteReserve <= 0
+                || ProtectedRealtimeMessageReserve >= Math.Min(GlobalMessageLimit, GetLimits(ActorType.Realtime).MessageLimit)
+                || ProtectedRealtimeByteReserve >= Math.Min(GlobalByteLimit, GetLimits(ActorType.Realtime).ByteLimit)))
+            throw new InvalidOperationException("Protected realtime reserves must be positive and smaller than the existing global and realtime limits.");
         if (DefaultMailboxMessageLimit <= 0)
             throw new InvalidOperationException($"{nameof(DefaultMailboxMessageLimit)} must be greater than zero.");
         if (MailboxImplementation is ActorMailboxImplementation.MpscRing or ActorMailboxImplementation.SpscRing
