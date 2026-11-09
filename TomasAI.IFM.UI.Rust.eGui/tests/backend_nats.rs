@@ -2953,13 +2953,20 @@ async fn market_history_uses_api_clock_and_current_contracts_without_local_indic
     assert_eq!(charts["ES"].series.len(), 3);
     assert_eq!(charts["ES-BB"].series[1].points[0][1], 6040.0);
     assert_eq!(charts["VX"].series[0].points.len(), 2); // same single-bar continuity as hybrid
+    assert_eq!(charts["VX"].series.len(), 2);
+    assert_eq!(charts["VX"].series[0].name, "Front month · VXZ6");
+    assert_eq!(charts["VX"].series[0].color, "Fuchsia");
+    assert_eq!(charts["VX"].series[1].name, "Back month · VXF7");
+    assert_eq!(charts["VX"].series[1].color, "LightBlue");
+    assert_eq!(charts["VX"].series[0].points[0][1], 16.9);
+    assert_eq!(charts["VX"].series[1].points[0][1], 17.3);
 }
 
 
-/// Verifies both snapshot consumers skip requests outside live trading hours.
+/// Verifies both snapshot consumers run overnight and skip snapshots only after market close.
 #[tokio::test]
 #[ignore = "Requires an isolated NATS broker and the C# compatibility responder"]
-async fn market_outlook_snapshot_is_skipped_outside_live_trading_hours() {
+async fn market_views_continue_overnight_and_skip_snapshot_only_after_close() {
     use futures_util::StreamExt;
     use ifm_ui_egui::services::{business_context::BusinessContext, market_history, outlook};
 
@@ -2986,14 +2993,32 @@ async fn market_outlook_snapshot_is_skipped_outside_live_trading_hours() {
     let _ = market_history::load_for_session(&backend, &registry, &session).await;
     assert!(tokio::time::timeout(Duration::from_secs(2), snapshots.next()).await.unwrap().is_some());
 
-    for state in [1, 0] {
+    for state in [2, 1] {
         session.market_state = state;
-        if state == 0 {
-            session.active_value_date = None;
+        assert!(session.is_market_open());
+        let scenario = ActorSubject::query("NativeCompatibility", "OutlookAvailable", "none");
+        service_result(&backend.request(&scenario, &Value::Boolean(true), None, None).await.unwrap()).unwrap();
+        let current = outlook::load_for_session(&backend, &registry, Some(&session)).await;
+        let charts = market_history::load_for_session(&backend, &registry, &session).await;
+        service_result(&backend.request(&scenario, &Value::Boolean(false), None, None).await.unwrap()).unwrap();
+        let current = current.unwrap();
+        assert!(!current.cells.is_empty());
+        assert!(current.summary.ends_with(if state == 1 { "OffTrading" } else { "LiveTrading" }));
+        assert!(tokio::time::timeout(Duration::from_secs(2), snapshots.next()).await.unwrap().is_some());
+        for key in ["ES", "VX", "ES-BB"] {
+            assert!(charts[key].status.is_empty(), "{key}: {}", charts[key].status);
+            assert!(!charts[key].series[0].points.is_empty());
         }
+        assert!(tokio::time::timeout(Duration::from_secs(2), snapshots.next()).await.unwrap().is_some());
+    }
+    // Consume the initial request observed before the explicit live/overnight checks.
+    while matches!(tokio::time::timeout(Duration::from_millis(50), snapshots.next()).await, Ok(Some(_))) {}
+    for _ in 0..2 {
+        session.market_state = 0;
+        session.active_value_date = None;
         let outlook = outlook::load_for_session(&backend, &registry, Some(&session)).await.unwrap();
         assert!(outlook.cells.is_empty());
-        assert!(outlook.status.contains("outside live trading hours"));
+        assert!(outlook.status.contains("market is closed"));
         let charts = market_history::load_for_session(&backend, &registry, &session).await;
         assert!(charts["ES-BB"].status.is_empty(), "{}", charts["ES-BB"].status);
         assert!(!charts["ES-BB"].series[0].points.is_empty());

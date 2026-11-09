@@ -14,8 +14,8 @@ foreach ($actorFile in $actorFiles) {
     $compact = $source -replace '\s+', ''
     $relativePath = $actorFile.FullName.Substring($repositoryRoot.Length).TrimStart('\', '/')
 
-    if ($compact -notmatch ':BaseEventSourceFunctionActor<') {
-        $violations.Add("$relativePath does not inherit BaseEventSourceFunctionActor directly.")
+    if ($compact -notmatch ':Base(?:InMemory)?EventSourceFunctionActor<') {
+        $violations.Add("$relativePath must inherit BaseEventSourceFunctionActor or its qualified in-memory specialization.")
         continue
     }
 

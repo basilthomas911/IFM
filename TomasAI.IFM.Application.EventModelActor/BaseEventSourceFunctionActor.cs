@@ -397,6 +397,7 @@ public abstract class BaseEventSourceFunctionActor<
         }
         catch
         {
+            OnFunctionStageAbandoned(request, stage, task ?? Task.CompletedTask);
             // CancelAsync signals cancellation now and keeps arbitrary callbacks off recovery's critical path.
             var cancellation = workerCancellation.CancelAsync();
             cancellationTransferred = true;
@@ -408,6 +409,9 @@ public abstract class BaseEventSourceFunctionActor<
             if (!cancellationTransferred) workerCancellation.Dispose();
         }
     }
+
+    /// <summary>Lets committed-state caches fence a stage that can outlive its failed request.</summary>
+    protected virtual void OnFunctionStageAbandoned(TRequest request, FunctionFailureStage stage, Task task) { }
 
     /// <summary>Applies lifecycle timing to projection and persistence operations.</summary>
     async ValueTask RunFunctionStageAsync(TRequest request, FunctionFailureStage stage,

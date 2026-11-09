@@ -78,7 +78,7 @@ pub(super) fn detail_tree(
     fn group(key: &str) -> &'static str {
         match key {
             "name" | "parent" | "Stage" | "Dataset" | "ProcessId" | "Generation"
-            | "WorkerInstance" => "Identity",
+            | "WorkerInstance" | "Host process ID" => "Identity",
             "Status" | "status" | "Session" | "Requirement" | "Running" | "Healthy" | "Reason"
             | "ReasonCode" => "State",
             "Pending"
@@ -100,7 +100,8 @@ pub(super) fn detail_tree(
             | "ForcedTermination" => "Recovery",
             "SourceAge" | "MarketDataAsOfUtc" | "LastSucceededUtc" | "OldestPending"
             | "P50Latency" | "P95Latency" | "P99Latency" | "IncidentAge" | "LastHealthyUtc"
-            | "NextProbeUtc" | "StartedOnUtc" => "Timing",
+            | "NextProbeUtc" | "StartedOnUtc" | "Observed UTC" => "Timing",
+            _ if key.starts_with("Counter/") => "Traffic and capacity",
             _ => "Details",
         }
     }

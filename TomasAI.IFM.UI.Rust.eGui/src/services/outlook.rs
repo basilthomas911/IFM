@@ -554,7 +554,7 @@ pub async fn load(backend: &Backend, registry: &Registry) -> Result<Outlook, Str
 }
 
 
-/// Loads the live snapshot only for a session confirmed to be in trading hours.
+/// Loads the live snapshot during both overnight and regular open-market sessions.
 pub async fn load_for_session(
     backend: &Backend,
     registry: &Registry,
@@ -563,15 +563,15 @@ pub async fn load_for_session(
     let Some(context) = context else {
         return Ok(Outlook {
             cells: BTreeMap::new(),
-            status: "Market Outlook paused until the API confirms trading hours".into(),
+            status: "Market Outlook paused until the API confirms an open session".into(),
             summary: "Market session unavailable".into(),
         });
     };
-    let Some(value_date) = context.active_value_date.filter(|_| context.is_live_trading()) else {
+    let Some(value_date) = context.active_value_date.filter(|_| context.is_market_open()) else {
         return Ok(Outlook {
             cells: BTreeMap::new(),
-            status: "Market Outlook paused outside live trading hours".into(),
-            summary: format!("{} | Outside live trading hours", context.value_date),
+            status: "Market Outlook paused while the market is closed".into(),
+            summary: format!("{} | Market closed", context.value_date),
         });
     };
     tokio::time::timeout(backend.default_timeout(), async {
@@ -597,7 +597,8 @@ pub async fn load_for_session(
                 "Market outlook does not match the API session and current contract".into(),
             );
         }
-        outlook.summary = format!("{contract} | {value_date} | LiveTrading");
+        let state = if context.is_live_trading() { "LiveTrading" } else { "OffTrading" };
+        outlook.summary = format!("{contract} | {value_date} | {state}");
         Ok(outlook)
     })
     .await

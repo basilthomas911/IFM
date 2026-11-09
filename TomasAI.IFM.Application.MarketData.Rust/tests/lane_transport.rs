@@ -2342,6 +2342,14 @@ async fn live_data_owner_integrates_three_books_and_options_reset_without_future
             .await
             .unwrap();
         assert_eq!(running.phase, Phase::Running);
+        let queries = data.queries(lane).unwrap().unwrap();
+        let counters = queries.counters().unwrap();
+        assert!(counters["Trade events"] > 0);
+        assert!(counters["Provider events processed"] > 0);
+        assert_eq!(counters["Processing failures"], 0);
+        assert_eq!(counters["Registered instruments"], 1);
+        assert_eq!(counters["Instrument capacity"], 8);
+        assert_eq!(counters["Authoritative output capacity"], 8192);
     }
     tokio::time::timeout(Duration::from_secs(1), invalidation.changed())
         .await

@@ -18,7 +18,15 @@ pub struct BusinessContext {
     /// Whether allow development emulator is enabled or currently true.
     pub allow_development_emulator: bool,
 }
+
+
 impl BusinessContext {
+    /// Whether the API confirms an open session, including overnight OffTrading hours.
+    pub fn is_market_open(&self) -> bool {
+        matches!(self.market_state, 1 | 2) && self.active_value_date == Some(self.value_date)
+    }
+
+
     /// Whether the API has confirmed that live trading hours are active.
     pub fn is_live_trading(&self) -> bool {
         self.market_state == 2
@@ -125,6 +133,38 @@ impl BusinessContext {
                 deadline.min(tokio::time::Instant::now() + std::time::Duration::from_millis(500)),
             )
             .await;
+        }
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+
+    /// Overnight is an open data session; closed, unknown and inconsistent sessions remain paused.
+    #[test]
+    fn market_data_views_accept_both_open_states_only_with_the_matching_active_date() {
+        let date = NaiveDate::from_ymd_opt(2026, 11, 9).unwrap();
+        for (market_state, active_value_date, expected) in [
+            (0, None, false),
+            (1, Some(date), true),
+            (2, Some(date), true),
+            (1, None, false),
+            (3, Some(date), false),
+            (1, date.pred_opt(), false),
+        ] {
+            let context = BusinessContext {
+                value_date: date,
+                active_value_date,
+                as_of_utc: "2026-11-09T00:00:00Z".parse().unwrap(),
+                revision: 1,
+                market_state,
+                allow_development_emulator: false,
+            };
+            assert_eq!(context.is_market_open(), expected, "state={market_state}");
+            assert_eq!(context.is_live_trading(), market_state == 2);
         }
     }
 }

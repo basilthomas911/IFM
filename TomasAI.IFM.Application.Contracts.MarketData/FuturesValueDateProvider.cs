@@ -1,14 +1,13 @@
 namespace TomasAI.IFM.Domain.MarketData.Shared;
-/// <summary>Projects the operational value date; clock transitions cannot advance an initialized date.</summary>
+/// <summary>Reconciles the operational date on every read, retaining completed EOD advancement.</summary>
 public sealed class FuturesValueDateProvider : IValueDateProvider, ICompletedFuturesEndOfDayProjection, IMarketOpenValueDateInitializer
 {
     private readonly System.Threading.Lock _gate = new();
     private readonly TimeProvider _timeProvider;
-    private DateOnly _lastOpenedValueDate;
     private DateOnly _operationalValueDate;
     private DateOnly _lastCompletedValueDate;
-    /// <summary>Initializes a first-use date; persisted completion replaces this bootstrap value before live startup.</summary>
-    /// <param name="timeProvider">The API clock used for bootstrap and explicit market-open initialization.</param>
+    /// <summary>Initializes the operational date from the injected server clock.</summary>
+    /// <param name="timeProvider">The API clock checked on every current-value-date read.</param>
     public FuturesValueDateProvider(TimeProvider timeProvider)
     {
         ArgumentNullException.ThrowIfNull(timeProvider);
@@ -19,21 +18,14 @@ public sealed class FuturesValueDateProvider : IValueDateProvider, ICompletedFut
     public static IValueDateProvider System { get; } = new FuturesValueDateProvider(TimeProvider.System);
     /// <inheritdoc />
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1721", Justification = "The read-model property is serialized data; the method implements an existing conversion/provider contract.")]
-    public DateOnly ValueDate { get { lock (_gate) return _operationalValueDate; } }
+    public DateOnly ValueDate => GetValueDate(_timeProvider.GetUtcNow());
     /// <inheritdoc />
-    public DateOnly GetValueDate(DateTimeOffset instant) => ValueDate;
-    /// <inheritdoc />
-    public DateOnly InitializeMarketOpen()
+    public DateOnly GetValueDate(DateTimeOffset instant)
     {
-        lock (_gate)
-        {
-            // Opening is authoritative even when the previous close was missed.
-            // Backtesting controls this same boundary through the injected API clock.
-            _operationalValueDate = FuturesTradingValueDate.GetOperational(_timeProvider.GetUtcNow());
-            _lastOpenedValueDate = _operationalValueDate;
-            return _operationalValueDate;
-        }
+        lock (_gate) return RefreshOperationalDate(instant);
     }
+    /// <inheritdoc />
+    public DateOnly InitializeMarketOpen() => ValueDate;
     /// <inheritdoc />
     public bool ApplyCompletedEndOfDay(DateOnly completedValueDate)
     {
@@ -41,10 +33,19 @@ public sealed class FuturesValueDateProvider : IValueDateProvider, ICompletedFut
         lock (_gate)
         {
             if (completedValueDate <= _lastCompletedValueDate) return false;
+            RefreshOperationalDate(_timeProvider.GetUtcNow());
             _lastCompletedValueDate = completedValueDate;
             var next = FuturesTradingValueDate.GetNextTradingDate(completedValueDate);
-            _operationalValueDate = next < _lastOpenedValueDate ? _lastOpenedValueDate : next;
+            if (next > _operationalValueDate) _operationalValueDate = next;
             return true;
         }
+    }
+
+    /// <summary>Moves forward with session boundaries; old projections or clock corrections cannot rewind the date.</summary>
+    private DateOnly RefreshOperationalDate(DateTimeOffset instant)
+    {
+        var current = FuturesTradingValueDate.GetOperational(instant);
+        if (current > _operationalValueDate) _operationalValueDate = current;
+        return _operationalValueDate;
     }
 }

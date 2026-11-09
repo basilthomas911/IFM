@@ -12,19 +12,25 @@ public sealed class ApiFatalRecoveryChildProcessTests
     public async Task Fatal_shutdown_exits_child_process_nonzero_with_independent_evidence(
         string mode, bool expectStderr)
     {
-        var root = new DirectoryInfo(AppContext.BaseDirectory);
-        while (root is not null && !File.Exists(Path.Combine(root.FullName, "TomasAI.IFM.sln")))
-            root = root.Parent;
-        Assert.NotNull(root);
-        var relativeOutput = Path.GetRelativePath(
-            Path.Combine(root.FullName, "TomasAI.IFM.LivePipeline.IntegrationTests", "bin"), AppContext.BaseDirectory);
-        var assembly = Path.Combine(root.FullName,
-            "TomasAI.IFM.Application.Api.Server.RecoveryChildProbe",
-            "bin", relativeOutput, "TomasAI.IFM.Application.Api.Server.RecoveryChildProbe.dll");
+        const string probeProject = "TomasAI.IFM.Application.Api.Server.RecoveryChildProbe";
+        var testOutput = new DirectoryInfo(AppContext.BaseDirectory);
+        // --artifacts-path places projects beside each other under bin/<project>/<configuration>.
+        var assembly = Path.Combine(testOutput.Parent!.Parent!.FullName, probeProject,
+            testOutput.Name, probeProject + ".dll");
+        if (!File.Exists(assembly))
+        {
+            // Preserve the ordinary repository-local bin/<configuration>/<framework> layout.
+            var root = testOutput;
+            while (root is not null && !File.Exists(Path.Combine(root.FullName, "TomasAI.IFM.sln"))) root = root.Parent;
+            Assert.NotNull(root);
+            var relativeOutput = Path.GetRelativePath(
+                Path.Combine(root.FullName, "TomasAI.IFM.LivePipeline.IntegrationTests", "bin"), AppContext.BaseDirectory);
+            assembly = Path.Combine(root.FullName, probeProject, "bin", relativeOutput, probeProject + ".dll");
+        }
         Assert.True(File.Exists(assembly), "The referenced recovery child probe must be built before verification.");
         using var child = new Process { StartInfo = new ProcessStartInfo("dotnet")
         {
-            WorkingDirectory = root.FullName,
+            WorkingDirectory = Path.GetDirectoryName(assembly)!,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,

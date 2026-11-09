@@ -46,7 +46,7 @@ public sealed class FuturesMarketSessionAuthorityHostedServiceTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task Restart_restores_fully_completed_close_and_storage_failure_does_not_change_held_date(bool failRead)
+    public async Task Restart_with_old_completion_or_storage_failure_retains_current_server_session(bool failRead)
     {
         var clock = new FixedClock();
         var authority = new FuturesMarketSessionAuthority(clock);
@@ -58,9 +58,9 @@ public sealed class FuturesMarketSessionAuthorityHostedServiceTests
         await service.StartAsync(CancellationToken.None);
         try
         {
-            Assert.Equal(new DateOnly(2026,10,7), authority.Current.OperationalValueDate);
-            Assert.True(authority.Current.IsEndOfDayPending);
-            Assert.Null(authority.Current.ActiveValueDate);
+            Assert.Equal(new DateOnly(2026,10,8), authority.Current.OperationalValueDate);
+            Assert.False(authority.Current.IsEndOfDayPending);
+            Assert.Equal(new DateOnly(2026,10,8), authority.Current.ActiveValueDate);
             Assert.Equal(1, reads.ReadCount);
         }
         finally { await service.StopAsync(CancellationToken.None); }

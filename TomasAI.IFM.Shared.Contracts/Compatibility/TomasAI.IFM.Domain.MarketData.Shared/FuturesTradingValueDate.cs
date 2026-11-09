@@ -45,8 +45,8 @@ public static class FuturesTradingValueDate
         => TryGet(TimeZoneInfo.ConvertTime(instant, MarketTimeZone).DateTime, out valueDate);
 
     /// <summary>
-    /// Returns a first-use calendar candidate, retaining the ended date during the close interval.
-    /// An initialized operational date advances only from a persisted successful EOD completion.
+    /// Returns the calendar candidate for each operational-date read, retaining the ended date during the close interval.
+    /// A provider may retain a later date already advanced by successful EOD completion.
     /// </summary>
     public static DateOnly GetOperational(DateTimeOffset instant)
     {

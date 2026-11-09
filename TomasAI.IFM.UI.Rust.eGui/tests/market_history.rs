@@ -3,6 +3,48 @@ use ifm_ui_egui::{market_charts::ChartSnapshot, services::market_history::*};
 use serde_json::{Value, json};
 
 
+/// Server rollover flags choose the front and next expiry, regardless of row order.
+#[test]
+fn vx_months_follow_active_catalog_assignments() {
+    let source = typed(&json!([
+        {"ContractId":"VX-LATER","Symbol":"VX","LastTradeDate":"2027-01-20","OnTheRun":false,"Rollover":true},
+        {"ContractId":"VX-OLD","Symbol":"VX","LastTradeDate":"2026-10-21","OnTheRun":false,"Rollover":true},
+        {"ContractId":"VX-BACK","Symbol":"VX","LastTradeDate":"2026-12-16","OnTheRun":false,"Rollover":true},
+        {"ContractId":"VX-FRONT","Symbol":"VX","LastTradeDate":"2026-11-18","OnTheRun":true,"Rollover":true},
+        {"ContractId":"VX-INACTIVE","Symbol":"VX","LastTradeDate":"2026-11-25","OnTheRun":false,"Rollover":false}
+    ]));
+    assert_eq!(vx_contracts(&source).unwrap(), ("VX-FRONT".into(), Some("VX-BACK".into())));
+    assert!(vx_contracts(&source[..3]).is_err());
+    assert_eq!(vx_contracts(&source[3..4]).unwrap().1, None);
+}
+
+
+/// Both months share bounds and keep distinct colours, even when one leg fails.
+#[test]
+fn vx_chart_preserves_both_months_and_partial_history() {
+    use ifm_ui_egui::market_charts::ChartSeries;
+    let start = time(&json!("2026-11-09T00:00:00Z"));
+    let end = start + chrono::Duration::hours(6);
+    let line = |price: f64| ChartSnapshot {
+        minimum: Some(price - 0.025), maximum: Some(price + 0.025),
+        series: vec![ChartSeries { points: vec![[market_seconds(start), price]], ..Default::default() }],
+        ..Default::default()
+    };
+    let both = vx_chart(start, end, ("VX-FRONT", Ok(line(17.0))), ("VX-BACK", Ok(line(19.0))));
+    assert_eq!(both.series.len(), 2);
+    assert_eq!(both.series[0].name, "Front month · VX-FRONT");
+    assert_eq!(both.series[0].color, "Fuchsia");
+    assert_eq!(both.series[1].name, "Back month · VX-BACK");
+    assert_eq!(both.series[1].color, "LightBlue");
+    assert_eq!(both.minimum, Some(16.975));
+    assert_eq!(both.maximum, Some(19.025));
+    let partial = vx_chart(start, end, ("VX-FRONT", Ok(line(17.0))), ("VX-BACK", Err("Timed out".into())));
+    assert_eq!(partial.series.len(), 1);
+    assert_eq!(partial.series[0].points[0][1], 17.0);
+    assert!(partial.status.contains("Back month: Timed out"));
+}
+
+
 // The frozen C# oracle is JSON, which serializes decimal fields as numbers.
 // Native monitor publications preserve these same decimals as exact strings.
 fn typed<T: serde::de::DeserializeOwned + ifm_ui_egui::models::wire_types::FromBackend>(

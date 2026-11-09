@@ -113,4 +113,39 @@ if (args.Contains("--verify-api-optimizations", StringComparer.Ordinal))
     finally { verification.Cleanup(); }
     return;
 }
+if (args.Contains("--verify-resident-pilots", StringComparer.Ordinal))
+{
+    foreach (var kind in Enum.GetValues<TomasAI.IFM.TestSupport.ResidentActors.ResidentPilotKind>())
+    {
+        var fixture = new TomasAI.IFM.Application.Api.Server.Benchmarks.ResidentActorWarmBenchmarks { Kind = kind, Streams = 64 };
+        try
+        {
+            await fixture.Setup(); await fixture.PrepareAsync(); await fixture.Before(); fixture.VerifyCounters();
+            await fixture.PrepareAsync(); await fixture.After(); fixture.VerifyCounters();
+            Console.WriteLine($"Resident actor paired fixture passed: {kind}, 64 streams, 128 awaited commands per path.");
+        }
+        finally { await fixture.Cleanup(); }
+    }
+    return;
+}
+if (args.Contains("--resident-resource-probe", StringComparer.Ordinal))
+{
+    var output = args[Array.IndexOf(args, "--output") + 1];
+    var seconds = args.Contains("--soak-seconds", StringComparer.Ordinal)
+        ? int.Parse(args[Array.IndexOf(args, "--soak-seconds") + 1], System.Globalization.CultureInfo.InvariantCulture) : 0;
+    await TomasAI.IFM.Application.Api.Server.Benchmarks.ResidentActorResourceProbe.RunAsync(output, seconds);
+    return;
+}
+if (args.Contains("--resident-child-restart", StringComparer.Ordinal))
+{
+    await TomasAI.IFM.Application.Api.Server.Benchmarks.ResidentActorProcessRestartProbe.RunAsync(true,
+        Enum.Parse<TomasAI.IFM.TestSupport.ResidentActors.ResidentPilotKind>(args[1]),
+        int.Parse(args[2], System.Globalization.CultureInfo.InvariantCulture));
+    return;
+}
+if (args.Contains("--verify-resident-process-restart", StringComparer.Ordinal))
+{
+    await TomasAI.IFM.Application.Api.Server.Benchmarks.ResidentActorProcessRestartProbe.RunAsync(false);
+    return;
+}
 BenchmarkSwitcher.FromAssembly(typeof(TomasAI.IFM.Application.Api.Server.Benchmarks.ActorHealthJsonBenchmarks).Assembly).Run(args);

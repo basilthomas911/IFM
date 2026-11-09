@@ -19,7 +19,7 @@ public sealed class MarketOutlookSnapshotStateRepository(
     IEventProjector<MarketOutlookSnapshotCommandActor> eventProjector,
     ILogger<MarketOutlookSnapshotStateRepository> logger)
     : BaseEventSourceActorRepository(stateFactory, eventSource, actorService, logger),
-      IEventSourceActorStateRepository<MarketOutlookSnapshotCommandState>
+      IResidentCommandStateRepository<MarketOutlookSnapshotCommandState>
 {
     public ValueTask<MarketOutlookSnapshotCommandState> LoadStateAsync(ICommand command)
         => LoadStateAsync(command, CancellationToken.None);
@@ -78,5 +78,12 @@ public sealed class MarketOutlookSnapshotStateRepository(
         ArgumentNullException.ThrowIfNull(domainEvents);
         foreach (var domainEvent in domainEvents)
             await eventProjector.ProcessDomainEventAsync(domainEvent).ConfigureAwait(false);
+    }
+    /// <summary>Rejects a stale resident no-change acknowledgement after an external stream write.</summary>
+    public async ValueTask ValidateNoChangeAsync(MarketOutlookSnapshotCommandState state, ICommand command, CancellationToken cancellationToken)
+    {
+        if (await EventSourceDb.GetCommittedStreamVersionAsync(command.StreamId, cancellationToken).ConfigureAwait(false)
+            != state.CommittedStreamVersion)
+            throw new TomasAI.IFM.Shared.Exceptions.ConcurrencyException("Resident stream advanced; reload committed state.");
     }
 }

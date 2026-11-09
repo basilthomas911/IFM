@@ -45,6 +45,7 @@ pub fn series_color(name: &str) -> egui::Color32 {
         "Red" => egui::Color32::RED,
         "Blue" => egui::Color32::BLUE,
         "Fuchsia" => egui::Color32::from_rgb(255, 0, 255),
+        "LightBlue" => egui::Color32::from_rgb(173, 216, 230),
         _ => egui::Color32::WHITE,
     }
 }
@@ -60,6 +61,8 @@ pub fn draw(ui: &mut egui::Ui, charts: &BTreeMap<String, ChartSnapshot>, selecte
     ui.visuals_mut().widgets.noninteractive.bg_stroke =
         egui::Stroke::new(1.0_f32, egui::Color32::from_rgb(45, 45, 45));
     let name = ["ES", "ES-BB", "VX"][*selected];
+    let y_axis = egui_plot::AxisHints::new_y().placement(egui_plot::HPlacement::Right);
+    let y_axis = if name == "VX" { y_axis.label_spacing(0.0..=1.0) } else { y_axis };
     let chart = charts.get(name);
     if chart.is_none_or(|c| !c.status.is_empty()) {
         ui.trading_label(
@@ -76,7 +79,7 @@ pub fn draw(ui: &mut egui::Ui, charts: &BTreeMap<String, ChartSnapshot>, selecte
         .allow_zoom(false)
         .allow_scroll(false)
         .custom_y_axes(vec![
-            egui_plot::AxisHints::new_y().placement(egui_plot::HPlacement::Right),
+            y_axis,
         ])
         .x_axis_formatter(move |mark, _| {
             chrono::DateTime::from_timestamp(mark.value as i64, 0)
@@ -91,9 +94,12 @@ pub fn draw(ui: &mut egui::Ui, charts: &BTreeMap<String, ChartSnapshot>, selecte
                 .unwrap_or_default()
         })
         .y_axis_formatter(move |mark, _| price_label(name, mark.value))
-        .label_formatter(move |series, point| format!("{series}: {}", price_label(name, point.y)));
+        .label_formatter(move |series, point| series_tooltip(name, series, point.y));
     if name != "ES-BB" {
         plot = plot.x_grid_spacer(hour_marks);
+    }
+    if name == "VX" {
+        plot = plot.y_grid_spacer(vx_price_marks).y_axis_min_width(55.0);
     }
     if let Some(chart) = chart {
         if chart.start < chart.end {
@@ -149,6 +155,12 @@ pub fn draw(ui: &mut egui::Ui, charts: &BTreeMap<String, ChartSnapshot>, selecte
 
 
 /// VX keeps both decimal places, including trailing zeros.
+pub fn series_tooltip(symbol: &str, series: &str, price: f64) -> String {
+    format!("{series}: {}", price_label(symbol, price))
+}
+
+
+/// VX keeps both decimal places, including trailing zeros.
 pub fn price_label(symbol: &str, value: f64) -> String {
     match symbol {
         "VX" => format!("{value:.2}"),
@@ -176,4 +188,18 @@ pub fn hour_marks(input: egui_plot::GridInput) -> Vec<egui_plot::GridMark> {
             step_size: 3600.0,
         })
         .collect()
+}
+
+
+/// One readable grid level for VX: every visible horizontal mark gets a price label.
+pub fn vx_price_marks(input: egui_plot::GridInput) -> Vec<egui_plot::GridMark> {
+    let (low, high) = input.bounds;
+    if !low.is_finite() || !high.is_finite() || high <= low || !input.base_step_size.is_finite() { return vec![]; }
+    let target = ((high - low) / 6.0).max(input.base_step_size * 3.0).max(0.01);
+    let magnitude = 10.0_f64.powf(target.log10().floor());
+    let step = [1.0, 2.0, 5.0, 10.0].into_iter().map(|factor| factor * magnitude)
+        .find(|step| *step >= target).unwrap_or(target);
+    let first = (low / step).ceil() * step;
+    let count = (((high - first) / step).floor() + 1.0).clamp(0.0, 64.0) as usize;
+    (0..count).map(|index| egui_plot::GridMark { value: first + index as f64 * step, step_size: step }).collect()
 }

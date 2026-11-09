@@ -232,6 +232,18 @@ impl Outbox {
             .map_err(|_| "Evidence outbox writer interrupted")?;
         Ok((state.items.len(), state.bytes))
     }
+    /// Samples actual pending evidence, durable receipts and configured bounds.
+    pub fn counters(&self) -> Result<BTreeMap<String, i64>, &'static str> {
+        let state = self.state.lock().map_err(|_| "Evidence diagnostics interrupted")?;
+        Ok([
+            ("Evidence pending records", state.items.len() as i64),
+            ("Evidence durable records pending publication", state.items.values().filter(|item| item.persisted).count() as i64),
+            ("Evidence record capacity", self.maximum as i64),
+            ("Evidence retained bytes", state.bytes as i64),
+            ("Evidence byte capacity", self.bytes as i64),
+            ("Evidence records admitted", state.next.min(i64::MAX as u64) as i64),
+        ].into_iter().map(|(name, value)| (name.into(), value)).collect())
+    }
     /// Exact bytes owned by this bounded staging directory. Detached external
     /// copies have no relationship to dataset ownership or joining.
     ///

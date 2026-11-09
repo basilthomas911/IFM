@@ -133,6 +133,12 @@ impl Ordered {
     pub fn status(&self) -> Status {
         self.port.status()
     }
+    /// Copies enqueue sequence and actual shared broker queue diagnostics.
+    pub fn counters(&self) -> Result<std::collections::BTreeMap<String, i64>, &'static str> {
+        let mut values = self.port.counters();
+        values.insert("Publication frames submitted".into(), *self.sequence.lock().map_err(|_| "Publication diagnostics interrupted")?);
+        Ok(values)
+    }
     /// Event-driven protocol progress, with no polling receiver.
     pub fn changes(&self) -> watch::Receiver<Status> {
         self.port.changes()

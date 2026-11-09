@@ -190,6 +190,8 @@ public static partial class CoreServiceRegistration
         .GetSection(InMemoryEventSourceActorOptions.SectionName)
         .Get<InMemoryEventSourceActorOptions>() ?? new InMemoryEventSourceActorOptions();
         siContainer.RegisterInstance(inMemoryEventSourceActorOptions.Validate());
+        siContainer.RegisterInstance((config.GetSection(ResidentActorPilotOptions.SectionName)
+            .Get<ResidentActorPilotOptions>() ?? new ResidentActorPilotOptions()).Validate());
 
         var domainAssemblies = new List<Assembly>
         {

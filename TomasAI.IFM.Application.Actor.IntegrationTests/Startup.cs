@@ -713,6 +713,7 @@ public static class Startup
             .Get<TomasAI.IFM.Shared.EventModelActor.InMemoryEventSourceActorOptions>()
             ?? new TomasAI.IFM.Shared.EventModelActor.InMemoryEventSourceActorOptions();
         siContainer.RegisterInstance(inMemoryEventSourceActorOptions.Validate());
+        siContainer.RegisterInstance(new TomasAI.IFM.Shared.EventModelActor.ResidentActorPilotOptions().Validate());
 
         var domainAssemblies = new List<Assembly>
         {

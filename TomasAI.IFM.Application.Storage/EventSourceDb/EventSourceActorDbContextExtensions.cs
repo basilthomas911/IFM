@@ -33,6 +33,15 @@ internal static class EventSourceActorDbContextExtensions
     extension(EventSourceActorDbContext context)
     {
 
+        /// <summary>Uses indexed stream metadata; no event deserialization or second identity read is required.</summary>
+        internal async Task<long> ReadCommittedStreamHeadAsync(string eventStream, CancellationToken cancellationToken)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(eventStream);
+            return await context.Database.Use(nameof(EventSourceDbSql.GetResidentStreamHead), EventSourceDbSql.GetResidentStreamHead)
+                .SetParameters(new GetEventStreamId(eventStream))
+                .ExecuteSingleAsync(static row => row.GetLong(0), cancellationToken).ConfigureAwait(false);
+        }
+
         /// <summary>Resolves the cached event stream identifier, creating the database entry on a cache miss.</summary>
         /// <param name="eventStream">The event stream name.</param>
         /// <param name="cancellationToken">The token used to cancel the operation.</param>

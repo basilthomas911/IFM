@@ -156,19 +156,21 @@ public sealed class GetValueDateTests
             .Should().Be(DateTimeOffset.Parse(expectedUtc));
 
     [Fact]
-    public void Operational_date_does_not_advance_on_close_open_midnight_or_failed_eod()
+    public void Operational_date_retains_closed_session_then_refreshes_at_open_without_eod()
     {
         var clock = new SettableTimeProvider(DateTimeOffset.Parse("2026-08-31T16:59:00-04:00"));
         var provider = new FuturesValueDateProvider(clock);
         var authority = new FuturesMarketSessionAuthority(clock, provider);
-        foreach (var instant in new[] { "2026-08-31T17:00:00-04:00", "2026-08-31T18:00:00-04:00", "2026-09-01T00:00:00-04:00" })
-        {
-            clock.UtcNow = DateTimeOffset.Parse(instant);
-            authority.Refresh().OperationalValueDate.Should().Be(new DateOnly(2026,8,31));
-        }
-        authority.Current.IsEndOfDayPending.Should().BeTrue();
+        clock.UtcNow = DateTimeOffset.Parse("2026-08-31T17:00:00-04:00");
+        authority.Refresh().OperationalValueDate.Should().Be(new DateOnly(2026,8,31));
+        authority.Current.State.Should().Be(FuturesMarketState.Closed);
+        authority.Current.IsEndOfDayPending.Should().BeFalse();
         authority.Current.ActiveValueDate.Should().BeNull();
-        // No successful completion event is applied for a rejected or failed EOD command.
+        clock.UtcNow = DateTimeOffset.Parse("2026-08-31T18:00:00-04:00");
+        authority.Current.OperationalValueDate.Should().Be(new DateOnly(2026,9,1));
+        authority.Current.IsEndOfDayPending.Should().BeFalse();
+        authority.Current.ActiveValueDate.Should().Be(new DateOnly(2026,9,1));
+        // Late EOD completion must not roll back a date already resolved at opening.
         authority.ApplyCompletedEndOfDay(new DateOnly(2026,8,31)).Should().BeTrue();
         authority.Current.OperationalValueDate.Should().Be(new DateOnly(2026,9,1));
         authority.Current.IsEndOfDayPending.Should().BeFalse();
@@ -189,7 +191,7 @@ public sealed class GetValueDateTests
         clock.UtcNow = DateTimeOffset.Parse("2026-08-18T12:00:00-04:00");
         var restarted = new FuturesMarketSessionAuthority(clock);
         restarted.ApplyCompletedEndOfDay(new DateOnly(2026,8,14));
-        restarted.Current.OperationalValueDate.Should().Be(new DateOnly(2026,8,17), "unconfirmed later sessions cannot advance the persisted operational date");
+        restarted.Current.OperationalValueDate.Should().Be(new DateOnly(2026,8,18), "restored older completions cannot rewind the current server session");
         restarted.ApplyCompletedEndOfDay(new DateOnly(2026,8,13)).Should().BeFalse();
     }
 
@@ -234,7 +236,7 @@ public sealed class GetValueDateTests
         var provider=new FuturesValueDateProvider(clock);
         var authority=new FuturesMarketSessionAuthority(clock,provider);
         clock.UtcNow=DateTimeOffset.Parse(instant);
-        provider.ValueDate.Should().Be(new DateOnly(2026,10,29));
+        provider.ValueDate.Should().Be(DateOnly.Parse(expected), "reading the singleton must detect opening without an explicit initializer");
         provider.InitializeMarketOpen().Should().Be(DateOnly.Parse(expected));
         provider.InitializeMarketOpen().Should().Be(DateOnly.Parse(expected),"repeated opening must not advance another day");
         authority.Current.OperationalValueDate.Should().Be(DateOnly.Parse(expected));
@@ -250,6 +252,51 @@ public sealed class GetValueDateTests
         provider.ApplyCompletedEndOfDay(new DateOnly(2026,10,29));
         clock.UtcNow=DateTimeOffset.Parse("2026-10-29T18:00:00-04:00");
         provider.InitializeMarketOpen().Should().Be(new DateOnly(2026,10,30));
+    }
+
+    [Theory]
+    [InlineData("2026-11-08T17:59:59-05:00", "2026-11-06", "2026-11-08T18:00:00-05:00", "2026-11-09")]
+    [InlineData("2026-11-09T17:59:59-05:00", "2026-11-09", "2026-11-09T18:00:00-05:00", "2026-11-10")]
+    [InlineData("2026-10-31T12:00:00-04:00", "2026-10-30", "2026-11-01T18:00:00-05:00", "2026-11-02")]
+    [InlineData("2026-03-07T12:00:00-05:00", "2026-03-06", "2026-03-08T18:00:00-04:00", "2026-03-09")]
+    [InlineData("2026-11-06T16:00:00-05:00", "2026-11-06", "2026-12-01T12:00:00-05:00", "2026-12-01")]
+    public void Same_provider_refreshes_after_boundaries_DST_and_weeks_of_uptime(
+        string start, string initial, string later, string expected)
+    {
+        var clock = new SettableTimeProvider(DateTimeOffset.Parse(start));
+        IValueDateProvider provider = new FuturesValueDateProvider(clock);
+        provider.ValueDate.Should().Be(DateOnly.Parse(initial));
+
+        clock.UtcNow = DateTimeOffset.Parse(later);
+
+        provider.ValueDate.Should().Be(DateOnly.Parse(expected));
+        provider.ValueDate.Should().Be(DateOnly.Parse(expected), "repeated reads must not advance another session");
+    }
+
+    [Fact]
+    public void Explicit_instant_is_reconciled_and_old_instants_cannot_rewind_the_date()
+    {
+        var clock = new SettableTimeProvider(DateTimeOffset.Parse("2026-11-08T17:00:00-05:00"));
+        var provider = new FuturesValueDateProvider(clock);
+
+        provider.GetValueDate(DateTimeOffset.Parse("2026-11-08T18:00:00-05:00"))
+            .Should().Be(new DateOnly(2026,11,9));
+        provider.GetValueDate(clock.UtcNow).Should().Be(new DateOnly(2026,11,9));
+        provider.ValueDate.Should().Be(new DateOnly(2026,11,9));
+    }
+
+    [Fact]
+    public void Completed_close_advances_during_maintenance_and_reads_do_not_undo_it()
+    {
+        var clock = new SettableTimeProvider(DateTimeOffset.Parse("2026-11-06T17:01:00-05:00"));
+        var provider = new FuturesValueDateProvider(clock);
+
+        provider.ApplyCompletedEndOfDay(new DateOnly(2026,11,6)).Should().BeTrue();
+        provider.ValueDate.Should().Be(new DateOnly(2026,11,9));
+        clock.UtcNow = DateTimeOffset.Parse("2026-11-08T12:00:00-05:00");
+        provider.ValueDate.Should().Be(new DateOnly(2026,11,9));
+        provider.ApplyCompletedEndOfDay(new DateOnly(2026,11,5)).Should().BeFalse();
+        provider.ValueDate.Should().Be(new DateOnly(2026,11,9));
     }
 
     sealed class SettableTimeProvider(DateTimeOffset utcNow) : TimeProvider

@@ -25,6 +25,18 @@ pub(super) struct LaneOutput {
     serial: u64,
 }
 impl LaneOutput {
+    /// Samples actual output occupancy and logical limits under the owner's lock.
+    pub(super) fn counters(&self) -> BTreeMap<String, i64> {
+        [
+            ("Authoritative output pending", self.authoritative.len() as i64),
+            ("Authoritative output capacity", 8192),
+            ("Quote history pending", self.ordered_quotes.len() as i64),
+            ("Quote history capacity", 8192),
+            ("Latest quote slots pending", self.quotes.iter().filter(|slot| slot.value.is_some()).count() as i64),
+            ("Latest quote slot capacity", self.quotes.len() as i64),
+            ("Output sequence", self.serial.min(i64::MAX as u64) as i64),
+        ].into_iter().map(|(name, value)| (name.into(), value)).collect()
+    }
     pub(super) fn new() -> Self {
         Self {
             authoritative: VecDeque::new(),

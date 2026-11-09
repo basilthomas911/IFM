@@ -45,13 +45,15 @@ public static class ApiOperationalEndpoints
             return Results.Ok(records.Select(record=>System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(record)));
         });
         app.MapGet("/api/market-data/operations-health",
-        (MarketDataOperationsHealthService health, LivePipelineMonitor monitor, HttpContext context) =>
+        async (MarketDataOperationsHealthService health, LivePipelineMonitor monitor, HttpContext context) =>
         {
+            // A view/Refresh captures current passive counters; it never starts or resets a feed.
+            if (context.RequestServices.GetService<MarketDataBackendHealthObserver>() is { } observer)
+                await observer.ObserveOnceAsync(context.RequestAborted).ConfigureAwait(false);
             // Freshness uses the API operational clock, never the last market-session transition.
             context.Response.Headers["X-IFM-Server-Utc"] = (context.RequestServices.GetService<TimeProvider>() ?? TimeProvider.System).GetUtcNow().ToString("O", System.Globalization.CultureInfo.InvariantCulture);
             return Results.Ok(LivePipelineEndpoints.OperationsSnapshot(health, monitor));
-        })
-        .CacheOutput(ApiOutputCachePolicies.OperationalSnapshot);
+        });
         app.MapGet("/api/actor-health",
         (IActorSupervisor supervisor, ISupervisorActorMetricsState metrics,
         ISupervisorIncidentStore incidents, ISupervisorOperationStore operations,

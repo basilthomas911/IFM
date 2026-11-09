@@ -1,0 +1,80 @@
+{
+  "Completed": true,
+  "RequestedSeconds": 1800,
+  "ElapsedSeconds": 1800.148055,
+  "Commands": 28160,
+  "SourceStreamsVerified": 80,
+  "Samples": 88,
+  "Actors": [
+    {
+      "Kind": "Vwap",
+      "ActiveInFlight": 0,
+      "PeakInFlight": 16,
+      "Statistics": {
+        "Hits": 5616,
+        "Misses": 16,
+        "Evictions": 0,
+        "Invalidations": 0,
+        "Fallbacks": 0,
+        "Entries": 16,
+        "PinnedEntries": 0
+      }
+    },
+    {
+      "Kind": "MarketOutlook",
+      "ActiveInFlight": 0,
+      "PeakInFlight": 16,
+      "Statistics": {
+        "Hits": 5616,
+        "Misses": 16,
+        "Evictions": 0,
+        "Invalidations": 0,
+        "Fallbacks": 0,
+        "Entries": 16,
+        "PinnedEntries": 0
+      }
+    },
+    {
+      "Kind": "FuturesPlan",
+      "ActiveInFlight": 0,
+      "PeakInFlight": 16,
+      "Statistics": {
+        "Hits": 5616,
+        "Misses": 16,
+        "Evictions": 0,
+        "Invalidations": 0,
+        "Fallbacks": 0,
+        "Entries": 16,
+        "PinnedEntries": 0
+      }
+    },
+    {
+      "Kind": "VerticalSpreadPlan",
+      "ActiveInFlight": 0,
+      "PeakInFlight": 16,
+      "Statistics": {
+        "Hits": 5616,
+        "Misses": 16,
+        "Evictions": 0,
+        "Invalidations": 0,
+        "Fallbacks": 0,
+        "Entries": 16,
+        "PinnedEntries": 0
+      }
+    },
+    {
+      "Kind": "IronCondorPlan",
+      "ActiveInFlight": 0,
+      "PeakInFlight": 16,
+      "Statistics": {
+        "Hits": 5616,
+        "Misses": 16,
+        "Evictions": 0,
+        "Invalidations": 0,
+        "Fallbacks": 0,
+        "Entries": 16,
+        "PinnedEntries": 0
+      }
+    }
+  ]
+}

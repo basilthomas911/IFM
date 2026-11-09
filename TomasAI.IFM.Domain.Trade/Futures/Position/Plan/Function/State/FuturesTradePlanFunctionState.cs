@@ -31,4 +31,18 @@ public sealed class FuturesTradePlanFunctionState : BaseEventSourceActorState<Fu
         LastPersistedEventId = Math.Max(LastPersistedEventId, completed.EventId);
         return true;
     }
+    /// <summary>Owns serialized committed source data; each restore creates independent request-local state.</summary>
+    public TomasAI.IFM.Application.EventModelActor.ResidentFunctionCheckpoint<UpdateFuturesTradePlanCommand, FuturesTradePlanFunctionState>?
+        CaptureResidentCheckpoint()
+    {
+        if (_latest is null || CommittedStreamVersion <= 0 || Events.Count != 0) return null;
+        return TomasAI.IFM.Application.EventModelActor.ResidentFunctionCheckpoint<UpdateFuturesTradePlanCommand, FuturesTradePlanFunctionState>.Capture(
+            _latest, CommittedStreamVersion, static (request, fact, version) =>
+            {
+                var restored = new FuturesTradePlanFunctionState { Id = request.Subject.ThreadId };
+                restored.ReplayEvents(new TomasAI.IFM.Shared.EventSourcing.IEvent[] { fact });
+                restored.RestoreCommittedStreamVersion(version);
+                return restored.Prepare(request);
+            });
+    }
 }

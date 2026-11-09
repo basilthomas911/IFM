@@ -13,6 +13,10 @@ use crate::{
 use chrono::{DateTime, NaiveDate, Utc};
 use std::collections::BTreeMap;
 
+#[path = "vx_history.rs"]
+mod vx;
+pub use vx::{chart as vx_chart, contracts as vx_contracts};
+
 
 /// The copied charts label Unix coordinates directly. Match the hybrid's Eastern
 /// wall-clock coordinate, including the offset at each observation (DST aware).
@@ -285,6 +289,18 @@ async fn load_bars(
     symbol: &str,
 ) -> Result<ChartSnapshot, String> {
     let contract = current_contract(backend, registry, symbol).await?;
+    load_contract_bars(backend, registry, context, symbol, &contract).await
+}
+
+
+/// Loads the published bars for one explicit contract, without changing feed demand.
+async fn load_contract_bars(
+    backend: &Backend,
+    registry: &Registry,
+    context: &BusinessContext,
+    symbol: &str,
+    contract: &str,
+) -> Result<ChartSnapshot, String> {
     let end = context.as_of_utc;
     let start = end - chrono::Duration::hours(6);
     let entity = format!(
@@ -339,7 +355,7 @@ async fn load_bands(
     let mut source = Vec::<FuturesBbSignalReadModel>::from_backend(&wire)?;
     // The current provisional Daily point is provided by Analytics, never
     // recomputed in the frontend. Failure to fetch it keeps committed history.
-    if let Some(value_date) = context.active_value_date.filter(|_| context.is_live_trading())
+    if let Some(value_date) = context.active_value_date.filter(|_| context.is_market_open())
         && let Ok(contract) = current_contract(backend, registry, "ES").await
     {
         if let Ok(outlook) = actor_requests::query(
@@ -402,13 +418,13 @@ async fn load_for_session_until(
     // already completed. A hung VX read must not discard a successful ES read.
     let results = tokio::join!(
         tokio::time::timeout_at(deadline, load_bars(backend, registry, context, "ES")),
-        tokio::time::timeout_at(deadline, load_bars(backend, registry, context, "VX")),
+        vx::load(backend, registry, context, deadline),
         tokio::time::timeout_at(deadline, load_bands(backend, registry, context))
     );
     let bounded = |result: Result<Result<ChartSnapshot, String>, tokio::time::error::Elapsed>| {
         result.unwrap_or_else(|_| Err("Market history refresh deadline expired".into()))
     };
-    let results = (bounded(results.0), bounded(results.1), bounded(results.2));
+    let results = (bounded(results.0), results.1, bounded(results.2));
     [("ES", results.0), ("VX", results.1), ("ES-BB", results.2)]
         .into_iter()
         .map(|(key, value)| {

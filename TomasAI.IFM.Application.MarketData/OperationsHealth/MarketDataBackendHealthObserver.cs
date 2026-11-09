@@ -11,20 +11,28 @@ public sealed class MarketDataBackendHealthObserver(IMarketDataApi api, MarketDa
     IMarketOutlookOperations outlook, IFuturesMarketSessionAuthority sessions, ITickAggregationEventPublisher publisher,
     TimeProvider time, ILogger<MarketDataBackendHealthObserver> logger) : BackgroundService
 {
+    /// <summary>Captures a passive Host snapshot for an explicit Operations read.</summary>
+    public async Task ObserveOnceAsync(CancellationToken token)
+    {
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
+        deadline.CancelAfter(TimeSpan.FromSeconds(3));
+        var status = await api.GetBackendStatusAsync(deadline.Token).ConfigureAwait(false);
+        health.ObserveRuntime(sessions.Current, new DatabentoLifecycleSnapshot
+        {
+            State = status.Datasets.All(x => x.Healthy) ? DatabentoLifecycleState.Healthy : DatabentoLifecycleState.Degraded,
+            StateRevision = status.Revision, ValueDate = status.ValueDate, CorrelationId = status.HostInstanceId,
+            NativeGeneration = Guid.Empty, RecoveryAttempt = 0, Reason = "Recovery owned by MarketData Host.", ChangedOnUtc = time.GetUtcNow().UtcDateTime
+        }, status.WorkerObservations?.Select(Databento.Workers.MarketDataHostConnection.Decode<Databento.Workers.DatasetWorkerProcessSnapshot>).ToArray() ?? [],
+            outlook.GetMetrics(), (publisher as ITickAggregationPublisherDiagnostics)?.GetSnapshot(), new() { Enabled = true }, status);
+    }
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
-                using var deadline = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken); deadline.CancelAfter(TimeSpan.FromSeconds(3));
-                var status = await api.GetBackendStatusAsync(deadline.Token).ConfigureAwait(false);
-                health.ObserveRuntime(sessions.Current, new DatabentoLifecycleSnapshot
-                {
-                    State = status.Datasets.All(x => x.Healthy) ? DatabentoLifecycleState.Healthy : DatabentoLifecycleState.Degraded,
-                    StateRevision = status.Revision, ValueDate = status.ValueDate, CorrelationId = status.HostInstanceId,
-                    NativeGeneration = Guid.Empty, RecoveryAttempt = 0, Reason = "Recovery owned by MarketData Host.", ChangedOnUtc = time.GetUtcNow().UtcDateTime
-                }, status.WorkerObservations?.Select(Databento.Workers.MarketDataHostConnection.Decode<Databento.Workers.DatasetWorkerProcessSnapshot>).ToArray() ?? [], outlook.GetMetrics(), (publisher as ITickAggregationPublisherDiagnostics)?.GetSnapshot(), new() { Enabled = true });
+                await ObserveOnceAsync(stoppingToken).ConfigureAwait(false);
             }
             catch (Exception error) when (!stoppingToken.IsCancellationRequested) { logger.LogWarning(error, "MarketData Host operations observation unavailable."); }
             await Task.Delay(TimeSpan.FromSeconds(15), time, stoppingToken).ConfigureAwait(false);

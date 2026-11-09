@@ -85,7 +85,8 @@ async fn future_only_idle_owner_needs_no_option_reference_preparation_and_retain
     assert_eq!(initial, market.backend_status(true).unwrap());
     for row in fields[2].as_array().unwrap() {
         let row = row.as_array().unwrap();
-        assert_eq!(row.len(), 14);
+        assert_eq!(row.len(), 15);
+        assert!(row[14].is_nil(), "Idle resources have no invented counters");
         assert_eq!(row[4].as_u64(), Some(u64::from(std::process::id())));
         assert_eq!(row[5].as_bool(), Some(false));
         assert_eq!(row[6].as_bool(), Some(true));

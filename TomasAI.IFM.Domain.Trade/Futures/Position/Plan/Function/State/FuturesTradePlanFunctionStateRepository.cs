@@ -10,7 +10,7 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Futures.Position.Plan.Function.State;
-public sealed class FuturesTradePlanFunctionStateRepository(IEventSourceActorStateFactory stateFactory, IEventSourceActorDbContext eventSource, IActorService actorService, IEventProjector<FuturesTradePositionCommandActor> projector, ILogger<FuturesTradePlanFunctionStateRepository> logger, IDbContextFactory? dbFactory = null, IPostgresEventTransaction? transactions = null) : BaseEventSourceActorRepository(stateFactory, eventSource, actorService, logger), IEventSourceFunctionStateRepository<FuturesTradePlanFunctionState, UpdateFuturesTradePlanCommand>
+public sealed class FuturesTradePlanFunctionStateRepository(IEventSourceActorStateFactory stateFactory, IEventSourceActorDbContext eventSource, IActorService actorService, IEventProjector<FuturesTradePositionCommandActor> projector, ILogger<FuturesTradePlanFunctionStateRepository> logger, IDbContextFactory? dbFactory = null, IPostgresEventTransaction? transactions = null) : BaseEventSourceActorRepository(stateFactory, eventSource, actorService, logger), IResidentFunctionStateRepository<FuturesTradePlanFunctionState, UpdateFuturesTradePlanCommand>
 {
     public async ValueTask<FuturesTradePlanFunctionState> LoadStateAsync(UpdateFuturesTradePlanCommand request, CancellationToken cancellationToken = default) => (await LoadStateFromLatestCheckpointAsync<FuturesTradePlanFunctionState, FuturesTradePlanUpdatedEvent>(
         request, static fact => fact.Plan is not null, cancellationToken).ConfigureAwait(false)).Prepare(request);
@@ -52,4 +52,8 @@ public sealed class FuturesTradePlanFunctionStateRepository(IEventSourceActorSta
     }
 
     protected override ValueTask DenormalizeEventsAsync(ICommandActorContext context, DomainEventCollection domainEvents) => ValueTask.CompletedTask;
+    /// <summary>Checks a cached completion against the current authoritative head without replaying events.</summary>
+    public async ValueTask<bool> IsCurrentAsync(FuturesTradePlanFunctionState state, UpdateFuturesTradePlanCommand request, CancellationToken cancellationToken)
+        => await EventSourceDb.GetCommittedStreamVersionAsync(request.StreamId, cancellationToken).ConfigureAwait(false)
+            == state.CommittedStreamVersion;
 }

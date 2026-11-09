@@ -136,6 +136,10 @@ impl Cells for MarketDataOperationStageSnapshot {
 #[derive(Clone, Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MarketDataDatasetHealthSnapshot {
+    /// Native counters sampled by the host, absent when not yet captured.
+    pub counters: Option<std::collections::BTreeMap<String, i64>>,
+    /// Resource implementation determines which diagnostic fields apply.
+    pub resource_kind: Option<String>,
     /// Optional dataset; `None` represents an absent value.
     pub dataset: Option<String>,
     /// Current status text or state exposed by this component.

@@ -2,6 +2,10 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 
 public sealed record MarketDataDatasetHealthReadModel
 {
+    /// <summary>Actual native counters; null identifies an older managed-worker projection.</summary>
+    public IReadOnlyDictionary<string, long>? Counters { get; init; }
+    /// <summary>Resource implementation; selects applicable diagnostic fields in the client.</summary>
+    public string? ResourceKind { get; init; }
     public string Dataset { get; init; } = string.Empty;
     public string Status { get; init; } = "Inactive";
     public string Reason { get; init; } = string.Empty;

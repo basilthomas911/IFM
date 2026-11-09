@@ -157,6 +157,27 @@ fn project(
 #[path = "support/operations_health_baseline.rs"]
 mod baseline;
 
+/// Native resources show real sampled counters and no managed-worker-only fields.
+#[test]
+fn native_counters_show_exact_values_without_legacy_fields() {
+    let mut input = json!({"schemaVersion":1,"observedOnUtc":"2000-01-03T12:30:00Z","overallStatus":"Green","stages":[],
+        "datasets":[{"resourceKind":"RustDataset","dataset":"Options/GLBX.MDP3","status":"Green","reason":"Healthy","processId":123,
+        "lastObservedUtc":"2000-01-03T12:30:00Z","counters":{"Trade events":12345,"Publication queue capacity":256,"Publication queue pending":0,"IV solves":17},
+        "ringUsed":0,"ringCapacity":0,"recordsStarted":0,"recordsCompleted":0,"cooperativeAttempts":0,"forcedTermination":false}]});
+    let now = chrono::DateTime::parse_from_rfc3339("2000-01-03T12:30:00Z").unwrap().to_utc();
+    let result = project(&input, now).unwrap();
+    let fields = &result.rows[0].fields;
+    assert_eq!(fields["Counter/Trade events"], "12345");
+    assert_eq!(fields["Counter/Publication queue capacity"], "256");
+    assert_eq!(fields["Counter/Publication queue pending"], "0");
+    assert_eq!(fields["Counter/IV solves"], "17");
+    for legacy in ["NativeConsumedProduced", "RingUsedCapacity", "ChannelUsedCapacity", "AggregationCompletedStarted", "CooperativeAttempts", "ProcessReplacements", "ReplacementLatched", "GracefulStopSucceeded", "ForcedTermination", "IncidentAge", "NextProbeUtc", "StartedOnUtc"] {
+        assert!(!fields.contains_key(legacy), "Legacy field {legacy} remains");
+    }
+    input["datasets"][0]["counters"]["Trade events"] = (-1).into();
+    assert!(project(&input, now).is_err());
+}
+
 
 /// Verifies that typed health preserves dataset counters and display fields.
 #[test]

@@ -10,7 +10,7 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.VerticalSpread.Plan.Function.State;
-public sealed class VerticalSpreadTradePlanFunctionStateRepository(IEventSourceActorStateFactory stateFactory, IEventSourceActorDbContext eventSource, IActorService actorService, IEventProjector<FuturesVerticalSpreadTradePositionCommandActor> projector, ILogger<VerticalSpreadTradePlanFunctionStateRepository> logger, IDbContextFactory? dbFactory = null, IPostgresEventTransaction? transactions = null) : BaseEventSourceActorRepository(stateFactory, eventSource, actorService, logger), IEventSourceFunctionStateRepository<VerticalSpreadTradePlanFunctionState, UpdateVerticalSpreadTradePlanCommand>
+public sealed class VerticalSpreadTradePlanFunctionStateRepository(IEventSourceActorStateFactory stateFactory, IEventSourceActorDbContext eventSource, IActorService actorService, IEventProjector<FuturesVerticalSpreadTradePositionCommandActor> projector, ILogger<VerticalSpreadTradePlanFunctionStateRepository> logger, IDbContextFactory? dbFactory = null, IPostgresEventTransaction? transactions = null) : BaseEventSourceActorRepository(stateFactory, eventSource, actorService, logger), IResidentFunctionStateRepository<VerticalSpreadTradePlanFunctionState, UpdateVerticalSpreadTradePlanCommand>
 {
     public async ValueTask<VerticalSpreadTradePlanFunctionState> LoadStateAsync(UpdateVerticalSpreadTradePlanCommand request, CancellationToken cancellationToken = default) => (await LoadStateFromLatestCheckpointAsync<VerticalSpreadTradePlanFunctionState, VerticalSpreadTradePlanUpdatedEvent>(
         request, static fact => fact.Plan is not null, cancellationToken).ConfigureAwait(false)).Prepare(request);
@@ -52,4 +52,8 @@ public sealed class VerticalSpreadTradePlanFunctionStateRepository(IEventSourceA
     }
 
     protected override ValueTask DenormalizeEventsAsync(ICommandActorContext context, DomainEventCollection domainEvents) => ValueTask.CompletedTask;
+    /// <summary>Checks a cached completion against the current authoritative head without replaying events.</summary>
+    public async ValueTask<bool> IsCurrentAsync(VerticalSpreadTradePlanFunctionState state, UpdateVerticalSpreadTradePlanCommand request, CancellationToken cancellationToken)
+        => await EventSourceDb.GetCommittedStreamVersionAsync(request.StreamId, cancellationToken).ConfigureAwait(false)
+            == state.CommittedStreamVersion;
 }

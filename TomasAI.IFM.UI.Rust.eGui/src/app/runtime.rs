@@ -14,7 +14,7 @@ async fn watch_market_session(
     while !session.is_closed() {
         let delay = match BusinessContext::load_with_transition(&backend).await {
             Ok((context, transition)) => {
-                let cadence = if context.is_live_trading() { 5 } else { 60 };
+                let cadence = if context.is_market_open() { 5 } else { 60 };
                 let boundary_delay = (transition - context.as_of_utc)
                     .to_std()
                     .unwrap_or_default()
@@ -35,7 +35,7 @@ async fn watch_market_session(
 }
 
 
-/// Runs a refresh immediately on entry to each state, with a timer only while trading.
+/// Refreshes throughout open overnight/regular sessions and pauses periodic work after close.
 async fn poll_market_view<F, Refresh>(
     mut session: tokio::sync::watch::Receiver<Option<BusinessContext>>,
     cadence: Duration,
@@ -46,12 +46,12 @@ async fn poll_market_view<F, Refresh>(
 {
     loop {
         let current = session.borrow_and_update().clone();
-        if !current.as_ref().is_some_and(BusinessContext::is_live_trading) {
+        if !current.as_ref().is_some_and(BusinessContext::is_market_open) {
             let was_known = current.is_some();
             let changed = async {
                 session.wait_for(|next| {
                     next.is_some() != was_known
-                        || next.as_ref().is_some_and(BusinessContext::is_live_trading)
+                        || next.as_ref().is_some_and(BusinessContext::is_market_open)
                 }).await.is_ok()
             };
             tokio::pin!(changed);
@@ -73,14 +73,14 @@ async fn poll_market_view<F, Refresh>(
             loop {
                 timer.tick().await;
                 let current = active_session.borrow_and_update().clone();
-                if current.as_ref().is_some_and(BusinessContext::is_live_trading) {
+                if current.as_ref().is_some_and(BusinessContext::is_market_open) {
                     refresh(current).await;
                 }
             }
         };
         tokio::select! {
             biased;
-            paused = session.wait_for(|next| !next.as_ref().is_some_and(BusinessContext::is_live_trading)) => {
+            paused = session.wait_for(|next| !next.as_ref().is_some_and(BusinessContext::is_market_open)) => {
                 if paused.is_err() {
                     return;
                 }
@@ -533,7 +533,7 @@ mod tests {
 
 
     #[tokio::test]
-    async fn market_view_stops_on_close_and_restarts_only_in_live_trading() {
+    async fn market_view_polls_overnight_and_pauses_only_on_close_or_unknown_session() {
         let date = chrono::NaiveDate::from_ymd_opt(2026, 11, 6).unwrap();
         let context = |market_state| BusinessContext {
             value_date: date,
@@ -562,8 +562,10 @@ mod tests {
 
         session.send_replace(Some(context(0)));
         assert_eq!(next(&mut refreshed).await, Some(0));
-        session.send_replace(Some(context(1)));
         assert!(tokio::time::timeout(Duration::from_millis(80), refreshed.recv()).await.is_err());
+        session.send_replace(Some(context(1)));
+        assert_eq!(next(&mut refreshed).await, Some(1));
+        assert_eq!(next(&mut refreshed).await, Some(1));
 
         session.send_replace(Some(context(2)));
         assert_eq!(next(&mut refreshed).await, Some(2));

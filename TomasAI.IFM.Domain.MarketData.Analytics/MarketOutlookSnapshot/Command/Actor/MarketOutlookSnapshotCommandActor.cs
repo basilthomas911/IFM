@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Command.State;
 using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Command.Validation;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
@@ -11,20 +11,20 @@ using TomasAI.IFM.Shared.Validation;
 namespace TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Command.Actor;
 
 public sealed class MarketOutlookSnapshotCommandActor(
-    ICommandActorContext<MarketOutlookSnapshotCommandActor> actorContext)
-    : BaseEventSourceCommandActor<MarketOutlookSnapshotCommandActor>(
+    ICommandActorContext<MarketOutlookSnapshotCommandActor> actorContext, ResidentActorPilotOptions? residency = null)
+    : BaseInMemoryEventSourceCommandActor<MarketOutlookSnapshotCommandActor, MarketOutlookSnapshotCommandState>(
         actorContext,
-        ((IMarketOutlookSnapshotCommandContext)actorContext).Logger)
+        ((IMarketOutlookSnapshotCommandContext)actorContext).Logger, committedStatePolicy: (residency ?? new()).MarketOutlook)
 {
     public const string ActorName = InsertMarketOutlookSnapshotCommand.Actor;
 
     IMarketOutlookSnapshotCommandContext DomainContext =>
         (IMarketOutlookSnapshotCommandContext)Context;
 
-    protected override ValueTask OnStartup(ICommandActorContext<MarketOutlookSnapshotCommandActor> context)
+    protected override ValueTask OnInMemoryStartupAsync(ICommandActorContext<MarketOutlookSnapshotCommandActor> context)
         => DomainContext.EventProjector.StartAsync(context);
 
-    protected override ValueTask OnShutdown(ICommandActorContext<MarketOutlookSnapshotCommandActor> context)
+    protected override ValueTask OnInMemoryShutdownAsync(ICommandActorContext<MarketOutlookSnapshotCommandActor> context)
         => DomainContext.EventProjector.StopAsync();
 
     protected override ICommand ParseMessage(
@@ -78,34 +78,22 @@ public sealed class MarketOutlookSnapshotCommandActor(
             }
         };
 
-    protected override async ValueTask<IActorState> OnLoadStateAsync(
-        ICommandActorContext<MarketOutlookSnapshotCommandActor> context,
-        ActorThreadId threadId,
-        ICommand command) => await DomainContext.Repository.LoadStateAsync(command).ConfigureAwait(false);
-
-    protected override async ValueTask<IActorState> OnLoadStateAsync(
+    protected override async ValueTask<MarketOutlookSnapshotCommandState> LoadStateFromStoreAsync(
         ICommandActorContext<MarketOutlookSnapshotCommandActor> context,
         ActorThreadId threadId,
         ICommand command,
         CancellationToken cancellationToken) => await DomainContext.Repository
             .LoadStateAsync(command, cancellationToken).ConfigureAwait(false);
 
-    protected override ValueTask OnSaveStateAsync(
+    protected override ValueTask SaveStateToStoreAsync(
         ICommandActorContext<MarketOutlookSnapshotCommandActor> context,
         ActorThreadId threadId,
-        IActorState state,
-        ICommand command) => DomainContext.Repository.SaveStateAsync(
-            context, (MarketOutlookSnapshotCommandState)state, command);
-
-    protected override ValueTask OnSaveStateAsync(
-        ICommandActorContext<MarketOutlookSnapshotCommandActor> context,
-        ActorThreadId threadId,
-        IActorState state,
+        MarketOutlookSnapshotCommandState state,
         ICommand command,
         CancellationToken cancellationToken) => DomainContext.Repository.SaveStateAsync(
             context, (MarketOutlookSnapshotCommandState)state, command, cancellationToken);
 
-    protected override ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(
+    protected override ValueTask<ServiceResult<GuidResult>> HandleCommandExceptionAsync(
         ICommandActorContext<MarketOutlookSnapshotCommandActor> context,
         ActorThreadId threadId,
         ICommand command,
@@ -117,4 +105,11 @@ public sealed class MarketOutlookSnapshotCommandActor(
             new ServiceFailed<GuidResult>(command?.ErrorCode ?? InsertMarketOutlookSnapshotCommand.ErrorId,
                 ex.Message));
     }
+
+    protected override bool IsResidentCommand(ICommand command) => command is InsertMarketOutlookSnapshotCommand;
+    protected override bool IsResidentMessage(ActorSubject subject) => subject.Verb == InsertMarketOutlookSnapshotCommand.Verb;
+    protected override ValueTask ValidateResidentNoChangeAsync(ICommandActorContext<MarketOutlookSnapshotCommandActor> context,
+        MarketOutlookSnapshotCommandState state, ICommand command, CancellationToken cancellationToken)
+        => ((IResidentCommandStateRepository<MarketOutlookSnapshotCommandState>)DomainContext.Repository)
+            .ValidateNoChangeAsync(state, command, cancellationToken);
 }

@@ -38,6 +38,24 @@ fn evidence(sequence: i64) -> Evidence {
     }
 }
 #[test]
+fn counter_snapshot_distinguishes_pending_durable_and_completed_evidence() {
+    let outbox = Outbox::new(2, 1024 * 1024).unwrap();
+    let record = outbox.retain(&evidence(1)).unwrap();
+    let pending = outbox.counters().unwrap();
+    assert_eq!(pending["Evidence pending records"], 1);
+    assert_eq!(pending["Evidence record capacity"], 2);
+    assert!(pending["Evidence retained bytes"] > 0);
+    assert_eq!(pending["Evidence durable records pending publication"], 0);
+    outbox.acknowledge(&record.identity, &record.digest, record.receipt).unwrap();
+    assert_eq!(outbox.counters().unwrap()["Evidence durable records pending publication"], 1);
+    outbox.complete(&record.identity, record.receipt).unwrap();
+    let completed = outbox.counters().unwrap();
+    assert_eq!(completed["Evidence pending records"], 0);
+    assert_eq!(completed["Evidence retained bytes"], 0);
+    assert_eq!(completed["Evidence records admitted"], 1);
+}
+
+#[test]
 fn first_attempt_and_durable_ack_are_independent_of_transport_and_replay() {
     let box_ = Outbox::new(2, 1024 * 1024).unwrap();
     let first = evidence(1);

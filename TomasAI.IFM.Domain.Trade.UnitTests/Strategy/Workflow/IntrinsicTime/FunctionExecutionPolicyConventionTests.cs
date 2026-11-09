@@ -27,7 +27,8 @@ public sealed class FunctionExecutionPolicyConventionTests
     {
         var actors = typeof(TradeSelectionFunctionActor).Assembly.GetTypes()
             .Where(t => !t.IsAbstract &&
-                t.BaseType?.Name.StartsWith("BaseEventSourceFunctionActor`", StringComparison.Ordinal) == true).ToArray();
+                (t.BaseType?.Name.StartsWith("BaseEventSourceFunctionActor`", StringComparison.Ordinal) == true ||
+                 t.BaseType?.Name.StartsWith("BaseInMemoryEventSourceFunctionActor`", StringComparison.Ordinal) == true)).ToArray();
         actors.Should().BeEquivalentTo([
             typeof(TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.ForwardPrice.Function.Actor.IronCondorForwardPriceFunctionActor),
             typeof(RegimeDiscoveryFunctionActor),

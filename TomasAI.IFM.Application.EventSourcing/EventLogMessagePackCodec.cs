@@ -41,6 +41,10 @@ public sealed class EventLogMessagePackCodec(bool compressed = false, IEventType
         return DeserializeResolved(type, eventVersion, payload, false);
     }
 
+    /// <summary>Restores a statically known event without a mutable global type-registry lookup.</summary>
+    public TEvent Deserialize<TEvent>(long eventVersion, byte[] payload) where TEvent : class, IEvent
+        => (TEvent)DeserializeResolved(typeof(TEvent), eventVersion, payload, false);
+
     internal IEvent DeserializeResolved(Type type, long eventVersion, byte[] payload, bool legacyContractless)
     {
         if (!typeof(IEvent).IsAssignableFrom(type)) throw new InvalidDataException("Registered type is not an event.");

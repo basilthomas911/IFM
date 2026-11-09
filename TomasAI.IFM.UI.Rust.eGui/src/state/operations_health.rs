@@ -197,6 +197,9 @@ pub fn project(
                 || !bounded(s.cell("reason"), 4096)
         })
         || datasets.iter().any(|d| {
+            d.counters.as_ref().is_some_and(|counters| counters.len() > 64
+                || counters.iter().any(|(key, value)| key.len() > 128 || *value < 0))
+                ||
             !valid_status(d.cell("status"))
                 || !bounded(d.cell("dataset"), 64)
                 || !bounded(d.cell("reason"), 4096)
@@ -281,6 +284,26 @@ pub fn project(
     }
     for dataset in datasets {
         let mut fields = BTreeMap::from([("kind".into(), "dataset".into())]);
+        if dataset.resource_kind.as_deref() == Some("RustDataset") {
+            for (source, target) in [
+                ("dataset", "Dataset"), ("status", "Status"), ("sessionState", "Session"),
+                ("valueDate", "ValueDate"), ("processId", "Host process ID"),
+                ("workerInstanceId", "WorkerInstance"), ("generationId", "Generation"),
+                ("running", "Running"), ("healthy", "Healthy"), ("reason", "Reason"),
+            ] {
+                fields.insert(target.into(), scalar(dataset.cell(source)));
+            }
+            fields.insert("Counter scope".into(), "Current resource/component lifetime; resets on replacement".into());
+            fields.insert("Observed UTC".into(), utc(dataset.cell("lastObservedUtc")));
+            fields.insert("LastHealthyUtc".into(), utc(dataset.cell("lastHealthyUtc")));
+            if let Some(counters) = &dataset.counters {
+                fields.extend(counters.iter().map(|(name, value)| (format!("Counter/{name}"), value.to_string())));
+            } else {
+                fields.insert("Counters".into(), "No current resource snapshot".into());
+            }
+            rows.push(ContractRow { id: format!("dataset:{}", scalar(dataset.cell("dataset"))), fields, ..Default::default() });
+            continue;
+        }
         for (source, target) in [
             ("dataset", "Dataset"),
             ("status", "Status"),

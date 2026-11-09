@@ -3,11 +3,135 @@ using TomasAI.IFM.Application.MarketData.MarketOutlook;
 using TomasAI.IFM.Application.MarketData.OperationsHealth;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Application.MarketData.Contracts;
+using NSubstitute;
 
 namespace TomasAI.IFM.Application.MarketData.UnitTests;
 
 public sealed class MarketDataOperationsProjectionTests
 {
+    [Fact]
+    public async Task Explicit_view_reads_capture_new_host_counters_without_starting_or_recovering_feeds()
+    {
+        var time = new ProjectionTime();
+        var health = new MarketDataOperationsHealthService(new(), time);
+        var api = Substitute.For<IMarketDataApi>();
+        var first = NativeBackend() with
+        {
+            Datasets = [Dataset("Futures", "GLBX.MDP3") with { Counters = new Dictionary<string, long> { ["Trade events"] = 10 } }]
+        };
+        var second = first with { Datasets = [first.Datasets[0] with { Counters = new Dictionary<string, long> { ["Trade events"] = 20 } }] };
+        api.GetBackendStatusAsync(Arg.Any<CancellationToken>()).Returns(first, second);
+        var outlook = Substitute.For<IMarketOutlookOperations>();
+        outlook.GetMetrics().Returns(new MarketOutlookProcessorMetricsSnapshot
+        {
+            IsProcessorReady = true,
+            Updates = new Dictionary<MarketOutlookUpdateKind, MarketOutlookUpdateMetricSnapshot>()
+        });
+        var sessions = Substitute.For<IFuturesMarketSessionAuthority>();
+        sessions.Current.Returns(new MarketSessionReadModel { State = FuturesMarketState.OffTrading, ActiveValueDate = first.ValueDate });
+        var publisher = Substitute.For<TomasAI.IFM.Shared.MarketData.Contracts.TickAggregation.ITickAggregationEventPublisher>();
+        var observer = new MarketDataBackendHealthObserver(api, health, outlook, sessions, publisher, time,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<MarketDataBackendHealthObserver>.Instance);
+        await observer.ObserveOnceAsync(default);
+        Assert.Equal(10, Assert.Single(health.GetReadModel().Datasets).Counters!["Trade events"]);
+        await observer.ObserveOnceAsync(default);
+        Assert.Equal(20, Assert.Single(health.GetReadModel().Datasets).Counters!["Trade events"]);
+        Assert.Equal(2, api.ReceivedCalls().Count());
+        Assert.All(api.ReceivedCalls(), call => Assert.Equal(nameof(IMarketDataApi.GetBackendStatusAsync), call.GetMethodInfo().Name));
+    }
+
+    [Fact]
+    public void Native_counters_survive_messagepack_and_operations_projection()
+    {
+        var dataset = Dataset("Futures", "GLBX.MDP3") with
+        {
+            Counters = new Dictionary<string, long>(StringComparer.Ordinal)
+            {
+                ["Trade events"] = 12345,
+                ["Publication queue capacity"] = 256,
+                ["Publication retained bytes"] = 0
+            }
+        };
+        var wire = MessagePack.MessagePackSerializer.Serialize(dataset);
+        var decoded = MessagePack.MessagePackSerializer.Deserialize<MarketDataDatasetStatus>(wire);
+        var time = new ProjectionTime();
+        var health = new MarketDataOperationsHealthService(new(), time);
+        Observe(health, time, backend: NativeBackend() with { Datasets = [decoded] });
+        var row = Assert.Single(health.GetReadModel().Datasets);
+        Assert.Equal("RustDataset", row.ResourceKind);
+        Assert.Equal(12345, row.Counters!["Trade events"]);
+        Assert.Equal(256, row.Counters["Publication queue capacity"]);
+        Assert.Equal(0, row.Counters["Publication retained bytes"]);
+    }
+
+    [Fact]
+    public void Native_resources_replace_legacy_stages_and_distinguish_futures_from_options()
+    {
+        var time = new ProjectionTime();
+        var health = new MarketDataOperationsHealthService(new(), time);
+        Observe(health, time, backend: NativeBackend());
+        var result = health.GetReadModel();
+        Assert.Equal("Green", result.OverallStatus);
+        Assert.DoesNotContain(result.Stages, row => row.Stage is "DatabentoNative" or "DatabentoInterop"
+            or "DatabentoAggregation" or "DatabentoWorkerProcess" or "DatabentoLifecycle"
+            or "DatabentoRefresh" or "DatabentoRealtimePublication" or "UiDelivery");
+        Assert.Contains(result.Stages, row => row.Stage == "DatabentoGenerationIngress");
+        Assert.Contains(result.Stages, row => row.Stage == "EmaAnalytics");
+        Assert.Equal(3, result.Datasets.Count);
+        Assert.Equal(3, result.Datasets.Select(row => row.Dataset).Distinct(StringComparer.Ordinal).Count());
+        Assert.All(result.Datasets, row =>
+        {
+            Assert.Equal("Green", row.Status);
+            Assert.Equal(123, row.ProcessId);
+            Assert.NotEqual(Guid.Empty, row.WorkerInstanceId);
+            Assert.NotEqual(Guid.Empty, row.GenerationId);
+            Assert.Equal(time.GetUtcNow().UtcDateTime, row.LastObservedUtc);
+            Assert.Contains("Rust dataset resource", row.Reason, StringComparison.Ordinal);
+        });
+    }
+
+    [Theory]
+    [InlineData("Recovering", true, false, "Orange")]
+    [InlineData("Failed", false, false, "Red")]
+    [InlineData("Healthy", true, false, "Red")]
+    [InlineData("Stopped", false, false, "Inactive")]
+    public void Native_dataset_failure_and_recovery_remain_visible(string lifecycle, bool running, bool healthy, string expected)
+    {
+        var time = new ProjectionTime();
+        var health = new MarketDataOperationsHealthService(new(), time);
+        var backend = NativeBackend();
+        Observe(health, time, backend: backend);
+        time.Advance(TimeSpan.FromSeconds(5));
+        Observe(health, time, backend: backend with
+        {
+            Datasets = [backend.Datasets[0] with { Lifecycle = lifecycle, Running = running, Healthy = healthy, Error = "test reason" }]
+        });
+        var row = Assert.Single(health.GetReadModel().Datasets);
+        Assert.Equal(expected, row.Status);
+        Assert.Contains("test reason", row.Reason, StringComparison.Ordinal);
+        Assert.Equal(time.GetUtcNow().UtcDateTime - TimeSpan.FromSeconds(5), row.LastHealthyUtc);
+        if (expected is "Orange" or "Red") Assert.Equal(expected, health.GetReadModel().OverallStatus);
+        time.Advance(TimeSpan.FromSeconds(16));
+        Assert.NotEqual("Green", health.GetReadModel().OverallStatus);
+    }
+
+    [Fact]
+    public void Managed_supervisor_stages_are_retained_for_process_owned_backends()
+    {
+        var time = new ProjectionTime();
+        var health = new MarketDataOperationsHealthService(new(), time);
+        Observe(health, time, backend: NativeBackend() with { RecoveryOwnership = MarketDataRecoveryOwnership.Process });
+        Assert.Contains(health.GetReadModel().Stages, row => row.Stage == "DatabentoNative");
+    }
+
+    static MarketDataBackendStatus NativeBackend() => new(true, new(2026, 9, 4),
+        [Dataset("Futures", "GLBX.MDP3"), Dataset("Futures", "XCBF.PITCH"), Dataset("Options", "GLBX.MDP3")],
+        RecoveryOwnership: MarketDataRecoveryOwnership.TokioDatasetOwner);
+
+    static MarketDataDatasetStatus Dataset(string role, string dataset) =>
+        new(role, dataset, Guid.NewGuid(), Guid.NewGuid(), 123, true, true, "Healthy", null, new(2026, 9, 4));
+
     [Fact]
     public void Independent_observer_detects_blocked_outlook_despite_recent_market_source_time()
     {
@@ -67,7 +191,7 @@ public sealed class MarketDataOperationsProjectionTests
     }
 
     static void Observe(MarketDataOperationsHealthService health, ProjectionTime time,
-        int pending = 0, TimeSpan age = default, bool closed = false) => health.ObserveRuntime(
+        int pending = 0, TimeSpan age = default, bool closed = false, MarketDataBackendStatus? backend = null) => health.ObserveRuntime(
         new MarketSessionReadModel
         {
             State = closed ? FuturesMarketState.Closed : FuturesMarketState.LiveTrading,
@@ -90,7 +214,7 @@ public sealed class MarketDataOperationsProjectionTests
             IsProcessorReady = true,
             PendingCount = pending,
             OldestPendingUtc = pending > 0 ? time.GetUtcNow().UtcDateTime - age : null
-        }, null, new());
+        }, null, new(), backend);
 
     sealed class ProjectionTime : TimeProvider
     {

@@ -20,7 +20,7 @@ public sealed class FuturesVwapSignalStateRepository(
     IEventProjector<FuturesVwapSignalCommandActor> eventProjector,
     ILogger<FuturesVwapSignalStateRepository> logger)
     : BaseEventSourceActorRepository(aggregateFactory, dbEventSource, actorService, logger),
-      IEventSourceActorStateRepository<FuturesVwapSignalCommandState>
+      IResidentCommandStateRepository<FuturesVwapSignalCommandState>
 {
     /// <inheritdoc />
     public ValueTask<FuturesVwapSignalCommandState> LoadStateAsync(ICommand command) =>
@@ -70,4 +70,11 @@ public sealed class FuturesVwapSignalStateRepository(
     protected override async ValueTask DenormalizeEventsAsync(
         ICommandActorContext context, DomainEventCollection domainEvents) =>
         await (eventProjector.DomainEventsProjectionAsync(domainEvents)).ConfigureAwait(false);
+    /// <summary>Rejects a stale resident no-change acknowledgement after an external stream write.</summary>
+    public async ValueTask ValidateNoChangeAsync(FuturesVwapSignalCommandState state, ICommand command, CancellationToken cancellationToken)
+    {
+        if (await EventSourceDb.GetCommittedStreamVersionAsync(command.StreamId, cancellationToken).ConfigureAwait(false)
+            != state.CommittedStreamVersion)
+            throw new TomasAI.IFM.Shared.Exceptions.ConcurrencyException("Resident stream advanced; reload committed state.");
+    }
 }

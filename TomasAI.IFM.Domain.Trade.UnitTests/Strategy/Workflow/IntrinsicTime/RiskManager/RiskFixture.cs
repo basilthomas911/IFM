@@ -31,7 +31,8 @@ internal static class RiskFixture
         var composed = actualCompositionCommand ?? await CompositionFixture.Command(variant, horizon, atUtc: atUtc, contractId: contractId);
         var composition = actualCompositionResult ?? new TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Model.OrderComposer(new Black76ComposerPricer()).Calculate(composed);
         var candidate = composition.Candidate!;
-        var at = atUtc ?? (actualCompositionResult is null ? composed.EvaluatedAtUtc : DateTime.UtcNow);
+        // Risk follows composition; selection deliberately advances the supplied seed clock by one millisecond.
+        var at = actualCompositionResult is null ? composed.EvaluatedAtUtc : atUtc ?? DateTime.UtcNow;
         var expires = candidate.ValidUntilUtc;
         var policy = RiskSizingPolicy.Default(candidate.TargetHorizon); var policyId = Guid.NewGuid(); long policyVersion = 1;
         var evidence = new FinancialEvidenceReference

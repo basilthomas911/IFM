@@ -7,6 +7,8 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb;
 /// </summary>
 public static class EventSourceDbSql
 {
+    /// <summary>Checks a named resident stream without replaying source payloads.</summary>
+    public const string GetResidentStreamHead = "SELECT COALESCE((SELECT CurrentVersion FROM event_stream_id WHERE EventStream=$1),0);";
     internal const string ReadConcernCheckpointWindow = """
         WITH streams AS MATERIALIZED (
             SELECT EventStreamId, CurrentVersion, EventStream=$1 AS is_concern

@@ -303,6 +303,8 @@ pub struct Intent {
 /// Copied query directory for a current physical dataset. Numerical cache and
 /// immutable context graphs contain no dataset child, source socket or task.
 pub struct View {
+    /// Detached publication port; owns no provider or task handle.
+    publication: Arc<Ordered>,
     /// Current native logical dataset identity.
     pub header: Header,
     /// Latest copied actor frames.
@@ -332,6 +334,20 @@ pub struct View {
     pub monitored: Arc<BTreeSet<u32>>,
 }
 impl View {
+    /// Samples source, pricing, output, evidence and broker counters on demand.
+    pub fn counters(&self) -> Result<std::collections::BTreeMap<String, i64>, String> {
+        let mut values = self.queries.counters()?;
+        values.extend(self.publication.counters().map_err(String::from)?);
+        let (observations, selections, solves) = self.pricing.counters().map_err(String::from)?;
+        for (name, value) in [("Pricing observations", observations), ("Pricing selections", selections), ("IV solves", solves)] {
+            values.insert(name.into(), value.min(i64::MAX as u64) as i64);
+        }
+        values.extend(self.evidence.counters().map_err(String::from)?);
+        values.insert("Monitored instruments".into(), self.monitored.len() as i64);
+        values.insert("Background cache scopes".into(), self.cache_scopes.len() as i64);
+        values.insert("Cached chain publications".into(), self.caches.lock().map_err(|_| "Cache diagnostics interrupted")?.len() as i64);
+        Ok(values)
+    }
     /// One-way cancellation observation; no cancellation authority is exported.
     /// The signal itself cannot retain a dataset child or any physical resource.
     pub async fn cancelled(&self) {
@@ -1129,6 +1145,7 @@ impl Run {
             .directory
             .lock()
             .map_err(|_| "Native options query directory interrupted")? = Some(Arc::new(View {
+            publication: ordered.clone(),
             header,
             current: ordered.current(),
             pricing: engine.clone(),

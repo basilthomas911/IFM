@@ -1713,3 +1713,14 @@ The monitoring Function saves each full plan snapshot event before submitting it
 
 
 Verification for this recovery boundary: 17 shared runtime/resident-state tests (including a full queue plus a blocked handler on all three mailbox implementations), 64 pipeline/fatal-shutdown tests, and 1591 Trade unit tests passed. Evidence: `.artifacts/option-recovery-shared-tests.log`, `.artifacts/option-recovery-pipeline-tests.log`, `.artifacts/option-recovery-trade-tests.log`. Tests use isolated build outputs; the running development API/UI were not restarted. These results verify code behavior under controlled failures and do not constitute an observed live recovery after deployment.
+
+
+## Qualified resident event-sourced pilots (2026-11-08)
+
+`BaseInMemoryEventSourceCommandActor<TActor,TState>` may use an explicit `ResidentActorPolicy` for committed-only state reuse. `BaseInMemoryEventSourceFunctionActor` specializes the existing Function lifecycle and retains its parse, validation, receive, event and execution-policy maps. The first qualified candidates are VWAP, Market Outlook and the Futures, Vertical Spread and Iron Condor Trade Plan Functions. Financial and broker/order actors are outside this rollout.
+
+- PostgreSQL source events, expected stream versions, audit checks, latest full-state snapshots and required atomic projections remain authoritative. Every pilot write completes before its successful reply; the legacy resident position window is unchanged.
+- Function residency captures immutable committed event bytes. Restore and prepare a private state for every request. Cache neither failed results nor unconfirmed commits. A timed-out or cancelled stage poisons its cache entry and pins its key until late work settles, before authoritative reload. Ownership belongs to the invocation lifetime: a load acquiring after that invocation ends must reject and release its lease instead of attaching to a later request.
+- Validate the authoritative stream head before a no-event command or cached completed-Function replay can skip optimistic write validation. Evict on persistence conflict or uncertain outcome; do not silently accept stale decisions.
+- Bound admitted keys and idle lifetime independently. Pinned owners cannot be evicted. Admission falls back to normal loading when unrelated keys exhaust capacity. Residency is process-local reuse, not distributed ownership or a hard managed-memory byte cap.
+- Each pilot has its own `ResidentActorPilots` switch, disabled by default. Enable only after correctness, before/after measurement and Development qualification. Queries continue to use projected read models and must not read resident Command or Function state.

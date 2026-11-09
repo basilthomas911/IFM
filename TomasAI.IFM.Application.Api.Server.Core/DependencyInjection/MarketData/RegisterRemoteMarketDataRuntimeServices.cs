@@ -256,7 +256,8 @@ public static partial class CoreServiceRegistration
         provider.GetRequiredService<MarketOutlookUpdateProcessor>());
         services.AddHostedService(provider =>
         provider.GetRequiredService<MarketOutlookUpdateProcessor>());
-        services.AddHostedService<MarketDataBackendHealthObserver>();
+        services.AddSingleton<MarketDataBackendHealthObserver>();
+        services.AddHostedService(provider => provider.GetRequiredService<MarketDataBackendHealthObserver>());
         services.AddSingleton<TomasAI.IFM.Domain.MarketData.Analytics.OptionVolatility.LiveOptionChainIvCollector>(p => new(
             p.GetRequiredService<IMarketDataDbContext>(), p.GetRequiredService<IHostEnvironment>(), p.GetRequiredService<ILogger<TomasAI.IFM.Domain.MarketData.Analytics.OptionVolatility.LiveOptionChainIvCollector>>()));
         services.AddSingleton<TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility.IOptionChainIvCollector>(p => p.GetRequiredService<TomasAI.IFM.Domain.MarketData.Analytics.OptionVolatility.LiveOptionChainIvCollector>());

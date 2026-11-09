@@ -150,6 +150,12 @@ async fn a_stalled_socket_does_not_hold_another_queue_on_the_same_broker_address
     healthy.try_publish(&frame(9, 2)).unwrap();
     flushed(&healthy, 1).await;
     assert_eq!(blocked.status().flushed, 0);
+    let blocked_counters = blocked.port().counters();
+    assert_eq!(blocked_counters["Publication frames flushed"], 0);
+    assert_eq!(blocked_counters["Publication queue capacity"], 1);
+    assert_eq!(blocked_counters["Publication queue pending"], 1);
+    assert!(blocked_counters["Publication retained bytes"] > 0);
+    assert_eq!(healthy.port().counters()["Publication frames flushed"], 1);
     assert!(blocked.retained_bytes() <= PRODUCTION_BYTES);
     blocked.shutdown(budget()).await.unwrap();
     assert_eq!(blocked.retained_bytes(), 0);

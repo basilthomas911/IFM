@@ -56,4 +56,27 @@ public sealed class MarketOpenSessionTests
             request.ExecuteAsync(dates, market, CancellationToken.None).AsTask());
         await market.DidNotReceiveWithAnyArgs().PrepareSessionAsync(default);
     }
+
+    [Fact]
+    public async Task Opening_uses_new_session_from_the_same_provider_without_restarting_the_API()
+    {
+        var clock = new SettableClock { UtcNow = DateTimeOffset.Parse("2026-11-08T17:59:59-05:00") };
+        IValueDateProvider dates = new FuturesValueDateProvider(clock);
+        dates.ValueDate.Should().Be(new DateOnly(2026,11,6));
+        clock.UtcNow = DateTimeOffset.Parse("2026-11-08T18:00:00-05:00");
+        var market = Substitute.For<IMarketDataApi>();
+        market.PrepareSessionAsync(new DateOnly(2026,11,9), CancellationToken.None).Returns([SampleData.EsContract]);
+
+        var prepared = await PrepareMarketDataFeedSessionCommand.ForOperation(Guid.NewGuid())
+            .ExecuteAsync(dates, market, CancellationToken.None);
+
+        prepared.ValueDate.Should().Be(new DateOnly(2026,11,9));
+        await market.Received(1).PrepareSessionAsync(new DateOnly(2026,11,9), CancellationToken.None);
+    }
+
+    sealed class SettableClock : TimeProvider
+    {
+        public DateTimeOffset UtcNow { get; set; }
+        public override DateTimeOffset GetUtcNow() => UtcNow;
+    }
 }

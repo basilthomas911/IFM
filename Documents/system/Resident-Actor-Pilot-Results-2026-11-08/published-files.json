@@ -1,0 +1,58 @@
+[
+  {
+    "Path": "C:\\repos\\IFM\\Documents\\system\\Resident-Actor-Pilot-Results-2026-11-08\\evidence-index.json",
+    "SHA256": "a393766ab75044284402e991bbdd4b014411458127823de4743911cb7b9617a7"
+  },
+  {
+    "Path": "C:\\repos\\IFM\\Documents\\system\\Resident-Actor-Pilot-Results-2026-11-08\\resident-pilot-paired.csv",
+    "SHA256": "305c32b966b8c71ef8a8b324f3d1ba6ce9e61a9af665f69c42add80f401c87c2"
+  },
+  {
+    "Path": "C:\\repos\\IFM\\Documents\\system\\Resident-Actor-Pilot-Results-2026-11-08\\resident-pilot-recheck.csv",
+    "SHA256": "fc4f128ff304cdc414aa5d533e0f65b60659f2ae552029b1eb6d579cd4da6074"
+  },
+  {
+    "Path": "C:\\repos\\IFM\\Documents\\system\\Resident-Actor-Pilot-Results-2026-11-08\\resident-pilot-recheck.md",
+    "SHA256": "06cb4941512ae90a66a4e6affa6c9d7800466c8c11bee28aaca4bfd8485a8082"
+  },
+  {
+    "Path": "C:\\repos\\IFM\\Documents\\system\\Resident-Actor-Pilot-Results-2026-11-08\\resident-pilot-timings.md",
+    "SHA256": "d82b6a3a2f5620f46b089017ec04f54f107ddf16ced105c130d0993a69c23360"
+  },
+  {
+    "Path": "C:\\repos\\IFM\\Documents\\system\\Resident-Actor-Pilot-Results-2026-11-08\\resident-resources-fixed-heaps.csv",
+    "SHA256": "9a4e1c13d8c6db00e124a6472d3d23318399aa9558e0de77cbe3fa01bf489eec"
+  },
+  {
+    "Path": "C:\\repos\\IFM\\Documents\\system\\Resident-Actor-Pilot-Results-2026-11-08\\resident-resources-fixed-heaps.md",
+    "SHA256": "e433ada64cb811b14ae71c26d988652d043daefd84a1f117ebbd5421088a68d5"
+  },
+  {
+    "Path": "C:\\repos\\IFM\\Documents\\system\\Resident-Actor-Pilot-Results-2026-11-08\\resident-resources-repeat.csv",
+    "SHA256": "48df24a89e8c427c9d360d3d27d9e765684eb8000739f803bc8f2c294325179c"
+  },
+  {
+    "Path": "C:\\repos\\IFM\\Documents\\system\\Resident-Actor-Pilot-Results-2026-11-08\\resident-resources-repeat.md",
+    "SHA256": "d6e125520a42ffcddc8e8f39f5bb35ba43fce1019b09e7b0c8c607a25a9cb485"
+  },
+  {
+    "Path": "C:\\repos\\IFM\\Documents\\system\\Resident-Actor-Pilot-Results-2026-11-08\\resident-resources.csv",
+    "SHA256": "6068117eb8a134899f74a66a3a1b3f5fe625d521b575c451ec1bfaa2a472c30a"
+  },
+  {
+    "Path": "C:\\repos\\IFM\\Documents\\system\\Resident-Actor-Pilot-Results-2026-11-08\\resident-resources.md",
+    "SHA256": "894c620e3803482e695be01849d4147887b2bd68188502ae173368b3092e2920"
+  },
+  {
+    "Path": "C:\\repos\\IFM\\Documents\\system\\Resident-Actor-Pilot-Results-2026-11-08\\soak-completed.json",
+    "SHA256": "7f4b51247cce1d99de650137474e9acadac6fe0fab2721eca46a7830bf62aebd"
+  },
+  {
+    "Path": "C:\\repos\\IFM\\Documents\\system\\Resident-Actor-Pilot-Results-2026-11-08\\soak-summary.md",
+    "SHA256": "c21b455dd018c7d7fafc311d252c0d36b2d0db3e3c208417eecb38632b88c864"
+  },
+  {
+    "Path": "C:\\repos\\IFM\\Documents\\system\\Resident-Actor-Pilot-Results-2026-11-08\\test-summary.json",
+    "SHA256": "bd454a76e7422fa530a48945ea1490dd639fd842e677b7693ce84974edf316f4"
+  }
+]

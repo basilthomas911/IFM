@@ -81,6 +81,30 @@ fn stage_and_worker_selection_inspects_exact_shared_fields() {
 
 /// Verifies that refresh dispatches only a read and pending is guarded.
 #[test]
+fn native_traffic_is_visible_without_legacy_worker_fields() {
+    let (c, mut s) = fixture();
+    s.result.rows[1].fields = BTreeMap::from([
+        ("kind".into(), "dataset".into()), ("Dataset".into(), "Futures/GLBX.MDP3".into()),
+        ("Status".into(), "Green".into()), ("Host process ID".into(), "123".into()),
+        ("Counter/Trade events".into(), "12345".into()),
+        ("Counter/Publication queue capacity".into(), "256".into()),
+    ]);
+    let mut screen = OperationsHealth::default();
+    screen.datasets = true;
+    let mut h = Harness::new_state(move |ctx, state: &mut OperationsHealth| {
+        state.draw(ctx, &s, &c, false);
+    }, screen);
+    h.set_size(eframe::egui::vec2(1100., 800.));
+    h.run();
+    h.get_by_label("Traffic and capacity");
+    h.get_by_label("Trade events");
+    h.get_by_label("12345");
+    assert!(h.query_by_label("Ring used / capacity").is_none());
+    assert!(h.query_by_label("Forced termination").is_none());
+}
+
+/// Verifies that refresh dispatches only a read and pending is guarded.
+#[test]
 fn refresh_dispatches_only_a_read_and_pending_is_guarded() {
     let (c, s) = fixture();
     let mut h = Harness::new_state(

@@ -39,4 +39,5 @@
   <ItemGroup><Compile Include="../test-support/IronCondorForwardPriceTestScenario.cs" Link="Support/IronCondorForwardPriceTestScenario.cs" /></ItemGroup>
   <ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.EventModelActor/TomasAI.IFM.Application.EventModelActor.csproj" /><Using Include="TomasAI.IFM.Application.EventModelActor" /></ItemGroup>
 <ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.EventSourcing/TomasAI.IFM.Application.EventSourcing.csproj" /><Using Include="TomasAI.IFM.Application.EventSourcing" /></ItemGroup>
-<ItemGroup><Using Include="TomasAI.IFM.Shared.OptionPricing" /></ItemGroup></Project>
+<ItemGroup><Using Include="TomasAI.IFM.Shared.OptionPricing" /></ItemGroup><ItemGroup><Compile Include="../test-support/ResidentPilotInputs.cs" Link="Support/ResidentPilotInputs.cs" /></ItemGroup>
+</Project>

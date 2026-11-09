@@ -1,3 +1,4 @@
+using System.Buffers;
 ﻿using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -16,6 +17,7 @@ namespace TomasAI.IFM.LivePipeline.IntegrationTests;
 
 public sealed class EventTypeCompatibilityAcceptanceTests
 {
+    const int FrozenWriteIdentityCount = 743;
     [Theory]
     [InlineData("framework-contracts.json", 98)]
     [InlineData("wire-boundaries.json", 48)]
@@ -70,7 +72,7 @@ public sealed class EventTypeCompatibilityAcceptanceTests
         var writer = new EventWriteIdentityRegistry(reader);
         var count = TomasAI.IFM.Application.EventSourcing.PersistedEventIdentityCatalog.RegisterProductionClosure(
             typeof(PersistedEventTypeAliases).Assembly, writer);
-        Assert.Equal(733, count);
+        Assert.Equal(FrozenWriteIdentityCount, count);
         foreach (var type in new[] { typeof(IronCondorPositionChangedEvent), typeof(FuturesItiSignalGeneratedEvent), typeof(FundMandateCreatedEvent) })
         {
             var identity = writer.GetIdentity(type);
@@ -91,7 +93,7 @@ public sealed class EventTypeCompatibilityAcceptanceTests
         using var document = JsonDocument.Parse(baseline);
         var reader = EventTypeRegistry.CreateCompatibilityRegistry();
         var writer = new EventWriteIdentityRegistry(reader);
-        Assert.Equal(733, document.RootElement.GetArrayLength());
+        Assert.Equal(FrozenWriteIdentityCount, document.RootElement.GetArrayLength());
         foreach (var row in document.RootElement.EnumerateArray())
         {
             var legacy = row.GetProperty("EventTypeName").GetString()!;
@@ -135,7 +137,7 @@ public sealed class EventTypeCompatibilityAcceptanceTests
     }
 
     [Fact]
-    public void Frozen_pre_change_payloads_replay_through_legacy_stable_and_moved_names_and_reencode_identically()
+    public void Frozen_payloads_preserve_legacy_fields_and_only_declared_additive_defaults_across_read_names()
     {
         var registry = new EventTypeRegistry();
         PersistedEventTypeAliases.Register(registry);
@@ -163,9 +165,24 @@ public sealed class EventTypeCompatibilityAcceptanceTests
                 foreach (var value in values)
                 {
                     Assert.Equal(type, value.GetType());
-                    Assert.True(JsonNode.DeepEquals(expected, Comparable(value)), $"Frozen payload mismatch: {row.GetProperty("file")} as {name}");
+                    Assert.True(JsonNode.DeepEquals(expected, Comparable(value)), $"Frozen payload mismatch: {row.GetProperty("file")} as {name}; actual={Comparable(value)}");
                     EventInitHelper.SetProperty(value, nameof(IEvent.EventId), 0L);
-                    Assert.Equal(payload, codec.Serialize(value));
+                    var encoded = codec.Serialize(value);
+                    if (row.TryGetProperty("appendedDefaultWireFields", out var defaults))
+                    {
+                        var original = ReadEventArray(payload, out var originalNullAggregate);
+                        var current = ReadEventArray(encoded, out var currentNullAggregate);
+                        Assert.Equal(originalNullAggregate, currentNullAggregate);
+                        if (row.TryGetProperty("nestedAppendedDefaultWireFields", out var nested))
+                        foreach (var field in nested.EnumerateObject())
+                        {
+                            var index = int.Parse(field.Name, System.Globalization.CultureInfo.InvariantCulture);
+                            RemoveDeclaredSuffix(original[index]!.AsArray(), current[index]!.AsArray(), field.Value);
+                        }
+                        RemoveDeclaredSuffix(original, current, defaults);
+                        Assert.True(JsonNode.DeepEquals(original, current), "An existing legacy wire field changed.");
+                    }
+                    else Assert.Equal(payload, encoded);
                 }
             }
         }
@@ -207,6 +224,26 @@ public sealed class EventTypeCompatibilityAcceptanceTests
         var registry = new EventTypeRegistry();
         PersistedEventTypeAliases.Register(registry);
         foreach (var type in events) Assert.Equal(type, registry.ResolveRequired(type.AssemblyQualifiedName!));
+    }
+
+    static JsonArray ReadEventArray(byte[] payload, out bool nullAggregate)
+    {
+        var reader = new MessagePack.MessagePackReader(payload);
+        Assert.Equal(3, reader.ReadArrayHeader());
+        Assert.Equal(1, reader.ReadInt32());
+        nullAggregate = reader.ReadBoolean();
+        var body = reader.ReadRaw().ToArray();
+        Assert.True(reader.End);
+        var options = MessagePack.MessagePackSerializerOptions.Standard.WithCompression(MessagePack.MessagePackCompression.Lz4BlockArray);
+        return JsonNode.Parse(MessagePack.MessagePackSerializer.ConvertToJson(body, options))!.AsArray();
+    }
+
+    static void RemoveDeclaredSuffix(JsonArray original, JsonArray current, JsonElement defaults)
+    {
+        Assert.Equal(original.Count + defaults.GetArrayLength(), current.Count);
+        for (var index = 0; index < defaults.GetArrayLength(); index++)
+            Assert.True(JsonNode.DeepEquals(JsonNode.Parse(defaults[index].GetRawText()), current[original.Count + index]));
+        while (current.Count > original.Count) current.RemoveAt(current.Count - 1);
     }
 
     static JsonDocument LoadManifest() => JsonDocument.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory,

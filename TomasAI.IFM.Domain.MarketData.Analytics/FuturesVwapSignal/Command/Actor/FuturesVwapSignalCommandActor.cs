@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Command.State;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Command.State;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Command.Validation;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Application.CommandPipeline;
@@ -12,20 +12,20 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Command.Acto
 
 /// <summary>Processes and persists exact futures-session VWAP transitions.</summary>
 public sealed class FuturesVwapSignalCommandActor(
-    ICommandActorContext<FuturesVwapSignalCommandActor> actorContext)
-    : BaseEventSourceCommandActor<FuturesVwapSignalCommandActor>(actorContext,
-        ((IFuturesVwapSignalCommandContext)actorContext).Logger)
+    ICommandActorContext<FuturesVwapSignalCommandActor> actorContext, ResidentActorPilotOptions? residency = null)
+    : BaseInMemoryEventSourceCommandActor<FuturesVwapSignalCommandActor, FuturesVwapSignalCommandState>(actorContext,
+        ((IFuturesVwapSignalCommandContext)actorContext).Logger, committedStatePolicy: (residency ?? new()).Vwap)
 {
     /// <summary>Identifies the VWAP Command mailbox.</summary>
     public const string ActorName = UpdateFuturesVwapSignalCommand.Actor;
     readonly IFuturesVwapSignalCommandContext typedContext = IsArgumentNull.Named(actorContext as IFuturesVwapSignalCommandContext, nameof(actorContext))!;
 
     /// <inheritdoc />
-    protected override async ValueTask OnStartup(ICommandActorContext<FuturesVwapSignalCommandActor> context)
+    protected override async ValueTask OnInMemoryStartupAsync(ICommandActorContext<FuturesVwapSignalCommandActor> context)
         => await (typedContext.EventProjector.StartAsync(context)).ConfigureAwait(false);
 
     /// <inheritdoc />
-    protected override async ValueTask OnShutdown(ICommandActorContext<FuturesVwapSignalCommandActor> context) =>
+    protected override async ValueTask OnInMemoryShutdownAsync(ICommandActorContext<FuturesVwapSignalCommandActor> context) =>
         await (typedContext.EventProjector.StopAsync()).ConfigureAwait(false);
 
     /// <inheritdoc />
@@ -98,33 +98,21 @@ public sealed class FuturesVwapSignalCommandActor(
         };
 
     /// <inheritdoc />
-    protected override async ValueTask<IActorState> OnLoadStateAsync(
-        ICommandActorContext<FuturesVwapSignalCommandActor> context,
-        ActorThreadId threadId, ICommand command) => await (typedContext.StateRepository.LoadStateAsync(command)).ConfigureAwait(false);
-
-    /// <inheritdoc />
-    protected override async ValueTask<IActorState> OnLoadStateAsync(
+    protected override async ValueTask<FuturesVwapSignalCommandState> LoadStateFromStoreAsync(
         ICommandActorContext<FuturesVwapSignalCommandActor> context,
         ActorThreadId threadId, ICommand command, CancellationToken cancellationToken) =>
         await (typedContext.StateRepository.LoadStateAsync(command, cancellationToken)).ConfigureAwait(false);
 
     /// <inheritdoc />
-    protected override async ValueTask OnSaveStateAsync(
+    protected override async ValueTask SaveStateToStoreAsync(
         ICommandActorContext<FuturesVwapSignalCommandActor> context,
-        ActorThreadId threadId, IActorState state, ICommand command) =>
-        await (typedContext.StateRepository.SaveStateAsync(
-            context, (FuturesVwapSignalCommandState)state, command)).ConfigureAwait(false);
-
-    /// <inheritdoc />
-    protected override async ValueTask OnSaveStateAsync(
-        ICommandActorContext<FuturesVwapSignalCommandActor> context,
-        ActorThreadId threadId, IActorState state, ICommand command,
+        ActorThreadId threadId, FuturesVwapSignalCommandState state, ICommand command,
         CancellationToken cancellationToken) =>
         await (typedContext.StateRepository.SaveStateAsync(context, (FuturesVwapSignalCommandState)state,
             command, cancellationToken)).ConfigureAwait(false);
 
     /// <inheritdoc />
-    protected override async ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(
+    protected override async ValueTask<ServiceResult<GuidResult>> HandleCommandExceptionAsync(
         ICommandActorContext<FuturesVwapSignalCommandActor> context,
         ActorThreadId threadId, ICommand command, Exception ex)
     {
@@ -133,4 +121,11 @@ public sealed class FuturesVwapSignalCommandActor(
             ActorEntityId>(ErrorType.Command, context)).ConfigureAwait(false);
         return new ServiceFailed<GuidResult>(error);
     }
+
+    protected override bool IsResidentCommand(ICommand command) => command is UpdateFuturesVwapSignalCommand;
+    protected override bool IsResidentMessage(ActorSubject subject) => subject.Verb == UpdateFuturesVwapSignalCommand.Verb;
+    protected override ValueTask ValidateResidentNoChangeAsync(ICommandActorContext<FuturesVwapSignalCommandActor> context,
+        FuturesVwapSignalCommandState state, ICommand command, CancellationToken cancellationToken)
+        => ((IResidentCommandStateRepository<FuturesVwapSignalCommandState>)typedContext.StateRepository)
+            .ValidateNoChangeAsync(state, command, cancellationToken);
 }

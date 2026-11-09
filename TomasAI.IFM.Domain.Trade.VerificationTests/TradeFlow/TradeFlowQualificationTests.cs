@@ -234,17 +234,17 @@ public sealed class TradeFlowQualificationTests
         AssertDirectBase(typeof(FuturesRealtimeActor), typeof(BaseEventActor<FuturesRealtimeActor>));
         AssertDirectBase(typeof(FuturesOptionRealtimeActor), typeof(BaseEventActor<FuturesOptionRealtimeActor>));
         AssertDirectBase(typeof(IronCondorTradePlanFunctionActor),
-            typeof(BaseEventSourceFunctionActor<IronCondorTradePlanFunctionActor, UpdateIronCondorTradePlanCommand,
+            typeof(BaseInMemoryEventSourceFunctionActor<IronCondorTradePlanFunctionActor, UpdateIronCondorTradePlanCommand,
                 TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.IronCondorTradePlanId,
                 TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.IronCondorTradePlanId,
                 IronCondorTradePlanFunctionState, IronCondorTradePlanUpdatedEvent,
                 TradePlanFailedEvent<TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.IronCondorTradePlanId>>));
         AssertDirectBase(typeof(VerticalSpreadTradePlanFunctionActor),
-            typeof(BaseEventSourceFunctionActor<VerticalSpreadTradePlanFunctionActor, UpdateVerticalSpreadTradePlanCommand,
+            typeof(BaseInMemoryEventSourceFunctionActor<VerticalSpreadTradePlanFunctionActor, UpdateVerticalSpreadTradePlanCommand,
                 VerticalSpreadTradePlanId, VerticalSpreadTradePlanId, VerticalSpreadTradePlanFunctionState,
                 VerticalSpreadTradePlanUpdatedEvent, TradePlanFailedEvent<VerticalSpreadTradePlanId>>));
         AssertDirectBase(typeof(FuturesTradePlanFunctionActor),
-            typeof(BaseEventSourceFunctionActor<FuturesTradePlanFunctionActor, UpdateFuturesTradePlanCommand,
+            typeof(BaseInMemoryEventSourceFunctionActor<FuturesTradePlanFunctionActor, UpdateFuturesTradePlanCommand,
                 FuturesTradePlanId, FuturesTradePlanId, FuturesTradePlanFunctionState,
                 FuturesTradePlanUpdatedEvent, TradePlanFailedEvent<FuturesTradePlanId>>));
         AssertDirectBase(typeof(IronCondorTradePositionRealtimeActor),
@@ -409,12 +409,15 @@ public sealed class TradeFlowQualificationTests
         actor.BaseType.Should().Be(expectedBase);
     }
 
-    static string RepositoryRoot()
+    static string RepositoryRoot([System.Runtime.CompilerServices.CallerFilePath] string sourceFile = "")
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
         while (directory is not null &&
                !File.Exists(Path.Combine(directory.FullName, "TomasAI.IFM.sln")))
             directory = directory.Parent;
+        if (directory is not null) return directory.FullName;
+        directory = new DirectoryInfo(Path.GetDirectoryName(sourceFile)!);
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "TomasAI.IFM.sln"))) directory = directory.Parent;
         return directory?.FullName ?? throw new InvalidOperationException("Repository root was not found.");
     }
 }

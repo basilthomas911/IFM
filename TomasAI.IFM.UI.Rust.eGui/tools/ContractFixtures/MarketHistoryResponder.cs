@@ -20,6 +20,13 @@ internal static class MarketHistoryResponder
         var options=MessagePackBinarySerializer.Options;
         var date=new DateOnly(2026,10,26);var end=new DateTime(2026,10,26,12,30,0,DateTimeKind.Utc);
         byte[] Result<T>(T value)=>MessagePackSerializer.Serialize(new ServiceResult<T>{Success=true,ErrorMessage="",Value=value},options);
+        if(subject.StartsWith("Query.FuturesContractQuery.GetRolloverFuturesContracts.",StringComparison.Ordinal)){
+            var query=MessagePackSerializer.Deserialize<GetRolloverFuturesContractsQuery>(payload,options);
+            if(query.Subject.ToString()!=subject||query.Symbol!="VX")throw new InvalidDataException("Invalid VX rollover route");
+            return Result(new[]{
+                new FuturesContractV3ReadModel{ContractId="VXF7",Symbol="VX",LastTradeDate=date.AddMonths(3),OnTheRun=false,Rollover=true},
+                new FuturesContractV3ReadModel{ContractId="VXZ6",Symbol="VX",LastTradeDate=date.AddMonths(2),OnTheRun=true,Rollover=true}});
+        }
         if(subject.StartsWith("Query.FuturesContractQuery.GetOnTheRunFuturesContract.",StringComparison.Ordinal)){
             var query=MessagePackSerializer.Deserialize<GetOnTheRunFuturesContractQuery>(payload,options);
             if(query.Subject.ToString()!=subject||query.Symbol is not ("ES" or "VX"))throw new InvalidDataException("Invalid current-contract route");
@@ -30,8 +37,9 @@ internal static class MarketHistoryResponder
             // The unchanged hybrid uses wall UTC for its chart window. Preserve
             // that request in desktop evidence; native protocol gates stay exact.
             var validWindow=query.EndDate==end&&query.StartDate==end.AddHours(-6)||DesktopFixtureMode.Enabled&&Math.Abs((query.EndDate-DateTime.UtcNow).TotalHours)<=5&&query.EndDate-query.StartDate==TimeSpan.FromHours(6);
-            if(query.Subject.ToString()!=subject||subject!="Query.FuturesBarDataQuery.GetFuturesBarData."+query.EntityId.Format()||query.ValueDate!=date||!validWindow||!query.AcrossValueDates||query.ContractId!=query.Symbol+"Z6")throw new InvalidDataException("History must use the API clock, contract and six-hour cross-date window: "+MessagePackSerializer.ConvertToJson(payload,options));
-            return Result(new[]{new FuturesBarDataReadModel(query.ContractId,query.Symbol,date,end.AddMinutes(-1),BarRateType.FifteenSeconds,6050.125m,6100,6000)});
+            var validContract=query.Symbol=="ES"&&query.ContractId=="ESZ6"||query.Symbol=="VX"&&query.ContractId is "VXZ6" or "VXF7";
+            if(query.Subject.ToString()!=subject||subject!="Query.FuturesBarDataQuery.GetFuturesBarData."+query.EntityId.Format()||query.ValueDate!=date||!validWindow||!query.AcrossValueDates||!validContract)throw new InvalidDataException("History must use the API clock, contract and six-hour cross-date window: "+MessagePackSerializer.ConvertToJson(payload,options));
+            return Result(new[]{new FuturesBarDataReadModel(query.ContractId,query.Symbol,date,end.AddMinutes(-1),BarRateType.FifteenSeconds,query.Symbol=="ES"?6050.125m:query.ContractId=="VXZ6"?16.9m:17.3m,6100,6000)});
         }
         if(subject.StartsWith("Query.MarketOutlookSnapshotQuery.GetFuturesBollingerBandHistory.",StringComparison.Ordinal)){
             var query=MessagePackSerializer.Deserialize<GetFuturesBollingerBandHistoryQuery>(payload,options);

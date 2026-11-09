@@ -1,0 +1,142 @@
+{
+  "BaselineRevision": "3da7aa14b337d8d04b4342e9cfa5b49118be561b",
+  "EvidenceRoot": "E:\\IFM\\BenchmarkArtifacts\\ResidentActors\\20261108",
+  "Files": [
+    {
+      "Path": "E:\\IFM\\BenchmarkArtifacts\\ResidentActors\\20261108\\bdn-corrected\\paired\\results\\TomasAI.IFM.Application.Api.Server.Benchmarks.ResidentActorChurnBenchmarks-report-full-compressed.json",
+      "Bytes": 165713,
+      "SHA256": "95e9b7e643ebee0befc843fea79699119312fe8cef8f158c63b51e6fc8c2c7fd"
+    },
+    {
+      "Path": "E:\\IFM\\BenchmarkArtifacts\\ResidentActors\\20261108\\bdn-corrected\\paired\\results\\TomasAI.IFM.Application.Api.Server.Benchmarks.ResidentActorColdBenchmarks-report-full-compressed.json",
+      "Bytes": 165266,
+      "SHA256": "a54669746a9d25b15139aa67d7d8dfa8351e6dd02a9cc3ebb201c6aeaa3ab225"
+    },
+    {
+      "Path": "E:\\IFM\\BenchmarkArtifacts\\ResidentActors\\20261108\\bdn-corrected\\paired\\results\\TomasAI.IFM.Application.Api.Server.Benchmarks.ResidentActorReplayBenchmarks-report-full-compressed.json",
+      "Bytes": 164223,
+      "SHA256": "682b7170c4ee518988029a92e8d092b43b841949a251cf099f762fc00a7ab45f"
+    },
+    {
+      "Path": "E:\\IFM\\BenchmarkArtifacts\\ResidentActors\\20261108\\bdn-corrected\\paired\\results\\TomasAI.IFM.Application.Api.Server.Benchmarks.ResidentActorWarmBenchmarks-report-full-compressed.json",
+      "Bytes": 659014,
+      "SHA256": "7a38a1561be69e8c7fa4fe2191c97b7c7901f8c1cd449bec8b6a8c82048246f5"
+    },
+    {
+      "Path": "E:\\IFM\\BenchmarkArtifacts\\ResidentActors\\20261108\\bdn-corrected\\provenance.json",
+      "Bytes": 2501198,
+      "SHA256": "4cdafe6d126e2afb4443e5d1e6d5af79a47b1db5c07efb3cf7c0e573558dae56"
+    },
+    {
+      "Path": "E:\\IFM\\BenchmarkArtifacts\\ResidentActors\\20261108\\bdn-recheck\\paired\\results\\TomasAI.IFM.Application.Api.Server.Benchmarks.ResidentActorChurnBenchmarks-report-full-compressed.json",
+      "Bytes": 34066,
+      "SHA256": "317b239d887bb94dbcae7a4ebdf4519341f41e1fd0edbb81dfece54d63335511"
+    },
+    {
+      "Path": "E:\\IFM\\BenchmarkArtifacts\\ResidentActors\\20261108\\bdn-recheck\\paired\\results\\TomasAI.IFM.Application.Api.Server.Benchmarks.ResidentActorColdBenchmarks-report-full-compressed.json",
+      "Bytes": 66563,
+      "SHA256": "7c09e651b5e11252e6d5f0c2909bd72489eb991aa9a8aed09330ab5f9fe148bf"
+    },
+    {
+      "Path": "E:\\IFM\\BenchmarkArtifacts\\ResidentActors\\20261108\\development-debug-symbol-verification.json",
+      "Bytes": 211,
+      "SHA256": "8a7e0ab44e602b21867fce948cff82bdc617bccdd2744a87bf4edc8ba79d5aa4"
+    },
+    {
+      "Path": "E:\\IFM\\BenchmarkArtifacts\\ResidentActors\\20261108\\development-final-processes.json",
+      "Bytes": 1973,
+      "SHA256": "ea0ad7ca84de804381b2a508df5e23d27392cb95679d2964ce0c0d6e76ae5f91"
+    },
+    {
+      "Path": "E:\\IFM\\BenchmarkArtifacts\\ResidentActors\\20261108\\development-financial-verification.json",
+      "Bytes": 349,
+      "SHA256": "170da89ec74ca87a0a1774ea62af9fff56167da163487edf189aa1cab219b795"
+    },
+    {
+      "Path": "E:\\IFM\\BenchmarkArtifacts\\ResidentActors\\20261108\\development-market-open-launch-ready.json",
+      "Bytes": 2191,
+      "SHA256": "18cbec499c59f2bef45d00ddcf4922216394f79f0b745ce14a3490392e350fba"
+    },
+    {
+      "Path": "E:\\IFM\\BenchmarkArtifacts\\ResidentActors\\20261108\\development-market-open-ready.json",
+      "Bytes": 5974,
+      "SHA256": "544c1397cf343ce73f51484b0b69fefd97165283044d52567deea82d5e513ce0"
+    },
+    {
+      "Path": "E:\\IFM\\BenchmarkArtifacts\\ResidentActors\\20261108\\development-market-open.log",
+      "Bytes": 31471,
+      "SHA256": "ec460820f76458cc86287d695ef561469e7036a6e5d6fddab7df8eeb20d05881"
+    },
+    {
+      "Path": "E:\\IFM\\BenchmarkArtifacts\\ResidentActors\\20261108\\development-pilot-head-check-after.txt",
+      "Bytes": 11,
+      "SHA256": "ab40b949558fba6c1895ff4e6fbc05c34b5eea79dc74b229946e2c79c16cd169"
+    },
+    {
+      "Path": "E:\\IFM\\BenchmarkArtifacts\\ResidentActors\\20261108\\development-pilot-streams-after-open.txt",
+      "Bytes": 6440,
+      "SHA256": "c0d493545ed1b1f60dd691c195473ad93974195e0ef4dd3a167c70dd402a5ac8"
+    },
+    {
+      "Path": "E:\\IFM\\BenchmarkArtifacts\\ResidentActors\\20261108\\development-pilot-streams-before-open.txt",
+      "Bytes": 6440,
+      "SHA256": "c0d493545ed1b1f60dd691c195473ad93974195e0ef4dd3a167c70dd402a5ac8"
+    },
+    {
+      "Path": "E:\\IFM\\BenchmarkArtifacts\\ResidentActors\\20261108\\development-scheduler-dashboard.json",
+      "Bytes": 1956,
+      "SHA256": "ca2d0527b1464f1664585a10f4d24e14426f110c25c1d2e808181259f4f4a975"
+    },
+    {
+      "Path": "E:\\IFM\\BenchmarkArtifacts\\ResidentActors\\20261108\\fixed-heap-resource-provenance.json",
+      "Bytes": 402,
+      "SHA256": "4e1aee790c982b6169f6969a53c0693c40dc3acce3e63a8e7031d7a3d6a564c6"
+    },
+    {
+      "Path": "E:\\IFM\\BenchmarkArtifacts\\ResidentActors\\20261108\\fixture-check-final.log",
+      "Bytes": 480,
+      "SHA256": "1a366f71ccf4c040e6d6c516187297b1041182eab003352ddb1aca5f5885fd0b"
+    },
+    {
+      "Path": "E:\\IFM\\BenchmarkArtifacts\\ResidentActors\\20261108\\process-restart-final.log",
+      "Bytes": 495,
+      "SHA256": "d71b72e822840de239c74b7468e76deb8cd93702f207fb156c595c2570499a71"
+    },
+    {
+      "Path": "E:\\IFM\\BenchmarkArtifacts\\ResidentActors\\20261108\\resources-fixed-heaps.json",
+      "Bytes": 24290,
+      "SHA256": "fde8722c61b8726deeaaed49d6fd1b9830843f3226fb9d04e1cd49618d35107b"
+    },
+    {
+      "Path": "E:\\IFM\\BenchmarkArtifacts\\ResidentActors\\20261108\\resources-repeat.json",
+      "Bytes": 24365,
+      "SHA256": "0793f301d5bc4ea549d96e3fd138005c66b7969859c036f5191defb05b10c2eb"
+    },
+    {
+      "Path": "E:\\IFM\\BenchmarkArtifacts\\ResidentActors\\20261108\\resources.json",
+      "Bytes": 24361,
+      "SHA256": "e977a0b12c02d2ae4d1fc9807c83205f8b04ac00ed6c2f4153895884a3c9518c"
+    },
+    {
+      "Path": "E:\\IFM\\BenchmarkArtifacts\\ResidentActors\\20261108\\resources.json.soak-completed.json",
+      "Bytes": 1730,
+      "SHA256": "7f4b51247cce1d99de650137474e9acadac6fe0fab2721eca46a7830bf62aebd"
+    },
+    {
+      "Path": "E:\\IFM\\BenchmarkArtifacts\\ResidentActors\\20261108\\resources.json.soak.json",
+      "Bytes": 169698,
+      "SHA256": "16e9c30e0b84f2b58e5c8dfb2f5551f45c5b5e35704536804df72295691adf25"
+    },
+    {
+      "Path": "E:\\IFM\\BenchmarkArtifacts\\ResidentActors\\20261108\\tests\\pilot-and-scylla-final.trx",
+      "Bytes": 451692,
+      "SHA256": "3fbd6a777d1124c728262d7a0ec9f809331e4c9e99665f39e4aa834b9bae2745"
+    },
+    {
+      "Path": "E:\\IFM\\BenchmarkArtifacts\\ResidentActors\\20261108\\tests\\pilots-final.trx",
+      "Bytes": 89925,
+      "SHA256": "0ef11872699c9c8418f9a053f2898d632b0af7dfc04e94e4f12609abfa0b65b9"
+    }
+  ],
+  "Status": "First-five implementation/test/benchmark/soak complete; live qualification blocked by stale server ValueDate/provider replay-window rejection."
+}

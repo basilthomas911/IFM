@@ -152,7 +152,8 @@ public sealed record MarketDataDatasetStatus([property: Key(0)] string Role, [pr
     [property: Key(7)] string Lifecycle, [property: Key(8)] string? Error,
     [property: Key(9)] DateOnly? ValueDate = null, [property: Key(10)] Guid OperationId = default,
     [property: Key(11)] long ManifestRevision = 1, [property: Key(12)] DateTimeOffset ChangedAtUtc = default,
-    [property: Key(13)] DateTimeOffset? RecoveryDeadlineUtc = null);
+    [property: Key(13)] DateTimeOffset? RecoveryDeadlineUtc = null,
+    [property: Key(14)] IReadOnlyDictionary<string, long>? Counters = null);
 [MessagePackObject]
 public sealed record MarketDataRecoveryRequest([property: Key(0)] Guid OperationId, [property: Key(1)] string Role,
     [property: Key(2)] string Dataset, [property: Key(3)] Guid ExpectedWorkerInstanceId,

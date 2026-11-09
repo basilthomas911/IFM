@@ -41,6 +41,7 @@ pub struct Intent {
 /// Native factory and detached last-value query directory. Retaining Current
 /// never retains a native provider group; it owns copied frames only.
 pub struct FuturesFactory {
+    publication: Arc<Mutex<Option<crate::messaging::futures_delivery::PublicationDiagnostics>>>,
     bindings: Arc<Mutex<Option<Arc<Vec<super::live::Registration>>>>>,
     contracts: Arc<Mutex<Option<Arc<Vec<rmpv::Value>>>>>,
     public_models: Arc<Mutex<Option<Arc<Vec<rmpv::Value>>>>>,
@@ -54,6 +55,7 @@ impl FuturesFactory {
     /// Binds the authoritative API clock shared by native source processing.
     pub fn new(clock: Arc<Clock>) -> Self {
         Self {
+            publication: Arc::new(Mutex::new(None)),
             bindings: Arc::new(Mutex::new(None)),
             contracts: Arc::new(Mutex::new(None)),
             public_models: Arc::new(Mutex::new(None)),
@@ -81,6 +83,16 @@ impl FuturesFactory {
     /// Copies numeric query access without transferring a provider resource.
     pub fn queries(&self) -> Option<Queries> {
         self.queries.lock().ok().and_then(|q| q.clone())
+    }
+    /// Samples current source/output/publication counters without provider I/O.
+    pub fn counters(&self, generation: [u8; 16]) -> Option<std::collections::BTreeMap<String, i64>> {
+        if self.identity()?.generation != generation { return None; }
+        let mut result = self.queries()?.counters().ok()?;
+        if let Some(directory) = self.publication.lock().ok()?.as_ref()
+            && let Some(port) = directory.lock().ok()?.as_ref() {
+            result.extend(port.counters());
+        }
+        (self.identity()?.generation == generation).then_some(result)
     }
     /// Actual copied native publication identity, available during setup and
     /// retirement. No fabricated worker process or provider handle is exposed.
@@ -133,6 +145,10 @@ impl Factory for FuturesFactory {
         if let Some(bootstrap) = &intent.bootstrap {
             bootstrap.validate(lane)?;
         }
+        // Retire the diagnostic directory before publishing the replacement ID.
+        // An observer must never label the prior resource's totals with a new ID.
+        *self.queries.lock().map_err(|_| "Native query directory interrupted")? = None;
+        *self.publication.lock().map_err(|_| "Native publication diagnostics interrupted")? = None;
         let worker = rand::random::<u128>().max(1).to_le_bytes();
         let generation = rand::random::<u128>().max(1).to_le_bytes();
         *self
@@ -157,8 +173,10 @@ impl Factory for FuturesFactory {
             .map_err(|e| format!("{e:?}"))?
             .with_diagnostics(self.diagnostics.clone(), worker)?,
         );
+        *self.publication.lock().map_err(|_| "Native publication diagnostics interrupted")? = None;
         let (status, observed) = watch::channel(Readiness::default());
         let output = self.current.clone();
+        let publication_diagnostics = self.publication.clone();
         let queries = self.queries.clone();
         *queries
             .lock()
@@ -206,6 +224,7 @@ impl Factory for FuturesFactory {
                     broker:intent.broker.clone(),scope:intent.scope.clone(),lane,value_date:intent.date.to_julian_day()-1721426,
                     worker,generation,revision:intent.revision,control_only:intent.source.evidence==Evidence::ControlOnly,queue:256,bytes:4*1024*1024,
                 },owned.clone(),deadline).map_err(String::from)?;
+                *publication_diagnostics.lock().map_err(|_|"Native publication diagnostics interrupted")?=Some(delivery.diagnostics());
                 *output.lock().map_err(|_|"Native futures query directory interrupted")?=Some(delivery.current());
                 let mut publications=delivery.changes();
                 loop {

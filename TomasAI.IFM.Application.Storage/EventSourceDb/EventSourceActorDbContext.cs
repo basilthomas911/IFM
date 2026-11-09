@@ -1417,6 +1417,10 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
             .ConfigureAwait(false);
     }
 
+    /// <summary>Reads the current stream head directly for optimistic resident no-change/replay validation.</summary>
+    public Task<long> GetCommittedStreamVersionAsync(string eventStream, CancellationToken cancellationToken = default)
+        => this.ReadCommittedStreamHeadAsync(eventStream, cancellationToken);
+
     /// <summary>Get Event Stream Id From Db using the event-source persistence services.</summary>
     /// <param name="eventStream">The event stream name.</param>
     /// <returns>The typed result of the event-source operation.</returns>

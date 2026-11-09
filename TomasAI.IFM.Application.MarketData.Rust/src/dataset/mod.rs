@@ -8,6 +8,7 @@ pub mod book;
 pub mod databento;
 pub mod lanes;
 pub mod live;
+pub mod counters;
 mod output;
 pub mod records;
 pub mod transport;

@@ -11,7 +11,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Function.State;
 /// <summary>Loads creation and the latest complete checkpoint and commits PostgreSQL event and plan writes atomically.</summary>
 /// <remarks>Superseded intermediate plans are skipped and no history collection is cached. The Scylla path is retained only until development data is migrated.</remarks>
-public sealed class IronCondorTradePlanFunctionStateRepository(IEventSourceActorStateFactory stateFactory, IEventSourceActorDbContext eventSource, IActorService actorService, IEventProjector<FuturesIronCondorTradePositionCommandActor> projector, ILogger<IronCondorTradePlanFunctionStateRepository> logger, IDbContextFactory? dbFactory = null, IPostgresEventTransaction? transactions = null) : BaseEventSourceActorRepository(stateFactory, eventSource, actorService, logger), IEventSourceFunctionStateRepository<IronCondorTradePlanFunctionState, UpdateIronCondorTradePlanCommand>
+public sealed class IronCondorTradePlanFunctionStateRepository(IEventSourceActorStateFactory stateFactory, IEventSourceActorDbContext eventSource, IActorService actorService, IEventProjector<FuturesIronCondorTradePositionCommandActor> projector, ILogger<IronCondorTradePlanFunctionStateRepository> logger, IDbContextFactory? dbFactory = null, IPostgresEventTransaction? transactions = null) : BaseEventSourceActorRepository(stateFactory, eventSource, actorService, logger), IResidentFunctionStateRepository<IronCondorTradePlanFunctionState, UpdateIronCondorTradePlanCommand>
 {
     /// <summary>Restores creation and the latest full checkpoint without querying Scylla.</summary>
     /// <param name = "request">The current position and captured calculation inputs.</param>
@@ -98,4 +98,8 @@ public sealed class IronCondorTradePlanFunctionStateRepository(IEventSourceActor
 
     /// <inheritdoc/>
     protected override ValueTask DenormalizeEventsAsync(ICommandActorContext context, DomainEventCollection domainEvents) => ValueTask.CompletedTask;
+    /// <summary>Checks a cached completion against the current authoritative head without replaying events.</summary>
+    public async ValueTask<bool> IsCurrentAsync(IronCondorTradePlanFunctionState state, UpdateIronCondorTradePlanCommand request, CancellationToken cancellationToken)
+        => await EventSourceDb.GetCommittedStreamVersionAsync(request.StreamId, cancellationToken).ConfigureAwait(false)
+            == state.CommittedStreamVersion;
 }

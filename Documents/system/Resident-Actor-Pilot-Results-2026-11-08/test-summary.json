@@ -1,0 +1,101 @@
+[
+  {
+    "Project": "TomasAI.IFM.Application.Storage.IntegrationTests",
+    "Total": 880,
+    "Passed": 879,
+    "Failed": 1,
+    "SkippedResults": 0,
+    "Evidence": "E:\\IFM\\BenchmarkArtifacts\\ResidentActors\\20261108\\tests\\TomasAI.IFM.Application.Storage.IntegrationTests.trx",
+    "SHA256": "8493c0759f103159ca99434b49ee4fd97e5cb873f95c81223f28ad8630ecad04"
+  },
+  {
+    "Project": "TomasAI.IFM.Domain.MarketData.Analytics.BDDTests",
+    "Total": 481,
+    "Passed": 481,
+    "Failed": 0,
+    "SkippedResults": 0,
+    "Evidence": "E:\\IFM\\BenchmarkArtifacts\\ResidentActors\\20261108\\tests\\TomasAI.IFM.Domain.MarketData.Analytics.BDDTests.trx",
+    "SHA256": "85440071f555c08de17abfbd09bf9ee33ec165d4e261043f91811644d273318b"
+  },
+  {
+    "Project": "TomasAI.IFM.Domain.MarketData.Analytics.IntegrationTests",
+    "Total": 49,
+    "Passed": 48,
+    "Failed": 0,
+    "SkippedResults": 1,
+    "Evidence": "E:\\IFM\\BenchmarkArtifacts\\ResidentActors\\20261108\\tests\\TomasAI.IFM.Domain.MarketData.Analytics.IntegrationTests.trx",
+    "SHA256": "bf30a547d40558676f870226a683b546716d4f0720308c4f15df57682163d46f"
+  },
+  {
+    "Project": "TomasAI.IFM.Domain.MarketData.Analytics.UnitTests",
+    "Total": 1289,
+    "Passed": 1289,
+    "Failed": 0,
+    "SkippedResults": 0,
+    "Evidence": "E:\\IFM\\BenchmarkArtifacts\\ResidentActors\\20261108\\tests\\TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.trx",
+    "SHA256": "e993a7bc980b95dd458939912899b302ad969ffbc346e00176b69557ea46b0b8"
+  },
+  {
+    "Project": "TomasAI.IFM.Domain.Trade.BDDTests",
+    "Total": 52,
+    "Passed": 52,
+    "Failed": 0,
+    "SkippedResults": 0,
+    "Evidence": "E:\\IFM\\BenchmarkArtifacts\\ResidentActors\\20261108\\tests\\TomasAI.IFM.Domain.Trade.BDDTests.trx",
+    "SHA256": "26b211607597d399132703590bd3c1f14fd7a548f3515b430b5060a177e0b839"
+  },
+  {
+    "Project": "TomasAI.IFM.Domain.Trade.IntegratedTests",
+    "Total": 167,
+    "Passed": 164,
+    "Failed": 0,
+    "SkippedResults": 3,
+    "Evidence": "E:\\IFM\\BenchmarkArtifacts\\ResidentActors\\20261108\\tests\\TomasAI.IFM.Domain.Trade.IntegratedTests.trx",
+    "SHA256": "e27c146bdc033ecf0d7667fd23a5515685f10629aee326dd42fd520b1757d369"
+  },
+  {
+    "Project": "TomasAI.IFM.Domain.Trade.UnitTests",
+    "Total": 1716,
+    "Passed": 1716,
+    "Failed": 0,
+    "SkippedResults": 0,
+    "Evidence": "E:\\IFM\\BenchmarkArtifacts\\ResidentActors\\20261108\\tests\\TomasAI.IFM.Domain.Trade.UnitTests.trx",
+    "SHA256": "800d3a2ca34afc216ed27761fbcfb4a0feeb27e29d929e1f116fd6d85522fb9c"
+  },
+  {
+    "Project": "TomasAI.IFM.Domain.Trade.VerificationTests",
+    "Total": 72,
+    "Passed": 72,
+    "Failed": 0,
+    "SkippedResults": 0,
+    "Evidence": "E:\\IFM\\BenchmarkArtifacts\\ResidentActors\\20261108\\tests\\TomasAI.IFM.Domain.Trade.VerificationTests.trx",
+    "SHA256": "72aa37fc93248462c45fc6997af1a2ee9604328e0039b9ab8c79e15be267f094"
+  },
+  {
+    "Project": "TomasAI.IFM.Framework.Telemetry.UnitTests",
+    "Total": 9,
+    "Passed": 9,
+    "Failed": 0,
+    "SkippedResults": 0,
+    "Evidence": "E:\\IFM\\BenchmarkArtifacts\\ResidentActors\\20261108\\tests\\TomasAI.IFM.Framework.Telemetry.UnitTests.trx",
+    "SHA256": "0d2280b728cb6957334fe66b8067fdd609182c799babbddc098bd55bfe9630ad"
+  },
+  {
+    "Project": "TomasAI.IFM.LivePipeline.IntegrationTests",
+    "Total": 324,
+    "Passed": 320,
+    "Failed": 0,
+    "SkippedResults": 4,
+    "Evidence": "E:\\IFM\\BenchmarkArtifacts\\ResidentActors\\20261108\\tests\\TomasAI.IFM.LivePipeline.IntegrationTests.trx",
+    "SHA256": "9cf5243b11576398b23b2183bf11af1028f15bd918eacdf725c06abe5fd736a3"
+  },
+  {
+    "Project": "TomasAI.IFM.Shared.UnitTests",
+    "Total": 368,
+    "Passed": 368,
+    "Failed": 0,
+    "SkippedResults": 0,
+    "Evidence": "E:\\IFM\\BenchmarkArtifacts\\ResidentActors\\20261108\\tests\\TomasAI.IFM.Shared.UnitTests.trx",
+    "SHA256": "a77c8f558df0d6effd976a6c1d06adbcf06b3c3e05e734c58990ce58fe0eee42"
+  }
+]

@@ -430,10 +430,10 @@ if (args.Length == 3 && args[1] is "--serve" or "--desktop-serve")
         else if(DesktopFixtureMode.Enabled&&request.Subject=="Query.ApplicationQuery.GetStartupStatus.current"){
             response=MessagePackSerializer.Serialize(new ServiceResult<TomasAI.IFM.Domain.Application.Shared.ApplicationStartupStatus>{Success=true,ErrorMessage="",Value=new(){State=TomasAI.IFM.Domain.Application.Shared.ApplicationLifecycleState.Running,ValueDate=new(2026,10,26),StartedAtUtc=StrategyFixtures.At,CompletedAtUtc=StrategyFixtures.At,Summary="Synthetic desktop fixture"}},MessagePackBinarySerializer.Options);
         }
-        else if(DesktopFixtureMode.Enabled&&request.Subject.StartsWith("Query.FuturesContractQuery.GetRolloverFuturesContracts.",StringComparison.Ordinal)){
+        else if(DesktopFixtureMode.Enabled&&request.Subject.StartsWith("Query.FuturesContractQuery.GetRolloverFuturesContracts.",StringComparison.Ordinal)&&!request.Subject.EndsWith(".VX",StringComparison.Ordinal)){
             response=MessagePackSerializer.Serialize(new ServiceResult<FuturesContractV3ReadModel[]>{Success=true,ErrorMessage="",Value=[]},MessagePackBinarySerializer.Options);
         }
-        else if(request.Subject.StartsWith("Query.FuturesContractQuery.GetOnTheRunFuturesContract.",StringComparison.Ordinal)||request.Subject.StartsWith("Query.FuturesBarDataQuery.GetFuturesBarData.",StringComparison.Ordinal)||request.Subject.StartsWith("Query.MarketOutlookSnapshotQuery.",StringComparison.Ordinal)) {
+        else if(request.Subject.StartsWith("Query.FuturesContractQuery.GetOnTheRunFuturesContract.",StringComparison.Ordinal)||request.Subject.StartsWith("Query.FuturesContractQuery.GetRolloverFuturesContracts.",StringComparison.Ordinal)||request.Subject.StartsWith("Query.FuturesBarDataQuery.GetFuturesBarData.",StringComparison.Ordinal)||request.Subject.StartsWith("Query.MarketOutlookSnapshotQuery.",StringComparison.Ordinal)) {
             response=MarketHistoryResponder.Handle(request.Subject,request.Data!,output,outlookAvailable);
         }
         else if(DesktopFixtureMode.Enabled&&request.Subject=="Query.NativeCompatibility.DesktopOutlookAvailable.none"){

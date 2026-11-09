@@ -64,7 +64,11 @@ pub struct Configuration {
     pub bytes: usize,
 }
 /// Owned native publication task and detached latest-value query storage.
+pub type PublicationDiagnostics = Arc<Mutex<Option<super::publisher::Port>>>;
+
+/// Owned native publication task and detached latest-value query storage.
 pub struct Delivery {
+    diagnostics: PublicationDiagnostics,
     stop: CancellationToken,
     task: Option<JoinHandle<()>>,
     status: watch::Receiver<Status>,
@@ -125,6 +129,8 @@ impl Delivery {
         }
         .subject(&config.scope)?;
         let current = Arc::new(Current::new(128, 16 * 1024 * 1024)?);
+        let diagnostics = Arc::new(std::sync::Mutex::new(None));
+        let writer_diagnostics = diagnostics.clone();
         let retained = current.clone();
         let stop = parent.cancellation().child_token();
         let stopping = stop.clone();
@@ -174,6 +180,7 @@ impl Delivery {
                             break;
                         }
                     };
+                    if let Ok(mut diagnostics) = writer_diagnostics.lock() { *diagnostics = Some(publisher.port()); }
                     let failure = Self::pump(
                         &data,
                         &mut events,
@@ -253,6 +260,7 @@ impl Delivery {
             })
             .map_err(|_| "Native futures delivery parent admission failed")?;
         Ok(Self {
+            diagnostics,
             stop,
             task: Some(task),
             status: observed,
@@ -496,6 +504,10 @@ impl Delivery {
     /// Detached latest-value query owner; retaining it cannot retain a dataset.
     pub fn current(&self) -> Arc<Current> {
         self.current.clone()
+    }
+    /// Detached publication observation; it owns no task or provider resource.
+    pub fn diagnostics(&self) -> PublicationDiagnostics {
+        self.diagnostics.clone()
     }
     /// Signals cancellation and proves producer/socket worker exit under the
     /// caller's existing deadline. Repeated calls never extend that deadline.

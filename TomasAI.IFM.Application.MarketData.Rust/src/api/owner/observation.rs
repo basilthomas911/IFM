@@ -62,6 +62,26 @@ mod health_tests {
 }
 
 impl MarketData {
+    /// Copies native resource counters, keeping unsupported/unavailable snapshots absent.
+    fn worker_counters(&self, lane: Lane, generation: [u8; 16]) -> rmpv::Value {
+        let counters = if lane == Lane::OptionsGlbx {
+            self.options.factory.view().filter(|view| view.header.generation == generation).and_then(|view| {
+                let mut values = view.counters().ok()?;
+                let (retained, evicted) = self.options.factory.retired_evidence_status().ok()?;
+                values.insert("Archived evidence generations".into(), retained as i64);
+                for (name, value) in [
+                    ("Evicted evidence generations (host lifetime)", evicted.generations),
+                    ("Evicted evidence records (host lifetime)", evicted.records),
+                    ("Evicted evidence bytes (host lifetime)", evicted.bytes),
+                ] { values.insert(name.into(), value.min(i64::MAX as u64) as i64); }
+                Some(values)
+            })
+        } else {
+            self.futures.get(&lane).and_then(|futures| futures.factory.counters(generation))
+        };
+        counters.map_or(rmpv::Value::Nil, |values| rmpv::Value::Map(values.into_iter()
+            .map(|(name, value)| (name.into(), value.into())).collect()))
+    }
     /// Copies authoritative backend status without managed epoch/admission state.
     /// Idle health is separate from live demand; no process identity is invented.
     /// Ready is the copied Host RPC subscription state, not a dataset proof.
@@ -127,6 +147,7 @@ impl MarketData {
                 revision.into(),
                 codec::utc_offset(now)?,
                 deadline.unwrap_or(Value::Nil),
+                self.worker_counters(lane, generation),
             ]);
             signature.push(Value::Array(vec![
                 (lane as u32).into(),

@@ -12,6 +12,8 @@ pub struct OperationsHealth {
 
     /// Monotonic UI refresh schedule. No task survives a hidden view.
     next_refresh: Option<std::time::Instant>,
+    /// Detects reopening the view so Dataset Workers gets one fresh snapshot.
+    last_draw: Option<std::time::Instant>,
     /// Whether the operational-health view displays the dataset section.
     pub datasets: bool,
     /// Stable selected identity/index; interpretation follows the enclosing view's row contract.
@@ -137,15 +139,19 @@ impl OperationsHealth {
         }
         let matching = s.result.view == "operations-health";
         let now = std::time::Instant::now();
+        if self.last_draw.is_some_and(|last| now.duration_since(last) > std::time::Duration::from_secs(1)) {
+            self.next_refresh = None;
+        }
+        self.last_draw = Some(now);
         let mut intent = None;
         if live
             && !s.busy
             && self.pending.is_none()
-            && self.next_refresh.is_none_or(|next| now >= next)
+            && (self.next_refresh.is_none() || !self.datasets && self.next_refresh.is_some_and(|next| now >= next))
         {
             intent = Some(self.request(s, now));
         }
-        if live {
+        if live && !self.datasets {
             ctx.request_repaint_after(
                 self.next_refresh
                     .map(|next| next.saturating_duration_since(now))
@@ -190,6 +196,7 @@ impl OperationsHealth {
                 {
                     self.datasets = false;
                     self.selected = None;
+                    self.next_refresh = None;
                 }
                 if crate::presentation::tab_label(
                     ui,
@@ -200,6 +207,10 @@ impl OperationsHealth {
                 {
                     self.datasets = true;
                     self.selected = None;
+                    self.next_refresh = None;
+                }
+                if ui.add_enabled(live && self.pending.is_none(), egui::Button::new("Refresh")).clicked() {
+                    intent = Some(self.request(s, now));
                 }
             });
             let kind = if self.datasets { "dataset" } else { "stage" };
@@ -258,6 +269,7 @@ impl OperationsHealth {
                         .or_else(|| rows.first())
                     {
                         super::detail_tree(ui, &row.id, "Health details", &row.fields, |key| {
+                            if let Some(name) = key.strip_prefix("Counter/") { return name.into(); }
                             let label = c.text(&format!("health_{key}"));
                             if label == "[Missing string]" {
                                 key.into()
@@ -290,6 +302,27 @@ impl OperationsHealth {
 #[cfg(test)]
 mod native_refresh_tests {
     use super::*;
+
+    /// Dataset diagnostics remain frozen until the next view opening or Refresh.
+    #[test]
+    fn datasets_read_once_instead_of_polling() {
+        let context = egui::Context::default();
+        let catalog: Catalog = serde_json::from_str(include_str!("../../catalog/strings.en.json")).unwrap();
+        let mut publication = ContractPublication::default();
+        let mut screen = OperationsHealth { datasets: true, ..Default::default() };
+        let mut response = None;
+        let _ = context.run(Default::default(), |ctx| response = screen.draw(ctx, &publication, &catalog, true));
+        let first: serde_json::Value = serde_json::from_str(response.as_ref().unwrap()).unwrap();
+        publication.outcomes.push(crate::lookup_editor::EditorOutcome {
+            request_id: first["requestId"].as_str().unwrap().into(), state: "Completed".into(), message: "Snapshot".into(),
+        });
+        screen.next_refresh = Some(std::time::Instant::now() - std::time::Duration::from_secs(10));
+        let _ = context.run(Default::default(), |ctx| response = screen.draw(ctx, &publication, &catalog, true));
+        assert!(response.is_none());
+        screen.last_draw = Some(std::time::Instant::now() - std::time::Duration::from_secs(2));
+        let _ = context.run(Default::default(), |ctx| response = screen.draw(ctx, &publication, &catalog, true));
+        assert!(response.is_some());
+    }
 
 
     /// Verifies that health refresh is visible only and never accumulates pending queries.

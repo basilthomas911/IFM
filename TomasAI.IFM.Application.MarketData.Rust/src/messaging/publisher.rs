@@ -187,6 +187,16 @@ pub struct Port {
     scope: String,
 }
 impl Port {
+    /// Copies logical queue occupancy and broker progress; no broker request is sent.
+    pub fn counters(&self) -> std::collections::BTreeMap<String, i64> {
+        [
+            ("Publication frames flushed", self.status.borrow().flushed.min(i64::MAX as u64) as i64),
+            ("Publication queue pending", (self.incoming.max_capacity() - self.incoming.capacity()) as i64),
+            ("Publication queue capacity", self.incoming.max_capacity() as i64),
+            ("Publication retained bytes", (self.maximum_bytes - self.bytes.available_permits()) as i64),
+            ("Publication byte capacity", self.maximum_bytes as i64),
+        ].into_iter().map(|(name, value)| (name.into(), value)).collect()
+    }
     /// Copies a detached frame into the one ordered native broker queue.
     ///
     /// # Errors

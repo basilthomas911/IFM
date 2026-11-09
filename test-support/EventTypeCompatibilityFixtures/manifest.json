@@ -84,15 +84,35 @@
           "LastMarketObservationUtc": "0001-01-01T00:00:00Z",
           "CloseBoundaryUtc": null,
           "DailyOpeningPnl": 0,
-          "DailyPnl": 0,
+          "DailyPnl": null,
           "HistoryAsOfUtc": "0001-01-01T00:00:00Z",
           "HistoryPositionSequence": 0,
-          "HistoryValuation": null
+          "HistoryValuation": null,
+          "DailyPnlPoints": 0,
+          "ContractCashMultiplier": null,
+          "OpeningCommission": null,
+          "OpeningValueDate": null
         },
         "EventName": "IronCondorPositionChangedEvent",
-        "EventType": 0
+        "EventType": 0,
+        "CurrencyEvidenceEventId": null,
+        "HistoricalEndOfDay": null,
+        "HistoricalSourceEventId": 0
       },
-      "payloadBase64": "kwHDmpQApG5vbmWkbm9uZaRub25l2SQxMTExMTExMS0yMjIyLTMzMzMtNDQ0NC01NTU1NTU1NTU1NTWSlAAAAADZJDAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwMADZJGFhYWFhYWFhLWJiYmItY2NjYy1kZGRkLWVlZWVlZWVlZWVlZcCuZnJvemVuLWZpeHR1cmXW/2rd70DcABYCkpQAAAAA2SQwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDAAAAcCkKYzMTIuNTCmLTQ1LjI1oTDW/2rd70DDkAAAxwz/AAAAAP////GIbgkAwKEwoTDHDP8AAAAA////8YhuCQAAwMM="
+      "payloadBase64": "kwHDmpQApG5vbmWkbm9uZaRub25l2SQxMTExMTExMS0yMjIyLTMzMzMtNDQ0NC01NTU1NTU1NTU1NTWSlAAAAADZJDAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwMADZJGFhYWFhYWFhLWJiYmItY2NjYy1kZGRkLWVlZWVlZWVlZWVlZcCuZnJvemVuLWZpeHR1cmXW/2rd70DcABYCkpQAAAAA2SQwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDAAAAcCkKYzMTIuNTCmLTQ1LjI1oTDW/2rd70DDkAAAxwz/AAAAAP////GIbgkAwKEwoTDHDP8AAAAA////8YhuCQAAwMM=",
+      "appendedDefaultWireFields": [
+        null,
+        null,
+        0
+      ],
+      "nestedAppendedDefaultWireFields": {
+        "8": [
+          null,
+          null,
+          null,
+          null
+        ]
+      }
     },
     {
       "file": "iron-condor-position-lz4.bin",
@@ -174,15 +194,35 @@
           "LastMarketObservationUtc": "0001-01-01T00:00:00Z",
           "CloseBoundaryUtc": null,
           "DailyOpeningPnl": 0,
-          "DailyPnl": 0,
+          "DailyPnl": null,
           "HistoryAsOfUtc": "0001-01-01T00:00:00Z",
           "HistoryPositionSequence": 0,
-          "HistoryValuation": null
+          "HistoryValuation": null,
+          "DailyPnlPoints": 0,
+          "ContractCashMultiplier": null,
+          "OpeningCommission": null,
+          "OpeningValueDate": null
         },
         "EventName": "IronCondorPositionChangedEvent",
-        "EventType": 0
+        "EventType": 0,
+        "CurrencyEvidenceEventId": null,
+        "HistoricalEndOfDay": null,
+        "HistoricalSourceEventId": 0
       },
-      "payloadBase64": "kwHDkscDYs0BFsYAAACvhpqUAKRub25lBQAz2SQxAQD3Ai0yMjIyLTMzMzMtNDQ0NC01AQCTkpQAAAAA2SQwAQAQLQgACwUABAIAQwDZJGEBAPcCLWJiYmItY2NjYy1kZGRkLWUBAP8LwK5mcm96ZW4tZml4dHVyZdb/at3vQNwAFgJtABryBQAHApCmMzEyLjUwpi00NS4yNaEwSwBww5AAAMcM/7kA2f////GIbgkAwKEwoTAUAFAJAADAww=="
+      "payloadBase64": "kwHDkscDYs0BFsYAAACvhpqUAKRub25lBQAz2SQxAQD3Ai0yMjIyLTMzMzMtNDQ0NC01AQCTkpQAAAAA2SQwAQAQLQgACwUABAIAQwDZJGEBAPcCLWJiYmItY2NjYy1kZGRkLWUBAP8LwK5mcm96ZW4tZml4dHVyZdb/at3vQNwAFgJtABryBQAHApCmMzEyLjUwpi00NS4yNaEwSwBww5AAAMcM/7kA2f////GIbgkAwKEwoTAUAFAJAADAww==",
+      "appendedDefaultWireFields": [
+        null,
+        null,
+        0
+      ],
+      "nestedAppendedDefaultWireFields": {
+        "8": [
+          null,
+          null,
+          null,
+          null
+        ]
+      }
     },
     {
       "file": "iti-generated-plain.bin",

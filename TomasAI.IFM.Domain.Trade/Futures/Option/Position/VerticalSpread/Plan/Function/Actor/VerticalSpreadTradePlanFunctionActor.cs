@@ -1,4 +1,4 @@
-﻿using System.Collections.Frozen;
+using System.Collections.Frozen;
 using TomasAI.IFM.Domain.Trade.Futures.Option.Position.VerticalSpread.Plan.Function.State;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan;
@@ -10,11 +10,11 @@ using TomasAI.IFM.Shared.Validation;
 
 namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.VerticalSpread.Plan.Function.Actor;
 
-public sealed class VerticalSpreadTradePlanFunctionActor(IVerticalSpreadTradePlanFunctionContext actorContext)
-    : BaseEventSourceFunctionActor<VerticalSpreadTradePlanFunctionActor, UpdateVerticalSpreadTradePlanCommand,
+public sealed class VerticalSpreadTradePlanFunctionActor(IVerticalSpreadTradePlanFunctionContext actorContext, ResidentActorPilotOptions? residency = null)
+    : BaseInMemoryEventSourceFunctionActor<VerticalSpreadTradePlanFunctionActor, UpdateVerticalSpreadTradePlanCommand,
         VerticalSpreadTradePlanId, VerticalSpreadTradePlanId, VerticalSpreadTradePlanFunctionState,
         VerticalSpreadTradePlanUpdatedEvent, TradePlanFailedEvent<VerticalSpreadTradePlanId>>(
-            actorContext, actorContext.StateRepository, null, actorContext.Logger)
+            actorContext, actorContext.StateRepository, null, actorContext.Logger, (residency ?? new()).VerticalSpreadTradePlan)
 {
     public const string ActorName = UpdateVerticalSpreadTradePlanCommand.Actor;
     readonly IVerticalSpreadTradePlanFunctionContext _context = actorContext;
@@ -106,4 +106,7 @@ public sealed class VerticalSpreadTradePlanFunctionActor(IVerticalSpreadTradePla
             throw new ArgumentException("Valid Vertical Spread Trade Plan routing and source position are required.",nameof(command));
         command.Parameters.Validate();
     }
+    /// <summary>Captures a private immutable full-state checkpoint after confirmed persistence.</summary>
+    protected override TomasAI.IFM.Application.EventModelActor.ResidentFunctionCheckpoint<UpdateVerticalSpreadTradePlanCommand, VerticalSpreadTradePlanFunctionState>?
+        CaptureCommittedState(VerticalSpreadTradePlanFunctionState state) => state.CaptureResidentCheckpoint();
 }

@@ -8,6 +8,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Shared.MarketData.Contracts.TickAggregation;
+using TomasAI.IFM.Application.MarketData.Contracts;
 
 namespace TomasAI.IFM.Application.MarketData.OperationsHealth;
 
@@ -216,14 +217,14 @@ public sealed partial class MarketDataOperationsHealthService
 {
     sealed record RuntimeProjection(DateTime ObservedOnUtc, string Session, DateOnly? ValueDate,
         DateTime? LastProbe, DateTime? NextProbe, IReadOnlyList<MarketDataDatasetHealthReadModel> Datasets,
-        IReadOnlyDictionary<MarketDataOperationStage, MarketDataOperationStageReadModel> Stages);
+        IReadOnlyDictionary<MarketDataOperationStage, MarketDataOperationStageReadModel> Stages, bool NativeResources);
     RuntimeProjection? runtimeProjection;
 
     /// <summary>Called by an independent observer using cached, process-local state only.</summary>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep native resource ownership and recovery failure ordering together during this storage compatibility refactor.")]
     public void ObserveRuntime(MarketSessionReadModel session, DatabentoLifecycleSnapshot watchdog,
         IReadOnlyList<DatasetWorkerProcessSnapshot> workers, MarketOutlookProcessorMetricsSnapshot outlook,
-        RealtimeTickPublisherSnapshot? publisher, DatabentoStage3Options options)
+        RealtimeTickPublisherSnapshot? publisher, DatabentoStage3Options options, MarketDataBackendStatus? backend = null)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(outlook);
@@ -238,6 +239,7 @@ public sealed partial class MarketDataOperationsHealthService
         var nextProbe = active && lastProbe is { } observed && interval > TimeSpan.Zero
             ? observed + interval : (DateTime?)null;
         var existing = Volatile.Read(ref runtimeProjection);
+        var nativeResources = backend?.RecoveryOwnership == MarketDataRecoveryOwnership.TokioDatasetOwner;
         var currentIncidents = GetSnapshot().DatasetIncidents;
         var datasets = workers.Select(worker =>
         {
@@ -280,8 +282,10 @@ public sealed partial class MarketDataOperationsHealthService
                 Reason = (!complete) switch { true => "Worker diagnostic evidence is incomplete; current health is unconfirmed.", false => (stale) switch { true => "Worker diagnostic observation is overdue; current health is unconfirmed.", false => BoundReason(incident?.IsOpen == true ? incident.FailureReason.ToString() : worker.Detail) } }
             };
         }).ToArray();
+        if (nativeResources)
+            datasets = ProjectNativeDatasets(backend!, session, now, existing?.Datasets ?? []);
         var overlays = new Dictionary<MarketDataOperationStage, MarketDataOperationStageReadModel>();
-        if (options.Enabled)
+        if (options.Enabled && !nativeResources)
         {
             var status = (!active && datasets.All(value => !value.Running)) switch { true => "Inactive", false => (datasets.Length == 0 || datasets.Any(value => string.Equals(value.Status,"Red",StringComparison.Ordinal))) switch { true => "Red", false => (datasets.Any(value => string.Equals(value.Status,"Orange",StringComparison.Ordinal))) switch { true => "Orange", false => (datasets.Any(value => string.Equals(value.Status,"Yellow",StringComparison.Ordinal))) switch { true => "Yellow", false => "Green" } } } };
             overlays[MarketDataOperationStage.DatabentoWorkerProcess] = Gauge(
@@ -321,7 +325,7 @@ public sealed partial class MarketDataOperationsHealthService
             };
         }
         Volatile.Write(ref runtimeProjection, new(now, session.State.ToString(), session.ActiveValueDate, lastProbe, nextProbe,
-            Array.AsReadOnly(datasets), new ReadOnlyDictionary<MarketDataOperationStage, MarketDataOperationStageReadModel>(overlays)));
+            Array.AsReadOnly(datasets), new ReadOnlyDictionary<MarketDataOperationStage, MarketDataOperationStageReadModel>(overlays), nativeResources));
         Interlocked.Increment(ref revision);
     }
 
@@ -330,7 +334,9 @@ public sealed partial class MarketDataOperationsHealthService
     {
         var snapshot = GetSnapshot();
         var runtime = Volatile.Read(ref runtimeProjection);
-        var stages = snapshot.Stages.Values.Select(value =>
+        var stages = snapshot.Stages.Values
+            .Where(value => runtime?.NativeResources != true || !IsLegacyWorkerStage(value.Stage))
+            .Select(value =>
         {
             var result = new MarketDataOperationStageReadModel
             {

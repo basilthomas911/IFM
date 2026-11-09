@@ -44,4 +44,6 @@
  <Compile Include="../TomasAI.IFM.Domain.Trade.UnitTests/Strategy/Workflow/IntrinsicTime/OrderComposer/CompositionFunctionFixture.cs" Link="Fixtures/CompositionFunctionFixture.cs" />
  <Compile Include="../TomasAI.IFM.Domain.Trade.UnitTests/Strategy/Workflow/IntrinsicTime/OrderComposer/OrderCompositionFunctionTestDriver.cs" Link="Fixtures/OrderCompositionFunctionTestDriver.cs" />
 </ItemGroup>
+<ItemGroup><Compile Include="../test-support/ResidentPilotInputs.cs" Link="Support/ResidentPilotInputs.cs" /></ItemGroup>
+<ItemGroup><Compile Include="../TomasAI.IFM.Domain.Trade.UnitTests/TradeFlow/ResidentPlanCheckpointTests.cs" Link="ResidentPlans/GivenCommittedPlanWhenAnotherRequestArrivesTests.cs" /></ItemGroup>
 </Project>

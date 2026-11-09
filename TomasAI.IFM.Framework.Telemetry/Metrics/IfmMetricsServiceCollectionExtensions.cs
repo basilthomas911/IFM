@@ -75,6 +75,7 @@ public static class IfmMetricsServiceCollectionExtensions
                 .AddMeter("TomasAI.IFM.Logging")
                 .AddMeter("TomasAI.IFM.Logging.Console")
                 .AddMeter("TomasAI.IFM.ActorLogging")
+                .AddMeter("TomasAI.IFM.ResidentActors")
                 .AddMeter("TomasAI.IFM.SupervisorHistory")
                 .AddMeter("TomasAI.IFM.Startup.InFlight")
                 .AddMeter("TomasAI.IFM.IndicatorStartup")

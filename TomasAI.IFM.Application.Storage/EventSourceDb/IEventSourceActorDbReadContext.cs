@@ -68,6 +68,8 @@ public interface IEventSourceActorDbReadContext
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
     /// <returns>The typed result of the event-source operation.</returns>
     Task<long> GetCommittedStreamVersionAsync(long eventStreamId, CancellationToken cancellationToken = default);
+    /// <summary>Reads the current stream head by name without a separate identity lookup or event payload read.</summary>
+    Task<long> GetCommittedStreamVersionAsync(string eventStream, CancellationToken cancellationToken = default);
     /// <summary>Get Command Log using the event-source persistence services.</summary>
     /// <param name="commandId">The originating command identifier.</param>
     /// <returns>The typed result of the event-source operation.</returns>

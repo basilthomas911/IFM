@@ -80,7 +80,7 @@ public sealed class FuturesMarketSessionAuthorityHostedService(
                 exception,                "{Component}.{Method} "+"Futures market-session authority failed unexpectedly; the API host will remain running.",nameof(FuturesMarketSessionAuthorityHostedService),nameof(ExecuteAsync));
         }
     }
-    /// <summary>Restores the latest persisted successful close, retaining the held date when storage is unavailable.</summary>
+    /// <summary>Restores the latest successful close without rewinding the current session; storage failures remain observable.</summary>
     private async Task RestoreCompletedEndOfDayAsync(CancellationToken cancellationToken)
     {
         if (taskReads is null || environment is null) return;

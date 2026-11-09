@@ -102,6 +102,12 @@ impl HeartbeatDiagnostics {
 /// availability even when a copied view is retained by a query.
 #[derive(Clone)]
 pub struct Queries {
+    counters: Arc<super::counters::Counters>,
+    output: Arc<Mutex<BTreeMap<Lane, super::output::LaneOutput>>>,
+    lane: Lane,
+    capacity: usize,
+    registrations: usize,
+    lifecycle: watch::Receiver<Status>,
     retired: CancellationToken,
     book: Arc<Mutex<BookState>>,
     changes: watch::Receiver<u64>,
@@ -118,6 +124,20 @@ pub struct RawPrices {
     pub quote: Option<crate::latest::Tick<crate::latest::QuoteValue>>,
 }
 impl Queries {
+    /// Samples source totals and actual bounded output queues without provider I/O.
+    pub fn counters(&self) -> Result<BTreeMap<String, i64>, String> {
+        let mut values = self.counters.snapshot();
+        let lifecycle = self.lifecycle.borrow().clone();
+        values.insert("Provider session attempts".into(), lifecycle.generation.min(i64::MAX as u64) as i64);
+        values.insert("Recovery episodes".into(), lifecycle.episode.min(i64::MAX as u64) as i64);
+        values.insert("Current episode attempts".into(), lifecycle.attempts.min(i64::MAX as u64) as i64);
+        values.insert("Registered instruments".into(), self.registrations as i64);
+        values.insert("Instrument capacity".into(), self.capacity as i64);
+        if let Some(output) = self.output.lock().map_err(|_| "Native output diagnostics interrupted")?.get(&self.lane) {
+            values.extend(output.counters());
+        }
+        Ok(values)
+    }
     /// Event notification only; retaining this receiver cannot retain a source
     /// task, socket or dataset cancellation authority.
     pub fn updates(&self) -> watch::Receiver<u64> {
@@ -312,6 +332,8 @@ pub(crate) fn retain_diagnostic(queue: &mut VecDeque<Diagnostic>, mut diagnostic
     queue.push_back(diagnostic);
 }
 struct Active {
+    counters: Arc<super::counters::Counters>,
+    registrations: usize,
     status: watch::Receiver<Status>,
     stop: CancellationToken,
     book: Arc<Mutex<BookState>>,
@@ -863,7 +885,11 @@ impl LiveData {
             .map(|(index, registration)| (registration.instrument, index))
             .collect();
         let retirement = BookRetirement(retired.clone(), pricing.clone());
+        let registration_count = registrations.len();
+        let counters = Arc::new(super::counters::Counters::default());
+        let processing_counters = counters.clone();
         let processor = move |attempt, event: &Event| {
+            processing_counters.measure(event, || {
             let _retirement = &retirement;
             let mut state = state
                 .lock()
@@ -1178,6 +1204,7 @@ impl LiveData {
             state.ready = true;
             capture_signal.notify(None);
             Ok(true)
+            })
         };
         let mut status = if let Some(parent) = parent {
             lanes.start_nested_with_quote_replay(
@@ -1206,6 +1233,8 @@ impl LiveData {
             .insert(
                 lane,
                 Active {
+                    counters,
+                    registrations: registration_count,
                     status: status.clone(),
                     stop: stop.clone(),
                     book,
@@ -1363,6 +1392,12 @@ impl LiveData {
             .lock()
             .map_err(|_| "Native query registry interrupted")?;
         Ok(active.get(&lane).map(|active| Queries {
+            counters: active.counters.clone(),
+            output: self.output.clone(),
+            lane,
+            capacity: self.capacity,
+            registrations: active.registrations,
+            lifecycle: active.status.clone(),
             book: active.book.clone(),
             retired: active.retired.clone(),
             changes: self.updates.subscribe(),

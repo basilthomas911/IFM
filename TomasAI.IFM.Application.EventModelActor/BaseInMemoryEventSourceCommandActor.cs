@@ -15,7 +15,8 @@ namespace TomasAI.IFM.Application.EventModelActor;
 public abstract class BaseInMemoryEventSourceCommandActor<TActor, TState>(
     ICommandActorContext<TActor> actorContext,
     ILogger logger,
-    InMemoryEventSourceActorOptions? options = null)
+    InMemoryEventSourceActorOptions? options = null,
+    ResidentActorPolicy? committedStatePolicy = null)
     : BaseEventSourceCommandActor<TActor>(actorContext, logger)
     where TActor : IActor
     where TState : class, IEventSourceActorState<TState>
@@ -24,13 +25,25 @@ public abstract class BaseInMemoryEventSourceCommandActor<TActor, TState>(
         (options ?? new InMemoryEventSourceActorOptions()).Validate();
     readonly ConcurrentDictionary<ActorThreadId, ResidentSlot> _resident = new();
     readonly ConcurrentQueue<ActorThreadId> _residentOrder = new();
+    readonly ResidentActorCache<TState>? committedCache = committedStatePolicy is null
+        ? null : new(typeof(TActor).Name, committedStatePolicy.Validate());
+    readonly ConcurrentDictionary<ActorThreadId, ResidentActorCache<TState>.Lease> committedOwners = new();
+
+    /// <summary>Reports the independent committed-only pilot policy without exposing Command state to queries.</summary>
+    public ResidentActorCacheStatistics CommittedCacheStatistics => committedCache?.Statistics ?? default;
+
+    /// <summary>Checks optimistic ownership when a cached transition produced no event to validate its version.</summary>
+    protected virtual ValueTask ValidateResidentNoChangeAsync(ICommandActorContext<TActor> context,
+        TState state, ICommand command, CancellationToken cancellationToken)
+        => ValueTask.FromException(new InvalidOperationException("Resident no-change commands require an authoritative stream-head guard."));
 
     protected int ResidentStateCount => _resident.Count;
 
     protected abstract bool IsResidentCommand(ICommand command);
     protected abstract bool IsResidentMessage(ActorSubject subject);
     protected sealed override bool AuditIsCommittedWithState(ICommand command)
-        => PersistsCommandAuditAtomically(command) || (_options.OptionTradeLegDataEnabled && IsResidentCommand(command));
+        => PersistsCommandAuditAtomically(command)
+            || (committedCache is null && _options.OptionTradeLegDataEnabled && IsResidentCommand(command));
     /// <summary>Lets a repository that enlists all commands defer audit reservation to its source transaction.</summary>
     protected virtual bool PersistsCommandAuditAtomically(ICommand command) => false;
     protected abstract ValueTask<TState> LoadStateFromStoreAsync(
@@ -39,12 +52,13 @@ public abstract class BaseInMemoryEventSourceCommandActor<TActor, TState>(
     protected abstract ValueTask SaveStateToStoreAsync(
         ICommandActorContext<TActor> context, ActorThreadId threadId, TState state, ICommand command,
         CancellationToken cancellationToken);
-    protected abstract ValueTask PersistResidentEventsAsync(
+    protected virtual ValueTask PersistResidentEventsAsync(
         ICommandActorContext<TActor> context,
         ICommand command,
         DomainEventCollection events,
         long expectedStreamVersion,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken)
+        => ValueTask.FromException(new NotSupportedException("This actor does not use deferred resident persistence."));
     protected abstract ValueTask<ServiceResult<GuidResult>> HandleCommandExceptionAsync(
         ICommandActorContext<TActor> context, ActorThreadId threadId, ICommand command, Exception exception);
 
@@ -58,6 +72,7 @@ public abstract class BaseInMemoryEventSourceCommandActor<TActor, TState>(
 
     protected sealed override async ValueTask OnShutdown(ICommandActorContext<TActor> context)
     {
+        if (committedCache is not null) await committedCache.DrainAsync().ConfigureAwait(false);
         await BarrierAllAsync().ConfigureAwait(false);
         if (!_resident.IsEmpty)
             ActorRuntimeMetrics.ResidentStateCount.Add(-_resident.Count);
@@ -74,6 +89,20 @@ public abstract class BaseInMemoryEventSourceCommandActor<TActor, TState>(
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(message);
+        if (committedCache is not null)
+        {
+            try { await base.HandleMessageAsync(message, threadId, cancellationToken).ConfigureAwait(false); }
+            catch
+            {
+                if (committedOwners.TryGetValue(threadId, out var failedOwner)) failedOwner.Invalidate();
+                throw;
+            }
+            finally
+            {
+                if (committedOwners.TryRemove(threadId, out var owner)) owner.Dispose();
+            }
+            return;
+        }
         if (!_options.OptionTradeLegDataEnabled || !IsResidentMessage(message.Subject))
         {
             await BarrierAsync(threadId).ConfigureAwait(false);
@@ -178,6 +207,29 @@ public abstract class BaseInMemoryEventSourceCommandActor<TActor, TState>(
         ICommandActorContext<TActor> context, ActorThreadId threadId, ICommand command,
         CancellationToken cancellationToken)
     {
+        if (committedCache is not null)
+        {
+            var owner = await committedCache.AcquireAsync(threadId,
+                committedStatePolicy!.Enabled && IsResidentCommand(command), cancellationToken).ConfigureAwait(false);
+            if (owner is not null)
+            {
+                if (!committedOwners.TryAdd(threadId, owner))
+                {
+                    owner.Dispose();
+                    throw new InvalidOperationException("A resident stream already has a request owner.");
+                }
+                if (owner.Value is { } state) return state;
+                try
+                {
+                    var loadedState = await LoadStateFromStoreAsync(context, threadId, command, cancellationToken)
+                        .ConfigureAwait(false);
+                    owner.Value = loadedState;
+                    return loadedState;
+                }
+                catch { owner.Invalidate(); throw; }
+            }
+            return await LoadStateFromStoreAsync(context, threadId, command, cancellationToken).ConfigureAwait(false);
+        }
         if (!_options.OptionTradeLegDataEnabled || !IsResidentCommand(command))
         {
             RemoveResident(threadId);
@@ -223,6 +275,8 @@ public abstract class BaseInMemoryEventSourceCommandActor<TActor, TState>(
             ?? throw new InvalidOperationException($"Expected state {typeof(TState).Name}.");
         try
         {
+            if (committedCache is not null && typedState.Events.Count == 0 && committedOwners.ContainsKey(threadId))
+                await ValidateResidentNoChangeAsync(context, typedState, command, cancellationToken).ConfigureAwait(false);
             await SaveStateToStoreAsync(context, threadId, typedState, command, cancellationToken)
                 .ConfigureAwait(false);
             typedState.AcceptChanges();
@@ -230,6 +284,7 @@ public abstract class BaseInMemoryEventSourceCommandActor<TActor, TState>(
         catch
         {
             // Working state may include events that did not commit. Never serve it again.
+            if (committedOwners.TryGetValue(threadId, out var owner)) owner.Invalidate();
             RemoveResident(threadId);
             throw;
         }
@@ -238,6 +293,7 @@ public abstract class BaseInMemoryEventSourceCommandActor<TActor, TState>(
     protected sealed override async ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(
         ICommandActorContext<TActor> context, ActorThreadId threadId, ICommand command, Exception ex)
     {
+        if (committedOwners.TryGetValue(threadId, out var owner)) owner.Invalidate();
         if (IsResidentCommand(command)) RemoveResident(threadId);
         return await HandleCommandExceptionAsync(context, threadId, command, ex).ConfigureAwait(false);
     }

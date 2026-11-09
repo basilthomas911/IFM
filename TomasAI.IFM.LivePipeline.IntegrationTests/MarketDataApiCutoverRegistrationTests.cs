@@ -37,7 +37,7 @@ public sealed class MarketDataApiCutoverRegistrationTests
         var config = new ConfigurationManager();
         services.AddSingleton<TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts.INatsProducerOptions>(new TomasAI.IFM.Framework.Messaging.NatsJetStream.NatsProducerOptions { Url = "nats://localhost:4222" });
         typeof(CoreServiceRegistration).GetMethod("RegisterRemoteMarketDataRuntimeServices", BindingFlags.NonPublic | BindingFlags.Static)!
-            .Invoke(null, [services, config]);
+            .Invoke(null, [services, config, false]);
         Assert.Single(services, x => x.ServiceType == typeof(IMarketDataApi));
         Assert.DoesNotContain(services, x => x.ServiceType.Name is "DatabentoMarketDataApi" or "IDatabentoMarketDataEpochFactory" or "DatabentoMarketDataWatchdogService" or "DatasetWorkerProcessRecoveryService" or "QualifiedCompositionDiscovery" or "IMarketDataLifecycleRequests");
         Assert.Contains(services, x => x.ServiceType == typeof(IHostedService) && x.ImplementationType == typeof(OptionFeedRecoveryNotificationService));
