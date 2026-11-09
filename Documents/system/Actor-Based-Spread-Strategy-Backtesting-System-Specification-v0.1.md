@@ -1,5 +1,7 @@
 # Actor-Based Spread Strategy Backtesting System
 
+> Current consolidated design discussion: [Application Backtesting System Draft Design](Application-Backtesting-System-Draft-Design-v0.1.md). This earlier document is retained as a source reference; the consolidated draft distinguishes the basic application replay scope from later capabilities and records assumptions requiring review.
+
 ## Business-Domain Design and Specification
 
 **Version:** 0.1  

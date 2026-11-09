@@ -1,0 +1,52 @@
+{
+  "sourceFiles": 11668,
+  "extensions": {
+    ".cs": 10661,
+    ".ps1": 113,
+    ".rs": 894
+  },
+  "apiMembers": 76,
+  "messageDeclarations": 1626,
+  "messageScopes": {
+    "Production": 1529,
+    "Test/research": 97
+  },
+  "messageKinds": {
+    "RecordDeclaration": 1493,
+    "ClassDeclaration": 94,
+    "InterfaceDeclaration": 39
+  },
+  "productionTemporalProperties": 1758,
+  "productionSystemTimeProperties": 218,
+  "productionComputedOrigins": 158,
+  "productionStoredOriginDeclarations": 30,
+  "csharpScopes": {
+    "Production": 2933,
+    "Test/research": 4531
+  },
+  "csharpProductionFiles": 1172,
+  "csharpProductionRoles": {
+    "Direct wall-clock candidate": 941,
+    "Injected clock seam": 502,
+    "Composition/fallback": 124,
+    "Identifier generation": 62,
+    "Physical/mixed timer": 530,
+    "Physical elapsed": 401,
+    "Physical diagnostics": 6,
+    "Legacy path": 306,
+    "Business date": 22,
+    "Timestamp conversion": 6,
+    "Mixed scheduling/timer": 33
+  },
+  "rustScopes": {
+    "Test/research": 588,
+    "Production": 255,
+    "Vendor - excluded": 201
+  },
+  "powershellSites": 78,
+  "originConsumers": 79,
+  "originConsumerProduction": 75,
+  "syntaxDiagnostics": [],
+  "databaseClockCandidateLines": 55,
+  "rustExplicitBusinessClockSites": 65
+}

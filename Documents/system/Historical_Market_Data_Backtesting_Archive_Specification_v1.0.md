@@ -1,5 +1,7 @@
 # Historical Market Data and Backtesting Archive Specification
 
+> Current consolidated design discussion: [Application Backtesting System Draft Design](Application-Backtesting-System-Draft-Design-v0.1.md). This archive document is retained as a source reference; the consolidated draft records current application integration and environment assumptions requiring review, without treating every older deployment choice as implemented.
+
 **Version:** 1.1  
 **Status:** Approved design baseline  
 **Primary implementation platform:** .NET 10 / C# on Windows 11  
