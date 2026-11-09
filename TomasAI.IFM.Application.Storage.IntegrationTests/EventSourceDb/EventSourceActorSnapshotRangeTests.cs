@@ -442,6 +442,59 @@ public class EventSourceActorSnapshotRangeTests(EventSourceActorSnapshotRangeFix
     : IClassFixture<EventSourceActorSnapshotRangeFixture>
 {
     [Theory]
+    [InlineData(EventLogWriteMode.Sequential)]
+    [InlineData(EventLogWriteMode.BinaryCopy)]
+    public async Task New_event_staging_uses_injected_business_time_and_survives_restart(EventLogWriteMode mode)
+    {
+        var clock = new QualificationClock();
+        var stream = NewStream();
+        var source = RangeEvent() with { ReceivedOn = default };
+        await using (var writer = fixture.CreateActorEventDb(new() { WriteMode = mode }, clock))
+            await writer.SaveEventsAsync(stream, Guid.NewGuid(), new DomainEventCollection([source]), 0, CancellationToken.None);
+        Assert.Equal(clock.GetUtcNow().UtcDateTime, source.ReceivedOn);
+        await using var restarted = fixture.CreateActorEventDb();
+        var rows = await restarted.LoadActorEventStreamAsync<TestActorState>(await restarted.GetEventStreamIdAsync(stream));
+        var replayed = Assert.Single(rows).ToDomainEvent();
+        Assert.Equal(source.ReceivedOn, replayed.ReceivedOn);
+        Assert.Equal(MessageOrigins.Get(source), MessageOrigins.Get(replayed));
+        Assert.Equal(clock.GetUtcNow(), MessageOrigins.Get(replayed)!.OriginatedAtUtc);
+    }
+
+    sealed class QualificationClock : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => new(2025, 10, 1, 12, 0, 0, TimeSpan.Zero);
+    }
+
+    [Theory]
+    [InlineData(EventLogWriteMode.Sequential, false)]
+    [InlineData(EventLogWriteMode.Sequential, true)]
+    [InlineData(EventLogWriteMode.BinaryCopy, false)]
+    [InlineData(EventLogWriteMode.BinaryCopy, true)]
+    public async Task Latest_snapshot_and_tail_preserve_each_original_clock_origin_after_context_restart(
+        EventLogWriteMode mode, bool compressed)
+    {
+        var options = new EventLogPersistenceOptions { WriteMode = mode, UseLz4Compression = compressed };
+        var stream = NewStream();
+        var events = new IEvent[] { Snapshot(), RangeEvent(), Snapshot(), RangeEvent() };
+        var origins = events.Select((value, index) => new MessageOrigin(
+            new DateTimeOffset(2025, 11, 3, 12, 0, index, TimeSpan.Zero), "qualification-business",
+            generation: Guid.NewGuid())).ToArray();
+        for (var i = 0; i < events.Length; i++) MessageOrigins.Restore(events[i], origins[i]);
+        await using (var writer = fixture.CreateActorEventDb(options))
+            await writer.SaveEventsAsync(stream, Guid.NewGuid(), new DomainEventCollection(events), 0, CancellationToken.None);
+        await using var reader = fixture.CreateActorEventDb(options);
+        var streamId = await reader.GetEventStreamIdAsync(stream);
+        var rows = (await reader.GetEventsFromSnapshotAsync<FuturesRsiSignalStartedEvent>(streamId)).ToArray();
+        Assert.Equal(2, rows.Length);
+        for (var i = 0; i < rows.Length; i++)
+        {
+            Assert.Equal(origins[i + 2], rows[i].Origin);
+            Assert.Equal(origins[i + 2], MessageOrigins.Get(rows[i].ToDomainEvent()));
+            Assert.Equal(0x93, rows[i].EventData[0]);
+        }
+    }
+
+    [Theory]
     [InlineData(EventLogWriteMode.Sequential, false)]
     [InlineData(EventLogWriteMode.BinaryCopy, true)]
     public async Task Frozen_write_identity_is_used_by_appenders_and_latest_snapshot_lookup(EventLogWriteMode mode, bool compressed)
@@ -1151,6 +1204,7 @@ public class EventSourceActorSnapshotRangeTests(EventSourceActorSnapshotRangeFix
         var streamId = await fixture.ActorEventDb.GetEventStreamIdAsync(stream);
         var projectorName = $"OutboxProjector.{Guid.NewGuid():N}";
         var nowUtc = DateTime.UtcNow;
+        var origin = new MessageOrigin(new DateTimeOffset(2025, 10, 1, 12, 0, 0, TimeSpan.Zero), "test-business");
         (await fixture.ActorEventDb.TryCreateEventProjectorExecutionStateAsync(
             NewExecutionState(persisted.EventId, streamId, projectorName, nowUtc))).Should().NotBeNull();
         var ownerToken = Guid.NewGuid();
@@ -1175,7 +1229,7 @@ public class EventSourceActorSnapshotRangeTests(EventSourceActorSnapshotRangeFix
                 EventProjectorStageType.ApplyProjection,
                 EventProjectorOutcomeType.Processing,
                 EventProjectorStageType.PublishProcessingEvent),
-            new EventProjectorOutboxMessage(identity, typeof(FuturesRsiSignalGeneratedEvent).AssemblyQualifiedName!, [1, 2, 3]),
+            new EventProjectorOutboxMessage(identity, typeof(FuturesRsiSignalGeneratedEvent).AssemblyQualifiedName!, [1, 2, 3], origin),
             nowUtc.AddSeconds(1));
 
         transitioned.Should().NotBeNull();
@@ -1188,6 +1242,7 @@ public class EventSourceActorSnapshotRangeTests(EventSourceActorSnapshotRangeFix
             TimeSpan.FromMinutes(1),
             8);
         claimed.Should().ContainSingle();
+        Assert.Equal(origin, claimed[0].Origin);
         claimed[0].MessageId.Should().Be(identity.MessageId);
         claimed[0].DispatchToken.Should().Be(firstDispatchToken);
 

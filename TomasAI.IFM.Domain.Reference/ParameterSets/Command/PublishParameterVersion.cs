@@ -39,7 +39,7 @@ public static class PublishParameterVersion
                 return Task.FromResult<ServiceResult<GuidResult>>(new ServiceOk<GuidResult>(new(command.CommandId)));
             }
             var errorMsg = "ParameterSet.STATE.APPLY_FAILED: unable to apply PublishParameterVersion event";
-            command.Compute(state, hash, out var parameterChange);
+            command.Compute(state, hash, out var parameterChange, context.DbEventSource?.BusinessClock);
             if (parameterChange.RejectionReason is null && parameterChange.ParameterVersion is { } version
                 && string.Equals(version.Reference.ComponentCode, ParameterSchemaRegistry.StrategyOptionChainCacheComponent, StringComparison.Ordinal))
             {
@@ -68,12 +68,12 @@ public static class PublishParameterVersion
         /// <param name="hash">The request identity hash.</param>
         /// <param name="parameterChange">The proposed business change or rejection reason.</param>
         /// <returns>True when computation succeeds; otherwise false with its business rejection.</returns>
-        internal bool Compute(ParameterSetCommandState state, string hash, out ParameterVersionChange parameterChange)
+        internal bool Compute(ParameterSetCommandState state, string hash, out ParameterVersionChange parameterChange, TimeProvider? clock = null)
         {
             try
             {
-                var parameterVersion = ParameterMutationModel.Decide(command, state.CatalogRevision, state.Versions, DateTime.UtcNow);
-                parameterChange = new(parameterVersion, state.CatalogRevision + 1, hash, ParameterAuditModel.ForSet(command, state.Versions, parameterVersion));
+                var parameterVersion = ParameterMutationModel.Decide(command, state.CatalogRevision, state.Versions, (clock ?? TimeProvider.System).GetUtcNow().UtcDateTime);
+                parameterChange = new(parameterVersion, state.CatalogRevision + 1, hash, ParameterAuditModel.ForSet(command, state.Versions, parameterVersion, clock));
                 return true;
             }
             catch (Exception rejection) when (rejection is ArgumentException or InvalidOperationException or KeyNotFoundException)

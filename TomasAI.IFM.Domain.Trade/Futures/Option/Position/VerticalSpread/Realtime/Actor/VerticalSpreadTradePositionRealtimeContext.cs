@@ -8,8 +8,8 @@ namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.VerticalSpread.Realti
 public sealed class VerticalSpreadTradePositionRealtimeContext : EventActorContext, IVerticalSpreadTradePositionRealtimeContext
 {
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "This typed context adapts services for its actor and intentionally retains the actor logger category.")]
-    public VerticalSpreadTradePositionRealtimeContext(IActorSupervisor supervisor, ILogger<VerticalSpreadTradePositionRealtimeActor> logger) : base(supervisor, new(ActorType.Realtime, VerticalSpreadTradePositionRealtimeActor.ActorName)) => Logger = logger;
-    public TimeProvider TimeProvider { get; } = TimeProvider.System;
+    public VerticalSpreadTradePositionRealtimeContext(IActorSupervisor supervisor, ILogger<VerticalSpreadTradePositionRealtimeActor> logger, TimeProvider? timeProvider = null) : base(supervisor, new(ActorType.Realtime, VerticalSpreadTradePositionRealtimeActor.ActorName)) { Logger = logger; TimeProvider = timeProvider ?? TimeProvider.System; }
+    public TimeProvider TimeProvider { get; }
     public TradePlanParameters Parameters { get; } = new();
     public ILogger<VerticalSpreadTradePositionRealtimeActor> Logger { get; }
 }

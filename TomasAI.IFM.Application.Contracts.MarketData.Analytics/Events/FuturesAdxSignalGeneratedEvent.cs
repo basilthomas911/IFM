@@ -111,7 +111,7 @@ public record FuturesAdxSignalGeneratedEvent : IEvent<FuturesAdxSignalEntityId>
             Subject = new ActorSubject(ActorType.Event, FuturesAdxSignalGeneratedFailEvent.Actor, FuturesAdxSignalGeneratedFailEvent.Verb, this.Subject.EntityId),
             EntityId = this.EntityId,
             Id = this.Id,
-            ErrorDate = DateTime.UtcNow,
+            ErrorDate = default,
             EventId = this.EventId,
             CommandId = this.CommandId == Guid.Empty ? Guid.NewGuid() : this.CommandId,
             EventSource = this.EventSource,

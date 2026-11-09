@@ -26,7 +26,7 @@ public class LookupTypeCommandState : BaseEventSourceActorState<LookupTypeComman
         Id = Guid.NewGuid(),
         CommandId = command.CommandId,
         EventSource = command.EventSource,
-        ReceivedOn = DateTime.UtcNow,
+
         Entries = new Dictionary<LookupTypeId, LookupTypeReadModel>(_lookupTypes)
     };
 

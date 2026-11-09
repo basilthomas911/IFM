@@ -52,11 +52,11 @@ public static class RequestDatabaseRestoreDrill
                 EnsureExpectedRevision(state.Operation, command.ExpectedStateRevision);
                 // Existing callers supply the profile and logical validation target in these fields.
                 // Materialize the executable descriptor before creating any source events.
-                command = command with
+                command = global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(command, command with
                 {
                     FreshTarget = command.FreshTarget ?? new DatabaseFreshTargetDescriptor(command.DisposableTargetProfile, command.ValidationProfile),
                     RestoreClass = DatabaseRestoreClass.Drill
-                };
+                });
                 List<DatabaseBackupChange> lifecycleChanges = [];
                 EnsureNewOperation(state.Operation, command.EntityId);
                 var source = Source(command, state.Operation, DatabaseRecoveryOperationKind.RestoreDrill, DatabaseRecoveryPhase.Requested);

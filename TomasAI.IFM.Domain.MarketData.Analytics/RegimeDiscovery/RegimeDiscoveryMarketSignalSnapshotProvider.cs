@@ -6,10 +6,11 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.RegimeDiscovery;
 namespace TomasAI.IFM.Domain.MarketData.Analytics.RegimeDiscovery;
 
 /// <summary>Provides atomic, revision-stable Regime Discovery snapshots from process-local latest signals.</summary>
-public sealed class RegimeDiscoveryMarketSignalSnapshotProvider
+public sealed class RegimeDiscoveryMarketSignalSnapshotProvider(TimeProvider? timeProvider = null)
     : IRegimeDiscoveryMarketSignalSnapshotProvider,
       IRegimeDiscoveryMarketSignalCache
 {
+    readonly TimeProvider businessClock = timeProvider ?? TimeProvider.System;
     static readonly ConcurrentDictionary<MarketAnalyticsSignalKey, RegimeDiscoverySignalObservation> Observations = new();
     static long revision;
 
@@ -68,7 +69,7 @@ public sealed class RegimeDiscoveryMarketSignalSnapshotProvider
         {
             cancellationToken.ThrowIfCancellationRequested();
             var before = Revision;
-            var capturedAt = DateTime.UtcNow;
+            var capturedAt = businessClock.GetUtcNow().UtcDateTime;
             var evaluated = request.Requirements
                 .OrderBy(value => value.TimeFrame)
                 .ThenBy(value => value.Metric)

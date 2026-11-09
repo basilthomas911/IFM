@@ -14,10 +14,10 @@ public sealed class MarketConditionFunctionContext : FunctionActorContext, IMark
     readonly Lazy<IFunctionProjector<MarketConditionAssessmentCompletedEvent>> _projector;
     readonly Lazy<IMarketConditionAssessmentSnapshotProvider> _snapshots;
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "This typed context adapts services for its actor and intentionally retains the actor logger category.")]
-    public MarketConditionFunctionContext(IActorSupervisor supervisor, ILogger<MarketConditionFunctionActor> logger) : base(supervisor, new ActorMailboxId(ActorType.Function, MarketConditionFunctionActor.ActorName))
+    public MarketConditionFunctionContext(IActorSupervisor supervisor, ILogger<MarketConditionFunctionActor> logger, TimeProvider? timeProvider = null) : base(supervisor, new ActorMailboxId(ActorType.Function, MarketConditionFunctionActor.ActorName))
     {
         Logger = IsArgumentNull.Set(logger);
-        TimeProvider = TimeProvider.System;
+        TimeProvider = timeProvider ?? TimeProvider.System;
         _repository = new(() => Container.Resolve<IEventSourceFunctionStateRepository<MarketConditionAssessmentState, ExecuteMarketConditionAssessmentCommand>>());
         _projector = new(() => Container.Resolve<IFunctionProjector<MarketConditionAssessmentCompletedEvent>>());
         _snapshots = new(() => Container.Resolve<IMarketConditionAssessmentSnapshotProvider>());

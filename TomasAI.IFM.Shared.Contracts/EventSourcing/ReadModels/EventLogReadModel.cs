@@ -9,6 +9,7 @@ public record EventLogReadModel(
     byte[] EventData,
     Guid CommandId,
     string EventTimestamp,
-    long StreamVersion = 0)
+    long StreamVersion = 0,
+    TomasAI.IFM.Shared.EventModelActor.MessageOrigin? Origin = null)
 {
 }

@@ -8,8 +8,9 @@ using static TomasAI.IFM.Domain.Portfolio.Financial.Repository.FinancialReposito
 namespace TomasAI.IFM.Domain.Portfolio.Financial.Repository;
 
 /// <summary>Internal durable export outbox. Remote delivery changes only its checkpoint, never journals, balances or capacity.</summary>
-public sealed class AccountingExportStore(IPostgresEventTransaction transactions)
+public sealed class AccountingExportStore(IPostgresEventTransaction transactions, TimeProvider? timeProvider = null)
 {
+    readonly TimeProvider businessClock = timeProvider ?? TimeProvider.System;
     public Task<AccountingExportReceipt> PrepareAsync(AccountingExportRequest request, FinancialAccess access,
         Func<AccountingExportRequest, IReadOnlyList<AccountingJournalSource>, AccountingExportPayload> build, CancellationToken token = default)
     {
@@ -63,7 +64,7 @@ public sealed class AccountingExportStore(IPostgresEventTransaction transactions
             foreach (var source in request.JournalIds)
                 await (db.ExecuteAsync(PortfolioDbSql.Financial.AccountingExportStore.Insert02, [request.Mapping.DestinationCompany, source, request.ExportId], ct)).ConfigureAwait(false);
             var sourceEvent=new AccountingExportSnapshotEvent { Id=Guid.NewGuid(),CommandId=request.ExportId,
-                AggregateId=request.ExportId.ToString("N"),ReceivedOn=DateTime.UtcNow,PortfolioId=request.PortfolioId,PreparedRequest=request,Receipt=receipt };
+                AggregateId=request.ExportId.ToString("N"),ReceivedOn=businessClock.GetUtcNow().UtcDateTime,PortfolioId=request.PortfolioId,PreparedRequest=request,Receipt=receipt };
             await (FinancialOperationalEventPersistence.AppendAsync(db,Stream(request.Mapping.DestinationCompany,request.ExportId),sourceEvent,request.PortfolioId,ct)).ConfigureAwait(false);
             return receipt;
         }, token);
@@ -106,7 +107,7 @@ public sealed class AccountingExportStore(IPostgresEventTransaction transactions
             var next = current with { Attempts = checked(current.Attempts + 1), DeliveryStatus = string.Equals(outcome,"Delivered",StringComparison.Ordinal) ? "Delivered" : "Pending", ExternalReceipt = externalReceipt };
             await (db.ExecuteAsync(PortfolioDbSql.Financial.AccountingExportStore.Update01, [company, exportId, next.Attempts, next.DeliveryStatus, next.ExternalReceipt], ct)).ConfigureAwait(false);
             var sourceEvent=new AccountingExportSnapshotEvent { Id=Guid.NewGuid(),CommandId=attemptId,AggregateId=exportId.ToString("N"),
-                ReceivedOn=DateTime.UtcNow,PortfolioId=portfolioId,Receipt=next,AttemptId=attemptId,Outcome=outcome };
+                ReceivedOn=businessClock.GetUtcNow().UtcDateTime,PortfolioId=portfolioId,Receipt=next,AttemptId=attemptId,Outcome=outcome };
             await (FinancialOperationalEventPersistence.AppendAsync(db,Stream(company,exportId),sourceEvent,portfolioId,ct)).ConfigureAwait(false);
             return next;
         }, token);

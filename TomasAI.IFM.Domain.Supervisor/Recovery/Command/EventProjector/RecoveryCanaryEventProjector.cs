@@ -32,7 +32,7 @@ public sealed class RecoveryCanaryEventProjector(
                 EntityId = recorded.EntityId,
                 CommandId = recorded.CommandId,
                 AggregateId = recorded.AggregateId,
-                ReceivedOn = DateTime.UtcNow,
+
                 CorrelationId = recorded.CorrelationId,
                 GenerationId = recorded.GenerationId,
                 ValueDate = recorded.ValueDate,

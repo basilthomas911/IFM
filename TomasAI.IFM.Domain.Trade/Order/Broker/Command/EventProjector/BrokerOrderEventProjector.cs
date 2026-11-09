@@ -20,12 +20,14 @@ namespace TomasAI.IFM.Domain.Trade.Order.Broker.Command.EventProjector;
 /// <summary>Dispatches only committed BrokerOrder mutation intents and records the local receipt.</summary>
 public sealed class BrokerOrderEventProjector : ConventionalEventProjector<BrokerOrderCommandActor>
 {
+    private readonly TimeProvider businessClock;
     private static readonly TimeSpan DispatchTimeout = TimeSpan.FromSeconds(15);
     private readonly IBrokerOrderCommandContext _context;
     private readonly ImmutableArray<EventProjectionDescriptor> _descriptors;
-    public BrokerOrderEventProjector(ICommandActorContext<BrokerOrderCommandActor> actorContext, EventProjectorReliabilityOptions? options = null) : base(Typed(actorContext).DurableReplayQueue, Typed(actorContext).DbEventSource, Typed(actorContext).Logger, options)
+    public BrokerOrderEventProjector(ICommandActorContext<BrokerOrderCommandActor> actorContext, EventProjectorReliabilityOptions? options = null, TimeProvider? timeProvider = null) : base(Typed(actorContext).DurableReplayQueue, Typed(actorContext).DbEventSource, Typed(actorContext).Logger, options)
     {
         _context = Typed(actorContext);
+        businessClock = timeProvider ?? TimeProvider.System;
         _descriptors = [DescribeNotification<BrokerOrderChangedEvent, BrokerOrderId>(ProjectAsync).WithReadModelRebuild((source, _) =>
         {
             _context.ReadStore.Set(((BrokerOrderChangedEvent)source).BrokerOrderDefinition);
@@ -65,7 +67,7 @@ public sealed class BrokerOrderEventProjector : ConventionalEventProjector<Broke
         catch (Exception error) when (error is TimeoutException or IOException or OperationCanceledException)
         {
             receipt = new(BrokerDispatchOutcome.OutcomeUnknown, changed.BrokerOrderDefinition.OperationId,
-                changed.EntityId.Format(), "BROKER.DISPATCH.UNCONFIRMED", error.Message, DateTime.UtcNow);
+                changed.EntityId.Format(), "BROKER.DISPATCH.UNCONFIRMED", error.Message, businessClock.GetUtcNow().UtcDateTime);
         }
         if (receipt.OperationId != changed.BrokerOrderDefinition.OperationId ||
             !string.Equals(receipt.BrokerOrderId, changed.EntityId.Format(), StringComparison.Ordinal))
@@ -80,7 +82,7 @@ public sealed class BrokerOrderEventProjector : ConventionalEventProjector<Broke
             Outcome = (BrokerDispatchResult)receipt.Outcome,
             Category = receipt.Category,
             Detail = receipt.Detail,
-            RecordedAtUtc = receipt.RecordedAtUtc.Kind == DateTimeKind.Utc ? receipt.RecordedAtUtc : DateTime.UtcNow
+            RecordedAtUtc = receipt.RecordedAtUtc.Kind == DateTimeKind.Utc ? receipt.RecordedAtUtc : businessClock.GetUtcNow().UtcDateTime
         };
         var result = await _context.ActorService.SendAsync<RecordBrokerDispatchCommand, BrokerOrderId>(command, command.EntityId).ConfigureAwait(false);
         if (!result.Success)

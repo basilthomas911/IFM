@@ -28,6 +28,7 @@ public sealed class CreationSnapshotQueryPlanTests(EventSourceActorSnapshotRange
                 SELECT 1,7,i,decode('00','hex'),'00000000-0000-0000-0000-000000000001','2026-11-03',i
                 FROM generate_series(1,100000) i;
             INSERT INTO creation_plan_events VALUES(2,7,100001,decode('00','hex'),'00000000-0000-0000-0000-000000000001','2026-11-03',1);
+            ALTER TABLE creation_plan_events ADD COLUMN MessageOriginJson text;
             ANALYZE creation_plan_events; ANALYZE creation_plan_streams; ANALYZE creation_plan_names;
             SET plan_cache_mode=force_generic_plan;
             """, connection))

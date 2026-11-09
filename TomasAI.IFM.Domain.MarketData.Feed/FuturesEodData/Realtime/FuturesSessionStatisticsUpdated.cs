@@ -128,7 +128,7 @@ public static class FuturesSessionStatisticsUpdated
             CommandId = source.CommandId,
             AggregateId = source.AggregateId,
             EventSource = nameof(FuturesSessionStatisticsUpdatedRealtimeEvent),
-            ReceivedOn = DateTime.UtcNow,
+
             FuturesEodData = updated,
             CreatedOn = DateTime.UtcNow,
             CreatedBy = source.UserName

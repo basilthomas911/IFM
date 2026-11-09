@@ -429,3 +429,24 @@ The IFM messaging model is based on semantic roles rather than caller-selected t
 - `Function` provides bounded request/reply execution with a direct typed complete/fail result and no terminal publication.
 
 This convention provides one transport per actor type, one publication per message, explicit handoffs between messaging roles, and a clear distinction between workflow participants and observers.
+
+
+## Shared clock and origin metadata
+
+New messages capture `MessageOrigin` once from their owning injected `TimeProvider` before first staging, persistence or publication. Commands, events, queries and newly constructed replies follow this rule. A configured clock may implement `IMessageClockIdentity` to declare its immutable domain, RunId and generation. The live default remains `TimeProvider.System`; no process-global virtual clock is introduced.
+
+`MessageOrigins` associates provenance without inserting base MessagePack keys or changing payload equality, retry hashes or source timestamps. An ignored `OriginatedOn` compatibility getter reads captured origin; it never reads the wall clock. Pure event factories leave missing receipt times for the owner to fill at staging. Preserve supplied exchange/event/receipt facts. Do not assign a computed read-only ErrorDate or fabricate its underlying source fact.
+
+Transport uses the additive `Ifm-Message-Origin-V1` header independently of Activity/tracing. Existing numeric payload keys stay unchanged. Copies that forward the same message use `MessageOrigins.Copy`; a newly derived message captures its own origin. New replies use their own clock domain rather than copying a caller's clock identity. Restored legacy messages with no origin remain explicitly unknown on forwarding and retry.
+
+The event log, command audit and projector outbox persist nullable per-message provenance atomically alongside their existing immutable bytes. Latest-snapshot-plus-tail reads restore each row's own metadata. Retained native snapshots carry provenance beside unchanged frame bodies; older native exports and snapshots remain readable as unknown origin. Accounting-intent payload wrappers retain the command origin separately from the economic request and byte hash.
+
+Business clocks govern valuation, freshness, expiry, trade/financial effective dates and logical schedules. Physical clocks and monotonic durations govern socket/DB waits, recovery leases, shutdown, diagnostics and execution watchdogs. `PhysicalTime`, `ClockDeadline` and Function execution policy keep those roles separate; paused logical time must not disable IO cancellation. Administrative UI/raw-database requests use a physical `control` origin and never infer a trading ValueDate from workstation time.
+
+Core backtesting remains separately authorized work. These conventions do not authorize a historical source, replay loop, database reset or Backtesting UI.
+
+### Producer preparation and RPC values
+
+When producer preparation sometimes keeps a command ID and sometimes allocates a new one, use `MessageOrigins.CopyCommandIfSameIdentity(source, prepared)`. A nonempty unchanged command identity preserves known or explicitly unknown origin; a newly allocated identity is captured independently by its owner. A plain record `with` copy does not carry weakly associated metadata.
+
+RPC creation provenance belongs to each request/reply envelope. Do not attach envelope metadata to arbitrary decoded values: empty arrays and other cached values can be shared across unrelated calls. Explicit market-data per-frame sidecars carry their own source provenance. Missing optional causation is null, rather than `Guid.Empty`; immutable metadata validation remains strict.

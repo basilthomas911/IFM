@@ -41,6 +41,7 @@ internal sealed class ScheduledTaskScenario
     internal ScheduledTaskDefinition Definition => DefinitionState.ScheduledTaskDefinition!;
     internal ScheduledTaskRun Run => RunState.ScheduledTaskRun!;
     internal ScheduledTaskCatalog Catalog => CatalogState.ScheduledTaskCatalog!;
+    private readonly ScenarioClock clock = new();
     private readonly ScheduledTaskCommandContext _definitionContext;
     private readonly ScheduledTaskRunCommandContext _runContext;
     private readonly ScheduledTaskCatalogCommandContext _catalogContext;
@@ -48,7 +49,6 @@ internal sealed class ScheduledTaskScenario
     internal ScheduledTaskScenario(string taskKey = "qualification")
     {
         TaskKey = taskKey;
-        var clock = new ScenarioClock();
         var supervisor = Substitute.For<IActorSupervisor>();
         _definitionContext = new(supervisor, Substitute.For<IEventSourceActorStateRepository<ScheduledTaskCommandState>>(),
             Substitute.For<IEventProjector<ScheduledTaskCommandActor>>(), NullLogger<ScheduledTaskCommandActor>.Instance, clock);
@@ -94,8 +94,7 @@ internal sealed class ScheduledTaskScenario
         static TState Restore<TState>(TState previous) where TState : BaseEventSourceActorState<TState>, new()
         {
             var restored = new TState { Id = previous.Id };
-            restored.ReplayEvents(previous.Events.Select(source => (IEvent)MessagePackSerializer.Deserialize(source.GetType(),
-                MessagePackSerializer.Serialize(source.GetType(), source))!));
+            restored.ReplayEvents(previous.Events.Select(RoundTrip));
             return restored;
         }
     }
@@ -103,9 +102,11 @@ internal sealed class ScheduledTaskScenario
     // Every scenario enters through the public concrete handler after deserializing its message.
     internal ServiceResult<GuidResult> Send(ICommand<ScheduledTaskId> command)
     {
+        var origin = MessageOrigins.ForPublication(command, clock, "scheduler-bdd");
         var received = (ICommand<ScheduledTaskId>)MessagePackSerializer.Deserialize(command.GetType(),
             MessagePackSerializer.Serialize(command.GetType(), command))!;
-        return received switch
+        MessageOrigins.Restore(received, MessageOriginJson.Deserialize(MessageOriginJson.Serialize(origin)));
+        var result = received switch
         {
             CreateScheduledTaskCommand c => c.Execute(_definitionContext, DefinitionState),
             ChangeScheduledTaskScheduleCommand c => c.Execute(_definitionContext, DefinitionState),
@@ -127,6 +128,17 @@ internal sealed class ScheduledTaskScenario
             RecordScheduledTaskHostCapabilityCommand c => c.Execute(_catalogContext, CatalogState),
             _ => throw new ArgumentException($"Scenario has no handler for {command.CommandName}.", nameof(command))
         };
+        foreach (var source in DefinitionState.Events.Concat(RunState.Events).Concat(CatalogState.Events))
+            MessageOrigins.ForPublication(source, clock, "scheduler-bdd");
+        return result;
+    }
+
+    private static IEvent RoundTrip(IEvent source)
+    {
+        var restored = (IEvent)MessagePackSerializer.Deserialize(source.GetType(),
+            MessagePackSerializer.Serialize(source.GetType(), source))!;
+        return MessageOrigins.Restore(restored,
+            MessageOriginJson.Deserialize(MessageOriginJson.Serialize(MessageOrigins.Get(source))));
     }
 
     internal CreateScheduledTaskCommand Create() => new()
@@ -308,8 +320,7 @@ internal sealed class ScheduledTaskScenario
         Assert.Equal(previousRevision + 1, Revision(snapshot));
         then(snapshot);
         var replayed = new TState();
-        replayed.ReplayEvents(history.Append(source).Select(e => (IEvent)MessagePackSerializer.Deserialize(e.GetType(),
-            MessagePackSerializer.Serialize(e.GetType(), e))!));
+        replayed.ReplayEvents(history.Append(source).Select(RoundTrip));
         Assert.Equivalent(snapshot, read(replayed), strict: true);
         Assert.Empty(replayed.Events);
         Assert.False(replayed.Updated);

@@ -9,8 +9,13 @@ namespace TomasAI.IFM.Framework.Messaging.Nats;
 /// <summary>
 /// GC-owned byte-array adapter retained while query and event payload ownership is migrated in later stages.
 /// </summary>
-public sealed class LegacyNatsActorMessage(NatsMsg<byte[]> message) : IActorMessage
+public sealed class LegacyNatsActorMessage(NatsMsg<byte[]> message, TimeProvider? timeProvider = null) : IActorMessage
 {
+    public MessageOrigin? Origin { get; } = MessageOriginHeaders.Read(message.Headers);
+
+    T? RestoreOrigin<T>(T? value) where T : class
+        => value is null ? null : MessageOrigins.Restore(value, Origin);
+
     public int AdmissionSizeBytes => message.Data?.Length ?? 0;
 
     public bool CanReply => !string.IsNullOrEmpty(message.ReplyTo);
@@ -20,22 +25,24 @@ public sealed class LegacyNatsActorMessage(NatsMsg<byte[]> message) : IActorMess
     public ActorSubject ReplySubject { get; set; } = default!;
 
     public TCommand? AsCommand<TCommand>() where TCommand : class, ICommand
-        => ActorExtensions.DataSerializer.Deserialize<TCommand>(message.Data!);
+        => RestoreOrigin(ActorExtensions.DataSerializer.Deserialize<TCommand>(message.Data!));
 
     public TEvent? AsEvent<TEvent>() where TEvent : class, IEvent
-        => ActorExtensions.DataSerializer.Deserialize<TEvent>(message.Data!);
+        => RestoreOrigin(ActorExtensions.DataSerializer.Deserialize<TEvent>(message.Data!));
 
     public TQuery? AsQuery<TQuery, TResult>()
         where TQuery : class, IQuery<TResult>
         where TResult : class
-        => ActorExtensions.DataSerializer.Deserialize<TQuery>(message.Data!);
+        => RestoreOrigin(ActorExtensions.DataSerializer.Deserialize<TQuery>(message.Data!));
 
     public async ValueTask ReplyAsync<TResult>(TResult result) where TResult : class
     {
         if (string.IsNullOrEmpty(message.ReplyTo))
             return;
         var data = ActorExtensions.DataSerializer.Serialize(result);
-        await message.ReplyAsync(data, serializer: NatsActorExtensions.MsgSerializer).ConfigureAwait(false);
+        await message.ReplyAsync(data,
+            headers: MessageOriginHeaders.Add(null, MessageOrigins.ForPublication(result, timeProvider ?? TimeProvider.System)),
+            serializer: NatsActorExtensions.MsgSerializer).ConfigureAwait(false);
     }
 
     public void ReleasePayload()

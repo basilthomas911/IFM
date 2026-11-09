@@ -49,6 +49,7 @@ public static class NativeBackendServices
         public void AddNativeMarketDataBackend(IConfiguration config)
         {
             services.TryAddSingleton(TimeProvider.System);
+            services.TryAddSingleton<TomasAI.IFM.Shared.Time.PhysicalTime>();
             services.AddSingleton<TomasAI.IFM.Application.MarketData.Recovery.OptionFeedProcessingHealth>();
             var profile = Enum.Parse<FeedDeploymentProfile>(config["MarketDataHost:DeploymentProfile"] ?? config["AppSettings:Databento:DeploymentProfile"] ?? "Development", true);
             var feed = DatabentoFeedOptions.ForProfile(profile, config["AppSettings:Databento:Dataset"] ?? "GLBX.MDP3") with { DataSource = FeedDataSourceMode.DatabentoLive };

@@ -141,7 +141,7 @@ public static partial class CoreServiceRegistration
         services.AddSingleton(provider => new TomasAI.IFM.Domain.SystemAdmin.MarketClose.MarketCloseCoordinator(
             provider.GetRequiredService<TomasAI.IFM.Domain.MarketData.Shared.IFuturesMarketSessionAuthority>(),
             provider.GetRequiredService<TomasAI.IFM.Domain.SystemAdmin.MarketClose.IMarketCloseOperations>(),
-            TimeProvider.System, provider.GetRequiredService<ILogger<TomasAI.IFM.Domain.SystemAdmin.MarketClose.MarketCloseCoordinator>>()));
+            provider.GetRequiredService<TimeProvider>(), provider.GetRequiredService<ILogger<TomasAI.IFM.Domain.SystemAdmin.MarketClose.MarketCloseCoordinator>>()));
         services.AddSingleton<IApplicationCommandApi>(provider =>
         new TomasAI.IFM.Application.Api.Nats.Client.ApplicationCommandApi(
         provider.GetRequiredService<IActorProducer>()));

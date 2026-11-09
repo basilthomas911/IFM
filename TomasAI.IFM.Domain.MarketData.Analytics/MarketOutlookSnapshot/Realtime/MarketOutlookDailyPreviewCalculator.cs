@@ -24,7 +24,7 @@ public static class MarketOutlookDailyPreviewCalculator
         FuturesMarketPriceUpdatedRealtimeEvent source,
         out FuturesEmaSignalReadModel ema,
         out FuturesBbSignalReadModel bb,
-        out decimal? priorStandardDeviation)
+        out decimal? priorStandardDeviation, TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(source);
         ema = default!;
@@ -48,7 +48,7 @@ public static class MarketOutlookDailyPreviewCalculator
         var intervalEnd = marketTime > emaBaseline.LastIntervalEndUtc
             ? marketTime.AddTicks(1)
             : emaBaseline.LastIntervalEndUtc.AddTicks(1);
-        var observation = CreateObservation(source, trade, committedEma.Metadata.MarketSeriesIdentity, marketTime, intervalEnd);
+        var observation = CreateObservation(source, trade, committedEma.Metadata.MarketSeriesIdentity, marketTime, intervalEnd, (timeProvider ?? TimeProvider.System).GetUtcNow());
         var emaResult = FuturesEmaAccumulator.Apply(emaBaseline, observation);
         if (emaResult.FuturesEmaSignal is not { } previewEma)
             return false;
@@ -73,7 +73,7 @@ public static class MarketOutlookDailyPreviewCalculator
     }
     /// <summary>Creates one provisional daily bar from the current trade without changing committed daily state.</summary>
     static FuturesTradeSessionBarReadModel CreateObservation(FuturesMarketPriceUpdatedRealtimeEvent source,
-        FuturesMarketTradeSnapshot trade, MarketSeriesIdentity series, DateTimeOffset marketTime, DateTimeOffset intervalEnd)
+        FuturesMarketTradeSnapshot trade, MarketSeriesIdentity series, DateTimeOffset marketTime, DateTimeOffset intervalEnd, DateTimeOffset calculatedAtUtc)
     {
         var intervalStart = intervalEnd.AddDays(-1);
         return new FuturesTradeSessionBarReadModel
@@ -100,7 +100,7 @@ public static class MarketOutlookDailyPreviewCalculator
             LastSourceSequence = trade.SourceSequence,
             FirstMarketEventUtc = marketTime,
             LastMarketEventUtc = marketTime,
-            CalculatedAtUtc = DateTimeOffset.UtcNow,
+            CalculatedAtUtc = calculatedAtUtc,
             SchemaVersion = 1,
             CalculationVersion = "market-outlook-live-preview-v1",
             IsComplete = false,

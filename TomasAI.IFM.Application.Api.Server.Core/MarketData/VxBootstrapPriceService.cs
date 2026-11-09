@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.MarketData.Databento.Workers;
 using TomasAI.IFM.Application.Storage;
@@ -10,8 +10,9 @@ namespace TomasAI.IFM.Application.Api.Server.Core.MarketData;
 
 /// <summary>Restores the last VX observation asynchronously; never turns historical estimates into live-feed evidence.</summary>
 public sealed class VxBootstrapPriceService(DatasetWorkerCurrentValues cache, DatasetDesiredSubscriptionRegistry subscriptions,
-    IDbContextFactory storage, IMarketDataHistoricalProvider historical, ILogger<VxBootstrapPriceService> logger) : BackgroundService
+    IDbContextFactory storage, IMarketDataHistoricalProvider historical, ILogger<VxBootstrapPriceService> logger, TimeProvider? timeProvider = null) : BackgroundService
 {
+    readonly TimeProvider businessClock = timeProvider ?? TimeProvider.System;
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         DateTimeOffset retryAt = default;
@@ -19,13 +20,13 @@ public sealed class VxBootstrapPriceService(DatasetWorkerCurrentValues cache, Da
         {
             try
             {
-                if (cache.ActiveValueDate is { } date && DateTimeOffset.UtcNow >= retryAt)
+                if (cache.ActiveValueDate is { } date && businessClock.GetUtcNow() >= retryAt)
                 {
-                    var vx = subscriptions.CaptureCurrentRecoverySnapshot(date, TimeProvider.System).Manifests
+                    var vx = subscriptions.CaptureCurrentRecoverySnapshot(date, businessClock).Manifests
                         .SelectMany(manifest => manifest.Contracts).FirstOrDefault(contract => contract.RootSymbol == "VX" && contract.OnTheRun);
                     if (vx is not null && (!cache.TryGetLastTickPrice(vx.DomainContractId, out var current) || current.Trade is null))
                     {
-                        retryAt = DateTimeOffset.UtcNow.AddMinutes(1);
+                        retryAt = businessClock.GetUtcNow().AddMinutes(1);
                         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
                         deadline.CancelAfter(TimeSpan.FromSeconds(30));
                         var seed = await LoadAsync(vx, date, deadline.Token).ConfigureAwait(false);
@@ -36,7 +37,7 @@ public sealed class VxBootstrapPriceService(DatasetWorkerCurrentValues cache, Da
                 }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
-            catch (Exception exception) { logger.LogWarning(exception, "VX bootstrap unavailable; live feed and recovery continue, retrying in one minute."); retryAt = DateTimeOffset.UtcNow.AddMinutes(1); }
+            catch (Exception exception) { logger.LogWarning(exception, "VX bootstrap unavailable; live feed and recovery continue, retrying in one minute."); retryAt = businessClock.GetUtcNow().AddMinutes(1); }
             await Task.Delay(TimeSpan.FromSeconds(1), stoppingToken).ConfigureAwait(false);
         }
     }
@@ -54,14 +55,14 @@ public sealed class VxBootstrapPriceService(DatasetWorkerCurrentValues cache, Da
                     DateTimeOffset.UnixEpoch.AddTicks(row.EventNanoseconds / 100), DateTimeOffset.UnixEpoch.AddTicks(row.ReceiveNanoseconds / 100),
                     row.Action == 77 ? NormalizedTradeAction.Change : NormalizedTradeAction.New,
                     NormalizedTradeConditionFlags: NormalizedTradeConditionFlags.Replay);
-                if (trade.EventTimestamp > DateTimeOffset.UtcNow || trade.EventTimestamp < DateTimeOffset.UtcNow.AddDays(-7)) continue;
+                if (trade.EventTimestamp > businessClock.GetUtcNow() || trade.EventTimestamp < businessClock.GetUtcNow().AddDays(-7)) continue;
                 return (new(vx.DomainContractId, row.InstrumentId, row.PublisherId, AssetTypeId.Futures, row.ValueDate, null, trade), "TradeTickQuoteDb");
             }
         }
         catch (OperationCanceledException) { throw; }
         catch (Exception exception) { logger.LogWarning(exception, "VX persisted trade lookup failed; trying Databento history."); }
         // History can lag the live stream. Search bounded UTC day windows, newest first.
-        var end = DateTimeOffset.UtcNow.AddMinutes(-20);
+        var end = businessClock.GetUtcNow().AddMinutes(-20);
         for (var day = 0; day < 7; day++)
         {
             var start = end.AddDays(-1);

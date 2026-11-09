@@ -26,7 +26,7 @@ public static class AllocatePortfolioBusinessId
                 ? [new ValidationError("Invalid operation identity or route.")]
                 : [];
 
-        public async ValueTask<PortfolioBusinessIdAllocationCompletedEvent> ExecuteAsync(IPortfolioBusinessIdAllocator identities, IPortfolioOperationalGuard guard, CancellationToken token)
+        public async ValueTask<PortfolioBusinessIdAllocationCompletedEvent> ExecuteAsync(IPortfolioBusinessIdAllocator identities, IPortfolioOperationalGuard guard, CancellationToken token, TimeProvider? timeProvider = null)
         {
             var operation = request.Kind is (PortfolioBusinessIdentityKind.Order or PortfolioBusinessIdentityKind.Trade)
                 && request.Access.Roles.Contains(PortfolioOperationalPolicy.WorkflowRole, StringComparer.OrdinalIgnoreCase)
@@ -54,7 +54,7 @@ public static class AllocatePortfolioBusinessId
                 CommandId = request.CommandId,
                 EntityId = request.EntityId,
                 EventSource = request.EventSource,
-                ReceivedOn = DateTime.UtcNow,
+                ReceivedOn = (timeProvider ?? TimeProvider.System).GetUtcNow().UtcDateTime,
                 InputHash = FinancialCanonicalHash.Compute(new { request.Kind, request.Access }),
                 Value = value
             };

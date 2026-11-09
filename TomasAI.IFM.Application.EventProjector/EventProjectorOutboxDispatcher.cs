@@ -128,7 +128,8 @@ internal sealed class EventProjectorOutboxDispatcher(
         EventProjectorMetrics.WorkerBusy(_projectorName);
         try
         {
-            var domainEvent = EventProjectorOutboxSerializer.Deserialize(message.EventTypeName, message.EventPayload);
+            var domainEvent = TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Restore(
+                EventProjectorOutboxSerializer.Deserialize(message.EventTypeName, message.EventPayload), message.Origin);
             await _publishAsync(domainEvent, cancellationToken).ConfigureAwait(false);
             var publishedAtUtc = DateTime.UtcNow;
             if (!await _eventSource.MarkEventProjectorOutboxPublishedAsync(

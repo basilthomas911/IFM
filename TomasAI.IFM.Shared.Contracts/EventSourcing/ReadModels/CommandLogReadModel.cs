@@ -11,7 +11,8 @@ namespace TomasAI.IFM.Shared.EventSourcing.ViewModels
         byte[]? CommandPayload = null,
         short? CommandPayloadFormat = null,
         int? CommandPayloadVersion = null,
-        byte[]? CommandPayloadSha256 = null)
+        byte[]? CommandPayloadSha256 = null,
+        TomasAI.IFM.Shared.EventModelActor.MessageOrigin? Origin = null)
     {
     }
 }

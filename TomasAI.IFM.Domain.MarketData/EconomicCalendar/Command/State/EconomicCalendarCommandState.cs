@@ -28,7 +28,7 @@ public class EconomicCalendarCommandState
         Id = Guid.NewGuid(),
         CommandId = command.CommandId,
         EventSource = command.EventSource,
-        ReceivedOn = DateTime.UtcNow,
+
         Entries = new Dictionary<EconomicCalendarId, EconomicCalendarReadModel>(_economicCalendars)
     };
 

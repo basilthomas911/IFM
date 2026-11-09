@@ -212,15 +212,17 @@ mod outcome_tests {
                 let send = send.clone();
                 tasks.spawn(async move {
                     let (read,mut write)=socket.into_split();let mut read=BufReader::new(read);
-                    write.write_all(b"INFO {\"server_id\":\"outcome-fixture\",\"version\":\"2.10.0\",\"proto\":1,\"max_payload\":1048576}\r\n").await.unwrap();
+                    write.write_all(b"INFO {\"server_id\":\"outcome-fixture\",\"version\":\"2.10.0\",\"proto\":1,\"headers\":true,\"max_payload\":1048576}\r\n").await.unwrap();
                     let mut line=String::new();
                     loop {
                         line.clear();if read.read_line(&mut line).await.unwrap_or(0)==0{break;}
                         if line.starts_with("PING"){if write.write_all(b"PONG\r\n").await.is_err(){break;}}
-                        else if line.starts_with("PUB ") {
-                            let size=line.split_whitespace().last().unwrap().parse::<usize>().unwrap();assert!(size<=16384);
+                        else if line.starts_with("PUB ") || line.starts_with("HPUB ") {
+                            let parts:Vec<_>=line.split_whitespace().collect();
+                            let size=parts.last().unwrap().parse::<usize>().unwrap();assert!(size<=16384);
+                            let header=if line.starts_with("HPUB ") {parts[parts.len()-2].parse::<usize>().unwrap()} else {0};
                             let mut bytes=vec![0;size+2];read.read_exact(&mut bytes).await.unwrap();
-                            if line.contains(".MarketDataRecoveryOutcome.") {send.send(serde_json::from_slice::<serde_json::Value>(&bytes[..size]).unwrap()).await.unwrap();}
+                            if line.contains(".MarketDataRecoveryOutcome.") {send.send(serde_json::from_slice::<serde_json::Value>(&bytes[header..size]).unwrap()).await.unwrap();}
                         }
                     }
                 });

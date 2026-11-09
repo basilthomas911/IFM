@@ -7,7 +7,7 @@ public sealed class DatabaseBackupServiceCommandState : DatabaseOperationCommand
     public DatabaseBackupServiceState Service { get; private set; } = new();
 
     protected override DatabaseOperationStateSnapshottedEvent CaptureConcern(DatabaseOperationStateSnapshottedEvent snapshot)
-        => snapshot with { Service = Service };
+        => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(snapshot, snapshot with { Service = Service });
 
     protected override bool HasConcernSnapshot(DatabaseOperationStateSnapshottedEvent snapshot) => snapshot.Service is not null;
 

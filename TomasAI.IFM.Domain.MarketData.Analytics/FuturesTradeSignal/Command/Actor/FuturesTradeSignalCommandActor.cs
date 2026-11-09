@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using TomasAI.IFM.Application.CommandPipeline;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -102,7 +102,7 @@ public class FuturesTradeSignalCommandActor(
         FuturesTradeSignalCommandState, ServiceResult<GuidResult>>> _receiveMap = new Dictionary<Type, Func<ICommand, ICommandActorContext<FuturesTradeSignalCommandActor>,
         FuturesTradeSignalCommandState, ServiceResult<GuidResult>>>()
         {
-            [typeof(UpdateFuturesTradeSignalCommand)] = (cmd, context, state) => (cmd as UpdateFuturesTradeSignalCommand)!.Execute(state)
+            [typeof(UpdateFuturesTradeSignalCommand)] = (cmd, context, state) => (cmd as UpdateFuturesTradeSignalCommand)!.Execute(state, context.Container?.Resolve<TimeProvider>())
         };
 
     /// <summary>

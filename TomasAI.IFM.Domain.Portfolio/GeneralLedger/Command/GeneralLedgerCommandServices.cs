@@ -11,4 +11,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.Portfolio.GeneralLedger.Command;
 
 public sealed record GeneralLedgerCommandServices(IGeneralLedgerStore Store, IPortfolioDbReadContext Database,
-    FinancialIdentityAllocator Ids, IEventProjector<GeneralLedgerCommandActor> Projector, ILogger<GeneralLedgerCommandActor> Logger);
+    FinancialIdentityAllocator Ids, IEventProjector<GeneralLedgerCommandActor> Projector, ILogger<GeneralLedgerCommandActor> Logger, TimeProvider? timeProvider = null)
+{
+    public TimeProvider Clock { get; } = timeProvider ?? TimeProvider.System;
+}

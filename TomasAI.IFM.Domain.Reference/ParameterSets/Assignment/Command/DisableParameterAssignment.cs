@@ -50,7 +50,7 @@ public static class DisableParameterAssignment
                 return Task.FromResult<ServiceResult<GuidResult>>(new ServiceOk<GuidResult>(new(command.CommandId)));
             }
             var errorMsg = "ParameterAssignment.STATE.APPLY_FAILED: unable to apply DisableParameterAssignment event";
-            var updated = command.Compute(state, hash, out var parameterChange) switch
+            var updated = command.Compute(state, hash, out var parameterChange, context.DbEventSource?.BusinessClock) switch
             {
                 _ when parameterChange.RejectionReason is not null
                     => command.UpdateFailed(ref errorMsg, parameterChange.RejectionReason),
@@ -68,7 +68,7 @@ public static class DisableParameterAssignment
         /// <param name="hash">The request identity hash.</param>
         /// <param name="parameterChange">The proposed business change or rejection reason.</param>
         /// <returns>True when computation succeeds; otherwise false with its business rejection.</returns>
-        internal bool Compute(ParameterAssignmentCommandState state, string hash, out ParameterAssignmentChange parameterChange)
+        internal bool Compute(ParameterAssignmentCommandState state, string hash, out ParameterAssignmentChange parameterChange, TimeProvider? clock = null)
         {
             try
             {
@@ -77,8 +77,8 @@ public static class DisableParameterAssignment
                 {
                     throw new InvalidOperationException("PARAM.ASSIGNMENT_CONFLICT");
                 }
-                var parameterAssignment = ParameterAssignmentModel.Disable(current, command.ExpectedRevision, DateTime.UtcNow, command.OriginatedBy);
-                parameterChange = new(parameterAssignment, hash, ParameterAuditModel.ForAssignment(command.CommandId, command.CommandName, command.OriginatedBy, state.Assignment, parameterAssignment));
+                var parameterAssignment = ParameterAssignmentModel.Disable(current, command.ExpectedRevision, (clock ?? TimeProvider.System).GetUtcNow().UtcDateTime, command.OriginatedBy);
+                parameterChange = new(parameterAssignment, hash, ParameterAuditModel.ForAssignment(command.CommandId, command.CommandName, command.OriginatedBy, state.Assignment, parameterAssignment, clock));
                 return true;
             }
             catch (Exception rejection) when (rejection is ArgumentException or InvalidOperationException or KeyNotFoundException)

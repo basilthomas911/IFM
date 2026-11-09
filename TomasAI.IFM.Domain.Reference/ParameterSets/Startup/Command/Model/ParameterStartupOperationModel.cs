@@ -20,9 +20,9 @@ public static class ParameterStartupOperationModel
         if (string.Equals(previous.StreamId, historical.StreamId, StringComparison.Ordinal))
             audited = command switch
             {
-                ApplySignalStartupPlanCommand apply => apply with { EntityId = registry, Subject = historical },
-                ReleaseSignalStartupPlanCommand release => release with { EntityId = registry, Subject = historical },
-                RecordSignalStartupReportCommand report => report with { EntityId = registry, Subject = historical },
+                ApplySignalStartupPlanCommand apply => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(apply, apply with { EntityId = registry, Subject = historical }),
+                ReleaseSignalStartupPlanCommand release => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(release, release with { EntityId = registry, Subject = historical }),
+                RecordSignalStartupReportCommand report => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(report, report with { EntityId = registry, Subject = historical }),
                 _ => throw new InvalidOperationException("PARAM.OPERATION_IDENTITY_MISMATCH")
             };
         if (previous.CommandPayloadSha256 is not { Length: > 0 })
@@ -39,9 +39,9 @@ public static class ParameterStartupOperationModel
             throw new InvalidOperationException("PARAM.OPERATION_IDENTITY_MISMATCH");
         var codec = new CommandAuditMessagePackCodec();
         var stored = (ICommand)codec.Deserialize(command.GetType(), previous.CommandPayload,
-            previous.CommandPayloadFormat.Value, previous.CommandPayloadVersion.Value);
+            previous.CommandPayloadFormat.Value, previous.CommandPayloadVersion.Value, previous.Origin);
         if (audited is ApplySignalStartupPlanCommand candidate && stored is ApplySignalStartupPlanCommand original)
-            audited = candidate with { Evidence = original.Evidence };
+            audited = global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(candidate, candidate with { Evidence = original.Evidence });
         if (!codec.Matches(audited, codec.Serialize(stored).Sha256))
             throw new InvalidOperationException("PARAM.OPERATION_IDENTITY_MISMATCH");
     }

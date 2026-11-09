@@ -156,11 +156,13 @@ struct Packet {
     bytes: Vec<u8>,
     reply: Option<String>,
     _charge: OwnedSemaphorePermit,
+    origin_json: Option<String>,
 }
 
 pub(crate) struct PreparedFrame {
     subject: String,
     pub(crate) bytes: Vec<u8>,
+    origin_json: Option<String>,
 }
 
 /// One bounded publication lane with explicit worker/socket lifetime.
@@ -207,19 +209,23 @@ impl Port {
         }
         let subject = frame.subject(&self.scope)?;
         let bytes = frame.encode()?;
-        if bytes.len() > self.maximum_bytes {
+        let origin_json = frame.origin_json()?;
+        let charge_bytes = bytes.len().checked_add(origin_json.as_ref().map_or(0, |json| json.len() + 64))
+            .ok_or("Native publication byte capacity exceeded")?;
+        if charge_bytes > self.maximum_bytes {
             return Err("Native publication byte capacity exceeded");
         }
         let charge = self
             .bytes
             .clone()
-            .try_acquire_many_owned(bytes.len() as u32)
+            .try_acquire_many_owned(charge_bytes as u32)
             .map_err(|_| "Native publication byte capacity exceeded")?;
         self.incoming
             .try_send(Packet {
                 subject,
                 bytes,
                 reply: None,
+                origin_json,
                 _charge: charge,
             })
             .map_err(|_| "Native publication queue unavailable")
@@ -398,7 +404,10 @@ impl Publisher {
         }
         let subject = frame.subject(&self.scope)?;
         let bytes = frame.encode()?;
-        self.try_packet(subject, bytes, None)
+        let mut origin = frame.origin_json()?;
+        let mut subject = subject;
+        let mut bytes = bytes;
+        self.try_packet_owned(&mut subject, &mut bytes, None, &mut origin)
     }
 
     /// Encodes the immutable frame once, so bounded admission can be retried
@@ -407,11 +416,12 @@ impl Publisher {
         Ok(PreparedFrame {
             subject: frame.subject(&self.scope)?,
             bytes: frame.encode()?,
+            origin_json: frame.origin_json()?,
         })
     }
 
     pub(crate) fn try_prepared_frame(&self, frame: &mut PreparedFrame) -> Result<(), &'static str> {
-        self.try_packet_owned(&mut frame.subject, &mut frame.bytes, None)
+        self.try_packet_owned(&mut frame.subject, &mut frame.bytes, None, &mut frame.origin_json)
     }
 
     /// Publishes one copied prepared-chain chunk on the existing cache subject.
@@ -424,10 +434,10 @@ impl Publisher {
         publication: &super::option_cache::Publication,
         index: usize,
     ) -> Result<(), &'static str> {
-        self.try_packet(
+        self.try_packet_origin(
             format!("ifm.{}.marketdata.v1.option-cache", self.scope),
-            publication.frame(index)?,
-            None,
+            publication.frame(index)?, None,
+            super::wire::origin_json(publication.snapshot.at, Some(publication.generation))?,
         )
     }
 
@@ -453,7 +463,8 @@ impl Publisher {
         }
         let subject = format!("ifm.{}.marketdata.v1.option-cache", self.scope);
         for bytes in encoded {
-            self.try_packet(subject.clone(), bytes, None)?;
+            self.try_packet_origin(subject.clone(), bytes, None,
+                super::wire::origin_json(publication.snapshot.at, Some(publication.generation))?)?;
         }
         Ok(count)
     }
@@ -472,10 +483,10 @@ impl Publisher {
             .clone()
             .ok_or("Publisher has no evidence receipt subscription")?;
         let bytes = super::evidence_protocol::request(record)?;
-        self.try_packet(
+        self.try_packet_origin(
             format!("ifm.{}.marketdata.v1.evidence.write", self.scope),
-            bytes,
-            Some(reply),
+            bytes, Some(reply),
+            super::wire::origin_json(record.origin_ticks, Some(record.generation))?,
         )
     }
     /// Requests one copied raw-reference page. This independent IO socket owns
@@ -483,7 +494,7 @@ impl Publisher {
     ///
     /// # Errors
     /// Missing reply subscription, stopped transport or bounded capacity.
-    pub fn try_raw_reference(&self, bytes: Vec<u8>) -> Result<(), &'static str> {
+    pub fn try_raw_reference(&self, bytes: Vec<u8>, origin: &str) -> Result<(), &'static str> {
         if bytes.len() > 16 * 1024 + 64 {
             return Err("Native raw-reference request capacity exceeded");
         }
@@ -491,10 +502,9 @@ impl Publisher {
             .reply
             .clone()
             .ok_or("Publisher has no raw-reference reply subscription")?;
-        self.try_packet(
+        self.try_packet_origin(
             format!("ifm.{}.marketdata.v1.reference.read", self.scope),
-            bytes,
-            Some(reply),
+            bytes, Some(reply), origin.to_owned(),
         )
     }
     /// Copies a complete provider diagnostic onto the dedicated logging stream.
@@ -508,23 +518,23 @@ impl Publisher {
         value: &crate::dataset::live::Diagnostic,
         worker: [u8; 16],
     ) -> Result<(), &'static str> {
-        self.try_diagnostic_bytes(value.lane, super::diagnostic::encode(value, worker)?)
+        self.try_diagnostic_bytes(value.lane, super::diagnostic::encode(value, worker)?, value.observed)
     }
 
     pub(crate) fn try_diagnostic_bytes(
         &self,
         lane: crate::dataset::transport::Lane,
         bytes: Vec<u8>,
+        observed: i64,
     ) -> Result<(), &'static str> {
         let role = if lane == crate::dataset::transport::Lane::OptionsGlbx {
             "Options"
         } else {
             "Futures"
         };
-        self.try_packet(
+        self.try_packet_origin(
             format!("ifm.{}.marketdata.v1.diagnostics.{role}", self.scope),
-            bytes,
-            self.reply.clone(),
+            bytes, self.reply.clone(), super::wire::origin_json(observed, None)?,
         )
     }
 
@@ -537,10 +547,9 @@ impl Publisher {
         &self,
         notice: &super::recovery_notice::Notice,
     ) -> Result<(), &'static str> {
-        self.try_packet(
-            notice.subject.clone(),
-            super::codec::compress(notice.bytes.clone())?,
-            None,
+        self.try_packet_origin(
+            notice.subject.clone(), super::codec::compress(notice.bytes.clone())?,
+            None, super::wire::origin_json(notice.origin_ticks, None)?,
         )
     }
 
@@ -552,31 +561,33 @@ impl Publisher {
         if body.len() > 16 * 1024 || !(1..=9999).contains(&date.year()) {
             return Err("Invalid recovery outcome");
         }
-        self.try_packet(
-            format!("Notify.MarketDataRecoveryOutcome.{date}"),
-            body.as_bytes().to_vec(),
-            None,
-        )
+        let parsed: serde_json::Value = serde_json::from_str(body).map_err(|_| "Invalid recovery outcome JSON")?;
+        let mut origin = parsed["OccurredAtUtc"].as_str().map(|text| {
+            let at = chrono::DateTime::parse_from_rfc3339(text).map_err(|_| "Invalid recovery outcome origin")?;
+            let ticks = at.timestamp().checked_mul(10_000_000)
+                .and_then(|value| value.checked_add(i64::from(at.timestamp_subsec_nanos() / 100)))
+                .ok_or("Recovery outcome origin overflow")?;
+            super::wire::origin_json(ticks, None)
+        }).transpose()?;
+        self.try_packet_owned(&mut format!("Notify.MarketDataRecoveryOutcome.{date}"),
+            &mut body.as_bytes().to_vec(), None, &mut origin)
     }
 
     /// Sends a bounded existing Function request using this independent reply subscription.
     /// # Errors
     /// Missing inbox, stopped connection or full copied-value capacity.
-    pub fn try_recovery_record(&self, subject: String, bytes: Vec<u8>) -> Result<(), &'static str> {
+    pub fn try_recovery_record(&self, mut subject: String, mut bytes: Vec<u8>, origin_ticks: Option<i64>) -> Result<(), &'static str> {
         let reply = self
             .reply
             .clone()
             .ok_or("Audit reply subscription unavailable")?;
-        self.try_packet(subject, bytes, Some(reply))
+        let mut origin = origin_ticks.map(|at| super::wire::origin_json(at, None)).transpose()?;
+        self.try_packet_owned(&mut subject, &mut bytes, Some(reply), &mut origin)
     }
 
-    fn try_packet(
-        &self,
-        mut subject: String,
-        mut bytes: Vec<u8>,
-        reply: Option<String>,
-    ) -> Result<(), &'static str> {
-        self.try_packet_owned(&mut subject, &mut bytes, reply)
+    fn try_packet_origin(&self, mut subject: String, mut bytes: Vec<u8>,
+        reply: Option<String>, origin: String) -> Result<(), &'static str> {
+        self.try_packet_owned(&mut subject, &mut bytes, reply, &mut Some(origin))
     }
 
     fn try_packet_owned(
@@ -584,17 +595,20 @@ impl Publisher {
         subject: &mut String,
         bytes: &mut Vec<u8>,
         reply: Option<String>,
+        origin_json: &mut Option<String>,
     ) -> Result<(), &'static str> {
         if self.stopping.is_cancelled() || self.status.borrow().stopped {
             return Err("Native publisher stopped");
         }
-        if bytes.len() > self.maximum_bytes {
+        let charge_bytes = bytes.len().checked_add(origin_json.as_ref().map_or(0, |json| json.len() + 64))
+            .ok_or("Native publication byte capacity exceeded")?;
+        if charge_bytes > self.maximum_bytes {
             return Err("Native publication byte capacity exceeded");
         }
         let charge = self
             .bytes
             .clone()
-            .try_acquire_many_owned(bytes.len() as u32)
+            .try_acquire_many_owned(charge_bytes as u32)
             .map_err(|_| "Native publication byte capacity exceeded")?;
         let slot = self.incoming.try_reserve()
             .map_err(|_| "Native publication queue unavailable")?;
@@ -602,6 +616,7 @@ impl Publisher {
             subject: std::mem::take(subject),
             bytes: std::mem::take(bytes),
             reply,
+            origin_json: origin_json.take(),
             _charge: charge,
         });
         Ok(())
@@ -769,10 +784,19 @@ impl Publisher {
                 let sent = tokio::select! { biased; () = stop.cancelled() => None,()=fault.cancelled()=>None,
                 result = async {
                     for packet in batch.drain(..){
-                        let Packet{subject,bytes,reply,_charge}=packet;
+                        let Packet{subject,bytes,reply,_charge,origin_json}=packet;
                         charges.push(_charge);
-                        if let Some(reply)=reply {connection.client().publish_with_reply(subject,reply,bytes.into()).await.map_err(|error|detail(&error,&secret))?;}
-                        else {connection.client().publish(subject,bytes.into()).await.map_err(|error|detail(&error,&secret))?;}
+                        let headers = origin_json.map(|json| {
+                            let mut headers = async_nats::HeaderMap::new();
+                            headers.insert("Ifm-Message-Origin-V1", json);
+                            headers
+                        });
+                        match (reply, headers) {
+                            (Some(reply), Some(headers)) => connection.client().publish_with_reply_and_headers(subject, reply, headers, bytes.into()).await,
+                            (None, Some(headers)) => connection.client().publish_with_headers(subject, headers, bytes.into()).await,
+                            (Some(reply), None) => connection.client().publish_with_reply(subject, reply, bytes.into()).await,
+                            (None, None) => connection.client().publish(subject, bytes.into()).await,
+                        }.map_err(|error|detail(&error,&secret))?;
                     }
                     connection.client().roundtrip().await.map_err(|error|detail(&error,&secret))
                 } => Some(result) };
@@ -852,6 +876,7 @@ mod prepared_frames {
             sequence,
             kind: 1,
             payload: vec![0xc0; 256],
+            origin_ticks: None,
         }
     }
 

@@ -10,14 +10,15 @@ public sealed class IronCondorTradePlanFunctionContext : FunctionActorContext, I
 {
     readonly Lazy<IEventSourceFunctionStateRepository<IronCondorTradePlanFunctionState, UpdateIronCondorTradePlanCommand>> _repository;
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "This typed context adapts services for its actor and intentionally retains the actor logger category.")]
-    public IronCondorTradePlanFunctionContext(IActorSupervisor supervisor, ILogger<IronCondorTradePlanFunctionActor> logger) : base(supervisor, new(ActorType.Function, IronCondorTradePlanFunctionActor.ActorName))
+    public IronCondorTradePlanFunctionContext(IActorSupervisor supervisor, ILogger<IronCondorTradePlanFunctionActor> logger, TimeProvider? timeProvider = null) : base(supervisor, new(ActorType.Function, IronCondorTradePlanFunctionActor.ActorName))
     {
+        TimeProvider = timeProvider ?? TimeProvider.System;
         Logger = logger;
         _repository = new(() => Container.Resolve<IEventSourceFunctionStateRepository<IronCondorTradePlanFunctionState, UpdateIronCondorTradePlanCommand>>());
     }
 
     public IronCondorTradePlanAlgorithm Algorithm { get; } = new();
-    public TimeProvider TimeProvider { get; } = TimeProvider.System;
+    public TimeProvider TimeProvider { get; }
     public ILogger<IronCondorTradePlanFunctionActor> Logger { get; }
     public IEventSourceFunctionStateRepository<IronCondorTradePlanFunctionState, UpdateIronCondorTradePlanCommand> StateRepository => _repository.Value;
 }

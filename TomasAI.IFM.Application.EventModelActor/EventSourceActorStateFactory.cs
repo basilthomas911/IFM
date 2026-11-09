@@ -16,7 +16,7 @@ namespace TomasAI.IFM.Application.EventModelActor;
 /// current version. Ensure the concrete implementation of the requested state type is registered in the container.
 /// </remarks>
 /// <param name="stateFactoryResolver">Resolver used to obtain actor state instances from the dependency injection container.</param>
-public class EventSourceActorStateFactory(IActorStateFactoryResolver stateFactoryResolver)
+public class EventSourceActorStateFactory(IActorStateFactoryResolver stateFactoryResolver, TimeProvider? clock = null)
     : IEventSourceActorStateFactory
 {
     readonly IActorStateFactoryResolver _actorStateFactoryResolver = IsArgumentNull.Set(stateFactoryResolver);
@@ -38,6 +38,7 @@ public class EventSourceActorStateFactory(IActorStateFactoryResolver stateFactor
         var actorStateType = typeof(IEventSourceActorState<>);
         var actorStateGenericType = actorStateType.MakeGenericType(typeof(TState));
         var actorState = _actorStateFactoryResolver.Resolve(actorStateGenericType) as IEventSourceActorState<TState>;
+        if (actorState is IClockBoundActorState bound) bound.BindClock(clock ?? TimeProvider.System);
 
         // replay events in actor state to set current state...
         actorState
@@ -68,6 +69,7 @@ public class EventSourceActorStateFactory(IActorStateFactoryResolver stateFactor
         var actorStateType = typeof(IEventSourceActorState<>);
         var actorStateGenericType = actorStateType.MakeGenericType(typeof(TState));
         var actorState = _actorStateFactoryResolver.Resolve(actorStateGenericType) as IEventSourceActorState<TState>;
+        if (actorState is IClockBoundActorState bound) bound.BindClock(clock ?? TimeProvider.System);
 
         // replay events in actor state to set current state...
         actorState
@@ -94,6 +96,7 @@ public class EventSourceActorStateFactory(IActorStateFactoryResolver stateFactor
         var actorStateType = typeof(IEventSourceActorState<>);
         var actorStateGenericType = actorStateType.MakeGenericType(typeof(TState));
         var actorState = _actorStateFactoryResolver.Resolve(actorStateGenericType) as IEventSourceActorState<TState>;
+        if (actorState is IClockBoundActorState bound) bound.BindClock(clock ?? TimeProvider.System);
         return actorState!;
     }
 

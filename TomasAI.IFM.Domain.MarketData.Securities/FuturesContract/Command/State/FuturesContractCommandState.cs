@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.Events;
@@ -31,7 +31,7 @@ public class FuturesContractCommandState
         Id = Guid.NewGuid(),
         CommandId = command.CommandId,
         EventSource = command.EventSource,
-        ReceivedOn = DateTime.UtcNow,
+
         ContractIds = futuresContractIds.OrderBy(id => id.ContractId, StringComparer.Ordinal).ToArray()
     };
 

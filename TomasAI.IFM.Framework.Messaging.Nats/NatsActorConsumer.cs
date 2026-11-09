@@ -1,4 +1,4 @@
-﻿using System.Threading.Channels;
+using System.Threading.Channels;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NATS.Net;
@@ -25,7 +25,7 @@ public class NatsActorConsumer(
     INatsConsumerOptions options,
     ILogger logger,
     NatsConnectionManager? connectionManager = null,
-    ActorAdmissionOptions? admissionOptions = null)
+    ActorAdmissionOptions? admissionOptions = null, TimeProvider? timeProvider = null)
     : IActorConsumer, IAsyncDisposable
 {
     readonly INatsConsumerOptions _options = IsArgumentNull.Set(options);
@@ -34,6 +34,7 @@ public class NatsActorConsumer(
     readonly string _serviceId = "NatsActorConsumer";
     readonly NatsConnectionManager _connectionManager = connectionManager ?? new NatsConnectionManager();
     readonly bool _ownsConnectionManager = connectionManager is null;
+    readonly TimeProvider _clock = timeProvider ?? TimeProvider.System;
     readonly ActorAdmissionOptions _admissionOptions = admissionOptions ?? new ActorAdmissionOptions();
     int _disposeStarted;
 
@@ -619,7 +620,7 @@ public class NatsActorConsumer(
             {
                 msg.EnsureSuccess();
                 var subject = msg.Subject.ToSubject();
-                actorMessage = new NatsOwnedCommandMessage(msg, subject);
+                actorMessage = new NatsOwnedCommandMessage(msg, subject, _clock);
                 var stripe = (subject.ThreadId.GetHashCode() & 0x7FFF_FFFF) % stripeCount;
 
                 await stripes[stripe].Writer.WriteAsync(
@@ -787,7 +788,7 @@ public class NatsActorConsumer(
             {
                 msg.EnsureSuccess();
                 var subject = msg.Subject.ToSubject();
-                actorMessage = new NatsOwnedQueryMessage(msg, subject);
+                actorMessage = new NatsOwnedQueryMessage(msg, subject, _clock);
                 var stripe = (subject.ThreadId.GetHashCode() & 0x7FFF_FFFF) % stripeCount;
 
                 await stripes[stripe].Writer.WriteAsync(

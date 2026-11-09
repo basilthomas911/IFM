@@ -90,18 +90,18 @@ public sealed record ExecuteTradeSelectionPipelineCommand : ICommand<TradeSelect
     public string Fingerprint() => MarketConditionAssessmentHash.Compute(NormalizeContent());
 
     /// <summary>Copies command/trigger records without serializing the command a second time.</summary>
-    public ExecuteTradeSelectionPipelineCommand NormalizeContent() => this with
+    public ExecuteTradeSelectionPipelineCommand NormalizeContent() => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(this, this with
     {
         TriggerEvent = NormalizeTrigger(TriggerEvent),
         WorkflowView = WorkflowView with { TriggerEvent = NormalizeTrigger(WorkflowView.TriggerEvent) }
-    };
+    });
 
-    static FuturesItiSignalGeneratedEvent NormalizeTrigger(FuturesItiSignalGeneratedEvent trigger) => trigger with
+    static FuturesItiSignalGeneratedEvent NormalizeTrigger(FuturesItiSignalGeneratedEvent trigger) => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(trigger, trigger with
     {
         AggregateId = trigger.AggregateId ?? "",
         EventSource = trigger.EventSource ?? "",
         CreatedBy = trigger.CreatedBy ?? "",
         ReceivedOn = trigger.ReceivedOn.Kind == DateTimeKind.Local ? trigger.ReceivedOn.ToUniversalTime() : DateTime.SpecifyKind(trigger.ReceivedOn, DateTimeKind.Utc),
         CreatedOn = trigger.CreatedOn.Kind == DateTimeKind.Local ? trigger.CreatedOn.ToUniversalTime() : DateTime.SpecifyKind(trigger.CreatedOn, DateTimeKind.Utc)
-    };
+    });
 }

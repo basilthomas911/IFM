@@ -39,7 +39,7 @@ public static class ApplySignalStartupPlan
             var snapshot = new ParameterStartupSnapshotModel(command.RunId, evidence.Assignments,
                 evidence.Versions.ToDictionary(version => version.Reference));
             var errorMsg = "ParameterStartup.STATE.APPLY_FAILED: unable to apply ApplySignalStartupPlan event";
-            var updated = command.Compute(state, snapshot, out var startupChange) switch
+            var updated = command.Compute(state, snapshot, out var startupChange, context.DbEventSource?.BusinessClock) switch
             {
                 _ when startupChange.RejectionReason is not null
                     => command.UpdateFailed(ref errorMsg, startupChange.RejectionReason),
@@ -57,7 +57,7 @@ public static class ApplySignalStartupPlan
         /// <param name="snapshot">The exact parameter assignments frozen under the startup lease.</param>
         /// <param name="startupChange">The proposed startup change or rejection.</param>
         /// <returns>True when the startup change is valid.</returns>
-        internal bool Compute(ParameterStartupCommandState state, ParameterStartupSnapshotModel snapshot, out ParameterStartupChange startupChange)
+        internal bool Compute(ParameterStartupCommandState state, ParameterStartupSnapshotModel snapshot, out ParameterStartupChange startupChange, TimeProvider? clock = null)
         {
             try
             {
@@ -66,7 +66,7 @@ public static class ApplySignalStartupPlan
                 var plan = new ParameterSignalStartupPlan(command.RunId, snapshot.Fingerprint,
                     snapshot.Fingerprint, [], null);
                 if (command.ExpectedFingerprint.Length != 0 && !string.Equals(command.ExpectedFingerprint, plan.Fingerprint, StringComparison.Ordinal)) throw new InvalidOperationException("PARAM.STARTUP_PLAN_CHANGED");
-                var run = new ParameterStartupRun(command.RunId, snapshot.Scopes.ToArray(), snapshot.Assignments.Select(x => x.Version).DistinctBy(x => x.Reference).ToArray(), plan, DateTime.UtcNow, command.OriginatedBy);
+                var run = new ParameterStartupRun(command.RunId, snapshot.Scopes.ToArray(), snapshot.Assignments.Select(x => x.Version).DistinctBy(x => x.Reference).ToArray(), plan, (clock ?? TimeProvider.System).GetUtcNow().UtcDateTime, command.OriginatedBy);
                 startupChange = new(state.Revision + 1, StartupRun: run);
                 return true;
             }

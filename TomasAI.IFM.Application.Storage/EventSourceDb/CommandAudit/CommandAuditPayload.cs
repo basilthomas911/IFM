@@ -11,4 +11,5 @@ public sealed record CommandAuditPayload(
     CommandAuditPayloadFormat Format,
     int Version,
     byte[] Bytes,
-    byte[] Sha256);
+    byte[] Sha256,
+    TomasAI.IFM.Shared.EventModelActor.MessageOrigin? Origin = null);

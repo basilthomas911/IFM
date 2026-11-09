@@ -23,6 +23,8 @@ public sealed record BrokerAccountingIntentCapturedEvent : IEvent
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public financial model contract.")]
     [Key(13)] public byte[] CommandSha256 { get; init; } = [];
     [Key(14)] public int SchemaVersion { get; init; } = 1;
+    /// <summary>Original command provenance, independent of this intent event and its payload hash.</summary>
+    [Key(15)] public string? CommandOriginJson { get; init; }
     [IgnoreMember] public string UserName => "PortfolioFinancial";
     [IgnoreMember] public string EventName => nameof(BrokerAccountingIntentCapturedEvent);
     [IgnoreMember] public EventType EventType => EventType.CompletedEvent;

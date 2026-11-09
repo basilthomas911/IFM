@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.Portfolio.Shared.Common;
+using TomasAI.IFM.Domain.Portfolio.Shared.Common;
 using TomasAI.IFM.Domain.Portfolio.Command.Validation;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.Portfolio.Shared.Events;
@@ -26,9 +26,10 @@ public sealed class PortfolioCommandActor(
     IPortfolioEventStore eventStore,
     IEventProjector<PortfolioCommandActor> projector,
     IPortfolioOperationalGuard operationalGuard,
-    ILogger<PortfolioCommandActor> logger)
+    ILogger<PortfolioCommandActor> logger, TimeProvider? timeProvider = null)
     : BaseEventSourceCommandActor<PortfolioCommandActor>(context, logger)
 {
+    readonly TimeProvider businessClock = timeProvider ?? TimeProvider.System;
     public const string ActorName = CreatePortfolioCommand.Actor;
     readonly IPortfolioEventStore _events = eventStore ?? throw new ArgumentNullException(nameof(eventStore));
     readonly IEventProjector<PortfolioCommandActor> _projector = projector ?? throw new ArgumentNullException(nameof(projector));
@@ -193,7 +194,7 @@ public sealed class PortfolioCommandActor(
             if (priorCreate is not null)
                 return new ServiceFailed<GuidResult>(PortfolioErrorCodes.IdempotencyConflict, "IdempotencyKeyConflict: the key was already committed for a different Portfolio payload.");
         }
-        var now = DateTime.UtcNow;
+        var now = businessClock.GetUtcNow().UtcDateTime;
         var receive = ResolveMappedCommandHandler(command, _receiveMap);
         var acceptance = await receive(this, command, state, now, principal, cancellationToken).ConfigureAwait(false);
         if (!acceptance.Success) return acceptance;

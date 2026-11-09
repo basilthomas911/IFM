@@ -4,8 +4,9 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Risk;
 
 namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Model;
 /// <summary>Resolves one exact published monitoring policy off the option tick path.</summary>
-public sealed class StrategyRiskParameterSetResolver(IDbContextFactory databases, string environment, Guid? parameterSetId = null, int version = 1) : IDisposable
+public sealed class StrategyRiskParameterSetResolver(IDbContextFactory databases, string environment, Guid? parameterSetId = null, int version = 1, TimeProvider? timeProvider = null) : IDisposable
 {
+    readonly TimeProvider businessClock = timeProvider ?? TimeProvider.System;
     int disposed;
     /// <summary>Releases the owned serialization gate after the host has stopped its workers; safe for DI aliases.</summary>
     public void Dispose()
@@ -48,11 +49,11 @@ public sealed class StrategyRiskParameterSetResolver(IDbContextFactory databases
 
             if (development && stored?.Status == ConfigurationParameterSetStatus.Draft && string.Equals(stored.ParameterSet.Hash(), defaults.Hash(), StringComparison.Ordinal))
             {
-                await databases.ConfigurationDb.PublishAsync(StrategyParameterSetKind.StrategyPositionRisk, id, version, DateTime.UtcNow.AddSeconds(-1), token).ConfigureAwait(false);
+                await databases.ConfigurationDb.PublishAsync(StrategyParameterSetKind.StrategyPositionRisk, id, version, businessClock.GetUtcNow().UtcDateTime.AddSeconds(-1), token).ConfigureAwait(false);
                 stored = await databases.ConfigurationDb.GetStrategyPositionRiskVersionAsync(id, version, token).ConfigureAwait(false);
             }
 
-            var now = DateTime.UtcNow;
+            var now = businessClock.GetUtcNow().UtcDateTime;
             if (stored is null || stored.Status != ConfigurationParameterSetStatus.Published || stored.EffectiveFromUtc is null || stored.EffectiveFromUtc > now || stored.RetiredAtUtc <= now || !string.Equals(stored.ParameterSet.Environment, environment, StringComparison.Ordinal))
                 throw new InvalidOperationException("IronCondorRisk.PUBLISHED_ENVIRONMENT_POLICY_REQUIRED");
             Volatile.Write(ref selected, stored.ParameterSet);

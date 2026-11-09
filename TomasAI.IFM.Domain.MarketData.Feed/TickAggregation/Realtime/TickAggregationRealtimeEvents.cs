@@ -9,21 +9,21 @@ internal static class TickAggregationRealtimeEvents
     extension(FuturesTickTradeDataChangedEvent value)
     {
         internal FuturesTickTradeDataChangedEvent RestoreSource(
-        string? dataset, Guid generationId) => value with
+        string? dataset, Guid generationId) => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(value, value with
         {
             SourceDataset = dataset ?? string.Empty,
             SourceGenerationId = generationId
-        };
+        });
     }
 
     extension(FuturesTickQuoteDataChangedEvent value)
     {
         internal FuturesTickQuoteDataChangedEvent RestoreSource(
-        string? dataset, Guid generationId) => value with
+        string? dataset, Guid generationId) => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(value, value with
         {
             SourceDataset = dataset ?? string.Empty,
             SourceGenerationId = generationId
-        };
+        });
     }
 
     extension(FuturesTickTradeDataChangedEvent source)

@@ -57,7 +57,7 @@ public static class ApproveDatabaseCutover
                     throw new InvalidOperationException("Cutover approval does not match the current validation revision.");
                 if (command.RestorePointId is not null && command.RestorePointId != state.Restore.RestorePointId || command.FreshTarget is not null && command.FreshTarget != state.Restore.FreshTarget)
                     throw new InvalidOperationException("Cutover cannot replace the validated restore target.");
-                command = command with
+                command = global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(command, command with
                 {
                     RestorePointId = state.Restore.RestorePointId,
                     FreshTarget = state.Restore.FreshTarget,
@@ -66,7 +66,7 @@ public static class ApproveDatabaseCutover
                     Source = state.Operation.Source,
                     ProtectionSetId = state.Operation.ProtectionSetId,
                     ExpectedPolicyRevision = state.Operation.PolicyRevision
-                };
+                });
                 var source = Source(command, state.Operation, DatabaseRecoveryOperationKind.Cutover, DatabaseRecoveryPhase.Authorized);
                 lifecycleChanges.Add(CreateChange<DatabaseCutoverRequestedDomainEvent>(command, source));
                 lifecycleChanges.Add(CreateChange<DatabaseCutoverAuthorizedDomainEvent>(command, NextSource(source, DatabaseRecoveryPhase.Authorized)));

@@ -86,6 +86,6 @@ public static class FinancialPostingPreparation
                 }
             }
         };
-        return request with { InputSha256 = FinancialCanonicalHash.Request(request) };
+        return global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(request, request with { InputSha256 = FinancialCanonicalHash.Request(request) });
     }
 }

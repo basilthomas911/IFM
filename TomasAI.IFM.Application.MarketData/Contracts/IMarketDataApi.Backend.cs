@@ -179,7 +179,17 @@ public sealed record MarketDataReadSnapshot([property: Key(0)] MarketDataBackend
     [property: Key(4)] OptionChainCache.OptionChainPublication[]? OptionChains = null,
     [property: Key(5)] MarketDataBootstrapPrice[]? BootstrapPrices = null,
     [property: Key(6)] Databento.Workers.DatasetPublicationEnvelope[]? OptionObservations = null,
-    [property: Key(7)] NativeOptionWorkloadEvidence? NativeOptionWorkload = null);
+    [property: Key(7)] NativeOptionWorkloadEvidence? NativeOptionWorkload = null,
+    [property: Key(8)] DatasetPublicationOrigin[]? PublicationOrigins = null);
+
+/// <summary>Additive snapshot metadata beside the unchanged eight-key publication envelope.</summary>
+[MessagePackObject]
+public sealed record DatasetPublicationOrigin(
+    [property: Key(0)] string Dataset,
+    [property: Key(1)] Guid WorkerInstanceId,
+    [property: Key(2)] Guid GenerationId,
+    [property: Key(3)] long PublicationSequence,
+    [property: Key(4)] string OriginJson);
 
 /// <summary>Native-only copied ownership evidence. Empty scopes prove idle only
 /// when replacement is complete; readiness alone never proves cached pricing.

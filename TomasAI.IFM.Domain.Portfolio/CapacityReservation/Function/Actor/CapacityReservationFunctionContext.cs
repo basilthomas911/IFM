@@ -12,15 +12,16 @@ namespace TomasAI.IFM.Domain.Portfolio.CapacityReservation.Function.Actor;
 public sealed class CapacityReservationFunctionContext : FunctionActorContext, ICapacityReservationFunctionContext
 {
     readonly Lazy<IEventSourceFunctionStateRepository<CapacityReservationFunctionState, ReservePortfolioTradeRiskCommand>> _repository;
-    public CapacityReservationFunctionContext(IActorSupervisor supervisor, ILogger<CapacityReservationFunctionActor> logger)
+    public CapacityReservationFunctionContext(IActorSupervisor supervisor, ILogger<CapacityReservationFunctionActor> logger, TimeProvider? timeProvider = null)
         : base(supervisor, new ActorMailboxId(ActorType.Function, CapacityReservationFunctionActor.ActorName))
     {
+        TimeProvider = timeProvider ?? TimeProvider.System;
         Logger = logger;
         _repository = new(() => Container.Resolve<IEventSourceFunctionStateRepository<CapacityReservationFunctionState, ReservePortfolioTradeRiskCommand>>()
             ?? throw new InvalidOperationException("Financial repository is not registered."));
     }
     public IEventSourceFunctionStateRepository<CapacityReservationFunctionState, ReservePortfolioTradeRiskCommand> StateRepository => _repository.Value;
-    public TimeProvider TimeProvider => TimeProvider.System;
+    public TimeProvider TimeProvider { get; }
     public ILogger<CapacityReservationFunctionActor> Logger { get; }
 }
 

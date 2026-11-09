@@ -11,4 +11,5 @@ internal sealed record PreparedEventLogEntry(
     int EventNameId,
     IEvent DomainEvent,
     byte[] Payload,
-    DurableProjectionRequirement? RequiredProjection);
+    DurableProjectionRequirement? RequiredProjection,
+    string? MessageOriginJson = null);

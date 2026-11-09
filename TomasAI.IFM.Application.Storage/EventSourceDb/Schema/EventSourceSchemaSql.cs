@@ -75,6 +75,7 @@ public static class EventSourceSchemaSql
             EventPayload bytea NOT NULL CHECK (octet_length(EventPayload) > 0),
             CommandId uuid NOT NULL,
             EventTimestamp text NOT NULL,
+            MessageOriginJson text,
             CONSTRAINT event_log_pkey PRIMARY KEY (EventStreamId, StreamVersion)
         );
 
@@ -376,7 +377,16 @@ public static class EventSourceSchemaSql
                 "DROP TABLE IF EXISTS risk_history_projection_issue; DROP TABLE IF EXISTS risk_history_projection_receipt; DROP TABLE IF EXISTS risk_history_projection_progress;"),
             new("event_projector_state_reliability_v2", CreateEventProjectorStateReliabilityV2, DropEventProjectorStateReliabilityV2),
             new("event_projector_outbox_v2", CreateEventProjectorOutboxV2, "DROP TABLE IF EXISTS public.event_projector_outbox;"),
-            new("event_stream_version_projector_checkpoint_v3", streamVersion, DropEventStreamVersionAndProjectorCheckpointV3)
+            new("event_stream_version_projector_checkpoint_v3", streamVersion, DropEventStreamVersionAndProjectorCheckpointV3),
+            new("message_origin_metadata_v1", """
+                ALTER TABLE public.event_log ADD COLUMN IF NOT EXISTS MessageOriginJson text;
+                ALTER TABLE public.event_projector_outbox ADD COLUMN IF NOT EXISTS MessageOriginJson text;
+                ALTER TABLE public.command_log ADD COLUMN IF NOT EXISTS MessageOriginJson text;
+                """, """
+                ALTER TABLE public.command_log DROP COLUMN IF EXISTS MessageOriginJson;
+                ALTER TABLE public.event_projector_outbox DROP COLUMN IF EXISTS MessageOriginJson;
+                ALTER TABLE public.event_log DROP COLUMN IF EXISTS MessageOriginJson;
+                """)
         ]);
         return [.. definitions];
     }

@@ -17,10 +17,11 @@ namespace TomasAI.IFM.Domain.Portfolio.GeneralLedger.FinancialAuthorityPreparati
 public sealed class FinancialAuthorityPreparationFunctionActor(
     IFunctionActorContext<FinancialAuthorityPreparationFunctionActor> context,
     IEventSourceFunctionStateRepository<FinancialAuthorityPreparationFunctionState, PrepareFinancialAuthorityCommand> repository,
-    AuthorityPreparer preparation, ILogger<FinancialAuthorityPreparationFunctionActor> logger)
+    AuthorityPreparer preparation, ILogger<FinancialAuthorityPreparationFunctionActor> logger, TimeProvider? timeProvider = null)
     : BaseEventSourceFunctionActor<FinancialAuthorityPreparationFunctionActor, PrepareFinancialAuthorityCommand, ActorEntityId, ActorEntityId,
         FinancialAuthorityPreparationFunctionState, FinancialAuthorityPreparationCompletedEvent, FinancialAuthorityPreparationFailedEvent>(context, repository, null, logger)
 {
+    readonly TimeProvider businessClock = timeProvider ?? TimeProvider.System;
     public const string ActorName = PrepareFinancialAuthorityCommand.Actor;
 
     static readonly FrozenDictionary<string, Func<IActorMessage, PrepareFinancialAuthorityCommand>> _parseMap =
@@ -29,10 +30,10 @@ public sealed class FinancialAuthorityPreparationFunctionActor(
             [PrepareFinancialAuthorityCommand.Verb] = message => message.AsCommand<PrepareFinancialAuthorityCommand>()!
         }.ToFrozenDictionary(StringComparer.Ordinal);
 
-    static readonly FrozenDictionary<Type, Func<PrepareFinancialAuthorityCommand, AuthorityPreparer, CancellationToken, ValueTask<FinancialAuthorityPreparationCompletedEvent>>> _receiveMap =
-        new Dictionary<Type, Func<PrepareFinancialAuthorityCommand, AuthorityPreparer, CancellationToken, ValueTask<FinancialAuthorityPreparationCompletedEvent>>>
+    static readonly FrozenDictionary<Type, Func<PrepareFinancialAuthorityCommand, AuthorityPreparer, TimeProvider, CancellationToken, ValueTask<FinancialAuthorityPreparationCompletedEvent>>> _receiveMap =
+        new Dictionary<Type, Func<PrepareFinancialAuthorityCommand, AuthorityPreparer, TimeProvider, CancellationToken, ValueTask<FinancialAuthorityPreparationCompletedEvent>>>
         {
-            [typeof(PrepareFinancialAuthorityCommand)] = static (request, preparer, token) => request.ExecuteAsync(preparer, token)
+            [typeof(PrepareFinancialAuthorityCommand)] = static (request, preparer, clock, token) => request.ExecuteAsync(preparer, token, clock)
         }.ToFrozenDictionary();
 
     static readonly FrozenDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
@@ -70,18 +71,18 @@ public sealed class FinancialAuthorityPreparationFunctionActor(
     }
 
     protected override FunctionExecutionPolicy ResolveExecutionPolicy(PrepareFinancialAuthorityCommand request, FunctionFailureStage stage)
-        => DispatchMappedExecutionPolicy(request, stage, TimeProvider.System, _executionPolicyMap);
+        => DispatchMappedExecutionPolicy(request, stage, businessClock, _executionPolicyMap);
 
     protected override async ValueTask<FunctionResult<FinancialAuthorityPreparationCompletedEvent, FinancialAuthorityPreparationFailedEvent>> ExecuteFunctionAsync(
         IFunctionActorContext<FinancialAuthorityPreparationFunctionActor> services, FinancialAuthorityPreparationFunctionState state,
         PrepareFinancialAuthorityCommand request, CancellationToken cancellationToken)
     {
         var receive = ResolveMappedFunctionHandler(request, _receiveMap);
-        var completed = await receive(request, preparation, cancellationToken).ConfigureAwait(false);
+        var completed = await receive(request, preparation, businessClock, cancellationToken).ConfigureAwait(false);
         return FunctionResult<FinancialAuthorityPreparationCompletedEvent, FinancialAuthorityPreparationFailedEvent>.Complete(completed);
     }
 
     protected override FunctionResult<FinancialAuthorityPreparationCompletedEvent, FinancialAuthorityPreparationFailedEvent> HandleFunctionEvent(
         IFunctionActorContext<FinancialAuthorityPreparationFunctionActor> services, FunctionEventContext<PrepareFinancialAuthorityCommand> input)
-        => DispatchMappedFunctionEvent(input, TimeProvider.System, _eventMap);
+        => DispatchMappedFunctionEvent(input, businessClock, _eventMap);
 }

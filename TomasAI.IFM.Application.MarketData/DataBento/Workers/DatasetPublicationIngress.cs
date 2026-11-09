@@ -115,13 +115,15 @@ public sealed class DatasetPublicationIngress(
             cancellationToken.ThrowIfCancellationRequested();
             if (envelope.Kind == DatasetPublicationKind.Trade)
                 await publisher.PublishAsync(
-                    MessagePackSerializer.Deserialize<FuturesTickTradeDataChangedEvent>(envelope.Payload,cancellationToken:cancellationToken) with
-                    { SourceDataset = envelope.Dataset, SourceGenerationId = envelope.GenerationId },
+                    TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(envelope,
+                        MessagePackSerializer.Deserialize<FuturesTickTradeDataChangedEvent>(envelope.Payload,cancellationToken:cancellationToken) with
+                        { SourceDataset = envelope.Dataset, SourceGenerationId = envelope.GenerationId }),
                     cancellationToken).ConfigureAwait(false);
             else
             {
                 var quote = MessagePackSerializer.Deserialize<FuturesTickQuoteDataChangedEvent>(envelope.Payload,cancellationToken:cancellationToken) with
                 { SourceDataset = envelope.Dataset, SourceGenerationId = envelope.GenerationId };
+                TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(envelope, quote);
                 await publisher.PublishAsync(quote,
                     new DeserializedQuoteLease(quote.QuoteData.Buffer, quote.QuoteCount),
                     cancellationToken).ConfigureAwait(false);
@@ -221,38 +223,39 @@ public sealed class DatasetPublicationIngress(
                     if (optionTrades is not null) await optionTrades.WriteAsync(evidence, generationCancellation).ConfigureAwait(false);
                     else if (!evidencePersistedByHost) throw new InvalidOperationException("Durable option trade writer is unavailable.");
                     generationCancellation.ThrowIfCancellationRequested();
-                    await publisher.PublishAsync(evidence.ToRealtimeEvent(), generationCancellation).ConfigureAwait(false);
+                    await publisher.PublishAsync(TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(envelope, evidence.ToRealtimeEvent()), generationCancellation).ConfigureAwait(false);
                     break;
                 case DatasetPublicationKind.OptionQuoteObservation:
                 case DatasetPublicationKind.Trade:
                     await publisher.PublishAsync(
-                        MessagePackSerializer.Deserialize<FuturesTickTradeDataChangedEvent>(envelope.Payload,cancellationToken:cancellationToken) with
-                        { SourceDataset = envelope.Dataset, SourceGenerationId = envelope.GenerationId },
+                        TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(envelope, MessagePackSerializer.Deserialize<FuturesTickTradeDataChangedEvent>(envelope.Payload,cancellationToken:cancellationToken) with
+                        { SourceDataset = envelope.Dataset, SourceGenerationId = envelope.GenerationId }),
                         generationCancellation).ConfigureAwait(false);
                     break;
                 case DatasetPublicationKind.Quote:
                     var quote = MessagePackSerializer.Deserialize<FuturesTickQuoteDataChangedEvent>(envelope.Payload,cancellationToken:cancellationToken) with
                     { SourceDataset = envelope.Dataset, SourceGenerationId = envelope.GenerationId };
+                    TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(envelope, quote);
                     await publisher.PublishAsync(quote,
                         new DeserializedQuoteLease(quote.QuoteData.Buffer, quote.QuoteCount),
                         generationCancellation).ConfigureAwait(false);
                     break;
                 case DatasetPublicationKind.MarketPrice:
                     await publisher.PublishAsync(
-                        MessagePackSerializer.Deserialize<FuturesMarketPriceUpdatedRealtimeEvent>(envelope.Payload,cancellationToken:cancellationToken) with
-                        { SourceDataset = envelope.Dataset, SourceGenerationId = envelope.GenerationId },
+                        TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(envelope, MessagePackSerializer.Deserialize<FuturesMarketPriceUpdatedRealtimeEvent>(envelope.Payload,cancellationToken:cancellationToken) with
+                        { SourceDataset = envelope.Dataset, SourceGenerationId = envelope.GenerationId }),
                         generationCancellation).ConfigureAwait(false);
                     break;
                 case DatasetPublicationKind.TradeReplayBatch:
                     await publisher.PublishAsync(
-                        MessagePackSerializer.Deserialize<FuturesTradeReplayBatchRealtimeEvent>(envelope.Payload,cancellationToken:cancellationToken) with
-                        { SourceDataset = envelope.Dataset, SourceGenerationId = envelope.GenerationId },
+                        TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(envelope, MessagePackSerializer.Deserialize<FuturesTradeReplayBatchRealtimeEvent>(envelope.Payload,cancellationToken:cancellationToken) with
+                        { SourceDataset = envelope.Dataset, SourceGenerationId = envelope.GenerationId }),
                         generationCancellation).ConfigureAwait(false);
                     break;
                 case DatasetPublicationKind.SessionStatistics:
                     await publisher.PublishAsync(
-                        MessagePackSerializer.Deserialize<FuturesSessionStatisticsUpdatedRealtimeEvent>(envelope.Payload,cancellationToken:cancellationToken) with
-                        { SourceDataset = envelope.Dataset, SourceGenerationId = envelope.GenerationId },
+                        TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(envelope, MessagePackSerializer.Deserialize<FuturesSessionStatisticsUpdatedRealtimeEvent>(envelope.Payload,cancellationToken:cancellationToken) with
+                        { SourceDataset = envelope.Dataset, SourceGenerationId = envelope.GenerationId }),
                         generationCancellation).ConfigureAwait(false);
                     break;
                 default:

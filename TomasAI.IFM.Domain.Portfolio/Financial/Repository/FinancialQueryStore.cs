@@ -7,8 +7,9 @@ using static TomasAI.IFM.Domain.Portfolio.Financial.Repository.FinancialReposito
 namespace TomasAI.IFM.Domain.Portfolio.Financial.Repository;
 
 /// <summary>Bounded authoritative queries. The financial fence gives each response one consistent current revision.</summary>
-public sealed class FinancialQueryStore(IPostgresEventTransaction transactions, FinancialDevelopmentPolicy? developmentPolicy = null) : IFinancialQueryStore
+public sealed class FinancialQueryStore(IPostgresEventTransaction transactions, FinancialDevelopmentPolicy? developmentPolicy = null, TimeProvider? timeProvider = null) : IFinancialQueryStore
 {
+    readonly TimeProvider businessClock = timeProvider ?? TimeProvider.System;
     public Task<FinancialRead<FinancialLedgerConfiguration>> ReadAsync(FinancialReadScope scope, GetFinancialLedgerConfigurationRequest request, CancellationToken token = default)
         
     {
@@ -77,13 +78,13 @@ public sealed class FinancialQueryStore(IPostgresEventTransaction transactions, 
         var deployment = fund.Deployments.SingleOrDefault(x => x.Reference.DeploymentKey == request.DeploymentKey);
         Require(deployment is not null, FinancialReasons.AuthorityDenied, "Fund does not authorize this exact deployment.");
         var state = (string)(await (db.ScalarAsync(PortfolioDbSql.Financial.FinancialQueryStore.Select09, [scope.PortfolioId], ct)).ConfigureAwait(false))!;
-        bool ready = (book.DevelopmentQualificationsExempt || string.Equals(state,"Active",StringComparison.Ordinal)) && book.MigrationQualified && fund.CanSpend && deployment!.MaximumRiskPerTrade > 0 && deployment.Reference.ValidUntilUtc > DateTime.UtcNow;
+        bool ready = (book.DevelopmentQualificationsExempt || string.Equals(state,"Active",StringComparison.Ordinal)) && book.MigrationQualified && fund.CanSpend && deployment!.MaximumRiskPerTrade > 0 && deployment.Reference.ValidUntilUtc > businessClock.GetUtcNow().UtcDateTime;
         if (ready && !book.DevelopmentQualificationsExempt)
         {
             var matches = await db.ScalarAsync(PortfolioDbSql.Financial.FinancialQueryStore.MatchFundSources,
                 [book.PortfolioId, fund.FundId, fund.Reference.PolicyId, fund.PortfolioStreamVersion, fund.FundStreamVersion, fund.PolicyStreamVersion],
                 ct).ConfigureAwait(false);
-            Require(matches is true && fund.Reference.ValidUntilUtc > DateTime.UtcNow, FinancialReasons.AuthorityRevoked,
+            Require(matches is true && fund.Reference.ValidUntilUtc > businessClock.GetUtcNow().UtcDateTime, FinancialReasons.AuthorityRevoked,
                 "Portfolio/Fund/policy changed since financial authority was prepared.");
         }
         bool Relevant(CapacityScopeKind kind, string key) => kind switch
@@ -288,11 +289,11 @@ public sealed class FinancialQueryStore(IPostgresEventTransaction transactions, 
         return await (transactions.ExecuteAsync(async (db, ct) =>
         {
             var rows = await (db.QueryAsync(PortfolioDbSql.Financial.FinancialQueryStore.Select19, [scope.PortfolioId], r => (Book: Decode<FinancialBookConfiguration>(r.GetString(0)), Revision: r.GetInt64(1)), ct)).ConfigureAwait(false);
-            if (rows.Count == 0) return new FinancialRead<T>(FinancialReadStatus.NotFound, null, 0, DateTime.UtcNow);
+            if (rows.Count == 0) return new FinancialRead<T>(FinancialReadStatus.NotFound, null, 0, businessClock.GetUtcNow().UtcDateTime);
             var (book, revision) = rows[0];
             if (scope.FundId is { } fund) Require(book.Funds.Any(x => x.FundId == fund), FinancialReasons.AuthorityDenied, "Fund does not belong to this financial book.");
             var result = await (query(db, book, revision, ct)).ConfigureAwait(false);
-            return new FinancialRead<T>(result is null ? FinancialReadStatus.NotFound : FinancialReadStatus.Found, result, revision, DateTime.UtcNow);
+            return new FinancialRead<T>(result is null ? FinancialReadStatus.NotFound : FinancialReadStatus.Found, result, revision, businessClock.GetUtcNow().UtcDateTime);
         }, token)).ConfigureAwait(false);
     }
 

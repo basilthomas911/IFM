@@ -27,7 +27,7 @@ public static class PrepareFinancialBook
                 ? [new ValidationError("Invalid operation identity or route.")]
                 : [];
 
-        public async ValueTask<FinancialBookPreparationCompletedEvent> ExecuteAsync(BookPreparer preparation, CancellationToken token)
+        public async ValueTask<FinancialBookPreparationCompletedEvent> ExecuteAsync(BookPreparer preparation, CancellationToken token, TimeProvider? timeProvider = null)
         {
             var value = await preparation.PrepareAsync(request.Scope, request.Parameters, token).ConfigureAwait(false);
             if (MessagePackBinarySerializer.MeasureContent(value) > 524_288)
@@ -39,7 +39,7 @@ public static class PrepareFinancialBook
                 CommandId = request.CommandId,
                 EntityId = request.EntityId,
                 EventSource = request.EventSource,
-                ReceivedOn = DateTime.UtcNow,
+                ReceivedOn = (timeProvider ?? TimeProvider.System).GetUtcNow().UtcDateTime,
                 InputHash = FinancialCanonicalHash.Compute(new { request.Parameters, request.Scope }),
                 Value = value
             };

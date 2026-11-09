@@ -37,7 +37,7 @@ public static class StartMarketConditionPipeline
                     PayloadSha256 = resolved.PayloadSha256
                 };
                 binding.Validate();
-                return PipelineStartResult<WorkflowStrategyStateUpdatedEvent>.Started(snapshot with { State = view with { AssessmentBinding = binding, MarketCondition = view.MarketCondition with { ParameterSetId = resolved.ParameterSet.ParameterSetId, ParameterSetVersion = resolved.ParameterSet.Version, ParameterPayloadSha256 = resolved.PayloadSha256 } } });
+                return PipelineStartResult<WorkflowStrategyStateUpdatedEvent>.Started(global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(snapshot, snapshot with { State = view with { AssessmentBinding = binding, MarketCondition = view.MarketCondition with { ParameterSetId = resolved.ParameterSet.ParameterSetId, ParameterSetVersion = resolved.ParameterSet.Version, ParameterPayloadSha256 = resolved.PayloadSha256 } } }));
             }
             catch (Exception exception)
             {

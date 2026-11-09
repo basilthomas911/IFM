@@ -16,7 +16,7 @@ public abstract record StrategyCatalogLifecycleCommand : ICommand<ActorEntityId>
     [IgnoreMember] public string CommandName => GetType().Name;
     [IgnoreMember] public string StreamId => Subject.StreamId;
     [IgnoreMember] public string EventSource => Actor + "Actor";
-    [IgnoreMember] public DateTime OriginatedOn => DateTime.UtcNow;
+    [IgnoreMember] public DateTime OriginatedOn => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Get(this)?.OriginatedAtUtc.UtcDateTime ?? default;
     [IgnoreMember] public string OriginatedBy => Environment.UserName;
 
     public static ActorEntityId Address(CatalogKey key) => new($"{(int)key.Kind}-{key.Id:N}-{key.Version}");

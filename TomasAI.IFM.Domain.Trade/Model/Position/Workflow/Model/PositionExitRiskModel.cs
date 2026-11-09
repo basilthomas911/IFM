@@ -41,10 +41,10 @@ public static class PositionExitRiskModel
             PositionType = PortfolioExecutionPositionType.Closing
         };
         var request = CreateRequest(command, body, operationId, portfolioId, now);
-        request = request with
+        request = global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(request, request with
         {
             InputSha256 = FinancialCanonicalHash.Request(request)
-        };
+        });
         var response = await portfolio.EvaluateCloseAsync(request, cancellationToken).ConfigureAwait(false);
         if (!response.Success || response.Value is null)
             throw new InvalidOperationException($"EXIT.PORTFOLIO.REQUEST_FAILED;ErrorCode={response.ErrorCode};ErrorMessage={response.ErrorMessage}");

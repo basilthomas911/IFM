@@ -13,10 +13,10 @@ public sealed class RiskManagementFunctionContext : FunctionActorContext, IRiskM
 {
     readonly Lazy<IEventSourceFunctionStateRepository<RiskManagementFunctionState, ExecuteRiskManagementPipelineCommand>> _repository;
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "This typed context adapts services for its actor and intentionally retains the actor logger category.")]
-    public RiskManagementFunctionContext(IActorSupervisor supervisor, ILogger<RiskManagementFunctionActor> logger) : base(supervisor, new ActorMailboxId(ActorType.Function, RiskManagementFunctionActor.ActorName))
+    public RiskManagementFunctionContext(IActorSupervisor supervisor, ILogger<RiskManagementFunctionActor> logger, TimeProvider? timeProvider = null) : base(supervisor, new ActorMailboxId(ActorType.Function, RiskManagementFunctionActor.ActorName))
     {
         Logger = IsArgumentNull.Set(logger);
-        TimeProvider = TimeProvider.System;
+        TimeProvider = timeProvider ?? TimeProvider.System;
         _repository = new(() => Container.Resolve<IEventSourceFunctionStateRepository<RiskManagementFunctionState, ExecuteRiskManagementPipelineCommand>>());
     }
 

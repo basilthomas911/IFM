@@ -14,10 +14,10 @@ public sealed class TradeSelectionFunctionContext : FunctionActorContext, ITrade
     readonly Lazy<IEventSourceFunctionStateRepository<TradeSelectionFunctionState, ExecuteTradeSelectionPipelineCommand>> _repository;
     readonly Lazy<IFunctionProjector<TradeSelectionFunctionCompletedEvent>> _projector;
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "This typed context adapts services for its actor and intentionally retains the actor logger category.")]
-    public TradeSelectionFunctionContext(IActorSupervisor supervisor, ILogger<TradeSelectionFunctionActor> logger) : base(supervisor, new ActorMailboxId(ActorType.Function, TradeSelectionFunctionActor.ActorName))
+    public TradeSelectionFunctionContext(IActorSupervisor supervisor, ILogger<TradeSelectionFunctionActor> logger, TimeProvider? timeProvider = null) : base(supervisor, new ActorMailboxId(ActorType.Function, TradeSelectionFunctionActor.ActorName))
     {
         Logger = IsArgumentNull.Set(logger);
-        TimeProvider = TimeProvider.System;
+        TimeProvider = timeProvider ?? TimeProvider.System;
         _repository = new(() => Container.Resolve<IEventSourceFunctionStateRepository<TradeSelectionFunctionState, ExecuteTradeSelectionPipelineCommand>>());
         _projector = new(() => Container.Resolve<IFunctionProjector<TradeSelectionFunctionCompletedEvent>>());
     }

@@ -16,7 +16,7 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb;
 public sealed class PostgresEventTransaction(
     IDbConnectionSettings settings,
     EventLogPersistenceOptions? eventLogPersistenceOptions = null,
-    PostgresQueryTimeout? defaultQueryTimeout = null) : IPostgresEventTransaction
+    PostgresQueryTimeout? defaultQueryTimeout = null, TimeProvider? timeProvider = null) : IPostgresEventTransaction
 {
     readonly PostgresQueryTimeout queryTimeout = (defaultQueryTimeout ?? PostgresQueryTimeout.Default).Validate();
     readonly string connectionString = ResolveConnectionString(settings, defaultQueryTimeout);
@@ -106,7 +106,7 @@ public sealed class PostgresEventTransaction(
             .ConfigureAwait(false);
         await using var transactionDisposal = transaction.ConfigureAwait(false);
         beginTrace?.Stop();
-        var enlisted = new EnlistedEventTransaction(connection, transaction, eventLogCodec, eventLogSqlLayout, queryTimeout);
+        var enlisted = new EnlistedEventTransaction(connection, transaction, eventLogCodec, eventLogSqlLayout, queryTimeout, timeProvider);
         T result;
         try
         {

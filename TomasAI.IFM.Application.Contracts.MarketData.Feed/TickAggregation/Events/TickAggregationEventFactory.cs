@@ -51,7 +51,7 @@ internal static class TickAggregationEventFactory
             Subject = new ActorSubject(ActorType.Realtime, TickAggregationFailEvent.Actor, verb, source.EntityId.Format()),
             EntityId = source.EntityId,
             Id = source.Id,
-            ErrorDate = DateTime.UtcNow,
+            ErrorDate = default,
             EventId = source.EventId,
             CommandId = source.CommandId,
             EventSource = source.EventSource,

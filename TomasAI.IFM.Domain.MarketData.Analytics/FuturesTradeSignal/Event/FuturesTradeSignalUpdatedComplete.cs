@@ -51,9 +51,10 @@ public static class FuturesTradeSignalUpdatedComplete
                     CommandId = e.CommandId,
                     AggregateId = e.AggregateId ?? string.Empty,
                     EventSource = nameof(FuturesTradeSignalUpdatedCompleteEvent),
-                    ReceivedOn = DateTime.UtcNow,
+
                     FuturesTradeSignal = tradeSignal
                 };
+                MessageOrigins.Capture(notification, context.Container?.Resolve<TimeProvider>() ?? TimeProvider.System, causationId: e.Id == Guid.Empty ? null : e.Id);
                 await context.SendAsync<FuturesTradeSignalUpdatedNotifyEvent, FuturesTradeSignalEntityId>(
                     notification).ConfigureAwait(false);
                 return true;

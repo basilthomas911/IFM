@@ -98,7 +98,7 @@ public record FuturesItiSignalHoldTradeSetEvent : IEvent<FuturesItiSignalEntityI
             Subject = new ActorSubject(ActorType.Event, FuturesItiSignalHoldTradeSetFailEvent.Actor, FuturesItiSignalHoldTradeSetFailEvent.Verb, this.Subject.EntityId),
             EntityId = this.EntityId,
             Id = this.Id,
-            ErrorDate = DateTime.UtcNow,
+            ErrorDate = default,
             EventId = this.EventId,
             CommandId = this.CommandId == Guid.Empty ? Guid.NewGuid() : this.CommandId,
             EventSource = this.EventSource,

@@ -432,7 +432,8 @@ internal readonly record struct TryTerminalizeEventProjectorExecutionWithOutbox(
     string messageId,
     string eventTypeName,
     byte[] eventPayload,
-    DateTime createdAtUtc) : IBindValue
+    DateTime createdAtUtc,
+    string? messageOriginJson = null) : IBindValue
 {
     public object Bind()
     {
@@ -443,7 +444,8 @@ internal readonly record struct TryTerminalizeEventProjectorExecutionWithOutbox(
              Text(messageId),
              Text(eventTypeName),
              Bytea(eventPayload),
-             TimestampTz(createdAtUtc)]);
+             TimestampTz(createdAtUtc),
+             Text(messageOriginJson)]);
     }
 }
 
@@ -492,7 +494,8 @@ internal readonly record struct TryTransitionEventProjectorExecutionWithOutbox(
     string messageId,
     string eventTypeName,
     byte[] eventPayload,
-    DateTime createdAtUtc) : IBindValue
+    DateTime createdAtUtc,
+    string? messageOriginJson = null) : IBindValue
 {
     public object Bind()
     {
@@ -503,7 +506,8 @@ internal readonly record struct TryTransitionEventProjectorExecutionWithOutbox(
              Text(messageId),
              Text(eventTypeName),
              Bytea(eventPayload),
-             TimestampTz(createdAtUtc)]);
+             TimestampTz(createdAtUtc),
+             Text(messageOriginJson)]);
     }
 }
 

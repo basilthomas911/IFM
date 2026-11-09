@@ -30,7 +30,7 @@ public static class AllocateStreamingRequestId
                 CommandId = request.CommandId,
                 EntityId = request.EntityId,
                 EventSource = request.EventSource,
-                ReceivedOn = DateTime.UtcNow,
+
                 Value = value
             };
         }

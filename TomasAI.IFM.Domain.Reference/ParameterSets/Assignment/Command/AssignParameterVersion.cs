@@ -55,7 +55,7 @@ public static class AssignParameterVersion
                 throw new InvalidOperationException("PARAM.EXACT_VERSION_MISSING");
             }
             var errorMsg = "ParameterAssignment.STATE.APPLY_FAILED: unable to apply AssignParameterVersion event";
-            var updated = command.Compute(state, hash, version, out var parameterChange) switch
+            var updated = command.Compute(state, hash, version, out var parameterChange, context.DbEventSource?.BusinessClock) switch
             {
                 _ when parameterChange.RejectionReason is not null
                     => command.UpdateFailed(ref errorMsg, parameterChange.RejectionReason),
@@ -76,12 +76,12 @@ public static class AssignParameterVersion
         /// <param name="version">The exact committed parameter version.</param>
         /// <param name="parameterChange">The proposed business change or rejection reason.</param>
         /// <returns>True when computation succeeds; otherwise false with its business rejection.</returns>
-        internal bool Compute(ParameterAssignmentCommandState state, string hash, ParameterSetVersion version, out ParameterAssignmentChange parameterChange)
+        internal bool Compute(ParameterAssignmentCommandState state, string hash, ParameterSetVersion version, out ParameterAssignmentChange parameterChange, TimeProvider? clock = null)
         {
             try
             {
-                var parameterAssignment = ParameterAssignmentModel.Assign(command.Scope, version, state.Assignment, command.ExpectedRevision, DateTime.UtcNow, command.OriginatedBy);
-                parameterChange = new(parameterAssignment, hash, ParameterAuditModel.ForAssignment(command.CommandId, command.CommandName, command.OriginatedBy, state.Assignment, parameterAssignment));
+                var parameterAssignment = ParameterAssignmentModel.Assign(command.Scope, version, state.Assignment, command.ExpectedRevision, (clock ?? TimeProvider.System).GetUtcNow().UtcDateTime, command.OriginatedBy);
+                parameterChange = new(parameterAssignment, hash, ParameterAuditModel.ForAssignment(command.CommandId, command.CommandName, command.OriginatedBy, state.Assignment, parameterAssignment, clock));
                 return true;
             }
             catch (Exception rejection) when (rejection is ArgumentException or InvalidOperationException or KeyNotFoundException)

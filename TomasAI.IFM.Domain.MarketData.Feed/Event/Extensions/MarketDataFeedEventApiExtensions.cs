@@ -146,7 +146,7 @@ public static class MarketDataFeedEventApiExtensions
                 Id = Guid.NewGuid(),
                 CommandId = e.CommandId,
                 AggregateId = e.AggregateId,
-                ReceivedOn = DateTime.UtcNow
+                ReceivedOn = default
             };
             await (context.SendAsync<OptionTradeTickPriceDataUpdatedEvent, FuturesOptionTickEntityId>(updatedEvent)).ConfigureAwait(false);
         }
@@ -175,7 +175,7 @@ public static class MarketDataFeedEventApiExtensions
                 CommandId = e.CommandId,
                 AggregateId = e.AggregateId,
                 EventSource = nameof(FuturesTickTradeDataInsertedEvent),
-                ReceivedOn = DateTime.UtcNow
+                ReceivedOn = default
             };
             await context.SendAsync<OptionTradeTickPriceDataUpdatedEvent, FuturesOptionTickEntityId>(
                 updatedEvent).ConfigureAwait(false);
@@ -420,7 +420,7 @@ public static class MarketDataFeedEventApiExtensions
                 CommandId = e.CommandId,
                 AggregateId = e.AggregateId ?? string.Empty,
                 EventSource = nameof(FuturesEodDataInsertedCompleteEvent),
-                ReceivedOn = DateTime.UtcNow,
+
                 FuturesEodData = e.FuturesEodData
             };
             await context.SendAsync<FuturesEodDataUpdatedNotifyEvent, FuturesEodDataId>(

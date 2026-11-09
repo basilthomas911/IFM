@@ -27,6 +27,8 @@ public sealed class NatsOwnedEventMessage : IActorMessage, IActorDeliveryComplet
         _delivery = delivery;
     }
 
+    public MessageOrigin? Origin => _payload.Origin;
+
     public ActorSubject Subject { get; }
     public ActorSubject SourceSubject => _payload.SourceSubject;
     public string? SourceDataset => _payload.SourceDataset;
@@ -53,8 +55,9 @@ public sealed class NatsOwnedEventMessage : IActorMessage, IActorDeliveryComplet
         var memory = _payload.Memory;
         if (memory.IsEmpty)
             return default;
-        return NatsMessagePackSerializer<TEvent>.Default.Deserialize(
+        var value = NatsMessagePackSerializer<TEvent>.Default.Deserialize(
             new System.Buffers.ReadOnlySequence<byte>(memory));
+        return value is null ? null : MessageOrigins.Restore(value, Origin);
     }
 
     public TQuery? AsQuery<TQuery, TResult>()

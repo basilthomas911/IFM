@@ -17,7 +17,7 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Command.Event
 public sealed class FuturesAtrSignalEventProjector(
     IDbContextFactory dbFactory, IDurableReplayQueue durableReplayQueue,
     IEventSourceActorDbContext dbEventSource, ILogger<FuturesAtrSignalEventProjector> logger, EventProjectorReliabilityOptions? reliabilityOptions = null,
-    IPostgresEventTransaction? transactions = null)
+    IPostgresEventTransaction? transactions = null, TimeProvider? timeProvider = null)
     : ConventionalEventProjector<FuturesAtrSignalCommandActor>(durableReplayQueue, dbEventSource, logger, reliabilityOptions)
 {
     readonly ImmutableArray<EventProjectionDescriptor> _descriptors =
@@ -25,12 +25,12 @@ public sealed class FuturesAtrSignalEventProjector(
         Describe<FuturesAtrSignalGeneratedEvent, FuturesAtrSignalGeneratedCompleteEvent, FuturesAtrSignalGeneratedFailEvent, FuturesAtrSignalEntityId>(
             (Func<FuturesAtrSignalGeneratedEvent, Task>)(async e => { if (!string.Equals(dbFactory.MarketDataDb.ProviderName,"System.Data.Postgres",StringComparison.Ordinal)) {
 await dbFactory.MarketDataDb.InsertFuturesAtrSignalAsync(e.FuturesAtrSignal).ConfigureAwait(false);}
-RegimeDiscoverySignalCacheAdapter.Publish(e.FuturesAtrSignal); }))
+RegimeDiscoverySignalCacheAdapter.Publish(e.FuturesAtrSignal, timeProvider); }))
             .WithReadModelRebuild((source,token) => AcceptedSignalRebuild.MaterializeAsync(dbFactory,transactions,source,token)),
         Describe<FuturesAtrDailySignalGeneratedEvent, FuturesAtrDailySignalGeneratedCompleteEvent, FuturesAtrDailySignalGeneratedFailEvent, FuturesAtrDailySignalEntityId>(
             (Func<FuturesAtrDailySignalGeneratedEvent, Task>)(async e => { if (!string.Equals(dbFactory.MarketDataDb.ProviderName,"System.Data.Postgres",StringComparison.Ordinal)) {
 await dbFactory.MarketDataDb.InsertFuturesAtrSignalAsync(e.FuturesAtrSignal).ConfigureAwait(false);}
-RegimeDiscoverySignalCacheAdapter.Publish(e.FuturesAtrSignal); }))
+RegimeDiscoverySignalCacheAdapter.Publish(e.FuturesAtrSignal, timeProvider); }))
             .WithReadModelRebuild((source,token) => AcceptedSignalRebuild.MaterializeAsync(dbFactory,transactions,source,token)),
         DescribeNotification<FuturesAtrSignalStartedEvent, FuturesAtrSignalEntityId>(useDurableReplay: false),
         DescribeNotification<FuturesAtrSignalStoppedEvent, FuturesAtrSignalEntityId>(useDurableReplay: false)

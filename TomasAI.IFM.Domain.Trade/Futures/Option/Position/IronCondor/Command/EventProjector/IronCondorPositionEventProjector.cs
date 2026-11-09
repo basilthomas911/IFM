@@ -54,7 +54,7 @@ public sealed class IronCondorPositionEventProjector : ConventionalEventProjecto
             return;
         }
 
-        await context.SendAsync<IronCondorPositionChangedEvent, StrategyPositionId>(changed with { Subject = new(TomasAI.IFM.Shared.EventModelActor.ActorType.Event, "FuturesIronCondorTradePositionEvent", IronCondorPositionChangedEvent.Verb, changed.EntityId.Format()) }).ConfigureAwait(false);
+        await context.SendAsync<IronCondorPositionChangedEvent, StrategyPositionId>(global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(changed, changed with { Subject = new(TomasAI.IFM.Shared.EventModelActor.ActorType.Event, "FuturesIronCondorTradePositionEvent", IronCondorPositionChangedEvent.Verb, changed.EntityId.Format()) })).ConfigureAwait(false);
         await PositionProjectionActions.ProjectAsync(context, context.DbFactory, changed, FuturesIronCondorTradePositionCommandActor.ActorName, FuturesOptionRealtimeActor.ActorName, IronCondorTradePositionRealtimeActor.ActorName).ConfigureAwait(false);
     }
 

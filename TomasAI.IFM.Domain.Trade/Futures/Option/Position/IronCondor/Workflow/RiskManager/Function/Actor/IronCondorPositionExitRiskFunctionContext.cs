@@ -7,6 +7,6 @@ namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Workflow.R
 
 public sealed class IronCondorPositionExitRiskFunctionContext(
     IActorSupervisor supervisor, IPortfolioOrderCompositionApi portfolio,
-    ILogger<IronCondorPositionExitRiskFunctionActor> logger)
+    ILogger<IronCondorPositionExitRiskFunctionActor> logger, TimeProvider? timeProvider = null)
     : PositionExitRiskFunctionContext<IronCondorPositionExitRiskFunctionActor>(
-        supervisor, IronCondorPositionExitRiskFunctionActor.ActorName, portfolio, logger);
+        supervisor, IronCondorPositionExitRiskFunctionActor.ActorName, portfolio, logger, timeProvider);

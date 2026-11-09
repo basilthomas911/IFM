@@ -73,10 +73,10 @@ public static class CompositionDispatch
         };
         requestTrace?.Stop();
         using (WorkflowTrace.Start("composer.dispatch.fingerprint", view))
-            request = request with
+            request = global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(request, request with
             {
                 InputSha256 = request.Fingerprint()
-            };
+            });
         ValidateRequest(request, view);
 
         return request;

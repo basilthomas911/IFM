@@ -207,12 +207,12 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
             var entityId = new FuturesRsiSignalEntityId(futuresEodData.ContractId, futuresEodData.ValueDate, timePeriod, periodLength);
             var futuresRsiSignalId = new FuturesRsiSignalId(futuresEodData.ContractId, futuresEodData.ValueDate, timePeriod, periodLength, TimeOnly.MinValue);
             GenerateFuturesRsiSignalCommand cmd = new(futuresRsiSignalId, futuresEodData.ClosePrice);
-            cmd = cmd with
+            cmd = global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.CopyCommandIfSameIdentity(cmd, cmd with
             {
                 CommandId = cmdId,
                 Subject = new ActorSubject(ActorType.Command, GenerateFuturesRsiSignalCommand.Actor, GenerateFuturesRsiSignalCommand.Verb, entityId.Format()),
                 ErrorCode = GenerateFuturesRsiSignalCommand.ErrorId
-            };
+            });
             serviceResult = await (RequestCommandAsync(cmd!, entityId)).ConfigureAwait(false);
         }
         catch (Exception ex)
@@ -240,12 +240,12 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
             var futuresRsiSignalId = new FuturesRsiSignalId(futuresEodData.ContractId, futuresEodData.ValueDate, timePeriod, periodLength, TimeOnly.MinValue);
             var cmd = new GenerateFuturesRsiDailySignalCommand(futuresRsiSignalId, futuresEodData.ClosePrice);
             var entityId = cmd.EntityId;
-            cmd = cmd with
+            cmd = global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.CopyCommandIfSameIdentity(cmd, cmd with
             {
                 CommandId = cmdId,
                 Subject = new ActorSubject(ActorType.Command, GenerateFuturesRsiDailySignalCommand.Actor, GenerateFuturesRsiDailySignalCommand.Verb, entityId.Format()),
                 ErrorCode = GenerateFuturesRsiDailySignalCommand.ErrorId
-            };
+            });
             serviceResult = await (RequestCommandAsync(cmd!, entityId)).ConfigureAwait(false);
         }
         catch (Exception ex)
@@ -277,12 +277,12 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
         try
         {
             var cmd = new UpdateFuturesTradeSignalCommand(futuresEodData, futuresRsiSignal, futuresTdiSignal, futuresItiSignalData, vixFuturesPrice);
-            cmd = cmd with
+            cmd = global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.CopyCommandIfSameIdentity(cmd, cmd with
             {
                 CommandId = cmdId,
                 Subject = new ActorSubject(ActorType.Command, UpdateFuturesTradeSignalCommand.Actor, UpdateFuturesTradeSignalCommand.Verb, cmd.EntityId.Format()),
                 ErrorCode = UpdateFuturesTradeSignalCommand.ErrorId
-            };
+            });
             serviceResult = await (RequestCommandAsync(cmd!, cmd.EntityId)).ConfigureAwait(false);
         }
         catch (Exception ex)

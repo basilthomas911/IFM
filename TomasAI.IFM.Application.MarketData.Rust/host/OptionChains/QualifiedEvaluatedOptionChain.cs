@@ -80,10 +80,10 @@ context.Logger.LogDebug("Option-chain acquisition diagnostic.");
                 owners.Remove(owner);
             owners[query.SubscriptionOwnerId ?? ""] = new(context.Clock.GetUtcNow().AddSeconds(90), query.RequiredContractIds);
             // A serialized scope mutation prevents concurrent required-leg requests from replacing each other.
-            var effective = query with
+            var effective = global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(query, query with
             {
                 RequiredContractIds = owners.Values.SelectMany(x => x.Required).Distinct(StringComparer.Ordinal).ToArray()
-            };
+            });
             return await (AcquireAsync(key, effective, context, api, discovery, market, admission, token)).ConfigureAwait(false);
         }
         finally

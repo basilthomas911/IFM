@@ -1396,6 +1396,32 @@ pub unsafe extern "C" fn ifm_market_data_owner_current_v1(
     capacity: u32,
     required: *mut u32,
 ) -> i32 {
+    // SAFETY: The common reader validates all caller buffers.
+    unsafe { read_current_with_metadata(handle, selected, after, maximum, output, capacity, required, false) }
+}
+
+/// Copies a fenced current-value page with original message provenance.
+///
+/// # Safety
+/// Same writable-buffer contract as ifm_market_data_owner_current_v1.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn ifm_market_data_owner_current_with_origins_v1(
+    handle: u64,
+    selected: u32,
+    after: i64,
+    maximum: u32,
+    output: *mut u8,
+    capacity: u32,
+    required: *mut u32,
+) -> i32 {
+    // SAFETY: The common reader validates all caller buffers.
+    unsafe { read_current_with_metadata(handle, selected, after, maximum, output, capacity, required, true) }
+}
+
+unsafe fn read_current_with_metadata(
+    handle: u64, selected: u32, after: i64, maximum: u32, output: *mut u8,
+    capacity: u32, required: *mut u32, origins: bool,
+) -> i32 {
     boundary(|| {
         if after < 0
             || maximum == 0
@@ -1406,9 +1432,12 @@ pub unsafe extern "C" fn ifm_market_data_owner_current_v1(
         {
             return Err(Status::InvalidInput);
         }
-        let value = owner(handle)?
-            .current_frames(super::live::lane(selected)?, after, maximum as usize)
-            .map_err(|_| Status::InternalFailure)?;
+        let owner = owner(handle)?;
+        let value = if origins {
+            owner.current_frames_with_origins(super::live::lane(selected)?, after, maximum as usize)
+        } else {
+            owner.current_frames(super::live::lane(selected)?, after, maximum as usize)
+        }.map_err(|_| Status::InternalFailure)?;
         let bytes = value
             .as_ref()
             .map(crate::messaging::codec::encode)

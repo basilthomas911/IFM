@@ -23,7 +23,7 @@ internal static class FuturesAdxSignalEventExtensions
         /// <exception cref="InvalidOperationException">Thrown if the generate operation fails or returns an unsuccessful result.</exception>
         public async ValueTask GenerateFuturesAdxSignalAsync(FuturesEodDataV2ReadModel futuresEodData, TimeFrameType timePeriod, int periodLength, decimal futuresPrice)
         {
-            var signalId = new FuturesAdxSignalId(futuresEodData.ContractId, futuresEodData.ValueDate, timePeriod, periodLength, TimeOnly.FromDateTime(DateTime.Now));
+            var signalId = new FuturesAdxSignalId(futuresEodData.ContractId, futuresEodData.ValueDate, timePeriod, periodLength, TimeOnly.FromDateTime((commandApi.Container?.Resolve<TimeProvider>() ?? TimeProvider.System).GetLocalNow().DateTime));
             _ = await (MarketDataAnalyticsCommandApiExtensions.GenerateFuturesAdxSignalAsync(commandApi, signalId, futuresPrice)).ConfigureAwait(false);
         }
     }

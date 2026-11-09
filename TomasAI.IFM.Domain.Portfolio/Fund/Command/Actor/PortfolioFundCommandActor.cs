@@ -34,9 +34,10 @@ public sealed class PortfolioFundCommandActor(
     IPortfolioEventStore eventStore,
     IEventProjector<PortfolioFundCommandActor> projector,
     IPortfolioOperationalGuard operationalGuard,
-    ILogger<PortfolioFundCommandActor> logger)
+    ILogger<PortfolioFundCommandActor> logger, TimeProvider? timeProvider = null)
     : BaseEventSourceCommandActor<PortfolioFundCommandActor>(context, logger)
 {
+    readonly TimeProvider businessClock = timeProvider ?? TimeProvider.System;
     public const string ActorName = CreateFundMandateCommand.Actor;
     readonly IPortfolioEventStore _events = eventStore ?? throw new ArgumentNullException(nameof(eventStore));
     readonly IEventProjector<PortfolioFundCommandActor> _projector = projector ?? throw new ArgumentNullException(nameof(projector));
@@ -334,7 +335,7 @@ public sealed class PortfolioFundCommandActor(
             if (priorCreate is not null)
                 return new ServiceFailed<GuidResult>(PortfolioErrorCodes.IdempotencyConflict, "IdempotencyKeyConflict: the key was already committed for a different Fund mandate payload.");
         }
-        var now = DateTime.UtcNow;
+        var now = businessClock.GetUtcNow().UtcDateTime;
         _=state.Aggregate;
         await VerifyReferencePreparationAsync(command, state.Aggregate, cancellationToken).ConfigureAwait(false);
         var receive = ResolveMappedCommandHandler(command, _receiveMap);
@@ -371,13 +372,13 @@ public sealed class PortfolioFundCommandActor(
                 command is not (ChangeFundOperatingStateCommand { State: FundOperatingState.Active } or
                     AddFundMandateVersionCommand { Mandate.OperatingState: FundOperatingState.Active }))
                 throw new InvalidOperationException("Invalid parent Portfolio activation preparation.");
-            request = request with { ActivationAssignments = FundActivationQualification.EnabledAssignments(aggregate) };
+            request = global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(request, request with { ActivationAssignments = FundActivationQualification.EnabledAssignments(aggregate) });
         }
         (ValidatePortfolioReferenceCommand? Input, Guid? Receipt) prepared = command switch
         {
-            CreateFundMandateCommand create => (request with { Mandate = create.Mandate }, create.ReferencePreparationId),
-            AddFundMandateVersionCommand change => (request with { Mandate = change.Mandate }, change.ReferencePreparationId),
-            AssignTradeTemplateCommand assign => (request with { Assignment = assign.Assignment }, assign.ReferencePreparationId),
+            CreateFundMandateCommand create => (global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(request, request with { Mandate = create.Mandate }), create.ReferencePreparationId),
+            AddFundMandateVersionCommand change => (global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(request, request with { Mandate = change.Mandate }), change.ReferencePreparationId),
+            AssignTradeTemplateCommand assign => (global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(request, request with { Assignment = assign.Assignment }), assign.ReferencePreparationId),
             ChangeFundOperatingStateCommand change when change.ActivationPreparation is not null || change.ReferencePreparationId is not null
                 => (request, change.ReferencePreparationId),
             _ => (null, null)
@@ -390,8 +391,8 @@ public sealed class PortfolioFundCommandActor(
             return;
         }
         var receipt = ValidatePortfolioReferenceCommand.ForOwnerCommand(command.CommandId, prepared.Receipt);
-        await _events.VerifyReferencePreparationAsync(prepared.Input with
-            { CommandId = receipt.CommandId, Subject = receipt.Subject, EntityId = receipt.EntityId }, cancellationToken).ConfigureAwait(false);
+        await _events.VerifyReferencePreparationAsync(global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.CopyCommandIfSameIdentity(prepared.Input, prepared.Input with
+            { CommandId = receipt.CommandId, Subject = receipt.Subject, EntityId = receipt.EntityId }), cancellationToken).ConfigureAwait(false);
     }
 
     static FundActivationPreparation? ActivationPreparation(ICommand command) => command switch

@@ -10,8 +10,9 @@ using static TomasAI.IFM.Domain.Portfolio.Financial.Repository.FinancialReposito
 namespace TomasAI.IFM.Domain.Portfolio.Financial.Repository;
 
 /// <summary>Uses the ledger's Portfolio fence for admission, consumption and all lifecycle changes.</summary>
-public sealed class CapacityReservationStore(IPostgresEventTransaction transactions, FinancialDevelopmentPolicy? developmentPolicy = null) : ICapacityReservationStore
+public sealed class CapacityReservationStore(IPostgresEventTransaction transactions, FinancialDevelopmentPolicy? developmentPolicy = null, TimeProvider? timeProvider = null) : ICapacityReservationStore
 {
+    readonly TimeProvider businessClock = timeProvider ?? TimeProvider.System;
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep the transaction, resource ownership and failure ordering together during this provider migration; splitting it would obscure the atomic persistence boundary.")]
     public Task<CapacityReservationCompletedEvent> ReserveAsync(ReservePortfolioTradeRiskCommand request,
         CapacityAdmissionCalculation validate, Func<CapacityReservationReceipt, CapacityReservationCompletedEvent> complete, CancellationToken token = default)
@@ -21,7 +22,7 @@ public sealed class CapacityReservationStore(IPostgresEventTransaction transacti
         return CommitAsync(request, async (db, authority, cancellation) =>
     {
         using var trace = FinancialTelemetry.ActivitySource.StartActivity("financial.capacity.reserve");
-        var body = request.Body; var now = DateTime.UtcNow;
+        var body = request.Body; var now = businessClock.GetUtcNow().UtcDateTime;
         Require(string.Equals(authority.State,"Active",StringComparison.Ordinal) && body.BookId == authority.Book.BookId && string.Equals(body.ExecutionEnvironment,authority.Book.Environment,StringComparison.Ordinal),
             FinancialReasons.AuthorityDenied, "Financial book/environment is not active for this reservation.");
         await (ValidateFundSourcesAsync(db, authority.Book, body.FundId, true, cancellation)).ConfigureAwait(false);
@@ -96,7 +97,7 @@ public sealed class CapacityReservationStore(IPostgresEventTransaction transacti
         ArgumentNullException.ThrowIfNull(request);
         return CommitAsync(request, async (db, authority, cancellation) =>
     {
-        var body = request.Body; var now = DateTime.UtcNow;
+        var body = request.Body; var now = businessClock.GetUtcNow().UtcDateTime;
         Require(consumption == (request is ConsumeCapacityReservationCommand) &&
             (!consumption || body.ChangeKind == CapacityChangeKind.Consume), FinancialReasons.InvalidLifecycle, "Consumption requires its dedicated Function contract.");
         var row = await (ReadReservationAsync(db, request.PortfolioId, body.ReservationId, cancellation)).ConfigureAwait(false);
@@ -176,8 +177,8 @@ public sealed class CapacityReservationStore(IPostgresEventTransaction transacti
         };
         var completed = (T)(IFinancialCompletedEvent)(complete(receipt) switch
         {
-            CapacityConsumptionCompletedEvent value => value with { SchemaVersion=2,ProjectionFacts=facts },
-            CapacityLifecycleCompletedEvent value => value with { SchemaVersion=2,ProjectionFacts=facts },
+            CapacityConsumptionCompletedEvent value => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(value, value with { SchemaVersion=2,ProjectionFacts=facts }),
+            CapacityLifecycleCompletedEvent value => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(value, value with { SchemaVersion=2,ProjectionFacts=facts }),
             _ => throw new InvalidOperationException("Unsupported capacity completion contract.")
         });
         CheckOutcome(request, completed, receipt.CompletedEventId);
@@ -206,7 +207,7 @@ public sealed class CapacityReservationStore(IPostgresEventTransaction transacti
             replay = await (ReadOperationAsync<T>(db, request.PortfolioId, request.OperationId, request.InputSha256, cancellation)).ConfigureAwait(false);
             if (replay is not null) return replay;
             Require(request.ExpectedFinancialRevision == authority.Revision, FinancialReasons.RevisionConflict, "Financial state changed since preparation.");
-            Require(request.ExpiresAtUtc > DateTime.UtcNow, FinancialReasons.TimeExpired, "Request expired before acquiring financial authority.");
+            Require(request.ExpiresAtUtc > businessClock.GetUtcNow().UtcDateTime, FinancialReasons.TimeExpired, "Request expired before acquiring financial authority.");
             return await (apply(db, authority, cancellation)).ConfigureAwait(false);
         }, token)).ConfigureAwait(false);
         }

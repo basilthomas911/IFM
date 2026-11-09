@@ -166,6 +166,6 @@ public static class FinancialControlPreparation
             Access = scope.Access,
             Body = body
         };
-        return command with { InputSha256 = FinancialCanonicalHash.Request(command) };
+        return global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(command, command with { InputSha256 = FinancialCanonicalHash.Request(command) });
     }
 }

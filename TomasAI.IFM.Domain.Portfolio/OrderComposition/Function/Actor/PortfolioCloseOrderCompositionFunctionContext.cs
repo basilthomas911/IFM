@@ -15,9 +15,10 @@ public sealed class PortfolioCloseOrderCompositionFunctionContext : FunctionActo
 
     public PortfolioCloseOrderCompositionFunctionContext(
         IActorSupervisor supervisor,
-        ILogger<PortfolioCloseOrderCompositionFunctionActor> logger)
+        ILogger<PortfolioCloseOrderCompositionFunctionActor> logger, TimeProvider? timeProvider = null)
         : base(supervisor, new(ActorType.Function, PortfolioCloseOrderCompositionFunctionActor.ActorName))
     {
+        TimeProvider = timeProvider ?? TimeProvider.System;
         Logger = logger;
         repository = new(() => Container.Resolve<IEventSourceFunctionStateRepository<
             PortfolioCloseOrderCompositionFunctionState, EvaluatePortfolioCloseOrderCompositionCommand>>() ??
@@ -26,6 +27,6 @@ public sealed class PortfolioCloseOrderCompositionFunctionContext : FunctionActo
 
     public IEventSourceFunctionStateRepository<PortfolioCloseOrderCompositionFunctionState,
         EvaluatePortfolioCloseOrderCompositionCommand> StateRepository => repository.Value;
-    public TimeProvider TimeProvider => global::System.TimeProvider.System;
+    public TimeProvider TimeProvider { get; }
     public ILogger<PortfolioCloseOrderCompositionFunctionActor> Logger { get; }
 }

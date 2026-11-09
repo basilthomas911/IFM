@@ -17,10 +17,11 @@ namespace TomasAI.IFM.Domain.Portfolio.GeneralLedger.FinancialBookPreparation.Fu
 public sealed class FinancialBookPreparationFunctionActor(
     IFunctionActorContext<FinancialBookPreparationFunctionActor> context,
     IEventSourceFunctionStateRepository<FinancialBookPreparationFunctionState, PrepareFinancialBookCommand> repository,
-    BookPreparer preparation, ILogger<FinancialBookPreparationFunctionActor> logger)
+    BookPreparer preparation, ILogger<FinancialBookPreparationFunctionActor> logger, TimeProvider? timeProvider = null)
     : BaseEventSourceFunctionActor<FinancialBookPreparationFunctionActor, PrepareFinancialBookCommand, ActorEntityId, ActorEntityId,
         FinancialBookPreparationFunctionState, FinancialBookPreparationCompletedEvent, FinancialBookPreparationFailedEvent>(context, repository, null, logger)
 {
+    readonly TimeProvider businessClock = timeProvider ?? TimeProvider.System;
     public const string ActorName = PrepareFinancialBookCommand.Actor;
 
     static readonly FrozenDictionary<string, Func<IActorMessage, PrepareFinancialBookCommand>> _parseMap =
@@ -29,10 +30,10 @@ public sealed class FinancialBookPreparationFunctionActor(
             [PrepareFinancialBookCommand.Verb] = message => message.AsCommand<PrepareFinancialBookCommand>()!
         }.ToFrozenDictionary(StringComparer.Ordinal);
 
-    static readonly FrozenDictionary<Type, Func<PrepareFinancialBookCommand, BookPreparer, CancellationToken, ValueTask<FinancialBookPreparationCompletedEvent>>> _receiveMap =
-        new Dictionary<Type, Func<PrepareFinancialBookCommand, BookPreparer, CancellationToken, ValueTask<FinancialBookPreparationCompletedEvent>>>
+    static readonly FrozenDictionary<Type, Func<PrepareFinancialBookCommand, BookPreparer, TimeProvider, CancellationToken, ValueTask<FinancialBookPreparationCompletedEvent>>> _receiveMap =
+        new Dictionary<Type, Func<PrepareFinancialBookCommand, BookPreparer, TimeProvider, CancellationToken, ValueTask<FinancialBookPreparationCompletedEvent>>>
         {
-            [typeof(PrepareFinancialBookCommand)] = static (request, preparer, token) => request.ExecuteAsync(preparer, token)
+            [typeof(PrepareFinancialBookCommand)] = static (request, preparer, clock, token) => request.ExecuteAsync(preparer, token, clock)
         }.ToFrozenDictionary();
 
     static readonly FrozenDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
@@ -70,18 +71,18 @@ public sealed class FinancialBookPreparationFunctionActor(
     }
 
     protected override FunctionExecutionPolicy ResolveExecutionPolicy(PrepareFinancialBookCommand request, FunctionFailureStage stage)
-        => DispatchMappedExecutionPolicy(request, stage, TimeProvider.System, _executionPolicyMap);
+        => DispatchMappedExecutionPolicy(request, stage, businessClock, _executionPolicyMap);
 
     protected override async ValueTask<FunctionResult<FinancialBookPreparationCompletedEvent, FinancialBookPreparationFailedEvent>> ExecuteFunctionAsync(
         IFunctionActorContext<FinancialBookPreparationFunctionActor> services, FinancialBookPreparationFunctionState state,
         PrepareFinancialBookCommand request, CancellationToken cancellationToken)
     {
         var receive = ResolveMappedFunctionHandler(request, _receiveMap);
-        var completed = await receive(request, preparation, cancellationToken).ConfigureAwait(false);
+        var completed = await receive(request, preparation, businessClock, cancellationToken).ConfigureAwait(false);
         return FunctionResult<FinancialBookPreparationCompletedEvent, FinancialBookPreparationFailedEvent>.Complete(completed);
     }
 
     protected override FunctionResult<FinancialBookPreparationCompletedEvent, FinancialBookPreparationFailedEvent> HandleFunctionEvent(
         IFunctionActorContext<FinancialBookPreparationFunctionActor> services, FunctionEventContext<PrepareFinancialBookCommand> input)
-        => DispatchMappedFunctionEvent(input, TimeProvider.System, _eventMap);
+        => DispatchMappedFunctionEvent(input, businessClock, _eventMap);
 }

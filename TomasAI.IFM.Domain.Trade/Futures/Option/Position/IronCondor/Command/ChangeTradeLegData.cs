@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.Trade.Futures.Position.Command.Model;
+using TomasAI.IFM.Domain.Trade.Futures.Position.Command.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position;
 using TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position;
 using TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position;
@@ -63,7 +63,7 @@ public static class ChangeTradeLegData
             CommandId = command.CommandId,
             IsRealtimeMarketObservation = true,
             Subject = new(ActorType.Event, "FuturesIronCondorTradePositionEvent", IronCondorPositionChangedEvent.Verb, command.EntityId.Format()),
-            ReceivedOn = DateTime.UtcNow,
+
             EntityId = command.EntityId,
             PositionSnapshot = positionSnapshot
         };

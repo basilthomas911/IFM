@@ -28,7 +28,7 @@ public static class PostFundTransaction
             // Receipt replay precedes sequence allocation and expiry checks; validation still enforces caller permission.
             var replay = await (services.Database.ReadOperationAsync<LedgerPostingCompletedEvent>(command.PortfolioId, command.OperationId, command.InputSha256, cancellationToken)).ConfigureAwait(false);
             if (replay is not null) return await (replay.NotifyAsync(services.Projector, services.Logger)).ConfigureAwait(false);
-            var allowAdjustment = FinancialRequestValidation.DemandPosting(command, command.Body, DateTime.UtcNow);
+            var allowAdjustment = FinancialRequestValidation.DemandPosting(command, command.Body, services.Clock.GetUtcNow().UtcDateTime);
             var item = new PreparedLedgerPosting(await (services.Ids.TransactionAsync(cancellationToken)).ConfigureAwait(false), await (services.Ids.JournalAsync(cancellationToken)).ConfigureAwait(false), command.Body);
             var completed = await (services.Store.PostAsync(command, [item], (body, rule, prior, original, remaining) =>
                 command.Compute(body, rule, prior, original, remaining, allowAdjustment),

@@ -1108,7 +1108,7 @@ impl Run {
             generation: self.generation,
             revision: intent.revision,
         };
-        let ordered = Ordered::new(actor.port(), header.clone())?;
+        let ordered = Ordered::new_with_clock(actor.port(), header.clone(), self.clock.clone())?;
         let outbox = Arc::new(Outbox::new(2048, 16 * 1024 * 1024)?);
         let mut evidence = evidence_delivery::Delivery::start(
             outbox.clone(),

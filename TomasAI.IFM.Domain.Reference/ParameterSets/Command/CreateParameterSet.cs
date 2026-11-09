@@ -46,7 +46,7 @@ public static class CreateParameterSet
                 if (stored.Reference != source || ParameterValueCodec.Hash(ParameterHistoryReader.ReadValues(command.ComponentCode, ParameterLegacyMigrationModel.Expand(stored))) != ParameterValueCodec.Hash(command.Parameters ?? throw new ArgumentException("PARAM.TYPED_VALUES_REQUIRED", nameof(command)))) throw new InvalidOperationException("PARAM.LEGACY_SOURCE_CHANGED");
             }
             var errorMsg = "ParameterSet.STATE.APPLY_FAILED: unable to apply CreateParameterSet event";
-            var updated = command.Compute(state, hash, out var parameterChange) switch
+            var updated = command.Compute(state, hash, out var parameterChange, context.DbEventSource?.BusinessClock) switch
             {
                 _ when parameterChange.RejectionReason is not null
                     => command.UpdateFailed(ref errorMsg, parameterChange.RejectionReason),
@@ -64,12 +64,12 @@ public static class CreateParameterSet
         /// <param name="hash">The request identity hash.</param>
         /// <param name="parameterChange">The proposed business change or rejection reason.</param>
         /// <returns>True when computation succeeds; otherwise false with its business rejection.</returns>
-        internal bool Compute(ParameterSetCommandState state, string hash, out ParameterVersionChange parameterChange)
+        internal bool Compute(ParameterSetCommandState state, string hash, out ParameterVersionChange parameterChange, TimeProvider? clock = null)
         {
             try
             {
-                var parameterVersion = ParameterMutationModel.Decide(command, state.CatalogRevision, state.Versions, DateTime.UtcNow);
-                parameterChange = new(parameterVersion, state.CatalogRevision + 1, hash, ParameterAuditModel.ForSet(command, state.Versions, parameterVersion));
+                var parameterVersion = ParameterMutationModel.Decide(command, state.CatalogRevision, state.Versions, (clock ?? TimeProvider.System).GetUtcNow().UtcDateTime);
+                parameterChange = new(parameterVersion, state.CatalogRevision + 1, hash, ParameterAuditModel.ForSet(command, state.Versions, parameterVersion, clock));
                 return true;
             }
             catch (Exception rejection) when (rejection is ArgumentException or InvalidOperationException or KeyNotFoundException)

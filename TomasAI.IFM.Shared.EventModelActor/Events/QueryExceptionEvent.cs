@@ -17,7 +17,7 @@ namespace TomasAI.IFM.Shared.EventModelActor.Events
         [Key(0)] public ActorSubject Subject { get; set; } = default!;
         [Key(1)] public ActorEntityId EntityId { get; set; } = ActorEntityId.Default;
         [Key(2)] public Guid Id { get; set; } = Guid.NewGuid();
-        [Key(3)] public DateTime ErrorDate { get; set; } = DateTime.UtcNow;
+        [Key(3)] public DateTime ErrorDate { get; set; }
         [Key(4)] public long EventId { get; set; }
         [Key(5)] public Guid CommandId { get; set; }
         [Key(6)] public string EventSource { get; set; } = string.Empty;

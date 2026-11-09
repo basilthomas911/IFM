@@ -12,12 +12,14 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Q
 public sealed class RiskQueryContext : QueryActorContext, IRiskQueryContext
 {
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "This typed context adapts services for its actor and intentionally retains the actor logger category.")]
-    public RiskQueryContext(IActorSupervisor supervisor, IDbContextFactory dbFactory, ILogger<RiskQueryActor> logger) : base(supervisor, new ActorMailboxId(ActorType.Query, RiskQueryActor.ActorName))
+    public RiskQueryContext(IActorSupervisor supervisor, IDbContextFactory dbFactory, ILogger<RiskQueryActor> logger, TimeProvider? timeProvider = null) : base(supervisor, new ActorMailboxId(ActorType.Query, RiskQueryActor.ActorName))
     {
+        TimeProvider = timeProvider ?? TimeProvider.System;
         DbFactory = IsArgumentNull.Set(dbFactory);
         Logger = IsArgumentNull.Set(logger);
     }
 
+    public TimeProvider TimeProvider { get; }
     public IPortfolioQueryApi PortfolioQueries => Container.Resolve<IPortfolioQueryApi>();
     public IPortfolioFundOrderReader Funds => Container.Resolve<IPortfolioFundOrderReader>();
     public IFinancialQueryStore Financial => Container.Resolve<IFinancialQueryStore>();

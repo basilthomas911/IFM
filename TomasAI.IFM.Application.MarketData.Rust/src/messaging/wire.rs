@@ -29,6 +29,8 @@ pub struct Frame {
     pub kind: u8,
     /// Owned event bytes; no managed buffer or dataset handle is retained.
     pub payload: Vec<u8>,
+    /// Application-clock creation ticks; transport metadata never changes the eight-key body.
+    pub origin_ticks: Option<i64>,
 }
 
 /// Formats the .NET little-endian Guid fields without changing their identity.
@@ -49,7 +51,42 @@ pub fn guid(bytes: [u8; 16]) -> String {
     output
 }
 
+/// Shared origin header from an already captured application timestamp.
+/// The payload, economic source identity and physical retry deadline are unchanged.
+pub(crate) fn origin_json(ticks: i64, generation: Option<[u8; 16]>) -> Result<String, &'static str> {
+    if !(-621_355_967_999_999_999..=2_534_023_007_999_999_999).contains(&ticks) {
+        return Err("Message origin outside CLR UTC range");
+    }
+    let at = time::OffsetDateTime::from_unix_timestamp_nanos(i128::from(ticks) * 100)
+        .map_err(|_| "Invalid message origin UTC")?;
+    let generation = generation.map_or_else(|| "null".to_owned(), |id| format!("\"{}\"", guid(id)));
+    Ok(format!(
+        r#"{{"OriginatedAtUtc":"{:04}-{:02}-{:02}T{:02}:{:02}:{:02}.{:07}+00:00","ClockDomainId":"system","RunId":null,"Generation":{},"CausationId":null}}"#,
+        at.year(), at.month() as u8, at.day(), at.hour(), at.minute(), at.second(),
+        at.nanosecond() / 100, generation))
+}
+
+/// Physical creation provenance for administrative raw-database IO requests only.
+/// This clock never selects a trading date, values an instrument or controls recovery deadlines.
+pub(crate) fn control_origin_json() -> Result<String, &'static str> {
+    let elapsed = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)
+        .map_err(|_| "Physical control UTC precedes Unix epoch")?;
+    let ticks = i64::try_from(elapsed.as_nanos() / 100).map_err(|_| "Physical control UTC overflow")?;
+    origin_json(ticks, None).map(|value| value.replace(r#""ClockDomainId":"system""#, r#""ClockDomainId":"control""#))
+}
+
 impl Frame {
+    /// Encodes the shared version-one UTC origin header from the original application clock.
+    /// No wall clock is consulted during queuing, retry or publication.
+    ///
+    /// # Errors
+    /// Rejects creation times outside the CLR UTC range.
+    pub fn origin_json(&self) -> Result<Option<String>, &'static str> {
+        let Some(ticks) = self.origin_ticks else { return Ok(None) };
+        self.validate()?;
+        origin_json(ticks, Some(self.generation)).map(Some)
+    }
+
     /// Builds the same deployment-scoped subject as MarketDataHostConnection.
     ///
     /// # Errors
@@ -138,5 +175,39 @@ impl Frame {
     /// Propagates invalid frame or MessagePack encoding failure.
     pub fn encode(&self) -> Result<Vec<u8>, &'static str> {
         super::codec::compress(self.content()?)
+    }
+}
+
+
+#[cfg(test)]
+mod origin_tests {
+    use super::*;
+
+    fn frame() -> Frame {
+        Frame { lane: Lane::OptionsGlbx, value_date: 739_928, worker: [1;16],
+            generation: [2;16], manifest_revision: 1, sequence: 1, kind: 7,
+            payload: vec![0x90], origin_ticks: Some(17_942_832_001_234_567) }
+    }
+
+    #[test]
+    fn origin_is_stable_and_does_not_change_the_eight_key_body() {
+        let source = frame();
+        let mut legacy = source.clone();
+        legacy.origin_ticks = None;
+        assert_eq!(source.content().unwrap(), legacy.content().unwrap());
+        assert_eq!(source.value().unwrap().as_array().unwrap().len(), 8);
+        assert!(legacy.origin_json().unwrap().is_none());
+        let origin = source.origin_json().unwrap().unwrap();
+        assert!(origin.contains("2026-11-10T04:00:00.1234567+00:00"));
+        assert!(origin.contains(&guid(source.generation)));
+        assert_eq!(source.origin_json(), source.clone().origin_json());
+    }
+
+    #[test]
+    fn invalid_origin_is_rejected_without_rewriting_source_identity() {
+        let mut source = frame();
+        source.origin_ticks = Some(i64::MAX);
+        assert!(source.origin_json().is_err());
+        assert_eq!(source.sequence, 1);
     }
 }

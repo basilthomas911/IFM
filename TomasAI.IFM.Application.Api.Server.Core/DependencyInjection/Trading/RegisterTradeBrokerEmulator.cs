@@ -172,7 +172,7 @@ public static partial class CoreServiceRegistration
         container.RegisterSingleton<TomasAI.IFM.Application.TradeBroker.Contracts.ITradeBroker>(() =>
         new TomasAI.IFM.Application.TradeBroker.InteractiveBrokersEmulatorTradeBroker(
         container.GetInstance<TomasAI.IFM.Framework.TradeBroker.Contracts.IFrameworkOrderExecutionBroker>(),
-        container.GetInstance<TomasAI.IFM.Framework.TradeBroker.Contracts.IFrameworkBrokerAccount>(), logger));
+        container.GetInstance<TomasAI.IFM.Framework.TradeBroker.Contracts.IFrameworkBrokerAccount>(), logger, container.GetInstance<TimeProvider>()));
         container.RegisterSingleton<TomasAI.IFM.Domain.Trade.Order.Broker.Realtime.BrokerOrderObservationBridge>();
         container.RegisterSingleton<TomasAI.IFM.Domain.Trade.Order.Broker.Query.Model.IBrokerOrderReadStore,
         TomasAI.IFM.Domain.Trade.Order.Broker.Query.Model.BrokerOrderReadStore>();

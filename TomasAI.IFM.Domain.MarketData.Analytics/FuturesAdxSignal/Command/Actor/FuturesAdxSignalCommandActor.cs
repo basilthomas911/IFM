@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using TomasAI.IFM.Application.CommandPipeline;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -106,8 +106,8 @@ public class FuturesAdxSignalCommandActor(
     {
         [typeof(StartFuturesAdxSignalCommand)] = (cmd, context, state) => ((StartFuturesAdxSignalCommand)cmd).Execute(state),
         [typeof(StopFuturesAdxSignalCommand)] = (cmd, context, state) => ((StopFuturesAdxSignalCommand)cmd).Execute(state),
-        [typeof(GenerateFuturesAdxSignalCommand)] = (cmd, context, state) => (cmd as GenerateFuturesAdxSignalCommand)!.Execute(state),
-        [typeof(GenerateFuturesAdxDailySignalCommand)] = (cmd, context, state) => (cmd as GenerateFuturesAdxDailySignalCommand)!.Execute(state)
+        [typeof(GenerateFuturesAdxSignalCommand)] = (cmd, context, state) => (cmd as GenerateFuturesAdxSignalCommand)!.Execute(state, context.Container?.Resolve<TimeProvider>()),
+        [typeof(GenerateFuturesAdxDailySignalCommand)] = (cmd, context, state) => (cmd as GenerateFuturesAdxDailySignalCommand)!.Execute(state, context.Container?.Resolve<TimeProvider>())
     };
 
     /// <summary>

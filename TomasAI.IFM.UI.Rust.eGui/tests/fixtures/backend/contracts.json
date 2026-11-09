@@ -66,6 +66,49 @@
     "verb": null
   },
   {
+    "type": "TomasAI.IFM.Application.MarketData.Contracts.DatasetPublicationOrigin",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "Dataset",
+        "index": 0,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "WorkerInstanceId",
+        "index": 1,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "GenerationId",
+        "index": 2,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "PublicationSequence",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "OriginJson",
+        "index": 4,
+        "mapKey": null,
+        "type": "System.String"
+      }
+    ],
+    "actor": null,
+    "verb": null
+  },
+  {
     "type": "TomasAI.IFM.Application.MarketData.Contracts.Historical.HistoricalAcquisitionStage",
     "isEnum": true,
     "errorId": null,
@@ -458,6 +501,12 @@
         "index": 7,
         "mapKey": null,
         "type": "TomasAI.IFM.Application.MarketData.Contracts.NativeOptionWorkloadEvidence"
+      },
+      {
+        "name": "PublicationOrigins",
+        "index": 8,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Application.MarketData.Contracts.DatasetPublicationOrigin[]"
       }
     ],
     "actor": null,
@@ -9277,6 +9326,61 @@
     ],
     "actor": null,
     "verb": "Recover"
+  },
+  {
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands.SeedFuturesBbSignalsCommand",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "CommandId",
+        "index": 0,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "Subject",
+        "index": 1,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "PostEvents",
+        "index": 2,
+        "mapKey": null,
+        "type": "System.Boolean"
+      },
+      {
+        "name": "EntityId",
+        "index": 3,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal.FuturesTradeSessionBarEntityId"
+      },
+      {
+        "name": "ErrorCode",
+        "index": 4,
+        "mapKey": null,
+        "type": "System.Int32"
+      },
+      {
+        "name": "RouteTo",
+        "index": 5,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventSourcing.BoundedContextName"
+      },
+      {
+        "name": "Observations",
+        "index": 6,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal.FuturesTradeSessionBarReadModel[]"
+      }
+    ],
+    "actor": "FuturesBbSignalCommand",
+    "verb": "SeedBatch"
   },
   {
     "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands.SeedFuturesEmaSignalsCommand",
@@ -63320,6 +63424,12 @@
         "index": 14,
         "mapKey": null,
         "type": "System.Int32"
+      },
+      {
+        "name": "CommandOriginJson",
+        "index": 15,
+        "mapKey": null,
+        "type": "System.String"
       }
     ],
     "actor": null,

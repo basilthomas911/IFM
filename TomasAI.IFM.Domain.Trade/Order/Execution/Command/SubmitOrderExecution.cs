@@ -62,7 +62,7 @@ public static class SubmitOrderExecution
             Subject = new(ActorType.Event, OrderExecutionChangedEvent.Actor, OrderExecutionChangedEvent.Verb, command.EntityId.Format()),
             EntityId = command.EntityId,
             OrderExecutionDefinition = executionChange.OrderExecutionDefinition!,
-            ReceivedOn = DateTime.UtcNow,
+
             CreatedTrades = executionChange.CreatedTrades,
             ClosedPositions = executionChange.ClosedPositions
         };

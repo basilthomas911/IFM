@@ -11,6 +11,8 @@ public interface IEventSourceActorDbContext :
     EventSourceDb.IEventSourceActorDbReadContext,
     EventSourceDb.IEventSourceActorDbWriteContext
 {
+    /// <summary>Business clock shared by persistence and cold projector replay; IO leases remain physical.</summary>
+    TimeProvider BusinessClock => TimeProvider.System;
     /// <summary>Gets the actor event-source database read capability.</summary>
     EventSourceDb.IEventSourceActorDbReadContext DbReader { get; }
 

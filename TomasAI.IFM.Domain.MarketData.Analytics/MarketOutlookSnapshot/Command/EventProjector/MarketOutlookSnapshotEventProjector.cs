@@ -79,14 +79,14 @@ public sealed class MarketOutlookSnapshotEventProjector
         if (!string.Equals(marketDataDb.ProviderName,"System.Data.Postgres",StringComparison.Ordinal)) await marketDataDb.UpsertMarketOutlookSnapshotAsync(
             inserted.MarketOutlook, execution.EventId, execution.CancellationToken)
             .ConfigureAwait(false);
-        var realtime = inserted with
+        var realtime = global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(inserted, inserted with
         {
             Subject = new ActorSubject(
                 ActorType.Realtime,
                 MarketOutlookSnapshotInsertedEvent.Actor,
                 MarketOutlookSnapshotInsertedEvent.Verb,
                 inserted.EntityId.Format())
-        };
+        });
         await actorContext.SendAsync<MarketOutlookSnapshotInsertedEvent, MarketOutlookEntityId>(
             realtime, execution.CancellationToken).ConfigureAwait(false);
         return new EventProjectionApplyResult(EventProjectionApplyOutcome.Applied);

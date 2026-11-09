@@ -28,6 +28,7 @@ public sealed partial class MarketDataReadMirror
     readonly HashSet<Guid> retiredHosts = [];
     public bool Apply(MarketDataReadSnapshot snapshot)
     {
+        MarketDataSnapshotOrigins.Restore(snapshot);
         lock (gate)
         {
             if (snapshot.Status.HostInstanceId != Guid.Empty)

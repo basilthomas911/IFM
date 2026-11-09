@@ -26,6 +26,22 @@ public sealed class CommandAuditPersistenceTests(TomasAI.IFM.Application.Storage
     string ConnectionString => fixture.Repository.ConnectionString;
 
     [Fact]
+    public void Command_origin_sidecar_survives_json_intent_storage_without_changing_retry_hash()
+    {
+        var command = TestCommand.Create(Guid.NewGuid(), 42);
+        var codec = new CommandAuditMessagePackCodec();
+        var before = codec.Serialize(command);
+        var origin = new TomasAI.IFM.Shared.EventModelActor.MessageOrigin(new DateTimeOffset(2025, 10, 1, 12, 0, 0, TimeSpan.Zero), "qualification-business");
+        TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Restore(command, origin);
+        var after = codec.Serialize(command);
+        Assert.Equal(before.Bytes, after.Bytes);
+        Assert.Equal(before.Sha256, after.Sha256);
+        var stored = System.Text.Json.JsonSerializer.Deserialize<CommandAuditPayload>(System.Text.Json.JsonSerializer.Serialize(after))!;
+        var restored = codec.Deserialize(typeof(TestCommand), stored.Bytes, (short)stored.Format, stored.Version, stored.Origin);
+        Assert.Equal(origin, TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Get(restored));
+    }
+
+    [Fact]
     public void MessagePack_codec_round_trips_without_compression_and_has_stable_identity()
     {
         var codec = new CommandAuditMessagePackCodec();

@@ -7,8 +7,9 @@ namespace TomasAI.IFM.Domain.Portfolio.GeneralLedger.Preparation;
 
 /// <summary>Prepares development book configuration from committed membership, with sequence-generated keys and no money effects.</summary>
 public sealed class FinancialBookPreparation(IPortfolioEventStore sources, IPortfolioDbReadContext database,
-    FinancialIdentityAllocator identities, FinancialDevelopmentPolicy development)
+    FinancialIdentityAllocator identities, FinancialDevelopmentPolicy development, TimeProvider? timeProvider = null)
 {
+    readonly TimeProvider businessClock = timeProvider ?? TimeProvider.System;
     public async Task<FinancialRead<FinancialBookSetup>> PrepareAsync(FinancialReadScope scope, PrepareFinancialBookRequest request, CancellationToken token)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -64,7 +65,7 @@ public sealed class FinancialBookPreparation(IPortfolioEventStore sources, IPort
             PeriodEnd = request.PeriodEnd
         };
         return Result(new(accounts, names.ToArray(), draft));
-        static FinancialRead<FinancialBookSetup> Result(FinancialBookSetup setup) => new(FinancialReadStatus.Found, setup, 0, DateTime.UtcNow);
+        FinancialRead<FinancialBookSetup> Result(FinancialBookSetup setup) => new(FinancialReadStatus.Found, setup, 0, businessClock.GetUtcNow().UtcDateTime);
     }
     /// <summary>Builds explicit Development posting rules from exact chart versions; each rule retains its canonical content hash.</summary>
     static List<LedgerPostingRule> CreateDefaultPostingRules(List<LedgerAccountDefinition> chart)

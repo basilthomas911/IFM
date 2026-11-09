@@ -25,7 +25,7 @@ public record TurnTradeLiveFeedOnCommand : ICommand<TradeEntityId>
     [IgnoreMember] public string StreamId => $"{Subject.StreamId}";
     [IgnoreMember] public string EventSource => $"{Actor}Actor";
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Preserves the existing instance/interface API used by dependency-injected callers.")]
-    [IgnoreMember] public DateTime OriginatedOn => DateTime.UtcNow;
+    [IgnoreMember] public DateTime OriginatedOn => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Get(this)?.OriginatedAtUtc.UtcDateTime ?? default;
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Preserves the existing instance/interface API used by dependency-injected callers.")]
     [IgnoreMember] public string OriginatedBy => $"{Environment.UserDomainName}\\{Environment.UserName}";
     [IgnoreMember] public int PortfolioId => EntityId.PortfolioId;

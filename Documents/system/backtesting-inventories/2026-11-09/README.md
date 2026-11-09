@@ -20,3 +20,7 @@ C# syntax extraction used Roslyn from .NET SDK 10.0.302 (preview language parsin
 - `summary.json`: counts corresponding to these inventories.
 
 Locations describe this snapshot and can move with later commits. Preserve the distinction between observed syntax, proposed treatment and verified runtime behavior. No runtime tests, replay, data acquisition or Development service changes were performed.
+
+## Shared implementation disposition
+
+The original files above remain the pre-change inventory. `shared-clock-disposition.csv` records expression-level dispositions for its 2,933 production C# candidates; `shared-change-disposition-summary.json` records comparison counts. Locations labelled OriginalLine refer to the original inventory. Replaced/removed is a syntax comparison, not a claim that every row was independently a defect. The [qualification report](../../Application-Backtesting-Shared-System-Qualification-2026-11-09.md) describes retained physical/legacy roles, implementation and executed tests.

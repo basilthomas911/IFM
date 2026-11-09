@@ -63,7 +63,7 @@ public static class CorrectFuturesPositionBasis
         {
             CommandId = command.CommandId,
             Subject = new(ActorType.Event, "FuturesTradePositionEvent", FuturesPositionChangedEvent.Verb, command.EntityId.Format()),
-            ReceivedOn = DateTime.UtcNow,
+
             EntityId = command.EntityId,
             PositionSnapshot = snapshot
         };

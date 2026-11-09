@@ -175,7 +175,8 @@ public static partial class CoreServiceRegistration
         services.AddSingleton<MarketDataReadMirror>();
         services.AddSingleton<TomasAI.IFM.Application.MarketData.Recovery.OptionFeedProcessingHealth>();
         services.AddSingleton(p => new MarketDataHostConnection(p.GetRequiredService<NatsConnectionManager>(),
-            config["MarketDataHost:NatsUrl"] ?? p.GetService<INatsProducerOptions>()?.Url ?? "nats://localhost:4222", config["MarketDataHost:Scope"] ?? "development"));
+            config["MarketDataHost:NatsUrl"] ?? p.GetService<INatsProducerOptions>()?.Url ?? "nats://localhost:4222", config["MarketDataHost:Scope"] ?? "development",
+            p.GetRequiredService<TimeProvider>(), p.GetRequiredService<TomasAI.IFM.Shared.Time.PhysicalTime>()));
         services.AddSingleton<IMarketDataApi>(p => new MarketDataApiClient(p.GetRequiredService<MarketDataHostConnection>(), p.GetRequiredService<MarketDataReadMirror>()));
         services.AddSingleton<ITickAggregationEventPublisher, TickAggregationEventPublisher>();
         services.AddSingleton<FourHourDatabentoSeedReplay>();

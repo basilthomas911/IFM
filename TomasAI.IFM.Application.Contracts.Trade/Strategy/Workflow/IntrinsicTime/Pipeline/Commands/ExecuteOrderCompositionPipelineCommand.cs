@@ -110,5 +110,5 @@ public sealed record ExecuteOrderCompositionPipelineCommand : ICommand<OrderComp
     [IgnoreMember] public string EventSource => $"{Actor}Actor";
     [IgnoreMember] public DateTime OriginatedOn => RequestedAtUtc;
     [IgnoreMember] public string OriginatedBy => EventSource;
-    public string Fingerprint() => CompositionHash.Compute(this with { InputSha256 = "" });
+    public string Fingerprint() => CompositionHash.Compute(global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(this, this with { InputSha256 = "" }));
 }

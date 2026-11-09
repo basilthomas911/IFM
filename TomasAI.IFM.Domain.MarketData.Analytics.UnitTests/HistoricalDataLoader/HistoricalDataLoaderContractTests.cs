@@ -54,7 +54,10 @@ public sealed class HistoricalDataLoaderContractTests
         Assert.Equal(command.FuturesAnalyticsHistoricalDataLoaderParameters, state.FuturesAnalyticsHistoricalDataLoaderParameters);
         var requested = Assert.IsType<FuturesAnalyticsHistoricalDataLoaderRequestedEvent>(
             Assert.Single(state.Events));
+        Assert.Equal(default, requested.ReceivedOn); // This direct test state has not been bound by the factory.
+        var origin = TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Capture(requested, TimeProvider.System);
         Assert.InRange(requested.ReceivedOn, earliestExpectedReceivedOn, DateTime.UtcNow);
+        Assert.Equal(origin.OriginatedAtUtc.UtcDateTime, requested.ReceivedOn);
     }
 
     static LoadFuturesAnalyticsHistoricalDataCommand CreateCommand()

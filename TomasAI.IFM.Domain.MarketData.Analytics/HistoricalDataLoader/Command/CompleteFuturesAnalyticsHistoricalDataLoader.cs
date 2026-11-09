@@ -28,7 +28,7 @@ public static class CompleteFuturesAnalyticsHistoricalDataLoader
                     FuturesAnalyticsHistoricalDataLoaderCompletedEvent.Verb, command.EntityId.Format()),
                 EntityId = command.EntityId,
                 CommandId = command.CommandId,
-                ReceivedOn = DateTime.UtcNow,
+
                 ManifestId = command.ManifestId,
                 ValidSessionCount = command.ValidSessionCount,
                 GapCount = command.GapCount,

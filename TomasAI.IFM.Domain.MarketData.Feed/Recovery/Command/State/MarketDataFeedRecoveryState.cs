@@ -58,7 +58,7 @@ public sealed class MarketDataFeedRecoveryState : BaseEventSourceActorState<Mark
         Id = Guid.NewGuid(),
         CommandId = command.CommandId,
         EventSource = command.EventSource,
-        ReceivedOn = DateTime.UtcNow,
+
         StartedRecordId = Started!.RecordId,
         LatestRecordId = Latest!.RecordId,
         Facts = new Dictionary<Guid, MarketDataFeedRecoveryFact>(facts)

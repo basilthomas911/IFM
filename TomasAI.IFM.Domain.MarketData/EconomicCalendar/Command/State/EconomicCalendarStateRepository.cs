@@ -59,9 +59,9 @@ public class EconomicCalendarStateRepository(
             {
                 state.Events[index] = state.Events[index] switch
                 {
-                    EconomicCalendarAddedEvent added => added with { UseDurableProjection = true },
-                    EconomicCalendarChangedEvent changed => changed with { UseDurableProjection = true },
-                    EconomicCalendarRemovedEvent removed => removed with { UseDurableProjection = true },
+                    EconomicCalendarAddedEvent added => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(added, added with { UseDurableProjection = true }),
+                    EconomicCalendarChangedEvent changed => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(changed, changed with { UseDurableProjection = true }),
+                    EconomicCalendarRemovedEvent removed => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(removed, removed with { UseDurableProjection = true }),
                     var source => source
                 };
             }

@@ -182,13 +182,14 @@ public static class FuturesItiSignalGeneratedComplete
             DeriveLongerPeriods = false
         };
         var workflowEntityId = IntrinsicTimeStrategyWorkflowEntityId.Create(completed.EntityId);
-        var requestedAtUtc = DateTime.UtcNow;
+        var clock = context.Container?.Resolve<TimeProvider>() ?? TimeProvider.System;
+        var requestedAtUtc = clock.GetUtcNow().UtcDateTime;
         var command = new ExecuteIntrinsicTimeStrategyWorkflowCommand
         {
             CommandId = Guid.NewGuid(),
             Subject = new ActorSubject(ActorType.Command, ExecuteIntrinsicTimeStrategyWorkflowCommand.Actor, ExecuteIntrinsicTimeStrategyWorkflowCommand.Verb, workflowEntityId.Format()),
             EntityId = workflowEntityId,
-            ProposedWorkflowId = StrategyWorkflowId.New(TimeProvider.System),
+            ProposedWorkflowId = StrategyWorkflowId.New(clock),
             TriggerEventId = triggerId,
             TriggerEvent = trigger,
             CorrelationId = completed.CommandId == Guid.Empty ? triggerId : completed.CommandId,
@@ -196,6 +197,7 @@ public static class FuturesItiSignalGeneratedComplete
             RequestedAtUtc = requestedAtUtc,
             WorkflowDefinitionVersion = 1
         };
+        MessageOrigins.Capture(command, clock, causationId: triggerId);
         telemetry?.RecordWorkflowRequested();
         if (logger is not null && logger.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Information))
         {

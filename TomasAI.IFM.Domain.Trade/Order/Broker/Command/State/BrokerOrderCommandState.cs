@@ -20,7 +20,7 @@ public sealed class BrokerOrderCommandState : BaseEventSourceActorState<BrokerOr
         Id = Guid.NewGuid(),
         CommandId = command.CommandId,
         EventSource = command.EventSource,
-        ReceivedOn = DateTime.UtcNow,
+
         Definition = BrokerOrderDefinition,
         ObservationHashes = new Dictionary<Guid, string>(_observationHashes)
     };

@@ -46,7 +46,9 @@ internal static class EventLogAppenderSupport
                 if (projection.InitialStage is not (EventProjectorStageType.PublishProcessingEvent or EventProjectorStageType.ApplyProjection))
                     throw new ArgumentException("Invalid initial durable projection stage.", nameof(request));
             }
-            prepared[index] = new PreparedEventLogEntry(item.EventNameId, item.DomainEvent, payload, projection);
+            prepared[index] = new PreparedEventLogEntry(item.EventNameId, item.DomainEvent, payload, projection,
+                TomasAI.IFM.Shared.EventModelActor.MessageOriginJson.Serialize(
+                    TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Get(item.DomainEvent)));
         }
         return new PreparedEventLogRequest(request.EventStream, request.EventStreamId, request.CommandId, prepared,
             request.ExpectedStreamVersion, DateTime.SpecifyKind(request.EventTimestampUtc, DateTimeKind.Utc), totalBytes,

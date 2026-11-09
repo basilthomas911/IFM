@@ -28,7 +28,7 @@ public class YieldCurveRateCommandState
         Id = Guid.NewGuid(),
         CommandId = command.CommandId,
         EventSource = command.EventSource,
-        ReceivedOn = DateTime.UtcNow,
+
         ValueDates = _yieldCurveRateDates.Order().ToArray()
     };
 

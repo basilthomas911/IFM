@@ -767,7 +767,8 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
             DurablePayloadFormat.MessagePack,
             DateTimeOffset.UtcNow,
             null,
-            null);
+            null,
+            MessageOriginJson.Serialize(MessageOrigins.Get(domainEvent)));
         var payload = MessagePackSerializer.Serialize(envelope, MessagePackOptions);
         // The durable store owns its byte[] independently of NATS and process lifetime.
         // Both the typed event and its envelope therefore require stable managed arrays.
@@ -813,8 +814,9 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
                 JsonSerializerSettings),
             _ => throw new InvalidOperationException($"Unsupported durable payload format '{envelope.PayloadFormat}'.")
         };
-        return (IEvent)(domainEvent
-            ?? throw new InvalidOperationException($"Could not deserialize event type '{eventType}'."));
+        return MessageOrigins.Restore((IEvent)(domainEvent
+            ?? throw new InvalidOperationException($"Could not deserialize event type '{eventType}'.")),
+            MessageOriginJson.Deserialize(envelope.MessageOriginJson));
     }
 
     static byte[] MarkFailed(byte[] payload, Exception exception)
@@ -930,7 +932,8 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
         DurablePayloadFormat PayloadFormat,
         DateTimeOffset EnqueuedAtUtc,
         DateTimeOffset? FailedAtUtc,
-        string? ErrorMessage);
+        string? ErrorMessage,
+        string? MessageOriginJson = null);
 
     sealed record LegacyDurableEventEnvelope(
         string EventProjectorName,

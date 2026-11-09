@@ -32,7 +32,7 @@ public static class ValidatePortfolioReference
         }
 
         public async ValueTask<PortfolioReferenceValidationCompletedEvent> ExecuteAsync(IReferenceQueryApi references,
-            IPortfolioOperationalGuard guard, CancellationToken token)
+            IPortfolioOperationalGuard guard, CancellationToken token, TimeProvider? timeProvider = null)
         {
             guard.Demand(request.Policy is null ? PortfolioOperation.AdministerFund : PortfolioOperation.AdministerPortfolio, request.Access, mutation: true);
             await request.ValidateReferencesAsync(references, token).ConfigureAwait(false);
@@ -40,7 +40,7 @@ public static class ValidatePortfolioReference
             {
                 Subject = new(ActorType.Event, "PortfolioReferenceValidationEvent", "Completed", request.EntityId.Format()),
                 Id = request.CommandId, CommandId = request.CommandId, EntityId = request.EntityId,
-                EventSource = request.EventSource, ReceivedOn = DateTime.UtcNow, InputHash = request.ComputeInputHash()
+                EventSource = request.EventSource, ReceivedOn = (timeProvider ?? TimeProvider.System).GetUtcNow().UtcDateTime, InputHash = request.ComputeInputHash()
             };
         }
 

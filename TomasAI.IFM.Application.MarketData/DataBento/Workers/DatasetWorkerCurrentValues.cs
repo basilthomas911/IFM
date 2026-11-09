@@ -1,4 +1,4 @@
-﻿using MessagePack;
+using MessagePack;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
@@ -22,6 +22,7 @@ public sealed class DatasetWorkerCurrentValues : IDisposable
 {
     readonly System.Threading.Lock gate = new();
     readonly int capacity;
+    readonly TimeProvider businessClock;
     readonly IDatabentoContractRegistrationRegistry? registrations;
     readonly Dictionary<string, DatasetState> datasets = new(StringComparer.Ordinal);
     readonly Dictionary<string, (FuturesMarketPriceSnapshot Price, string Source)> bootstrapPrices = new(StringComparer.Ordinal);
@@ -31,10 +32,11 @@ public sealed class DatasetWorkerCurrentValues : IDisposable
     DatabentoLastPriceStore? lastPrices;
 
     public DatasetWorkerCurrentValues(IDatabentoContractRegistrationRegistry? registrations = null,
-        int capacity = 4096)
+        int capacity = 4096, TimeProvider? clock = null)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(capacity, 1);
         this.capacity = capacity;
+        businessClock = clock ?? TimeProvider.System;
         this.registrations = registrations;
         catalog = new CurrentCatalog(this);
     }
@@ -302,7 +304,7 @@ public sealed class DatasetWorkerCurrentValues : IDisposable
     /// <summary>Seeds a historical estimate without publishing a live event or advancing feed health/sequence.</summary>
     public bool SeedBootstrapPrice(DateOnly activeDate, FuturesMarketPriceSnapshot price, string source)
     {
-        if (price.AssetTypeId != AssetTypeId.Futures || price.Trade is not { } trade || trade.LastPrice <= 0 || trade.EventTimestamp > DateTimeOffset.UtcNow
+        if (price.AssetTypeId != AssetTypeId.Futures || price.Trade is not { } trade || trade.LastPrice <= 0 || trade.EventTimestamp > businessClock.GetUtcNow()
             || trade.NormalizedTradeAction is NormalizedTradeAction.Cancel or NormalizedTradeAction.Clear
             || (trade.NormalizedTradeConditionFlags & NormalizedTradeConditionFlags.UndefinedPrice) != 0) return false;
         lock (gate)

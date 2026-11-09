@@ -1,4 +1,4 @@
-﻿using System.Threading.Channels;
+using System.Threading.Channels;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NATS.Client.JetStream;
@@ -617,7 +617,7 @@ public class NatsJetStreamActorConsumer(
                         continue;
                     }
 
-                    payload = new NatsSharedEventPayload(msg.Data, global::TomasAI.IFM.Framework.Messaging.Nats.NatsActorTrace.Extract(msg.Headers));
+                    payload = new NatsSharedEventPayload(msg.Data, global::TomasAI.IFM.Framework.Messaging.Nats.NatsActorTrace.Extract(msg.Headers), headers: msg.Headers);
                     ownerTransferred = true;
                     messagesRead++;
                     NatsMessagingMetrics.Received.Add(1);

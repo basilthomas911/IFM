@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.Diagnostics;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Serializers;
 using MessagePack;
@@ -18,15 +18,20 @@ public sealed record MarketDataHostReply([property: Key(0)] byte[] Payload, [pro
 public sealed class MarketDataHostConnection : IAsyncDisposable
 {
     readonly NatsConnectionManager connections;
+    readonly TimeProvider clock;
+    readonly TimeProvider physicalClock;
     readonly string url;
     public string Scope { get; }
     public static MessagePackSerializerOptions Serialization { get; } = MessagePackSerializerOptions.Standard
         .WithResolver(ContractlessStandardResolver.Instance).WithSecurity(MessagePackSecurity.UntrustedData);
-    public MarketDataHostConnection(NatsConnectionManager connections, string url, string scope)
+    public MarketDataHostConnection(NatsConnectionManager connections, string url, string scope,
+        TimeProvider? timeProvider = null, TomasAI.IFM.Shared.Time.PhysicalTime? physicalTime = null)
     {
         if (string.IsNullOrWhiteSpace(scope) || scope.Any(c => !char.IsAsciiLetterOrDigit(c) && c != '-'))
             throw new ArgumentException("A single deployment scope token is required.", nameof(scope));
         this.connections = connections;
+        clock = timeProvider ?? TimeProvider.System;
+        physicalClock = physicalTime?.Provider ?? TimeProvider.System;
         this.url = url;
         Scope = $"ifm.{scope}.marketdata.v1";
     }
@@ -64,15 +69,24 @@ public sealed class MarketDataHostConnection : IAsyncDisposable
         if (!recovery) deadline.CancelAfter(budget);
         var client = await GetClientAsync(deadline.Token).ConfigureAwait(false);
         var body = payload ?? MessagePackSerializer.Serialize(request!.GetType(), request, Serialization, deadline.Token);
+        var envelope = new MarketDataHostRequest(path, body, id, recovery ? DateTime.MaxValue : physicalClock.GetUtcNow().UtcDateTime.Add(budget));
+        // RPC identity belongs to this envelope, not a potentially shared value such as Array.Empty<T>().
+        var origin = MessageOrigins.ForPublication(envelope, clock);
+        MessageOrigins.Restore(envelope, origin);
         var reply = await client.RequestAsync<MarketDataHostRequest, MarketDataHostReply>(ControlSubject(path),
-            new(path, body, id, recovery ? DateTime.MaxValue : DateTime.UtcNow.Add(budget)),
-            headers: global::TomasAI.IFM.Framework.Messaging.Nats.NatsActorTrace.Headers(),
+            envelope,
+            headers: global::TomasAI.IFM.Framework.Messaging.Nats.MessageOriginHeaders.Add(
+                global::TomasAI.IFM.Framework.Messaging.Nats.NatsActorTrace.Headers(), origin),
             requestSerializer: NatsMessagePackSerializer<MarketDataHostRequest>.Default,
             replySerializer: NatsMessagePackSerializer<MarketDataHostReply>.Default,
             replyOpts: new NatsSubOpts { Timeout = budget }, cancellationToken: deadline.Token).ConfigureAwait(false);
         if (reply.Data is null) throw new InvalidDataException("MarketData Host returned no result.");
         if (reply.Data.Error is { } error) throw new InvalidOperationException(error);
         var result = Decode<T>(reply.Data.Payload);
+        var replyOrigin = global::TomasAI.IFM.Framework.Messaging.Nats.MessageOriginHeaders.Read(reply.Headers);
+        // Decoded values can be shared singletons. Their source provenance, when present, is carried
+        // by explicit payload sidecars; the reply creation time belongs only to the RPC envelope.
+        MessageOrigins.Restore(reply.Data, replyOrigin);
         trace?.Complete();
         return result;
     }

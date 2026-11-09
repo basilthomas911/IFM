@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.MarketData.Feed.Shared;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
@@ -70,9 +70,9 @@ public static class AcceptedMarketSignalProjection
     {
         ArgumentNullException.ThrowIfNull(transaction);
         ArgumentNullException.ThrowIfNull(source);
-        return source with { AcceptedSnapshot = await MarketDataDbContextExtensions.ResolveSnapshotAsync(
+        return global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(source, source with { AcceptedSnapshot = await MarketDataDbContextExtensions.ResolveSnapshotAsync(
             transaction,source.VixFuturesTickData,source.SessionStatistics,token)
-            .ConfigureAwait(false) };
+            .ConfigureAwait(false) });
     }
 
     static async Task ProjectSessionBarAsync(IEnlistedPostgresTransaction transaction, FuturesTradeSessionBarReadModel bar, CancellationToken token)

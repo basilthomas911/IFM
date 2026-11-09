@@ -95,7 +95,7 @@ public sealed class TradeFeedRecoveryStartupService(IMarketDataApi market, IFutu
                         Id = Guid.NewGuid(), CommandId = Guid.NewGuid(), EntityId = new(date.Value),
                         Subject = new(ActorType.Event, MarketDataDatasetRecoveryFailedEvent.Actor, MarketDataDatasetRecoveryFailedEvent.Verb, new MarketDataFeedId(date.Value).Format()),
                         Dataset = "GLBX.MDP3", Role = "Options", ErrorCode = 503, ErrorType = ErrorType.System,
-                        ErrorDate = DateTime.UtcNow, ReceivedOn = DateTime.UtcNow, EventSource = nameof(TradeFeedRecoveryStartupService),
+                        ErrorDate = default, ReceivedOn = default, EventSource = nameof(TradeFeedRecoveryStartupService),
                         ErrorMessage = "Saved trade live feeds could not be restored within two minutes: " + (last ?? error).Message
                     };
                     logger.LogError(error, "{Error}", failure.ErrorMessage);

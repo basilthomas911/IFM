@@ -5,6 +5,7 @@ using TomasAI.IFM.Application.Storage.EventSourceDb.EventLog;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.EventSourcing.ViewModels;
 using TomasAI.IFM.Shared.EventProjector;
@@ -32,6 +33,8 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
     internal readonly TomasAI.IFM.Framework.Caching.BoundedAsyncCache<string, long> _streamIdentities = new();
     internal readonly Func<string, CancellationToken, Task<long>> _streamIdentityLoader;
     internal readonly IDbContextFactory _dbFactory;
+    internal readonly TimeProvider _businessClock;
+    public TimeProvider BusinessClock => _businessClock;
     internal readonly ConcurrentDictionary<string, EventNameIdReadModel> _eventNameIdCache = new(StringComparer.Ordinal);
     internal readonly ConcurrentDictionary<string, AtomicPreparationLane> _atomicPreparationLanes = new(StringComparer.Ordinal);
     internal readonly CommandAuditPersistenceOptions _commandAuditOptions;
@@ -55,9 +58,10 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
         IDbContextFactory dbFactory,
         ILogger<DbProvider> logger,
         EventLogPersistenceOptions? eventLogPersistenceOptions = null,
-        CommandAuditPersistenceOptions? commandAuditPersistenceOptions = null)
+        CommandAuditPersistenceOptions? commandAuditPersistenceOptions = null, TimeProvider? timeProvider = null)
         : base(connectionSettings[EventSourceActorDbConnection], logger)
     {
+        _businessClock = timeProvider ?? TimeProvider.System;
         _streamIdentityLoader = async (stream, token) =>
         {
             var id = await this.InsertEventStreamAsync(stream, token).ConfigureAwait(false);
@@ -67,7 +71,7 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
         _dbFactory = dbFactory;
         var eventOptions = (eventLogPersistenceOptions ?? new EventLogPersistenceOptions()).Validate();
         _eventLogSqlLayout = EventLogSqlLayout.ForProduction(eventOptions);
-        _aggregateCheckpointTransactions = new(() => new PostgresEventTransaction(connectionSettings, eventOptions));
+        _aggregateCheckpointTransactions = new(() => new PostgresEventTransaction(connectionSettings, eventOptions, timeProvider: _businessClock));
         _commandAuditOptions = (commandAuditPersistenceOptions ?? new CommandAuditPersistenceOptions()).Validate();
         var connectionString = connectionSettings[EventSourceActorDbConnection].ConnectionString;
         _commandAuditWriter = new(
@@ -88,8 +92,8 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
         IDbConnectionSettings connectionSettings, IDbContextFactory dbFactory,
         ILogger<DbProvider> logger,
         EventLogPersistenceOptions options, CommandAuditPersistenceOptions? auditOptions,
-        bool benchmarkBatchProjectionMarkers)
-        : this(connectionSettings, dbFactory, logger, options, auditOptions)
+        bool benchmarkBatchProjectionMarkers, TimeProvider? timeProvider = null)
+        : this(connectionSettings, dbFactory, logger, options, auditOptions, timeProvider)
     {
         var connection = connectionSettings[EventSourceActorDbConnection].ConnectionString;
         var layout = EventLogSqlLayout.ForBenchmark(connection, benchmarkBatchProjectionMarkers);
@@ -155,7 +159,8 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
             CommandPayload: o.IsNull(6) ? null : o.GetBytes(6),
             CommandPayloadFormat: o.IsNull(7) ? null : o.GetShort(7),
             CommandPayloadVersion: o.IsNull(8) ? null : o.GetInt(8),
-            CommandPayloadSha256: o.IsNull(9) ? null : o.GetBytes(9)
+            CommandPayloadSha256: o.IsNull(9) ? null : o.GetBytes(9),
+            Origin: MapToOrigin(o)
         );
 
     /// <summary>
@@ -192,6 +197,9 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
     /// cref="EventLogReadModel"/> is populated using corresponding values retrieved from this reader.</param>
     /// <returns>A new <see cref="EventLogReadModel"/> instance populated with data from the specified <see
     /// cref="IObjectDataRecord"/>.</returns>
+    internal static MessageOrigin? MapToOrigin(IObjectDataRecord record)
+        => record.TryGetString("MessageOriginJson", out var json) ? MessageOriginJson.Deserialize(json) : null;
+
     internal static EventLogReadModel MapToEventLog(IObjectDataRecord o)
         => new(
                 EventStreamId: o.GetLong(0),
@@ -201,7 +209,8 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
                 EventData: o.GetBytes(4),
                 CommandId: o.GetGuid(5),
                 EventTimestamp: o.GetString(6),
-                StreamVersion: o.GetLong(7)
+                StreamVersion: o.GetLong(7),
+                Origin: MapToOrigin(o)
             );
 
     /// <summary>
@@ -276,7 +285,8 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
                 EventData: o.GetBytes(4),
                 CommandId: o.GetGuid(5),
                 EventTimestamp: o.GetString(6),
-                StreamVersion: o.GetLong(7)),
+                StreamVersion: o.GetLong(7),
+                Origin: MapToOrigin(o)),
             State: MapToEventProjectorExecutionState(o, 8));
 
     /// <summary>Maps selected event-store columns to the typed result.</summary>
@@ -310,7 +320,8 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
             PublishedAtUtc: o.IsNull(10) ? null : o.GetDateTime(10),
             LastError: o.GetString(11),
             DispatchToken: o.GetGuid(12),
-            DispatchLeaseExpiresAtUtc: o.GetDateTime(13));
+            DispatchLeaseExpiresAtUtc: o.GetDateTime(13),
+            Origin: MapToOrigin(o));
 
     /// <summary>Maps selected event-store columns to the typed result.</summary>
     /// <param name="o">The o used by this operation.</param>
@@ -338,7 +349,8 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
             EventTypeName = o.GetString(2),
             EventVersion = o.GetLong(3),
             EventData = o.GetBytes(4),
-            StreamVersion = o.GetLong(7)
+            StreamVersion = o.GetLong(7),
+            Origin = MapToOrigin(o)
         };
 
     /// <summary>Maps selected event-store columns to the typed result.</summary>
@@ -409,12 +421,13 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
             cancellationToken.ThrowIfCancellationRequested();
             var eventNameId = await GetEventNameIdFromDomainEventAsync(e, cancellationToken)
             .ConfigureAwait(false);
+            MessageOrigins.ForPublication(e, _businessClock);
             entries.Add(new EventLogAppendEntry(eventNameId, e));
         }
         try
         {
             var result = await _eventLogAppender.Value.AppendAsync(new EventLogAppendRequest(
-                eventStream, streamId, commandId, entries, null, DateTime.UtcNow), cancellationToken)
+                eventStream, streamId, commandId, entries, null, _businessClock.GetUtcNow().UtcDateTime), cancellationToken)
             .ConfigureAwait(false);
             return this.ApplyAssignments(domainEvents, result);
         }
@@ -450,6 +463,7 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
         var entries = new List<EventLogAppendEntry>(domainEvents.Count);
         foreach (var domainEvent in domainEvents)
         {
+            MessageOrigins.ForPublication(domainEvent, _businessClock);
             cancellationToken.ThrowIfCancellationRequested();
             entries.Add(new EventLogAppendEntry(
                 await GetEventNameIdFromDomainEventAsync(domainEvent, cancellationToken)
@@ -459,7 +473,7 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
         try
         {
             var result = await _eventLogAppender.Value.AppendAsync(new EventLogAppendRequest(
-                eventStream, streamId, commandId, entries, expectedStreamVersion, DateTime.UtcNow), cancellationToken)
+                eventStream, streamId, commandId, entries, expectedStreamVersion, _businessClock.GetUtcNow().UtcDateTime), cancellationToken)
             .ConfigureAwait(false);
             return this.ApplyAssignments(domainEvents, result);
         }
@@ -975,7 +989,8 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
                 message.MessageId,
                 message.EventTypeName,
                 message.EventPayload,
-                nowUtc))
+                nowUtc,
+                MessageOriginJson.Serialize(message.Origin)))
             .ExecuteSingleAsync<EventProjectorExecutionStateReadModel>(MapToEventProjectorExecutionState, cancellationToken)
             .ConfigureAwait(false);
     }
@@ -1018,7 +1033,8 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
                 message.MessageId,
                 message.EventTypeName,
                 message.EventPayload,
-                nowUtc))
+                nowUtc,
+                MessageOriginJson.Serialize(message.Origin)))
             .ExecuteSingleAsync<EventProjectorExecutionStateReadModel>(MapToEventProjectorExecutionState, cancellationToken)
             .ConfigureAwait(false);
     }
@@ -1581,6 +1597,7 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
             eventStream.EventVersion = o.GetLong(3);
             eventStream.EventTypeName = o.GetString(2);
             eventStream.EventData = o.GetBytes(4);
+            eventStream.Origin = MapToOrigin(o);
             eventStream.StreamVersion = o.GetLong(7);
             return eventStream;
         }
@@ -1681,6 +1698,7 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
             eventStream.EventVersion = o.GetLong(3);
             eventStream.EventTypeName = o.GetString(2);
             eventStream.EventData = o.GetBytes(4);
+            eventStream.Origin = MapToOrigin(o);
             eventStream.StreamVersion = o.GetLong(7);
             return eventStream;
         }
@@ -1852,7 +1870,8 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
             EventVersion = row.GetLong(offset),
             EventTypeName = row.GetString(offset + 1),
             StreamVersion = row.GetLong(offset + 2),
-            EventData = row.GetBytes(offset + 3)
+            EventData = row.GetBytes(offset + 3),
+            Origin = MapToOrigin(row)
         };
 
 

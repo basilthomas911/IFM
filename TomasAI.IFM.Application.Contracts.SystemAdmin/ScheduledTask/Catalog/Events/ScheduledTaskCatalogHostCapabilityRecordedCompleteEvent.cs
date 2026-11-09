@@ -20,7 +20,7 @@ public sealed record ScheduledTaskCatalogHostCapabilityRecordedCompleteEvent : I
     [Key(4)] public ScheduledTaskId EntityId { get; init; } = default;
     [Key(5)] public string AggregateId { get; init; } = "";
     [Key(6)] public string EventSource { get; init; } = "";
-    [Key(7)] public DateTime ReceivedOn { get; init; } = DateTime.UtcNow;
+    [Key(7)] public DateTime ReceivedOn { get; init; }
     [Key(8)] public Guid OperationCommandId { get; init; } = Guid.Empty;
     [Key(9)] public ScheduledTaskCatalog? ScheduledTaskCatalog { get; init; } = null;
     [IgnoreMember] public string EventName => nameof(ScheduledTaskCatalogHostCapabilityRecordedCompleteEvent);

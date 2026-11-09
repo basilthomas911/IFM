@@ -28,15 +28,19 @@ public sealed class EnlistedEventTransaction : IEnlistedPostgresTransaction
     }
 
     int completed;
+    readonly TimeProvider businessClock;
+    /// <summary>Business time shared with the owner; database execution deadlines remain physical.</summary>
+    public TimeProvider BusinessTime => businessClock;
     internal EnlistedEventTransaction(
         NpgsqlConnection connection,
         NpgsqlTransaction transaction,
         EventLogMessagePackCodec eventLogCodec,
-        EventLogSqlLayout eventLogSqlLayout, PostgresQueryTimeout? defaultTimeout = null)
+        EventLogSqlLayout eventLogSqlLayout, PostgresQueryTimeout? defaultTimeout = null, TimeProvider? timeProvider = null)
     {
         (this.connection, this.transaction, this.eventLogCodec, this.eventLogSqlLayout) =
             (connection, transaction, eventLogCodec, eventLogSqlLayout);
         timeouts = new(connection, transaction, defaultTimeout);
+        businessClock = timeProvider ?? TimeProvider.System;
     }
 
     /// <summary>Executes parameterized SQL on the enlisted connection.</summary>
@@ -135,7 +139,7 @@ public sealed class EnlistedEventTransaction : IEnlistedPostgresTransaction
         RequireActive();
         await ConfigureTimeoutAsync(null, cancellationToken)
             .ConfigureAwait(false);
-        var envelope=CommandAudit.CommandAuditEnvelope.Create(command,new CommandAudit.CommandAuditMessagePackCodec());
+        var envelope=CommandAudit.CommandAuditEnvelope.Create(command,new CommandAudit.CommandAuditMessagePackCodec(), businessClock);
         var results=await CommandAudit.CommandAuditPostgres.ReserveAsync(connection,transaction,[envelope],cancellationToken)
             .ConfigureAwait(false);
         if(results[0].PayloadConflict) throw new CommandAudit.CommandAuditPayloadConflictException(command.CommandId);
@@ -183,13 +187,15 @@ public sealed class EnlistedEventTransaction : IEnlistedPostgresTransaction
             ?? await ScalarAsync(EventSourceDbSql.InsertEventNameId, [identity.EventName, identity.EventTypeName], cancellationToken)
             .ConfigureAwait(false))!;
         using var serializeTrace = FinancialTelemetry.ActivitySource.StartActivity("financial.event.serialize");
+        MessageOrigins.ForPublication(domainEvent, businessClock);
         var payloadBytes = eventLogCodec.Serialize(domainEvent);
         var payload = BindValues.Bytea(payloadBytes);
         serializeTrace?.SetTag("event.payload.bytes", payloadBytes.Length);
         serializeTrace?.Stop();
         using var insertTrace = FinancialTelemetry.ActivitySource.StartActivity("financial.event.insert");
         var eventId = await ScalarAsync(EventSourceDbSql.InsertEventLogExpectedVersion,
-            [streamId, nameId, payload, commandId, DateTime.UtcNow, expectedStreamVersion], cancellationToken)
+            [streamId, nameId, payload, commandId, businessClock.GetUtcNow().UtcDateTime, expectedStreamVersion,
+                BindValues.Text(MessageOriginJson.Serialize(MessageOrigins.Get(domainEvent)))], cancellationToken)
             .ConfigureAwait(false);
         insertTrace?.Stop();
         if (eventId is not long id) throw new ConcurrencyException($"Event stream {stream} is not at expected version {expectedStreamVersion}.");

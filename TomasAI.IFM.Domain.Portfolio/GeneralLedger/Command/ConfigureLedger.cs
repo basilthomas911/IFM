@@ -31,11 +31,11 @@ public static class ConfigureLedger
             ArgumentNullException.ThrowIfNull(services);
             var replay = await (services.Database.ReadOperationAsync<LedgerConfigurationCompletedEvent>(command.PortfolioId, command.OperationId, command.InputSha256, cancellationToken)).ConfigureAwait(false);
             if (replay is not null) return await (replay.NotifyAsync(services.Projector, services.Logger)).ConfigureAwait(false);
-            FinancialRequestValidation.Demand(command, "LedgerConfigure", DateTime.UtcNow);
+            FinancialRequestValidation.Demand(command, "LedgerConfigure", services.Clock.GetUtcNow().UtcDateTime);
             if (command.Body.Action == LedgerConfigurationAction.ReopenPeriod)
-                FinancialRequestValidation.Demand(command, "LedgerPeriodReopen", DateTime.UtcNow);
+                FinancialRequestValidation.Demand(command, "LedgerPeriodReopen", services.Clock.GetUtcNow().UtcDateTime);
             if (command.Body.Action is LedgerConfigurationAction.CreateBook or LedgerConfigurationAction.RefreshAuthority)
-                await (command.ValidateAuthoritySourcesAsync(services.Sources, cancellationToken)).ConfigureAwait(false);
+                await (command.ValidateAuthoritySourcesAsync(services.Sources, cancellationToken, services.Clock)).ConfigureAwait(false);
             if (command.Body.Action == LedgerConfigurationAction.QualifyDevelopmentBook)
                 await (command.PrepareDevelopmentQualificationAsync(services, cancellationToken)).ConfigureAwait(false);
             var result = await (services.Store.ConfigureAsync(command, receipt => command.Complete(receipt), FinancialCanonicalHash.Compute, cancellationToken)).ConfigureAwait(false);
@@ -51,14 +51,14 @@ public static class ConfigureLedger
         {
             ArgumentNullException.ThrowIfNull(command);
             ArgumentNullException.ThrowIfNull(services);
-            FinancialRequestValidation.Demand(command, "LedgerImport", DateTime.UtcNow);
+            FinancialRequestValidation.Demand(command, "LedgerImport", services.Clock.GetUtcNow().UtcDateTime);
             if (services.DevelopmentPolicy?.IsDevelopmentEnvironment != true)
                 throw new FinancialOperationException(FinancialReasons.AuthorityDenied, "Development qualification services are unavailable.");
             var book = await (services.Database.ReadBookAsync(command.PortfolioId, cancellationToken)).ConfigureAwait(false);
             if (book is not { Environment: "Emulator", MigrationQualified: false } || book.Funds.Any(x => x.CanSpend) ||
                 command.Body.Book is null || !string.Equals(FinancialCanonicalHash.Compute(book), FinancialCanonicalHash.Compute(command.Body.Book), StringComparison.Ordinal))
                 throw new FinancialOperationException(FinancialReasons.AuthorityDenied, "Qualification requires the exact unqualified development book.");
-            await (command.ValidateAuthoritySourcesAsync(services.Sources, cancellationToken)).ConfigureAwait(false);
+            await (command.ValidateAuthoritySourcesAsync(services.Sources, cancellationToken, services.Clock)).ConfigureAwait(false);
         }
 
         /// <summary>Validates financial authority against current Portfolio event streams.</summary>
@@ -66,7 +66,7 @@ public static class ConfigureLedger
         /// <param name="sources">The sources business input.</param>
         /// <param name="cancellationToken">Cancels pre-commit work; an uncertain commit must be reconciled.</param>
         /// <exception cref="OperationCanceledException">Cancellation interrupts pre-commit work; committed or uncertain operations require reconciliation.</exception>
-        public async Task ValidateAuthoritySourcesAsync(IPortfolioEventStore sources, CancellationToken cancellationToken)
+        public async Task ValidateAuthoritySourcesAsync(IPortfolioEventStore sources, CancellationToken cancellationToken, TimeProvider? timeProvider = null)
         {
             ArgumentNullException.ThrowIfNull(command);
             ArgumentNullException.ThrowIfNull(sources);
@@ -80,7 +80,7 @@ public static class ConfigureLedger
                 if (fund.CanSpend && !policies.ContainsKey(fund.Reference.PolicyId))
                     policies.Add(fund.Reference.PolicyId, await (sources.LoadPolicyAsync(new(command.PortfolioId, fund.Reference.PolicyId), cancellationToken)).ConfigureAwait(false));
             }
-            FinancialAuthorityModel.Validate(book, portfolio, funds, policies, DateTime.UtcNow);
+            FinancialAuthorityModel.Validate(book, portfolio, funds, policies, (timeProvider ?? TimeProvider.System).GetUtcNow().UtcDateTime);
         }
 
         /// <summary>Creates the completion event for a committed ledger configuration.</summary>

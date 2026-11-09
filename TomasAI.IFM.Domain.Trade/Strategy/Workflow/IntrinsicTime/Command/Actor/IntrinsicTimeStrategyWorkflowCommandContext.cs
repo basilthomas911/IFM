@@ -20,11 +20,11 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandContext : CommandActorCo
     readonly Lazy<IEventSourceActorStateRepository<IntrinsicTimeStrategyWorkflowCommandState>> _stateRepository;
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "This typed context adapts services for its actor and intentionally retains the actor logger category.")]
     /// <summary>Initializes the workflow Command context and its readonly application dependencies.</summary>
-    public IntrinsicTimeStrategyWorkflowCommandContext(IActorSupervisor supervisor, IDbContextFactory dbFactory, RegimeDiscoveryExecutionOptions executionOptions, IntrinsicTimeStrategyWorkflowOptions workflowOptions, ILogger<IntrinsicTimeStrategyWorkflowCommandActor> logger) : base(supervisor, new ActorMailboxId(ActorType.Command, IntrinsicTimeStrategyWorkflowCommandActor.ActorName))
+    public IntrinsicTimeStrategyWorkflowCommandContext(IActorSupervisor supervisor, IDbContextFactory dbFactory, RegimeDiscoveryExecutionOptions executionOptions, IntrinsicTimeStrategyWorkflowOptions workflowOptions, ILogger<IntrinsicTimeStrategyWorkflowCommandActor> logger, TimeProvider? timeProvider = null) : base(supervisor, new ActorMailboxId(ActorType.Command, IntrinsicTimeStrategyWorkflowCommandActor.ActorName))
     {
         DbFactory = IsArgumentNull.Set(dbFactory);
 
-        TimeProvider = TimeProvider.System;
+        TimeProvider = timeProvider ?? TimeProvider.System;
         ExecutionOptions = IsArgumentNull.Set(executionOptions);
         WorkflowStartsEnabled = IsArgumentNull.Set(workflowOptions).Enabled;
         Logger = IsArgumentNull.Set(logger);

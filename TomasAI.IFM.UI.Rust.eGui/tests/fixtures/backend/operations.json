@@ -7330,7 +7330,8 @@
       "(RequestAsync\u003CGetParameterStartupRunsQuery, ParameterStartupRun[]\u003E(q.Subject, q, token)).ConfigureAwait",
       "RequestAsync\u003CGetParameterStartupRunsQuery, ParameterStartupRun[]\u003E",
       "runs.AddRange",
-      "runs.ToArray"
+      "runs.ToArray",
+      "global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy"
     ],
     "subjects": [],
     "resolvedUiCallSites": [
@@ -7360,6 +7361,7 @@
     "result": "Task\u003CServiceResult\u003CGuidResult\u003E\u003E",
     "calls": [
       "ArgumentNullException.ThrowIfNull",
+      "global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy",
       "command.RunId.ToString",
       "SendPreparedAsync"
     ],
@@ -7390,6 +7392,7 @@
     "result": "Task\u003CServiceResult\u003CGuidResult\u003E\u003E",
     "calls": [
       "ArgumentNullException.ThrowIfNull",
+      "global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy",
       "command.RunId.ToString",
       "RequestCommandResultAsync\u003CReleaseSignalStartupPlanCommand, ParameterStartupEntityId, GuidResult\u003E(c, c.EntityId, token).AsTask",
       "RequestCommandResultAsync\u003CReleaseSignalStartupPlanCommand, ParameterStartupEntityId, GuidResult\u003E"
@@ -7421,6 +7424,7 @@
     "result": "Task\u003CServiceResult\u003CGuidResult\u003E\u003E",
     "calls": [
       "ArgumentNullException.ThrowIfNull",
+      "global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy",
       "command.RunId.ToString",
       "RequestCommandResultAsync\u003CRecordSignalStartupReportCommand, ParameterStartupEntityId, GuidResult\u003E(c, c.EntityId, token).AsTask",
       "RequestCommandResultAsync\u003CRecordSignalStartupReportCommand, ParameterStartupEntityId, GuidResult\u003E"
@@ -7610,7 +7614,8 @@
       "(RequestAsync\u003CListParameterVersionsQuery, ParameterSetVersion[]\u003E(q.Subject, q, token)).ConfigureAwait",
       "RequestAsync\u003CListParameterVersionsQuery, ParameterSetVersion[]\u003E",
       "versions.AddRange",
-      "versions.ToArray"
+      "versions.ToArray",
+      "global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy"
     ],
     "subjects": [],
     "resolvedUiCallSites": [
@@ -7672,6 +7677,7 @@
     "result": "Task\u003CServiceResult\u003CGuidResult\u003E\u003E",
     "calls": [
       "ArgumentNullException.ThrowIfNull",
+      "global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy",
       "command.EntityId.Format",
       "SendPreparedAsync",
       "RequestCommandResultAsync\u003CCreateParameterSetCommand, ParameterSetEntityId, GuidResult\u003E(c, c.EntityId, token).AsTask",
@@ -7707,6 +7713,7 @@
     "result": "Task\u003CServiceResult\u003CGuidResult\u003E\u003E",
     "calls": [
       "ArgumentNullException.ThrowIfNull",
+      "global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy",
       "command.EntityId.Format",
       "RequestCommandResultAsync\u003CSaveParameterDraftCommand, ParameterSetEntityId, GuidResult\u003E(c, c.EntityId, token).AsTask",
       "RequestCommandResultAsync\u003CSaveParameterDraftCommand, ParameterSetEntityId, GuidResult\u003E"
@@ -7740,6 +7747,7 @@
     "result": "Task\u003CServiceResult\u003CGuidResult\u003E\u003E",
     "calls": [
       "ArgumentNullException.ThrowIfNull",
+      "global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy",
       "command.EntityId.Format",
       "SendPreparedAsync"
     ],
@@ -7804,6 +7812,7 @@
     "result": "Task\u003CServiceResult\u003CGuidResult\u003E\u003E",
     "calls": [
       "ArgumentNullException.ThrowIfNull",
+      "global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy",
       "command.EntityId.Format",
       "RequestCommandResultAsync\u003CRenameParameterSetCommand, ParameterSetEntityId, GuidResult\u003E(c, c.EntityId, token).AsTask",
       "RequestCommandResultAsync\u003CRenameParameterSetCommand, ParameterSetEntityId, GuidResult\u003E"
@@ -7902,6 +7911,7 @@
     "result": "Task\u003CServiceResult\u003CGuidResult\u003E\u003E",
     "calls": [
       "ArgumentNullException.ThrowIfNull",
+      "global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy",
       "command.EntityId.Format",
       "SendPreparedAsync"
     ],
@@ -7934,6 +7944,7 @@
     "result": "Task\u003CServiceResult\u003CGuidResult\u003E\u003E",
     "calls": [
       "ArgumentNullException.ThrowIfNull",
+      "global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy",
       "command.EntityId.Format",
       "RequestCommandResultAsync\u003CDisableParameterAssignmentCommand, ParameterAssignmentEntityId, GuidResult\u003E(c, c.EntityId, token).AsTask",
       "RequestCommandResultAsync\u003CDisableParameterAssignmentCommand, ParameterAssignmentEntityId, GuidResult\u003E"
@@ -7967,6 +7978,7 @@
     "result": "Task\u003CServiceResult\u003CGuidResult\u003E\u003E",
     "calls": [
       "ArgumentNullException.ThrowIfNull",
+      "global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy",
       "command.EntityId.Format",
       "SendPreparedAsync"
     ],
@@ -9442,6 +9454,7 @@
       "FundOrderPreparation.AllocationOperationId",
       "_identity.AllocateForOperationAsync(PortfolioBusinessIdentityKind.Order, operationId, cancellationToken).ConfigureAwait",
       "_identity.AllocateForOperationAsync",
+      "global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy",
       "Send(fund, CreateManualFundOrderCommand.Verb,\r\n            command, PortfolioErrorCodes.ValidationFailed, cancellationToken,\r\n            commandId, AdministratorAccess).ConfigureAwait",
       "Send",
       "Task.Delay(50, cancellationToken).ConfigureAwait",
@@ -9590,6 +9603,7 @@
       "_identity.AllocateForOperationAsync(PortfolioBusinessIdentityKind.Order, orderOperation, cancellationToken).ConfigureAwait",
       "_identity.AllocateForOperationAsync",
       "_identity.AllocateForOperationAsync(PortfolioBusinessIdentityKind.Trade, tradeOperation, cancellationToken).ConfigureAwait",
+      "global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy",
       "Send(fund, ReserveFundOrderCompositionCommand.Verb, command, PortfolioErrorCodes.IdempotencyConflict, cancellationToken, commandId, WorkflowAccess).ConfigureAwait",
       "Send",
       "Task.Delay(50, cancellationToken).ConfigureAwait",
@@ -11595,6 +11609,7 @@
     "result": "ValueTask\u003CServiceResult\u003CGuidResult\u003E\u003E",
     "calls": [
       "ArgumentNullException.ThrowIfNull",
+      "global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy",
       "command.EntityId.Format",
       "producer.RequestAsync\u003CCreateScheduledTaskCommand, ScheduledTaskId, GuidResult\u003E"
     ],
@@ -11625,6 +11640,7 @@
     "result": "ValueTask\u003CServiceResult\u003CGuidResult\u003E\u003E",
     "calls": [
       "ArgumentNullException.ThrowIfNull",
+      "global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy",
       "command.EntityId.Format",
       "producer.RequestAsync\u003CChangeScheduledTaskScheduleCommand, ScheduledTaskId, GuidResult\u003E"
     ],
@@ -11655,6 +11671,7 @@
     "result": "ValueTask\u003CServiceResult\u003CGuidResult\u003E\u003E",
     "calls": [
       "ArgumentNullException.ThrowIfNull",
+      "global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy",
       "command.EntityId.Format",
       "producer.RequestAsync\u003CEnableScheduledTaskCommand, ScheduledTaskId, GuidResult\u003E"
     ],
@@ -11685,6 +11702,7 @@
     "result": "ValueTask\u003CServiceResult\u003CGuidResult\u003E\u003E",
     "calls": [
       "ArgumentNullException.ThrowIfNull",
+      "global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy",
       "command.EntityId.Format",
       "producer.RequestAsync\u003CDisableScheduledTaskCommand, ScheduledTaskId, GuidResult\u003E"
     ],
@@ -11715,6 +11733,7 @@
     "result": "ValueTask\u003CServiceResult\u003CGuidResult\u003E\u003E",
     "calls": [
       "ArgumentNullException.ThrowIfNull",
+      "global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy",
       "command.EntityId.Format",
       "producer.RequestAsync\u003CRemoveScheduledTaskCommand, ScheduledTaskId, GuidResult\u003E"
     ],
@@ -11745,6 +11764,7 @@
     "result": "ValueTask\u003CServiceResult\u003CGuidResult\u003E\u003E",
     "calls": [
       "ArgumentNullException.ThrowIfNull",
+      "global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy",
       "command.EntityId.Format",
       "producer.RequestAsync\u003CRecordScheduledTaskInstallationCommand, ScheduledTaskId, GuidResult\u003E"
     ],
@@ -11773,6 +11793,7 @@
     "result": "ValueTask\u003CServiceResult\u003CGuidResult\u003E\u003E",
     "calls": [
       "ArgumentNullException.ThrowIfNull",
+      "global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy",
       "command.EntityId.Format",
       "producer.RequestAsync\u003CRecordScheduledTaskInstallationFailureCommand, ScheduledTaskId, GuidResult\u003E"
     ],
@@ -11801,6 +11822,7 @@
     "result": "ValueTask\u003CServiceResult\u003CGuidResult\u003E\u003E",
     "calls": [
       "ArgumentNullException.ThrowIfNull",
+      "global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy",
       "command.EntityId.Format",
       "producer.RequestAsync\u003CAdmitScheduledTaskRunCommand, ScheduledTaskId, GuidResult\u003E"
     ],
@@ -11829,6 +11851,7 @@
     "result": "ValueTask\u003CServiceResult\u003CGuidResult\u003E\u003E",
     "calls": [
       "ArgumentNullException.ThrowIfNull",
+      "global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy",
       "command.EntityId.Format",
       "producer.RequestAsync\u003CRecordScheduledTaskRunCompletionCommand, ScheduledTaskId, GuidResult\u003E"
     ],
@@ -11857,6 +11880,7 @@
     "result": "ValueTask\u003CServiceResult\u003CGuidResult\u003E\u003E",
     "calls": [
       "ArgumentNullException.ThrowIfNull",
+      "global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy",
       "command.EntityId.Format",
       "producer.RequestAsync\u003CRegisterScheduledTaskProjectCommand, ScheduledTaskId, GuidResult\u003E"
     ],
@@ -11885,6 +11909,7 @@
     "result": "ValueTask\u003CServiceResult\u003CGuidResult\u003E\u003E",
     "calls": [
       "ArgumentNullException.ThrowIfNull",
+      "global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy",
       "command.EntityId.Format",
       "producer.RequestAsync\u003CRecordScheduledTaskHostCapabilityCommand, ScheduledTaskId, GuidResult\u003E"
     ],
@@ -11913,6 +11938,7 @@
     "result": "ValueTask\u003CServiceResult\u003CGuidResult\u003E\u003E",
     "calls": [
       "ArgumentNullException.ThrowIfNull",
+      "global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy",
       "command.EntityId.Format",
       "producer.RequestAsync\u003CRequestScheduledTaskRunCommand, ScheduledTaskId, GuidResult\u003E"
     ],
@@ -11943,6 +11969,7 @@
     "result": "ValueTask\u003CServiceResult\u003CGuidResult\u003E\u003E",
     "calls": [
       "ArgumentNullException.ThrowIfNull",
+      "global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy",
       "command.EntityId.Format",
       "producer.RequestAsync\u003CRecordScheduledTaskRunAdmissionCommand, ScheduledTaskId, GuidResult\u003E"
     ],
@@ -11971,6 +11998,7 @@
     "result": "ValueTask\u003CServiceResult\u003CGuidResult\u003E\u003E",
     "calls": [
       "ArgumentNullException.ThrowIfNull",
+      "global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy",
       "command.EntityId.Format",
       "producer.RequestAsync\u003CRecordScheduledTaskRunStartedCommand, ScheduledTaskId, GuidResult\u003E"
     ],
@@ -11999,6 +12027,7 @@
     "result": "ValueTask\u003CServiceResult\u003CGuidResult\u003E\u003E",
     "calls": [
       "ArgumentNullException.ThrowIfNull",
+      "global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy",
       "command.EntityId.Format",
       "producer.RequestAsync\u003CCompleteScheduledTaskRunCommand, ScheduledTaskId, GuidResult\u003E"
     ],
@@ -12027,6 +12056,7 @@
     "result": "ValueTask\u003CServiceResult\u003CGuidResult\u003E\u003E",
     "calls": [
       "ArgumentNullException.ThrowIfNull",
+      "global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy",
       "command.EntityId.Format",
       "producer.RequestAsync\u003CFailScheduledTaskRunCommand, ScheduledTaskId, GuidResult\u003E"
     ],
@@ -12057,6 +12087,7 @@
     "result": "ValueTask\u003CServiceResult\u003CGuidResult\u003E\u003E",
     "calls": [
       "ArgumentNullException.ThrowIfNull",
+      "global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy",
       "command.EntityId.Format",
       "producer.RequestAsync\u003CRecordScheduledTaskRunUncertainCommand, ScheduledTaskId, GuidResult\u003E"
     ],
@@ -12085,6 +12116,7 @@
     "result": "ValueTask\u003CServiceResult\u003CGuidResult\u003E\u003E",
     "calls": [
       "ArgumentNullException.ThrowIfNull",
+      "global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy",
       "command.EntityId.Format",
       "producer.RequestAsync\u003CRecordScheduledTaskRunStageCommand, ScheduledTaskId, GuidResult\u003E"
     ],
@@ -12114,6 +12146,7 @@
     "calls": [
       "ArgumentNullException.ThrowIfNull",
       "Guid.NewGuid",
+      "global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy",
       "identity.Format",
       "producer.RequestAsync\u003CScheduledTaskOutputPage, GetScheduledTaskOutputQuery\u003E"
     ],
@@ -12145,6 +12178,7 @@
     "calls": [
       "ArgumentNullException.ThrowIfNull",
       "Guid.NewGuid",
+      "global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy",
       "identity.Format",
       "producer.RequestAsync\u003CScheduledTaskRunPage, GetScheduledTaskRunHistoryQuery\u003E"
     ],
@@ -12176,6 +12210,7 @@
     "calls": [
       "ArgumentNullException.ThrowIfNull",
       "Guid.NewGuid",
+      "global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy",
       "identity.Format",
       "producer.RequestAsync\u003CScheduledTaskCatalog, GetScheduledTaskCatalogQuery\u003E"
     ],
@@ -12207,6 +12242,7 @@
     "calls": [
       "ArgumentNullException.ThrowIfNull",
       "Guid.NewGuid",
+      "global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy",
       "identity.Format",
       "producer.RequestAsync\u003CScheduledTasksDashboard, GetScheduledTasksDashboardQuery\u003E"
     ],
@@ -12238,6 +12274,7 @@
     "calls": [
       "ArgumentNullException.ThrowIfNull",
       "Guid.NewGuid",
+      "global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy",
       "identity.Format",
       "producer.RequestAsync\u003CScheduledTaskDefinition, GetScheduledTaskQuery\u003E"
     ],
@@ -12267,6 +12304,7 @@
     "calls": [
       "ArgumentNullException.ThrowIfNull",
       "Guid.NewGuid",
+      "global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy",
       "identity.Format",
       "producer.RequestAsync\u003CScheduledTaskSchedulePreview, PreviewScheduledTaskScheduleQuery\u003E"
     ],
@@ -12298,6 +12336,7 @@
     "calls": [
       "ArgumentNullException.ThrowIfNull",
       "Guid.NewGuid",
+      "global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy",
       "identity.Format",
       "producer.RequestAsync\u003CScheduledTaskRun, GetScheduledTaskRunQuery\u003E"
     ],
@@ -12327,6 +12366,7 @@
     "calls": [
       "ArgumentNullException.ThrowIfNull",
       "Guid.NewGuid",
+      "global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy",
       "identity.Format",
       "producer.RequestAsync\u003CScheduledTaskRun[], ListScheduledTaskRunsQuery\u003E"
     ],
@@ -12356,6 +12396,7 @@
     "calls": [
       "ArgumentNullException.ThrowIfNull",
       "Guid.NewGuid",
+      "global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy",
       "identity.Format",
       "producer.RequestAsync\u003CScheduledTaskHostCapability, GetScheduledTaskHostHealthQuery\u003E"
     ],
@@ -12385,6 +12426,7 @@
     "calls": [
       "ArgumentNullException.ThrowIfNull",
       "Guid.NewGuid",
+      "global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy",
       "identity.Format",
       "producer.RequestAsync\u003CScheduledMarketPositionPage, GetScheduledMarketPositionsQuery\u003E"
     ],

@@ -187,12 +187,12 @@ public class MarketDataFeedCommandActor(
         var prepared = await request.ExecuteAsync(context.Container.Resolve<IValueDateProvider>(),
             context.Container.Resolve<IMarketDataApi>(), cancellationToken).ConfigureAwait(false);
         var entityId = new MarketDataFeedId(prepared.ValueDate);
-        return start with
+        return global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(start, start with
         {
             EntityId = entityId,
             Subject = new(ActorType.Command, StartMarketDataFeedCommand.Actor, StartMarketDataFeedCommand.Verb, entityId.Format()),
             PreparedContracts = prepared.Contracts
-        };
+        });
     }
 
     /// <summary>

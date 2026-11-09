@@ -43,7 +43,7 @@ public static class RetireParameterVersion
             if (evidence.ExactVersion?.Reference != selected.Reference) throw new InvalidOperationException("PARAM.EVIDENCE_IDENTITY_MISMATCH");
             var assigned = evidence.HasActiveAssignments;
             var errorMsg = "ParameterSet.STATE.APPLY_FAILED: unable to apply RetireParameterVersion event";
-            var updated = command.Compute(state, hash, assigned, out var parameterChange) switch
+            var updated = command.Compute(state, hash, assigned, out var parameterChange, context.DbEventSource?.BusinessClock) switch
             {
                 _ when parameterChange.RejectionReason is not null
                     => command.UpdateFailed(ref errorMsg, parameterChange.RejectionReason),
@@ -62,12 +62,12 @@ public static class RetireParameterVersion
         /// <param name="assigned">Whether the selected version is currently assigned.</param>
         /// <param name="parameterChange">The proposed business change or rejection reason.</param>
         /// <returns>True when computation succeeds; otherwise false with its business rejection.</returns>
-        internal bool Compute(ParameterSetCommandState state, string hash, bool assigned, out ParameterVersionChange parameterChange)
+        internal bool Compute(ParameterSetCommandState state, string hash, bool assigned, out ParameterVersionChange parameterChange, TimeProvider? clock = null)
         {
             try
             {
-                var parameterVersion = ParameterMutationModel.Decide(command, state.CatalogRevision, state.Versions, DateTime.UtcNow, assigned);
-                parameterChange = new(parameterVersion, state.CatalogRevision + 1, hash, ParameterAuditModel.ForSet(command, state.Versions, parameterVersion));
+                var parameterVersion = ParameterMutationModel.Decide(command, state.CatalogRevision, state.Versions, (clock ?? TimeProvider.System).GetUtcNow().UtcDateTime, assigned);
+                parameterChange = new(parameterVersion, state.CatalogRevision + 1, hash, ParameterAuditModel.ForSet(command, state.Versions, parameterVersion, clock));
                 return true;
             }
             catch (Exception rejection) when (rejection is ArgumentException or InvalidOperationException or KeyNotFoundException)

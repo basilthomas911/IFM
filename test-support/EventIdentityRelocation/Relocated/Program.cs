@@ -14,7 +14,7 @@ foreach (var name in new[] { oldName, typeof(Observation).AssemblyQualifiedName!
 {
  var value = (Observation)codec.Deserialize(name,42,oldBytes);
  if (value.Value != 123.45m || value.EventId != 42) throw new Exception("Historical state mismatch.");
- var bytes = codec.Serialize(value with { EventId = 0 });
+ var bytes = codec.Serialize(global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(value, value with { EventId = 0 }));
  if (!oldBytes.SequenceEqual(bytes)) throw new Exception("Payload bytes changed after relocation.");
  File.WriteAllBytes(args[1],bytes);
  File.WriteAllText(args[1]+".type",writer.GetIdentity(typeof(Observation)).EventTypeName);

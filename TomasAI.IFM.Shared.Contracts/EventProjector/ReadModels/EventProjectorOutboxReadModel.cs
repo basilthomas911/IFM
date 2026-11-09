@@ -18,4 +18,5 @@ public sealed record EventProjectorOutboxReadModel(
     DateTime? PublishedAtUtc,
     string LastError,
     Guid DispatchToken,
-    DateTime DispatchLeaseExpiresAtUtc);
+    DateTime DispatchLeaseExpiresAtUtc,
+    TomasAI.IFM.Shared.EventModelActor.MessageOrigin? Origin = null);

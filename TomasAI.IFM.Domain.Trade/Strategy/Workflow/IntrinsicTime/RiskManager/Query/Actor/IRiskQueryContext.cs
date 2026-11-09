@@ -15,6 +15,8 @@ public interface IRiskQueryContext : IQueryActorContext<RiskQueryActor>
 
     IPortfolioFundOrderReader Funds { get; }
 
+    TimeProvider TimeProvider => TimeProvider.System;
+
     IFinancialQueryStore Financial { get; }
 
     IDbContextFactory DbFactory { get; }

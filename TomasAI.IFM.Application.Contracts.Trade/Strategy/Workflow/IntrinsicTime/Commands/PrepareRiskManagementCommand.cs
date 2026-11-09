@@ -45,9 +45,9 @@ public sealed record PrepareRiskManagementCommand : ICommand<IntrinsicTimeStrate
     [IgnoreMember] public string StreamId => Subject.StreamId;
     [IgnoreMember] public string EventSource => $"{Actor}Actor";
     /// <summary>Retains the exact workflow intent when the producer refreshes its read evidence.</summary>
-    public ICommand ForRetryIdentity() => this with { Policy = null, Financial = null, EvidenceCollected = null, EvidenceCollectedAtUtc = null };
+    public ICommand ForRetryIdentity() => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(this, this with { Policy = null, Financial = null, EvidenceCollected = null, EvidenceCollectedAtUtc = null });
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Preserve the existing public instance model API used by consumers and reflection.")]
-    [IgnoreMember] public DateTime OriginatedOn => DateTime.UtcNow;
+    [IgnoreMember] public DateTime OriginatedOn => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Get(this)?.OriginatedAtUtc.UtcDateTime ?? default;
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Preserve the existing public instance model API used by consumers and reflection.")]
     [IgnoreMember] public string OriginatedBy => "RiskManagementPreparation";
 }

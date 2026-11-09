@@ -25,7 +25,7 @@ public class FuturesRsiSignalCommandState : BaseEventSourceActorState<FuturesRsi
         Id = Guid.NewGuid(),
         CommandId = command.CommandId,
         EventSource = command.EventSource,
-        ReceivedOn = DateTime.UtcNow,
+
         RetainedWindow = replayWindow,
         Signals = _futuresRsiSignals.ToArray(),
         Accumulator = FuturesRsiCheckpoint

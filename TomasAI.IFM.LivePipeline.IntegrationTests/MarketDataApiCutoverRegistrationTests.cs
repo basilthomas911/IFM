@@ -34,6 +34,8 @@ public sealed class MarketDataApiCutoverRegistrationTests
     public async Task Remote_API_composition_has_one_client_and_no_provider_lifecycle_or_worker_owner()
     {
         var services = new ServiceCollection(); services.AddSingleton<NatsConnectionManager>();
+        services.AddSingleton(TimeProvider.System);
+        services.AddSingleton(new TomasAI.IFM.Shared.Time.PhysicalTime());
         var config = new ConfigurationManager();
         services.AddSingleton<TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts.INatsProducerOptions>(new TomasAI.IFM.Framework.Messaging.NatsJetStream.NatsProducerOptions { Url = "nats://localhost:4222" });
         typeof(CoreServiceRegistration).GetMethod("RegisterRemoteMarketDataRuntimeServices", BindingFlags.NonPublic | BindingFlags.Static)!

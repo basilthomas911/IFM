@@ -10,8 +10,9 @@ namespace TomasAI.IFM.Domain.Portfolio.Financial.Repository;
 /// <summary>Configuration, period control, and independent reconciliation share canonical Portfolio authority.</summary>
 /// <param name="transactions">The transactional event-store boundary.</param>
 /// <param name="developmentPolicy">The optional development-only qualification policy.</param>
-public sealed class LedgerConfigurationStore(IPostgresEventTransaction transactions, FinancialDevelopmentPolicy? developmentPolicy = null) : ILedgerConfigurationStore
+public sealed class LedgerConfigurationStore(IPostgresEventTransaction transactions, FinancialDevelopmentPolicy? developmentPolicy = null, TimeProvider? timeProvider = null) : ILedgerConfigurationStore
 {
+    readonly TimeProvider businessClock = timeProvider ?? TimeProvider.System;
     /// <inheritdoc />
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "RCS1075", Justification = "A failed receipt probe does not establish that COMMIT failed; preserve the original ambiguous outcome for reconciliation.")]
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Retain the existing bounded persistence failure boundary: complete cleanup or report failure while preserving ambiguous commit/recovery evidence and the original cause.")]
@@ -45,7 +46,7 @@ public sealed class LedgerConfigurationStore(IPostgresEventTransaction transacti
             }
             var current = await (LockAuthorityAsync(db, request.PortfolioId, request.ExpectedFinancialRevision, ct)).ConfigureAwait(false);
             Require(current.Book.BookId == body.BookId, FinancialReasons.AuthorityDenied, "Book does not belong to this Portfolio.");
-            Require(DateTime.UtcNow < request.ExpiresAtUtc, FinancialReasons.TimeExpired, "Configuration deadline expired before commit.");
+            Require(businessClock.GetUtcNow().UtcDateTime < request.ExpiresAtUtc, FinancialReasons.TimeExpired, "Configuration deadline expired before commit.");
             var revision = checked(current.Revision + 1);
             var state = current.State;
             Guid? reconciliationId = null;
@@ -162,7 +163,7 @@ public sealed class LedgerConfigurationStore(IPostgresEventTransaction transacti
             }
             var accepted = await (LockAuthorityAsync(db, request.PortfolioId, null, ct)).ConfigureAwait(false);
             var migrationState = (string)(await (db.ScalarAsync(PortfolioDbSql.Financial.LedgerConfigurationProjection.ReadMigrationState, [request.PortfolioId], ct)).ConfigureAwait(false))!;
-            var completed = complete(new(request.OperationId, body.BookId, body.Action, revision, DateTime.UtcNow, reconciliationId, state)) with
+            var completed = complete(new(request.OperationId, body.BookId, body.Action, revision, businessClock.GetUtcNow().UtcDateTime, reconciliationId, state)) with
             {
                 SchemaVersion = 2,
                 ProjectionFacts = new() { ActorName = request.Subject.Name, Request = body, AcceptedBook = accepted.Book,

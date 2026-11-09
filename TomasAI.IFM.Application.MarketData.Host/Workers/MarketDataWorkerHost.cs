@@ -91,7 +91,16 @@ public sealed partial class MarketDataWorkerHost(IConfiguration configuration, I
             owned = workers.Where(pair => pair.Key.StartsWith(name + "|", StringComparison.Ordinal)
                 && (expectedWorker is null || identities[pair.Key] == expectedWorker)).ToArray();
             foreach (var pair in owned) publications[pair.Key].Close();
-            foreach (var pair in owned) backendState?.Fence(name, pair.Value.Current.Dataset, pair.Value.Current.GenerationId);
+            foreach (var pair in owned)
+            {
+                // A terminal supervisor can clear its process projection before host teardown.
+                // The retained accepted manifest still owns the exact admission being retired.
+                var current = pair.Value.Current;
+                var accepted = manifests[pair.Key];
+                backendState?.Fence(name,
+                    string.IsNullOrWhiteSpace(current.Dataset) ? accepted.Manifest.Dataset : current.Dataset,
+                    current.GenerationId == Guid.Empty ? accepted.GenerationId : current.GenerationId);
+            }
         }
         foreach (var pair in owned)
         {

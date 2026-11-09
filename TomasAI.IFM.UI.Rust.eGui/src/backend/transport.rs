@@ -228,6 +228,7 @@ impl Backend {
         let bytes = codec::encode(body)?;
         let mut headers = async_nats::HeaderMap::new();
         headers.insert("IFM-UI-Operation-Id", operation);
+        headers.insert("Ifm-Message-Origin-V1", control_origin_header()?.as_str());
         if let Some((parent, state)) = trace {
             headers.insert("traceparent", parent);
             if !state.is_empty() {
@@ -312,6 +313,7 @@ impl Backend {
             let bytes = codec::encode(body)?;
             let mut headers = async_nats::HeaderMap::new();
             headers.insert("IFM-UI-Operation-Id", operation.as_str());
+            headers.insert("Ifm-Message-Origin-V1", control_origin_header()?.as_str());
             let reply = tokio::time::timeout_at(
                 deadline,
                 self.client
@@ -406,5 +408,37 @@ impl Backend {
                 error,
             )
         })
+    }
+}
+
+
+/// Captures workstation control-plane creation time once for a new UI request.
+/// Trading valuation and session dates continue to come from the API.
+fn control_origin_header() -> Result<String, String> {
+    let at = chrono::DateTime::<chrono::Utc>::from(std::time::SystemTime::now());
+    origin_header_at(at)
+}
+
+fn origin_header_at(at: chrono::DateTime<chrono::Utc>) -> Result<String, String> {
+    if !(1..=9999).contains(&chrono::Datelike::year(&at)) {
+        return Err("UI control origin is outside the supported UTC range".into());
+    }
+    Ok(serde_json::json!({
+        "OriginatedAtUtc": super::contracts::utc_roundtrip(at), "ClockDomainId": "control",
+        "RunId": null, "Generation": null, "CausationId": null
+    }).to_string())
+}
+
+#[cfg(test)]
+mod origin_tests {
+    #[test]
+    fn control_origin_is_explicit_utc_and_stable_for_the_same_captured_instant() {
+        let at = chrono::DateTime::parse_from_rfc3339("2025-11-03T12:00:00.1234567Z").unwrap().to_utc();
+        let json = super::origin_header_at(at).unwrap();
+        let value: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert_eq!(value["ClockDomainId"], "control");
+        assert_eq!(value["OriginatedAtUtc"], "2025-11-03T12:00:00.1234567Z");
+        assert!(value["RunId"].is_null());
+        assert_eq!(json, super::origin_header_at(at).unwrap());
     }
 }

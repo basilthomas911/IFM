@@ -14,9 +14,14 @@ namespace TomasAI.IFM.Application.EventModelActor;
 /// collection of such events. It includes functionality to replay events to reconstruct the state and to apply new
 /// events, optionally associating them with commands.</remarks>
 /// <typeparam name="TState">The type of the state, which must implement <see cref="IBoundedContextState{TState}"/>.</typeparam>
-public abstract class BaseEventSourceActorState<TState> : IEventSourceActorState<TState>
+public abstract class BaseEventSourceActorState<TState> : IEventSourceActorState<TState>, IClockBoundActorState
     where TState : class, IEventSourceActorState<TState>
 {
+    TimeProvider? businessClock;
+
+    /// <summary>Binds the state instance before command execution, without storing a clock in its events.</summary>
+    public void BindClock(TimeProvider clock) => businessClock = clock ?? throw new ArgumentNullException(nameof(clock));
+
     DomainEventCollection _domainEvents = [];
     public DomainEventCollection Events => _domainEvents!;
 
@@ -150,6 +155,7 @@ public abstract class BaseEventSourceActorState<TState> : IEventSourceActorState
         var eventApplied = false;
         if (domainEvent is IEvent @event)
         {
+            if (addEvent && businessClock is { } clock) MessageOrigins.ForPublication(@event, clock);
             eventApplied = Apply(@event);
             if (eventApplied && addEvent)
                 _domainEvents.Add(@event);

@@ -17,6 +17,8 @@ pub struct Notice {
     pub identity: [u8; 16],
     /// Plain existing twenty-key event DTO; transport compression is separate.
     pub bytes: Vec<u8>,
+    /// Original captured application UTC, retained across delivery retries.
+    pub origin_ticks: i64,
 }
 fn identity(runtime: [u8; 16], lane: Lane, ordinal: u64, kind: u8) -> [u8; 16] {
     let mut hash = Sha256::new();
@@ -171,6 +173,7 @@ impl Notice {
         Ok(Self {
             subject,
             identity: id,
+            origin_ticks: at,
             bytes,
         })
     }

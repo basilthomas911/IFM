@@ -46,9 +46,9 @@ internal static class PositionProjectionActions
         var subject = new ActorSubject(ActorType.Realtime, realtimeActor, PositionChangedEvent.Verb, changed.EntityId.Format());
         return changed switch
         {
-            Shared.Futures.Option.Position.IronCondorPositionChangedEvent ironCondor => context.SendAsync<Shared.Futures.Option.Position.IronCondorPositionChangedEvent, StrategyPositionId>(ironCondor with { Subject = subject }),
-            Shared.Futures.Option.Position.VerticalSpreadPositionChangedEvent verticalSpread => context.SendAsync<Shared.Futures.Option.Position.VerticalSpreadPositionChangedEvent, StrategyPositionId>(verticalSpread with { Subject = subject }),
-            Shared.Futures.Position.FuturesPositionChangedEvent futures => context.SendAsync<Shared.Futures.Position.FuturesPositionChangedEvent, StrategyPositionId>(futures with { Subject = subject }),
+            Shared.Futures.Option.Position.IronCondorPositionChangedEvent ironCondor => context.SendAsync<Shared.Futures.Option.Position.IronCondorPositionChangedEvent, StrategyPositionId>(global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(ironCondor, ironCondor with { Subject = subject })),
+            Shared.Futures.Option.Position.VerticalSpreadPositionChangedEvent verticalSpread => context.SendAsync<Shared.Futures.Option.Position.VerticalSpreadPositionChangedEvent, StrategyPositionId>(global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(verticalSpread, verticalSpread with { Subject = subject })),
+            Shared.Futures.Position.FuturesPositionChangedEvent futures => context.SendAsync<Shared.Futures.Position.FuturesPositionChangedEvent, StrategyPositionId>(global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(futures, futures with { Subject = subject })),
             _ => throw new InvalidOperationException($"Unsupported position event {changed.GetType().Name}.")};
     }
 

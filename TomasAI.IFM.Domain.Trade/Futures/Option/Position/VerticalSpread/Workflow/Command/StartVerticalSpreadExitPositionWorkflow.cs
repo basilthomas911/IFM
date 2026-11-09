@@ -55,7 +55,7 @@ public static class StartVerticalSpreadExitPositionWorkflow
         {
             LifecycleVersion = 1,
             Id = Guid.NewGuid(),
-            ReceivedOn = DateTime.UtcNow,
+
             CommandId = command.CommandId,
             Subject = new(ActorType.Event, command.Subject.Name + "Event", ExitPositionWorkflowStartedEvent.Verb, command.EntityId.Format()),
             AggregateId = command.EntityId.Format(),

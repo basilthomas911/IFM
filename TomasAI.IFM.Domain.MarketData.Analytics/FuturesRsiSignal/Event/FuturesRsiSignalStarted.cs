@@ -52,7 +52,7 @@ public static class FuturesRsiSignalStarted
                 global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write46(logger, null, e.EntityId, e.HistoricalSeedCount, e.HistoricalSeedReason);
                 if (e.RestoredSignal is { IsWarm: true, Metadata.IsValid: true } restored)
                 {
-                    TomasAI.IFM.Domain.MarketData.Analytics.RegimeDiscovery.RegimeDiscoverySignalCacheAdapter.Publish(restored);
+                    TomasAI.IFM.Domain.MarketData.Analytics.RegimeDiscovery.RegimeDiscoverySignalCacheAdapter.Publish(restored, context.Container?.Resolve<TimeProvider>());
 
                 }
                 FuturesTradeSessionBarAttachmentRegistry<FuturesRsiSignalEntityId>.Attach(e.EntityId);

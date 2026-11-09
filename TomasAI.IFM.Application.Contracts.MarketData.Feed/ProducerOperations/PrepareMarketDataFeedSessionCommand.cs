@@ -21,7 +21,7 @@ public sealed record PrepareMarketDataFeedSessionCommand : ICommand<ActorEntityI
     [IgnoreMember] public string CommandName => nameof(PrepareMarketDataFeedSessionCommand);
     [IgnoreMember] public string StreamId => Subject.StreamId;
     [IgnoreMember] public string EventSource => Actor + "Actor";
-    [IgnoreMember] public DateTime OriginatedOn => DateTime.UtcNow;
+    [IgnoreMember] public DateTime OriginatedOn => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Get(this)?.OriginatedAtUtc.UtcDateTime ?? default;
     [IgnoreMember] public string OriginatedBy => string.Empty;
 
     public static PrepareMarketDataFeedSessionCommand ForOperation(Guid operation)

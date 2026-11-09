@@ -51,8 +51,10 @@ namespace TomasAI.IFM.Application.Storage.MarketDataDb;
 /// <param name = "dbFactory">The factory supplying related database capabilities.</param>
 /// <param name="sequenceIdGenerator">The database sequence allocator.</param>
 /// <param name = "logger"></param>
-public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbContextFactory dbFactory, ISequenceIdGenerator sequenceIdGenerator, ILogger<DbProvider> logger) : ObjectDataRepository<MarketDataDbContext>(connectionSettings[MarketDataDbConnection], logger), IMarketDataDbContext
+public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbContextFactory dbFactory, ISequenceIdGenerator sequenceIdGenerator, ILogger<DbProvider> logger, TimeProvider? timeProvider = null) : ObjectDataRepository<MarketDataDbContext>(connectionSettings[MarketDataDbConnection], logger), IMarketDataDbContext
 {
+    /// <summary>Business clock for dated projections; transport and database limits remain physical.</summary>
+    internal TimeProvider BusinessClock { get; } = timeProvider ?? TimeProvider.System;
     readonly ILogger _diagnosticLogger = logger;
     public const string MarketDataDbConnection = "MarketDataDbConnection";
     internal const string FuturesTickByTimeProjection = "futures_tick_data_by_time";
@@ -2042,7 +2044,7 @@ public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbCo
             _ when upTrendCount == downTrendCount => FuturesTrendType.RangeBound,
             _ => FuturesTrendType.RangeBound
         };
-        return new FuturesTrendDirectionReadModel(ContractId: contractId, ValueDate: valueDate, Timestamp: TimeOnly.FromDateTime(DateTime.Now), LookbackInterval: lookbackInterval, UpTrendCount: upTrendCount, DownTrendCount: downTrendCount, TrendDirection: trendDirection);
+        return new FuturesTrendDirectionReadModel(ContractId: contractId, ValueDate: valueDate, Timestamp: TimeOnly.FromDateTime(BusinessClock.GetLocalNow().DateTime), LookbackInterval: lookbackInterval, UpTrendCount: upTrendCount, DownTrendCount: downTrendCount, TrendDirection: trendDirection);
     }
 
     /// <summary>Get Futures Trend Direction From RSISignal using the MarketDataDb persistence.</summary>
@@ -2071,7 +2073,7 @@ public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbCo
             < 0 => FuturesTrendType.DownTrending,
             _ => FuturesTrendType.RangeBound
         };
-        return new FuturesTrendDirectionReadModel(contractId, valueDate, TimeOnly.FromDateTime(DateTime.Now), lookbackInterval, upTrendCount, downTrendCount, trendDirection);
+        return new FuturesTrendDirectionReadModel(contractId, valueDate, TimeOnly.FromDateTime(BusinessClock.GetLocalNow().DateTime), lookbackInterval, upTrendCount, downTrendCount, trendDirection);
     }
 
     /// <summary>
@@ -3130,7 +3132,7 @@ public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbCo
             .ConfigureAwait(false);
         if (countries.Count == 0)
             return [];
-        var now = DateTime.UtcNow;
+        var now = BusinessClock.GetUtcNow().UtcDateTime;
         var start = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc).AddMonths(-107);
         var end = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc).AddMonths(13).AddTicks(-1);
         var rows = new List<EconomicCalendarReadModel>();

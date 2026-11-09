@@ -29,7 +29,7 @@ public sealed class ParameterAssignmentCommandState : BaseEventSourceActorState<
         Id = Guid.NewGuid(),
         CommandId = command.CommandId,
         EventSource = command.EventSource,
-        ReceivedOn = DateTime.UtcNow,
+
         OwnerId = Assignment!.AssignmentId,
         Operations = new Dictionary<Guid, string>(Operations),
         Audit = new Dictionary<Guid, ParameterAuditEntry>(Audit),

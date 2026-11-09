@@ -15,7 +15,7 @@ public sealed class BinaryCopyEventLogAppender : IEventLogAppender
 {
     const string CopySql = """
         COPY event_log
-            (EventStreamId, EventNameId, EventVersion, StreamVersion, EventPayload, CommandId, EventTimestamp)
+            (EventStreamId, EventNameId, EventVersion, StreamVersion, EventPayload, CommandId, EventTimestamp, MessageOriginJson)
         FROM STDIN (FORMAT BINARY)
         """;
     readonly string _connectionString;
@@ -403,7 +403,7 @@ await                flushDelay.CancelAsync()
                 var assignment = request.Assignments[index];
                 await PostgresValueBinding.WriteRowAsync(importer,
                     [source.EventStreamId, entry.EventNameId, assignment.EventVersion, assignment.StreamVersion,
-                     entry.Payload, source.CommandId, $"{source.EventTimestampUtc:o}"], cancellationToken)
+                     entry.Payload, source.CommandId, $"{source.EventTimestampUtc:o}", entry.MessageOriginJson], cancellationToken)
             .ConfigureAwait(false);
             }
         }

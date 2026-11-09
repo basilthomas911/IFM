@@ -13,8 +13,9 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.OptionVolatility;
 /// <summary>Publishes real, expiry-specific ATM call/put IV observations outside chain request handling.
 /// This display series never substitutes for the separately configured constant-tenor workflow series.</summary>
 public sealed class LiveOptionChainIvCollector(IOptionVolatilityRepository database, IHostEnvironment environment,
-    ILogger<LiveOptionChainIvCollector> logger) : BackgroundService, IOptionChainIvCollector
+    ILogger<LiveOptionChainIvCollector> logger, TimeProvider? timeProvider = null) : BackgroundService, IOptionChainIvCollector
 {
+    readonly TimeProvider businessClock = timeProvider ?? TimeProvider.System;
     const string Method = "expiry-atm-call-put-midpoint-v1";
     const string Policy = "prior-252-weekdays-minimum-20-v1";
     readonly Channel<(EvaluatedOptionChainReadModel Chain, DateOnly Date)> pending =
@@ -27,7 +28,7 @@ public sealed class LiveOptionChainIvCollector(IOptionVolatilityRepository datab
         new($"{chain.UnderlyingContractId}:expiry:{chain.ExpiryDate:yyyyMMdd}", Method);
     VolatilityStorageScope Scope(EvaluatedOptionChainReadModel chain) => new(environment.EnvironmentName, Series(chain), Policy);
     public Task<LatestVolatilityResult> GetLatestAsync(EvaluatedOptionChainReadModel chain, CancellationToken token) =>
-        database.GetLatestAsync(new(Scope(chain), DateTimeOffset.UtcNow, TimeSpan.FromMinutes(6)), token);
+        database.GetLatestAsync(new(Scope(chain), businessClock.GetUtcNow(), TimeSpan.FromMinutes(6)), token);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -76,7 +77,7 @@ public sealed class LiveOptionChainIvCollector(IOptionVolatilityRepository datab
         var prior = sources.Where(x => x.ExchangeValueDate == date).MaxBy(x => x.Revision);
         sources = sources.Where(x => x.ExchangeValueDate < date).GroupBy(x => x.ExchangeValueDate)
             .Select(g => g.MaxBy(x => x.Revision)!).ToList();
-        var now = DateTimeOffset.UtcNow;
+        var now = businessClock.GetUtcNow();
         var id = Hash($"{scope}:{date:yyyyMMdd}:{chain.AsOfUtc:O}:{pair[0].ContractId}:{pair[1].ContractId}:{pair[0].ImpliedVolatility:R}:{pair[1].ImpliedVolatility:R}");
         var iv = ((decimal)pair[0].ImpliedVolatility!.Value + (decimal)pair[1].ImpliedVolatility!.Value) / 2m;
         var provenance = new VolatilityObservationProvenance(pair.Select(x => new VolatilityContributor(x.ContractId,

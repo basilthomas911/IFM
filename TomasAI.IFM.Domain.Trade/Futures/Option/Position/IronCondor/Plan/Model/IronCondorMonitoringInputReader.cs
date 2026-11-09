@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Application.MarketData.Pricing;
+using TomasAI.IFM.Application.MarketData.Pricing;
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.Portfolio.Financial.Repository;
@@ -17,8 +17,9 @@ namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Model
 /// <remarks>One refresh per trade/session runs at a time. Missing providers stay unavailable; old fixture rows and fabricated
 /// distributions are never substituted. This is a read cache, not command state or a trade-plan replay queue.</remarks>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1068", Justification = "Retain the existing public positional contract with optional callbacks following the cancellation token.")]
-public sealed class IronCondorMonitoringInputReader(IDbContextFactory databases, ILogger logger, IFinancialQueryStore? financialQueries = null, IndividualOptionRiskReader? optionRisk = null, Func<InitializeIronCondorMonitoringCommand, CancellationToken, Task>? initializeMonitoring = null, Func<TradeLegDefinition[], DateOnly, CancellationToken, Task<MarketCompositionSnapshot[]>>? captureOptionRisk = null, CancellationToken stoppingToken = default, Func<StrategyPositionSnapshot, DateOnly, IronCondorTradePlanInputs, DateTime, Task>? publishInputChange = null, StrategyRiskParameterSetResolver? riskParameterSets = null, TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi? marketData = null, string volatilitySymbol = "VX")
+public sealed class IronCondorMonitoringInputReader(IDbContextFactory databases, ILogger logger, IFinancialQueryStore? financialQueries = null, IndividualOptionRiskReader? optionRisk = null, Func<InitializeIronCondorMonitoringCommand, CancellationToken, Task>? initializeMonitoring = null, Func<TradeLegDefinition[], DateOnly, CancellationToken, Task<MarketCompositionSnapshot[]>>? captureOptionRisk = null, CancellationToken stoppingToken = default, Func<StrategyPositionSnapshot, DateOnly, IronCondorTradePlanInputs, DateTime, Task>? publishInputChange = null, StrategyRiskParameterSetResolver? riskParameterSets = null, TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi? marketData = null, string volatilitySymbol = "VX", TimeProvider? timeProvider = null)
 {
+    readonly TimeProvider businessClock = timeProvider ?? TimeProvider.System;
     int observerStarted;
     readonly ConcurrentDictionary<(TradeEntityId, DateOnly), Entry> entries = new();
     /// <summary>Returns captured references immediately and schedules bounded background refreshes when due.</summary>
@@ -81,7 +82,7 @@ public sealed class IronCondorMonitoringInputReader(IDbContextFactory databases,
         {
             while (await timer.WaitForNextTickAsync(stoppingToken).ConfigureAwait(false))
             {
-                var now = DateTime.UtcNow;
+                var now = businessClock.GetUtcNow().UtcDateTime;
                 if (!FuturesTradingValueDate.TryGet(new DateTimeOffset(now), out var date))
                     continue;
                 foreach (var cached in entries.ToArray())
@@ -248,7 +249,7 @@ public sealed class IronCondorMonitoringInputReader(IDbContextFactory databases,
             var risk = captureOptionRisk is not null ? await captureOptionRisk(trade.Legs, valueDate, token).WaitAsync(token).ConfigureAwait(false) : await ReadOptionRiskAsync(trade.Legs, valueDate, token).WaitAsync(token).ConfigureAwait(false);
             if (risk.Length != 4)
                 return; // Current capture will invalidate the preceding evidence at its original deadline.
-            var prices = IronCondorOptionCalculator.Calculate(trade.Legs, risk, DateTime.UtcNow, token);
+            var prices = IronCondorOptionCalculator.Calculate(trade.Legs, risk, businessClock.GetUtcNow().UtcDateTime, token);
             var shortPut = risk.Single(scope => !scope.Instruments[0].Instrument.IsCall!.Value && trade.Legs.Single(leg => string.Equals(leg.ContractId, scope.Instruments[0].Instrument.ContractId, StringComparison.Ordinal)).SignedQuantity < 0);
             var shortCall = risk.Single(scope => scope.Instruments[0].Instrument.IsCall!.Value && trade.Legs.Single(leg => string.Equals(leg.ContractId, scope.Instruments[0].Instrument.ContractId, StringComparison.Ordinal)).SignedQuantity < 0);
             IronCondorTradePlanInputs inputs;

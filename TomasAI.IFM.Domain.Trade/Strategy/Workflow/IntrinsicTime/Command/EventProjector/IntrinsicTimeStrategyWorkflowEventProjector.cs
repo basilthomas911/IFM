@@ -128,7 +128,7 @@ public sealed class IntrinsicTimeStrategyWorkflowEventProjector : ConventionalEv
             }
 
             using var timing_workflow_project_notify = WorkflowTrace.Start("workflow.project.notify", snapshot.State);
-            await _actorContext.SendAsync<WorkflowStrategyStateUpdatedEvent, IntrinsicTimeStrategyWorkflowEntityId>(snapshot with { Subject = new ActorSubject(ActorType.Realtime, RealtimeActorName, WorkflowStrategyStateUpdatedEvent.Verb, entityKey) }, cancellationToken).ConfigureAwait(false);
+            await _actorContext.SendAsync<WorkflowStrategyStateUpdatedEvent, IntrinsicTimeStrategyWorkflowEntityId>(global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(snapshot, snapshot with { Subject = new ActorSubject(ActorType.Realtime, RealtimeActorName, WorkflowStrategyStateUpdatedEvent.Verb, entityKey) }), cancellationToken).ConfigureAwait(false);
             timing_workflow_project_notify?.Stop();
             // UI observation is deliberately isolated from workflow dispatch. A desktop listener outage must never
             // prevent an already committed workflow from continuing or reaching its terminal state.

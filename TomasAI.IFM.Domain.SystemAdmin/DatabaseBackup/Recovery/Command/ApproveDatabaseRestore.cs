@@ -54,7 +54,7 @@ public static class ApproveDatabaseRestore
                 EnsureOperation(state.Operation, DatabaseRecoveryOperationKind.Restore, DatabaseRecoveryPhase.Requested);
                 if (command.RestorePointId is not null && command.RestorePointId != state.Restore.RestorePointId || command.FreshTarget is not null && command.FreshTarget != state.Restore.FreshTarget)
                     throw new InvalidOperationException("state.Restore approval cannot change the requested restore target.");
-                command = command with
+                command = global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(command, command with
                 {
                     RestorePointId = state.Restore.RestorePointId,
                     FreshTarget = state.Restore.FreshTarget,
@@ -63,7 +63,7 @@ public static class ApproveDatabaseRestore
                     Source = state.Operation.Source,
                     ProtectionSetId = state.Operation.ProtectionSetId,
                     ExpectedPolicyRevision = state.Operation.PolicyRevision
-                };
+                });
                 var source = Source(command, state.Operation, state.Operation.Kind, DatabaseRecoveryPhase.Authorized);
                 lifecycleChanges.Add(CreateChange<DatabaseRestoreAuthorizedDomainEvent>(command, source));
                 lifecycleChanges.Add(CreateChange<DatabaseRestoreExecutionRequestedDomainEvent>(command, NextSource(source, DatabaseRecoveryPhase.Requested)));

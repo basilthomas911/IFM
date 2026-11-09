@@ -538,6 +538,13 @@ impl MarketData {
         after: i64,
         maximum: usize,
     ) -> Result<Option<rmpv::Value>, String> {
+        self.capture_current_frames(lane, after, maximum, false)
+    }
+    /// Copies the same fenced page with additive provenance beside each unchanged frame.
+    pub fn current_frames_with_origins(&self, lane: Lane, after: i64, maximum: usize) -> Result<Option<rmpv::Value>, String> {
+        self.capture_current_frames(lane, after, maximum, true)
+    }
+    fn capture_current_frames(&self, lane: Lane, after: i64, maximum: usize, origins: bool) -> Result<Option<rmpv::Value>, String> {
         let health = self.health(lane);
         let before = health.status();
         let current = if lane == Lane::OptionsGlbx {
@@ -551,7 +558,11 @@ impl MarketData {
         let frames = current.capture_page(after, maximum, 4 * 1024 * 1024)?;
         let values = frames
             .iter()
-            .map(crate::messaging::wire::Frame::value)
+            .map(|frame| {
+                if origins {
+                    Ok(rmpv::Value::Array(vec![frame.value()?, frame.origin_json()?.map(rmpv::Value::from).unwrap_or(rmpv::Value::Nil)]))
+                } else { frame.value() }
+            })
             .collect::<Result<Vec<_>, _>>()?;
         let now = health.status();
         Ok(

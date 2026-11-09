@@ -67,7 +67,7 @@ public static class BeginCloseFuturesTrade
         {
             CommandId = command.CommandId,
             Subject = new(ActorType.Event, "FuturesTradeEvent", FuturesTradeChangedEvent.Verb, command.EntityId.Format()),
-            ReceivedOn = DateTime.UtcNow,
+
             EntityId = command.EntityId,
             EstablishedTradeDefinition = tradeChange.EstablishedTradeDefinition!,
             IsInitialEstablishment = tradeChange.IsInitialEstablishment

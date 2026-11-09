@@ -38,10 +38,10 @@ public static class FailMarketConditionAssessment
                 MarketConditionTelemetry.RecordFailure(category, reason, c.TargetHorizon, Math.Max(0, (clock.GetUtcNow().UtcDateTime - c.RequestedAtUtc).TotalMilliseconds));
             var failed = CreateFailedEvent(c, category, reason, clock);
             if (outcome?.Message is { } message)
-                failed = failed with
+                failed = global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(failed, failed with
                 {
                     ErrorMessage = message
-                };
+                });
             return FunctionResult<MarketConditionAssessmentCompletedEvent, MarketConditionAssessmentFailedEvent>.Fail(failed);
         }
     }

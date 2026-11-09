@@ -88,10 +88,10 @@ public static class PortfolioOrderCompositionMapper
             Body = body,
             Access = new FinancialAccess("IntrinsicTimeStrategyWorkflow", ["OrderCompositionEvaluate"], [portfolioId])
         };
-        return request with
+        return global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(request, request with
         {
             InputSha256 = FinancialCanonicalHash.Request(request)
-        };
+        });
     }
 
     public static void ValidateReceipt(IntrinsicTimeStrategyWorkflowView view, PortfolioOrderCompositionReceipt receipt, int expectedPortfolioId)

@@ -106,7 +106,7 @@ internal static class FuturesItiSignalUpdatedNotification
                 CommandId = commandId,
                 AggregateId = aggregateId ?? string.Empty,
                 EventSource = eventSource,
-                ReceivedOn = DateTime.UtcNow,
+                ReceivedOn = (context.Container?.Resolve<TimeProvider>() ?? TimeProvider.System).GetUtcNow().UtcDateTime,
                 FuturesItiSignal = signal,
                 SourceEventId = sourceEventId
             };

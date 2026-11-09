@@ -32,7 +32,7 @@ public sealed class ParameterSetCommandState : BaseEventSourceActorState<Paramet
         Id = Guid.NewGuid(),
         CommandId = command.CommandId,
         EventSource = command.EventSource,
-        ReceivedOn = DateTime.UtcNow,
+
         OwnerId = Versions.Values.First().Reference.SetId,
         Operations = new Dictionary<Guid, string>(Operations),
         Audit = new Dictionary<Guid, ParameterAuditEntry>(Audit),

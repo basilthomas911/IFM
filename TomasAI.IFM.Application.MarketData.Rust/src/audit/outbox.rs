@@ -641,7 +641,7 @@ async fn deliver(
                     .await
                     .map_err(|_| "Audit broker channel closed")?;
             }
-            publisher.try_recovery_record(subject, bytes)?;
+            publisher.try_recovery_record(subject, bytes, record.occurred_ticks)?;
             let reply = replies.recv().await.ok_or("Audit reply channel closed")?;
             record.acknowledge(&reply)?;
             Ok(reply)

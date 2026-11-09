@@ -67,7 +67,7 @@ internal static class FinancialRepositorySupport
         var fund = book.Funds.SingleOrDefault(x => x.FundId == fundId);
         Require(fund is not null, FinancialReasons.AuthorityDenied, "Fund does not belong to this financial book.");
         if (!spending || book.DevelopmentQualificationsExempt) return; // Authenticated financial facts still post after a mandate is suspended.
-        Require(book.MigrationQualified && fund!.CanSpend && fund.Reference.ValidUntilUtc > DateTime.UtcNow,
+        Require(book.MigrationQualified && fund!.CanSpend && fund.Reference.ValidUntilUtc > db.BusinessTime.GetUtcNow().UtcDateTime,
             FinancialReasons.AuthorityRevoked, "Current financial authority does not permit spending.");
         await (Check($"Portfolio.{book.PortfolioId}", fund.PortfolioStreamVersion)).ConfigureAwait(false);
         await (Check($"PortfolioFund.{book.PortfolioId}.{fundId}", fund.FundStreamVersion)).ConfigureAwait(false);

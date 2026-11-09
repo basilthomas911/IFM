@@ -57,7 +57,7 @@ public static class UpdateVerticalSpreadPositionLegMarketPrice
         {
             CommandId = command.CommandId,
             Subject = new(ActorType.Event, "FuturesVerticalSpreadTradePositionEvent", VerticalSpreadPositionChangedEvent.Verb, command.EntityId.Format()),
-            ReceivedOn = DateTime.UtcNow,
+
             EntityId = command.EntityId,
             PositionSnapshot = positionSnapshot
         };

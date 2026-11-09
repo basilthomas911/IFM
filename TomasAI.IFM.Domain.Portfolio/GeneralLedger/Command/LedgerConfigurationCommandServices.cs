@@ -13,4 +13,7 @@ namespace TomasAI.IFM.Domain.Portfolio.GeneralLedger.Command;
 
 public sealed record LedgerConfigurationCommandServices(ILedgerConfigurationStore Store,
     IPortfolioDbReadContext Database, IPortfolioEventStore Sources, IEventProjector<LedgerConfigurationCommandActor> Projector,
-    ILogger<LedgerConfigurationCommandActor> Logger, FinancialDevelopmentPolicy? DevelopmentPolicy = null);
+    ILogger<LedgerConfigurationCommandActor> Logger, FinancialDevelopmentPolicy? DevelopmentPolicy = null, TimeProvider? timeProvider = null)
+{
+    public TimeProvider Clock { get; } = timeProvider ?? TimeProvider.System;
+}

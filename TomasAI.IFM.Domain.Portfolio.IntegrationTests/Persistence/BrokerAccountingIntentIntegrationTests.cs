@@ -47,6 +47,8 @@ public sealed class BrokerAccountingIntentIntegrationTests(PortfolioEventStoreFi
         codec.Serialize(winners[0]).Bytes.Should().Equal(codec.Serialize(winners[1]).Bytes);
         var recovered = await new BrokerAccountingIntentStore(Transactions()).ReadAsync(command.PortfolioId, command.OperationId, hash);
         codec.Serialize(recovered!).Bytes.Should().Equal(codec.Serialize(winners[0]).Bytes);
+        MessageOrigins.Get(winners[0]).Should().NotBeNull();
+        MessageOrigins.Get(recovered!).Should().Be(MessageOrigins.Get(winners[0]));
         var conflict = await FluentActions.Awaiting(() => new BrokerAccountingIntentStore(Transactions())
             .ClaimAsync(command, new string('B', 64))).Should().ThrowAsync<FinancialOperationException>();
         conflict.Which.Code.Should().Be(FinancialReasons.RequestMismatch);

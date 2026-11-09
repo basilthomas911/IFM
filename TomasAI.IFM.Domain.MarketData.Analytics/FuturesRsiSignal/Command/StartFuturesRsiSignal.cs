@@ -24,13 +24,13 @@ public static class StartFuturesRsiSignal
         /// <param name="state">The command actor state that owns the current business values and pending events.</param>
         /// <param name="calendar">The market-session calendar used by the existing historical seed validation policy; optional when no historical seed requires it.</param>
         /// <returns>The originating command ID on acceptance, including an idempotent no-change result; otherwise, the business rejection or state-application failure.</returns>
-        public ServiceResult<GuidResult> Execute(FuturesRsiSignalCommandState state, IMarketSessionCalendar? calendar = null)
+        public ServiceResult<GuidResult> Execute(FuturesRsiSignalCommandState state, IMarketSessionCalendar? calendar = null, TimeProvider? timeProvider = null)
         {
             ArgumentNullException.ThrowIfNull(command);
             ArgumentNullException.ThrowIfNull(state);
             var errorMsg = "unable to apply RSI initialization events";
             var updated = command.Compute(state.FuturesRsiCheckpoint, state.FuturesRsiSignals, calendar,
-                out var futuresRsiInitialization) switch
+                out var futuresRsiInitialization, timeProvider) switch
             {
                 _ when !futuresRsiInitialization.Accepted
                     => command.UpdateFailed(ref errorMsg, futuresRsiInitialization.RejectionReason!),
@@ -51,9 +51,9 @@ public static class StartFuturesRsiSignal
         /// <remarks>Accumulator validation exceptions propagate to the command actor exception boundary.</remarks>
         internal bool Compute(FuturesRsiAccumulatorCheckpoint? currentFuturesRsiCheckpoint,
             IReadOnlyCollection<FuturesRsiSignalReadModel> previousFuturesRsiSignals,
-            IMarketSessionCalendar? calendar, out FuturesRsiInitialization futuresRsiInitialization)
+            IMarketSessionCalendar? calendar, out FuturesRsiInitialization futuresRsiInitialization, TimeProvider? timeProvider = null)
         {
-            var historicalSeed = FuturesRsiHistoricalSeedModel.Decide(command, currentFuturesRsiCheckpoint, calendar, DateTimeOffset.UtcNow);
+            var historicalSeed = FuturesRsiHistoricalSeedModel.Decide(command, currentFuturesRsiCheckpoint, calendar, (timeProvider ?? TimeProvider.System).GetUtcNow());
             string? rejectionReason = command.ForceHistoricalInitialization && historicalSeed.Observations.Length == 0
                 ? $"RSI four-hour initialization rejected: {historicalSeed.Reason}." : null;
             var futuresRsiCheckpoint = command.ForceHistoricalInitialization ? null : currentFuturesRsiCheckpoint;

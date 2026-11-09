@@ -17,10 +17,11 @@ namespace TomasAI.IFM.Domain.Portfolio.Identity.PortfolioBusinessIdAllocation.Fu
 public sealed class PortfolioBusinessIdAllocationFunctionActor(
     IFunctionActorContext<PortfolioBusinessIdAllocationFunctionActor> context,
     IEventSourceFunctionStateRepository<PortfolioBusinessIdAllocationFunctionState, AllocatePortfolioBusinessIdCommand> repository,
-    IPortfolioBusinessIdAllocator identities, IPortfolioOperationalGuard guard, ILogger<PortfolioBusinessIdAllocationFunctionActor> logger)
+    IPortfolioBusinessIdAllocator identities, IPortfolioOperationalGuard guard, ILogger<PortfolioBusinessIdAllocationFunctionActor> logger, TimeProvider? timeProvider = null)
     : BaseEventSourceFunctionActor<PortfolioBusinessIdAllocationFunctionActor, AllocatePortfolioBusinessIdCommand, ActorEntityId, ActorEntityId,
         PortfolioBusinessIdAllocationFunctionState, PortfolioBusinessIdAllocationCompletedEvent, PortfolioBusinessIdAllocationFailedEvent>(context, repository, null, logger)
 {
+    readonly TimeProvider businessClock = timeProvider ?? TimeProvider.System;
     public const string ActorName = AllocatePortfolioBusinessIdCommand.Actor;
 
     static readonly FrozenDictionary<string, Func<IActorMessage, AllocatePortfolioBusinessIdCommand>> _parseMap =
@@ -29,10 +30,10 @@ public sealed class PortfolioBusinessIdAllocationFunctionActor(
             [AllocatePortfolioBusinessIdCommand.Verb] = message => message.AsCommand<AllocatePortfolioBusinessIdCommand>()!
         }.ToFrozenDictionary(StringComparer.Ordinal);
 
-    static readonly FrozenDictionary<Type, Func<AllocatePortfolioBusinessIdCommand, IPortfolioBusinessIdAllocator, IPortfolioOperationalGuard, CancellationToken, ValueTask<PortfolioBusinessIdAllocationCompletedEvent>>> _receiveMap =
-        new Dictionary<Type, Func<AllocatePortfolioBusinessIdCommand, IPortfolioBusinessIdAllocator, IPortfolioOperationalGuard, CancellationToken, ValueTask<PortfolioBusinessIdAllocationCompletedEvent>>>
+    static readonly FrozenDictionary<Type, Func<AllocatePortfolioBusinessIdCommand, IPortfolioBusinessIdAllocator, IPortfolioOperationalGuard, TimeProvider, CancellationToken, ValueTask<PortfolioBusinessIdAllocationCompletedEvent>>> _receiveMap =
+        new Dictionary<Type, Func<AllocatePortfolioBusinessIdCommand, IPortfolioBusinessIdAllocator, IPortfolioOperationalGuard, TimeProvider, CancellationToken, ValueTask<PortfolioBusinessIdAllocationCompletedEvent>>>
         {
-            [typeof(AllocatePortfolioBusinessIdCommand)] = static (request, allocator, operationalGuard, token) => request.ExecuteAsync(allocator, operationalGuard, token)
+            [typeof(AllocatePortfolioBusinessIdCommand)] = static (request, allocator, operationalGuard, clock, token) => request.ExecuteAsync(allocator, operationalGuard, token, clock)
         }.ToFrozenDictionary();
 
     static readonly FrozenDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
@@ -70,18 +71,18 @@ public sealed class PortfolioBusinessIdAllocationFunctionActor(
     }
 
     protected override FunctionExecutionPolicy ResolveExecutionPolicy(AllocatePortfolioBusinessIdCommand request, FunctionFailureStage stage)
-        => DispatchMappedExecutionPolicy(request, stage, TimeProvider.System, _executionPolicyMap);
+        => DispatchMappedExecutionPolicy(request, stage, businessClock, _executionPolicyMap);
 
     protected override async ValueTask<FunctionResult<PortfolioBusinessIdAllocationCompletedEvent, PortfolioBusinessIdAllocationFailedEvent>> ExecuteFunctionAsync(
         IFunctionActorContext<PortfolioBusinessIdAllocationFunctionActor> services, PortfolioBusinessIdAllocationFunctionState state,
         AllocatePortfolioBusinessIdCommand request, CancellationToken cancellationToken)
     {
         var receive = ResolveMappedFunctionHandler(request, _receiveMap);
-        var completed = await receive(request, identities, guard, cancellationToken).ConfigureAwait(false);
+        var completed = await receive(request, identities, guard, businessClock, cancellationToken).ConfigureAwait(false);
         return FunctionResult<PortfolioBusinessIdAllocationCompletedEvent, PortfolioBusinessIdAllocationFailedEvent>.Complete(completed);
     }
 
     protected override FunctionResult<PortfolioBusinessIdAllocationCompletedEvent, PortfolioBusinessIdAllocationFailedEvent> HandleFunctionEvent(
         IFunctionActorContext<PortfolioBusinessIdAllocationFunctionActor> services, FunctionEventContext<AllocatePortfolioBusinessIdCommand> input)
-        => DispatchMappedFunctionEvent(input, TimeProvider.System, _eventMap);
+        => DispatchMappedFunctionEvent(input, businessClock, _eventMap);
 }

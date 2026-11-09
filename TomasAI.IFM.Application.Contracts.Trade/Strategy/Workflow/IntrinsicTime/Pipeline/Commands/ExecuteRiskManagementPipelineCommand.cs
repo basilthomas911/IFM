@@ -119,5 +119,5 @@ public sealed record ExecuteRiskManagementPipelineCommand : ICommand<RiskManagem
     [IgnoreMember] public string EventSource => $"{Actor}Actor";
     [IgnoreMember] public DateTime OriginatedOn => RequestedAtUtc;
     [IgnoreMember] public string OriginatedBy => EventSource;
-    public string Fingerprint() => RiskContracts.Hash(this with { InputSha256 = "" });
+    public string Fingerprint() => RiskContracts.Hash(global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(this, this with { InputSha256 = "" }));
 }

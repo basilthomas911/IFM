@@ -66,7 +66,7 @@ public static class TradeDbContextExtensions
             List<object> queuedCommands = [db.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.DeleteOptionLegById)}", TradeDbSql.DeleteOptionLegById)
             .SetParameters(new DeleteOptionLegById(e.OrderId, e.TradeId, e.ContractId))
             .QueueCommand(), db.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.InsertOptionLeg)}", TradeDbSql.InsertOptionLeg)
-            .SetParameters(new InsertOptionLeg(e.OrderId, e.TradeId, e.ContractId, e.Quantity, e.StrikePrice, e.OptionLegType.ToStringFast(), e.OptionLegAction.ToStringFast(), DateTime.Now, e.CreatedBy, DateTime.Now, e.CreatedBy))
+            .SetParameters(new InsertOptionLeg(e.OrderId, e.TradeId, e.ContractId, e.Quantity, e.StrikePrice, e.OptionLegType.ToStringFast(), e.OptionLegAction.ToStringFast(), context.BusinessClock.GetLocalNow().DateTime, e.CreatedBy, context.BusinessClock.GetLocalNow().DateTime, e.CreatedBy))
             .QueueCommand()];
             await (db.ExecuteQueuedCommandsAsync(queuedCommands))
             .ConfigureAwait(false);
@@ -80,7 +80,7 @@ public static class TradeDbContextExtensions
             ArgumentNullException.ThrowIfNull(optionLegs);
             var rowCount = 0L;
             await (context.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.InsertOptionLeg)}", TradeDbSql.InsertOptionLeg)
-            .SetParameters(EnumerateOptionLegs().Select(e => new InsertOptionLeg(e.OrderId, e.TradeId, e.ContractId, e.Quantity, e.StrikePrice, e.OptionLegType.ToStringFast(), e.OptionLegAction.ToStringFast(), DateTime.Now, e.CreatedBy, DateTime.Now, e.CreatedBy)))
+            .SetParameters(EnumerateOptionLegs().Select(e => new InsertOptionLeg(e.OrderId, e.TradeId, e.ContractId, e.Quantity, e.StrikePrice, e.OptionLegType.ToStringFast(), e.OptionLegAction.ToStringFast(), context.BusinessClock.GetLocalNow().DateTime, e.CreatedBy, context.BusinessClock.GetLocalNow().DateTime, e.CreatedBy)))
             .ExecuteCommandAsync())
             .ConfigureAwait(false);
             return rowCount;
@@ -112,7 +112,7 @@ public static class TradeDbContextExtensions
             List<object> queuedCommands = [db.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.DeleteOptionLegDataById)}", TradeDbSql.DeleteOptionLegDataById)
             .SetParameters(new DeleteOptionLegDataById(e.OrderId, e.TradeId, e.ValueDate, e.TradeType.ToStringFast(), e.DaysToExpiry, e.TradeStatus.ToStringFast(), e.OptionLegId))
             .QueueCommand(), db.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.InsertOptionLegData)}", TradeDbSql.InsertOptionLegData)
-            .SetParameters(new InsertOptionLegData(e.OrderId, e.TradeId, e.TradeType.ToStringFast(), e.ValueDate, e.DaysToExpiry, e.TradeStatus.ToStringFast(), e.OptionLegId, e.BidPrice, e.AskPrice, e.ImpliedVolatility, e.Delta, e.Gamma, e.Theta, e.Vega, e.Rho, DateTime.Now, e.CreatedBy, DateTime.Now, e.CreatedBy))
+            .SetParameters(new InsertOptionLegData(e.OrderId, e.TradeId, e.TradeType.ToStringFast(), e.ValueDate, e.DaysToExpiry, e.TradeStatus.ToStringFast(), e.OptionLegId, e.BidPrice, e.AskPrice, e.ImpliedVolatility, e.Delta, e.Gamma, e.Theta, e.Vega, e.Rho, context.BusinessClock.GetLocalNow().DateTime, e.CreatedBy, context.BusinessClock.GetLocalNow().DateTime, e.CreatedBy))
             .QueueCommand()];
             await (db.ExecuteQueuedCommandsAsync(queuedCommands))
             .ConfigureAwait(false);
@@ -126,7 +126,7 @@ public static class TradeDbContextExtensions
             ArgumentNullException.ThrowIfNull(optionLegData);
             var rowCount = 0L;
             await (context.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.InsertOptionLegData)}", TradeDbSql.InsertOptionLegData)
-            .SetParameters(EnumerateOptionLegData().Select(e => new InsertOptionLegData(e.OrderId, e.TradeId, e.TradeType.ToStringFast(), e.ValueDate, e.DaysToExpiry, e.TradeStatus.ToStringFast(), e.OptionLegId, e.BidPrice, e.AskPrice, e.ImpliedVolatility, e.Delta, e.Gamma, e.Theta, e.Vega, e.Rho, DateTime.Now, e.CreatedBy, DateTime.Now, e.CreatedBy)))
+            .SetParameters(EnumerateOptionLegData().Select(e => new InsertOptionLegData(e.OrderId, e.TradeId, e.TradeType.ToStringFast(), e.ValueDate, e.DaysToExpiry, e.TradeStatus.ToStringFast(), e.OptionLegId, e.BidPrice, e.AskPrice, e.ImpliedVolatility, e.Delta, e.Gamma, e.Theta, e.Vega, e.Rho, context.BusinessClock.GetLocalNow().DateTime, e.CreatedBy, context.BusinessClock.GetLocalNow().DateTime, e.CreatedBy)))
             .ExecuteCommandAsync())
             .ConfigureAwait(false);
             return rowCount;
@@ -160,14 +160,14 @@ public static class TradeDbContextExtensions
             await (dbWriter!.DeleteOptionTradeAsync(e.OrderId, e.TradeId))
             .ConfigureAwait(false);
             queuedCommands.Add(db.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.InsertOptionTrade)}", TradeDbSql.InsertOptionTrade)
-            .SetParameters(new InsertOptionTrade(e.TradeId, e.OrderId, e.TradeDate, e.MaturityDate, e.TradeType.ToStringFast(), e.TradeState.ToStringFast(), e.TradeStrategy ?? string.Empty, e.TradeAction.ToStringFast(), e.UnderlyingContractId, e.UnderlyingAssetType.ToStringFast(), e.IsPrimaryTrade, e.IsHedgeTrade, DateTime.Now, e.CreatedBy, DateTime.Now, e.CreatedBy))
+            .SetParameters(new InsertOptionTrade(e.TradeId, e.OrderId, e.TradeDate, e.MaturityDate, e.TradeType.ToStringFast(), e.TradeState.ToStringFast(), e.TradeStrategy ?? string.Empty, e.TradeAction.ToStringFast(), e.UnderlyingContractId, e.UnderlyingAssetType.ToStringFast(), e.IsPrimaryTrade, e.IsHedgeTrade, context.BusinessClock.GetLocalNow().DateTime, e.CreatedBy, context.BusinessClock.GetLocalNow().DateTime, e.CreatedBy))
             .QueueCommand());
             // save each option leg info...
             if (e.OptionLegs is not null)
             {
                 foreach (var ol in e.OptionLegs)
                     queuedCommands.Add(db.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.InsertOptionLeg)}", TradeDbSql.InsertOptionLeg)
-            .SetParameters(new InsertOptionLeg(e.OrderId, ol.TradeId, ol.ContractId, ol.Quantity, ol.StrikePrice, ol.OptionLegType.ToStringFast(), ol.OptionLegAction.ToStringFast(), DateTime.Now, e.CreatedBy, DateTime.Now, e.CreatedBy))
+            .SetParameters(new InsertOptionLeg(e.OrderId, ol.TradeId, ol.ContractId, ol.Quantity, ol.StrikePrice, ol.OptionLegType.ToStringFast(), ol.OptionLegAction.ToStringFast(), context.BusinessClock.GetLocalNow().DateTime, e.CreatedBy, context.BusinessClock.GetLocalNow().DateTime, e.CreatedBy))
             .QueueCommand());
             }
 
@@ -177,14 +177,14 @@ public static class TradeDbContextExtensions
                 foreach (var o in e.TradePositions)
                 {
                     queuedCommands.Add(db.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.InsertTradePosition)}", TradeDbSql.InsertTradePosition)
-            .SetParameters(new InsertTradePosition(e.OrderId, o.TradeId, o.TradeType.ToStringFast(), o.ValueDate, o.DaysToExpiry, o.TradeStatus.ToStringFast(), o.Commission, o.DeltaHedge, o.NetSpread, o.TradeValue, o.TradePnl, o.AssetPrice, o.OTMProbability, o.ForwardPrice, o.ForwardLossRatio, o.LossProbability, o.RiskFreeRate, DateTime.Now, e.CreatedBy, DateTime.Now, e.CreatedBy))
+            .SetParameters(new InsertTradePosition(e.OrderId, o.TradeId, o.TradeType.ToStringFast(), o.ValueDate, o.DaysToExpiry, o.TradeStatus.ToStringFast(), o.Commission, o.DeltaHedge, o.NetSpread, o.TradeValue, o.TradePnl, o.AssetPrice, o.OTMProbability, o.ForwardPrice, o.ForwardLossRatio, o.LossProbability, o.RiskFreeRate, context.BusinessClock.GetLocalNow().DateTime, e.CreatedBy, context.BusinessClock.GetLocalNow().DateTime, e.CreatedBy))
             .QueueCommand());
                     // save option leg data within each trade position...
                     if (o.OptionLegData is not null)
                     {
                         foreach (var old in o.OptionLegData)
                             queuedCommands.Add(db.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.InsertOptionLegData)}", TradeDbSql.InsertOptionLegData)
-            .SetParameters(new InsertOptionLegData(e.OrderId, old.TradeId, old.TradeType.ToStringFast(), old.ValueDate, old.DaysToExpiry, old.TradeStatus.ToStringFast(), old.OptionLegId, old.BidPrice, old.AskPrice, old.ImpliedVolatility, old.Delta, old.Gamma, old.Theta, old.Vega, old.Rho, DateTime.Now, e.CreatedBy, DateTime.Now, e.CreatedBy))
+            .SetParameters(new InsertOptionLegData(e.OrderId, old.TradeId, old.TradeType.ToStringFast(), old.ValueDate, old.DaysToExpiry, old.TradeStatus.ToStringFast(), old.OptionLegId, old.BidPrice, old.AskPrice, old.ImpliedVolatility, old.Delta, old.Gamma, old.Theta, old.Vega, old.Rho, context.BusinessClock.GetLocalNow().DateTime, e.CreatedBy, context.BusinessClock.GetLocalNow().DateTime, e.CreatedBy))
             .QueueCommand());
                     }
                 }
@@ -194,7 +194,7 @@ public static class TradeDbContextExtensions
             if (e.TradeLimit is not null)
             {
                 queuedCommands.Add(db.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.InsertTradeLimit)}", TradeDbSql.InsertTradeLimit)
-            .SetParameters(new InsertTradeLimit(e.TradeLimit.TradeId, e.TradeLimit.TradeType.ToStringFast(), e.TradeLimit.RiskMargin, e.TradeLimit.MaxProfit, e.TradeLimit.MaxLoss, e.TradeLimit.MaxReturn, e.TradeLimit.MaxLossLimit, e.TradeLimit.MinProfitLimit, e.TradeLimit.MaxProfitLimit, e.TradeLimit.MinProfitTarget, e.TradeLimit.DailyProfitTarget, DateTime.Now, e.CreatedBy, DateTime.Now, e.CreatedBy))
+            .SetParameters(new InsertTradeLimit(e.TradeLimit.TradeId, e.TradeLimit.TradeType.ToStringFast(), e.TradeLimit.RiskMargin, e.TradeLimit.MaxProfit, e.TradeLimit.MaxLoss, e.TradeLimit.MaxReturn, e.TradeLimit.MaxLossLimit, e.TradeLimit.MinProfitLimit, e.TradeLimit.MaxProfitLimit, e.TradeLimit.MinProfitTarget, e.TradeLimit.DailyProfitTarget, context.BusinessClock.GetLocalNow().DateTime, e.CreatedBy, context.BusinessClock.GetLocalNow().DateTime, e.CreatedBy))
             .QueueCommand());
                 // save trade type limits...
                 queuedCommands.Add(db.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.InsertTradeTypeLimit)}", TradeDbSql.InsertTradeTypeLimit)
@@ -238,7 +238,7 @@ public static class TradeDbContextExtensions
             ArgumentNullException.ThrowIfNull(optionTrades);
             var rowCount = 0L;
             await (context.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.InsertOptionTrade)}", TradeDbSql.InsertOptionTrade)
-            .SetParameters(EnumerateOptionTrades().Select(e => new InsertOptionTrade(e.TradeId, e.OrderId, e.TradeDate, e.MaturityDate, e.TradeType.ToStringFast(), e.TradeState.ToStringFast(), e.TradeStrategy ?? string.Empty, e.TradeAction.ToStringFast(), e.UnderlyingContractId, e.UnderlyingAssetType.ToStringFast(), e.IsPrimaryTrade, e.IsHedgeTrade, DateTime.Now, e.CreatedBy, DateTime.Now, e.CreatedBy)))
+            .SetParameters(EnumerateOptionTrades().Select(e => new InsertOptionTrade(e.TradeId, e.OrderId, e.TradeDate, e.MaturityDate, e.TradeType.ToStringFast(), e.TradeState.ToStringFast(), e.TradeStrategy ?? string.Empty, e.TradeAction.ToStringFast(), e.UnderlyingContractId, e.UnderlyingAssetType.ToStringFast(), e.IsPrimaryTrade, e.IsHedgeTrade, context.BusinessClock.GetLocalNow().DateTime, e.CreatedBy, context.BusinessClock.GetLocalNow().DateTime, e.CreatedBy)))
             .ExecuteCommandAsync())
             .ConfigureAwait(false);
             return rowCount;
@@ -334,7 +334,7 @@ public static class TradeDbContextExtensions
             ArgumentNullException.ThrowIfNull(tradePositions);
             var rowCount = 0L;
             await (context.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.InsertTradePosition)}", TradeDbSql.InsertTradePosition)
-            .SetParameters(EnumerateTradePositions().Select(e => new InsertTradePosition(e.OrderId, e.TradeId, e.TradeType.ToStringFast(), e.ValueDate, e.DaysToExpiry, e.TradeStatus.ToStringFast(), e.Commission, e.DeltaHedge, e.NetSpread, e.TradeValue, e.TradePnl, e.AssetPrice, e.OTMProbability, e.ForwardPrice, e.ForwardLossRatio, e.LossProbability, e.RiskFreeRate, DateTime.Now, e.CreatedBy, DateTime.Now, e.UpdatedBy)))
+            .SetParameters(EnumerateTradePositions().Select(e => new InsertTradePosition(e.OrderId, e.TradeId, e.TradeType.ToStringFast(), e.ValueDate, e.DaysToExpiry, e.TradeStatus.ToStringFast(), e.Commission, e.DeltaHedge, e.NetSpread, e.TradeValue, e.TradePnl, e.AssetPrice, e.OTMProbability, e.ForwardPrice, e.ForwardLossRatio, e.LossProbability, e.RiskFreeRate, context.BusinessClock.GetLocalNow().DateTime, e.CreatedBy, context.BusinessClock.GetLocalNow().DateTime, e.UpdatedBy)))
             .ExecuteCommandAsync())
             .ConfigureAwait(false);
             return rowCount;
@@ -986,7 +986,7 @@ public static class TradeDbContextExtensions
             token.ThrowIfCancellationRequested();
             if (snapshot.WorkflowId != snapshot.State.WorkflowId || snapshot.WorkflowRevision != row.Revision || snapshot.EntityId != snapshot.State.EntityId)
                 throw new InvalidDataException("Risk history source identity mismatch.");
-            var canonical = MessagePackBinarySerializer.Shared.Deserialize<WorkflowStrategyStateUpdatedEvent>(MessagePackBinarySerializer.Shared.Serialize(snapshot with { EventId = 0 }));
+            var canonical = MessagePackBinarySerializer.Shared.Deserialize<WorkflowStrategyStateUpdatedEvent>(MessagePackBinarySerializer.Shared.Serialize(global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(snapshot, snapshot with { EventId = 0 })));
             var payload = MessagePackBinarySerializer.Shared.Serialize(canonical);
             var hash = RiskContracts.Hash(canonical);
             return await context.NativeTransaction().ExecuteOnceAsync(async (db, projectionToken) =>
@@ -1869,7 +1869,7 @@ public static class TradeDbContextExtensions
             ArgumentNullException.ThrowIfNull(completed);
             ArgumentNullException.ThrowIfNull(db);
             var r = TradeProjectionFacts.Composition(completed);
-            var bytes = MessagePackBinarySerializer.Shared.Serialize(completed with { EventId = 0 });
+            var bytes = MessagePackBinarySerializer.Shared.Serialize(global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(completed, completed with { EventId = 0 }));
             var saved = await (db.ScalarAsync(TradeDbSql.HelperStatement37, [r.WorkflowId.Value, r.InvocationId, completed.Result.PayloadSha256, r.InputSha256, bytes], token))
             .ConfigureAwait(false);
             if (saved is null)
@@ -1890,7 +1890,7 @@ public static class TradeDbContextExtensions
             var r = TradeProjectionFacts.Selection(completed);
             var selected = r.SelectedCandidate;
             var binding = r.DecisionContext.SelectionBinding;
-            var bytes = MessagePackBinarySerializer.Shared.Serialize(completed with { EventId = 0 });
+            var bytes = MessagePackBinarySerializer.Shared.Serialize(global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(completed, completed with { EventId = 0 }));
             var saved = await (db.ScalarAsync(TradeDbSql.HelperStatement39, [r.WorkflowId.Value, r.InvocationId, 1L, completed.Id, r.PortfolioId, r.FundId, (short)r.DecisionHorizon, (short)2, (short)r.Outcome, r.ProducedAtUtc, r.PrimaryReasonCode, selected?.DeploymentKey.Id, selected?.DeploymentKey.Version, selected?.StrategyKey.Id, selected?.StrategyKey.Version, selected?.StructureKey.Id, selected?.StructureKey.Version, selected?.VariantKey.Id, selected?.VariantKey.Version, TradeSelectionContracts.WireHash(binding.Candidates.Select(x => x.CandidateHash).ToArray()), binding.PayloadSha256, binding.CommonPolicy.Id, binding.CommonPolicy.Version, binding.CommonPolicy.PayloadSha256, r.ResultId, completed.Result.PayloadSha256, MessagePackBinarySerializer.Shared.Serialize(r), bytes], token))
             .ConfigureAwait(false);
             if (saved is null)
@@ -2009,7 +2009,7 @@ public static class TradeDbContextExtensions
             ArgumentNullException.ThrowIfNull(transaction);
             ArgumentNullException.ThrowIfNull(source);
             var result = TradeProjectionFacts.Regime(source);
-            var payload = MessagePackBinarySerializer.Shared.Serialize(source with { EventId = 0 });
+            var payload = MessagePackBinarySerializer.Shared.Serialize(global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(source, source with { EventId = 0 }));
             var accepted = await transaction.ScalarAsync(TradeDbSql.HelperStatement43, [source.WorkflowId.Value, source.CommandId, source.Id, payload], token)
             .ConfigureAwait(false);
             if (accepted is null)
@@ -2145,7 +2145,7 @@ public static class TradeDbContextExtensions
             var row = RiskHistoryIdentity.Row(source);
             if (row is null)
                 return;
-            var canonical = MessagePackBinarySerializer.Shared.Deserialize<WorkflowStrategyStateUpdatedEvent>(MessagePackBinarySerializer.Shared.Serialize(source with { EventId = 0 }));
+            var canonical = MessagePackBinarySerializer.Shared.Deserialize<WorkflowStrategyStateUpdatedEvent>(MessagePackBinarySerializer.Shared.Serialize(global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(source, source with { EventId = 0 })));
             var hash = RiskContracts.Hash(canonical);
             var payload = MessagePackBinarySerializer.Shared.Serialize(canonical);
             var stored = await db.ScalarAsync(TradeDbSql.HelperStatement47, [row.WorkflowId, row.InvocationId, row.Revision, payload, hash], token)

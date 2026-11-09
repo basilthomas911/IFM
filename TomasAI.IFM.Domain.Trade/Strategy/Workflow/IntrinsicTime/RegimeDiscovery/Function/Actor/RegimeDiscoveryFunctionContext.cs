@@ -16,10 +16,10 @@ public sealed class RegimeDiscoveryFunctionContext : FunctionActorContext, IRegi
     readonly Lazy<IFunctionProjector<RegimeDiscoveryPipelineCompletedEvent>> _functionProjector;
     readonly Lazy<IRegimeDiscoveryMarketSignalSnapshotProvider> _snapshotProvider;
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "This typed context adapts services for its actor and intentionally retains the actor logger category.")]
-    public RegimeDiscoveryFunctionContext(IActorSupervisor supervisor, ILogger<RegimeDiscoveryFunctionActor> logger) : base(supervisor, new ActorMailboxId(ActorType.Function, RegimeDiscoveryFunctionActor.ActorName))
+    public RegimeDiscoveryFunctionContext(IActorSupervisor supervisor, ILogger<RegimeDiscoveryFunctionActor> logger, TimeProvider? timeProvider = null) : base(supervisor, new ActorMailboxId(ActorType.Function, RegimeDiscoveryFunctionActor.ActorName))
     {
         Logger = IsArgumentNull.Set(logger);
-        TimeProvider = TimeProvider.System;
+        TimeProvider = timeProvider ?? TimeProvider.System;
         CalculationModel = new RegimeDiscoveryCalculationModel();
         ExecutionMode = RegimeDiscoveryExecutionMode.Sequential;
         _stateRepository = ResolveOnce<IEventSourceFunctionStateRepository<RegimeDiscoveryFunctionState, ExecuteRegimeDiscoveryPipelineCommand>>();

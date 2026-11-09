@@ -77,10 +77,12 @@ public sealed partial class EventSourceActorSnapshotRangeFixture : IAsyncLifetim
     public DbContextFactory DbFactory { get; private set; } = null!;
     public EventSourceActorDbContext ActorEventDb { get; private set; } = null!;
 
+    public string NatsUrl => _infrastructure.NatsUrl;
+
     public string ConnectionString => _authenticatedConnectionString;
 
     internal EventSourceSchemaDb CreateSchemaDb() => new(_connectionSettings, _logger);
 
-    public EventSourceActorDbContext CreateActorEventDb(EventLogPersistenceOptions? options = null)
-        => new(_connectionSettings, DbFactory, _logger, options);
+    public EventSourceActorDbContext CreateActorEventDb(EventLogPersistenceOptions? options = null, TimeProvider? timeProvider = null)
+        => new(_connectionSettings, DbFactory, _logger, options, timeProvider: timeProvider);
 }

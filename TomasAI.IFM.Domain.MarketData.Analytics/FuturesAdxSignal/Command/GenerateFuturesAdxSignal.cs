@@ -23,7 +23,7 @@ public static class GenerateFuturesAdxSignal
         ///
         /// <param name="state">The command actor state that owns the current business values and pending events.</param>
         /// <returns>The originating command ID on acceptance, including an idempotent no-change result; otherwise, the business rejection or state-application failure.</returns>
-        public ServiceResult<GuidResult> Execute(FuturesAdxSignalCommandState state)
+        public ServiceResult<GuidResult> Execute(FuturesAdxSignalCommandState state, TimeProvider? timeProvider = null)
         {
             ArgumentNullException.ThrowIfNull(command);
             ArgumentNullException.ThrowIfNull(state);
@@ -40,7 +40,7 @@ public static class GenerateFuturesAdxSignal
                     => command.UpdateFailed(ref errorMsg, "ADX period length must be positive"),
                 _ when !futuresAdxSignalCompute.IsValid
                     => command.UpdateFailed(ref errorMsg, "computed ADX signal contains invalid directional values"),
-                _ => state.Update(command.CreateFuturesAdxSignalGeneratedEvent(futuresAdxSignalCompute.SignalDirection, futuresAdxSignalCompute), command)
+                _ => state.Update(command.CreateFuturesAdxSignalGeneratedEvent(futuresAdxSignalCompute.SignalDirection, futuresAdxSignalCompute, timeProvider), command)
             };
             return updated
                 ? new ServiceOk<GuidResult>(new GuidResult(command.CommandId))
@@ -62,10 +62,10 @@ public static class GenerateFuturesAdxSignal
         /// <param name="trendDirection">The computed business trend direction to record on the signal event.</param>
         /// <param name="futuresAdxSignalCompute">The computed business decision, including accepted domain values and any no-change or rejection information.</param>
         /// <returns>The event or ordered event collection to apply through actor state and persist before projection.</returns>
-        internal FuturesAdxSignalGeneratedEvent CreateFuturesAdxSignalGeneratedEvent(FuturesTrendDirectionType trendDirection, FuturesAdxSignalCompute futuresAdxSignalCompute)
+        internal FuturesAdxSignalGeneratedEvent CreateFuturesAdxSignalGeneratedEvent(FuturesTrendDirectionType trendDirection, FuturesAdxSignalCompute futuresAdxSignalCompute, TimeProvider? timeProvider = null)
         {
             var entityId = new FuturesAdxSignalEntityId(command.FuturesAdxSignalId.ContractId, command.FuturesAdxSignalId.ValueDate, command.EntityId.TimePeriod, command.EntityId.PeriodLength);
-            var signalTimestamp = command.Observation?.LastMarketEventUtc.UtcDateTime ?? DateTime.UtcNow;
+            var signalTimestamp = command.Observation?.LastMarketEventUtc.UtcDateTime ?? (timeProvider ?? TimeProvider.System).GetUtcNow().UtcDateTime;
             var signal = new FuturesAdxSignalReadModel(
                 command.EntityId.ContractId,
                 command.EntityId.ValueDate,
@@ -92,7 +92,7 @@ public static class GenerateFuturesAdxSignal
                         ValueDate = observation.ValueDate,
                         ObservationId = observation.ObservationId,
                         MarketDataAsOfUtc = observation.LastMarketEventUtc,
-                        CalculatedAtUtc = DateTimeOffset.UtcNow,
+                        CalculatedAtUtc = (timeProvider ?? TimeProvider.System).GetUtcNow(),
                         SourceSequence = observation.LastSourceSequence,
                         SchemaVersion = 1,
                         CalculationVersion = "adx-legacy-compatible-v1",

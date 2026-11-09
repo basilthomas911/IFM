@@ -7,6 +7,6 @@ namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.VerticalSpread.Workfl
 
 public sealed class VerticalSpreadPositionExitRiskFunctionContext(
     IActorSupervisor supervisor, IPortfolioOrderCompositionApi portfolio,
-    ILogger<VerticalSpreadPositionExitRiskFunctionActor> logger)
+    ILogger<VerticalSpreadPositionExitRiskFunctionActor> logger, TimeProvider? timeProvider = null)
     : PositionExitRiskFunctionContext<VerticalSpreadPositionExitRiskFunctionActor>(
-        supervisor, VerticalSpreadPositionExitRiskFunctionActor.ActorName, portfolio, logger);
+        supervisor, VerticalSpreadPositionExitRiskFunctionActor.ActorName, portfolio, logger, timeProvider);

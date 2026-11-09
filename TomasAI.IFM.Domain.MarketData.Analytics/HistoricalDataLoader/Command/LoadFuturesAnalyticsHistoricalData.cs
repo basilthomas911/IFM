@@ -56,7 +56,7 @@ public static class LoadFuturesAnalyticsHistoricalData
             CommandId = command.CommandId,
             Subject = new(ActorType.Event, FuturesAnalyticsHistoricalDataLoaderRequestedEvent.Actor, FuturesAnalyticsHistoricalDataLoaderRequestedEvent.Verb, command.EntityId.Format()),
             EntityId = command.EntityId,
-            ReceivedOn = DateTime.UtcNow,
+
             FuturesAnalyticsHistoricalDataLoaderParameters = historicalDataLoaderParameters
         };
     }

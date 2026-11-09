@@ -143,7 +143,7 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandState : BaseEventSourceA
         Id = Guid.NewGuid(),
         CommandId = command.CommandId,
         EventSource = command.EventSource,
-        ReceivedOn = DateTime.UtcNow,
+
         Latest = latest,
         AppliedEventCount = AppliedEntityEventCount,
         LastStartDecision = LastStartDecision
@@ -291,10 +291,10 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandState : BaseEventSourceA
     };
     static Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery.RegimeDiscoveryParameterSet CloneParameterSet(Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery.RegimeDiscoveryParameterSet source) => MessagePackSerializer.Deserialize<Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery.RegimeDiscoveryParameterSet>(MessagePackSerializer.Serialize(source));
     static Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.MarketCondition.MarketConditionParameterSet CloneMarketConditionParameterSet(Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.MarketCondition.MarketConditionParameterSet source) => MessagePackSerializer.Deserialize<Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.MarketCondition.MarketConditionParameterSet>(MessagePackSerializer.Serialize(source));
-    static FuturesItiSignalGeneratedEvent CloneTrigger(FuturesItiSignalGeneratedEvent source) => source with
+    static FuturesItiSignalGeneratedEvent CloneTrigger(FuturesItiSignalGeneratedEvent source) => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(source, source with
     {
         FuturesItiSignal = source.FuturesItiSignal is null ? null : source.FuturesItiSignal with
         {
         }
-    };
+    });
 }

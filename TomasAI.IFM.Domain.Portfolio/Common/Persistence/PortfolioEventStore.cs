@@ -16,8 +16,9 @@ using TomasAI.IFM.Shared.EventSourcing.ViewModels;
 namespace TomasAI.IFM.Domain.Portfolio.Persistence;
 
 /// <summary>Persists Portfolio command history only in the shared PostgreSQL EventSourceDb.</summary>
-public sealed class PortfolioEventStore(IEventSourceActorDbContext eventSourceDb, IPortfolioAuthorityFence? financialFence = null) : IPortfolioEventStore
+public sealed class PortfolioEventStore(IEventSourceActorDbContext eventSourceDb, IPortfolioAuthorityFence? financialFence = null, TimeProvider? timeProvider = null) : IPortfolioEventStore
 {
+    readonly TimeProvider businessClock = timeProvider ?? TimeProvider.System;
     readonly IEventSourceActorDbContext _eventSourceDb = eventSourceDb ?? throw new ArgumentNullException(nameof(eventSourceDb));
 
     public async Task VerifyReferencePreparationAsync(ValidatePortfolioReferenceCommand request, CancellationToken cancellationToken = default)
@@ -27,7 +28,7 @@ public sealed class PortfolioEventStore(IEventSourceActorDbContext eventSourceDb
             || receipt.CommandId != request.CommandId || receipt.EntityId != request.EntityId
             || !string.Equals(receipt.InputHash, request.ComputeInputHash(), StringComparison.Ordinal))
             throw new InvalidOperationException("The command does not match its committed Reference validation receipt.");
-        var age = DateTime.UtcNow - receipt.ReceivedOn;
+        var age = businessClock.GetUtcNow().UtcDateTime - receipt.ReceivedOn;
         if (age < TimeSpan.FromSeconds(-5) || age > TimeSpan.FromMinutes(2))
             throw new InvalidOperationException("The command's Reference validation receipt has expired. Prepare the command again.");
     }

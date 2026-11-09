@@ -71,7 +71,7 @@ public sealed record CreateRegimeDiscoveryParameterSetCommand
     [IgnoreMember] public string EventSource => $"{Actor}Actor";
     /// <inheritdoc />
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "This instance property implements command or exception metadata required by the published interface.")]
-    [IgnoreMember] public DateTime OriginatedOn => DateTime.UtcNow;
+    [IgnoreMember] public DateTime OriginatedOn => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Get(this)?.OriginatedAtUtc.UtcDateTime ?? default;
     /// <inheritdoc />
     [IgnoreMember] public string OriginatedBy => CreatedBy;
 }

@@ -8,8 +8,9 @@ using static TomasAI.IFM.Domain.Portfolio.Financial.Repository.FinancialReposito
 namespace TomasAI.IFM.Domain.Portfolio.Financial.Repository;
 
 /// <summary>Durable internal emulator admission. Same-identity retries observe one broker order even after acknowledgement loss.</summary>
-public sealed class EmulatorExecutionStore(IPostgresEventTransaction transactions, FinancialDevelopmentPolicy? developmentPolicy = null)
+public sealed class EmulatorExecutionStore(IPostgresEventTransaction transactions, FinancialDevelopmentPolicy? developmentPolicy = null, TimeProvider? timeProvider = null)
 {
+    readonly TimeProvider businessClock = timeProvider ?? TimeProvider.System;
     /// <summary>Restores local emulator admission records without submitting or executing an order.</summary>
     public Task ReplayAsync(EmulatorOrderSubmittedEvent source,CancellationToken token=default)
     {
@@ -40,7 +41,7 @@ public sealed class EmulatorExecutionStore(IPostgresEventTransaction transaction
         var authority = await (LockAuthorityAsync(db, request.PortfolioId, null, ct, developmentPolicy)).ConfigureAwait(false);
         var replay = await (ReadOperationAsync<EmulatorOrderSubmittedEvent>(db, request.PortfolioId, request.OperationId, request.InputSha256, ct)).ConfigureAwait(false);
         if (replay is not null) return replay;
-        var order = request.Body.Order; var now = DateTime.UtcNow;
+        var order = request.Body.Order; var now = businessClock.GetUtcNow().UtcDateTime;
         Require(string.Equals(request.InputSha256,FinancialCanonicalHash.Request(request),StringComparison.Ordinal) && string.Equals(order.ContentHash,order.Hash(),StringComparison.Ordinal) &&
             order.PortfolioId == request.PortfolioId && string.Equals(order.Environment,"Emulator",StringComparison.Ordinal) && string.Equals(authority.Book.Environment,"Emulator",StringComparison.Ordinal) &&
             string.Equals(authority.State,"Active",StringComparison.Ordinal) && now < order.ValidUntilUtc && now < request.ExpiresAtUtc,

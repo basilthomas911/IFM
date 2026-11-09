@@ -21,11 +21,11 @@ public static class UpdateFuturesTradeSignal
         ///
         /// <param name="state">The command actor state that owns the current business values and pending events.</param>
         /// <returns>The originating command ID on acceptance, including an idempotent no-change result; otherwise, the business rejection or state-application failure.</returns>
-        public ServiceResult<GuidResult> Execute(FuturesTradeSignalCommandState state)
+        public ServiceResult<GuidResult> Execute(FuturesTradeSignalCommandState state, TimeProvider? timeProvider = null)
         {
             ArgumentNullException.ThrowIfNull(command);
             ArgumentNullException.ThrowIfNull(state);
-            var futuresTradeSignalComputed = command.Compute(out var futuresTradeSignalCompute);
+            var futuresTradeSignalComputed = command.Compute(out var futuresTradeSignalCompute, timeProvider);
             if (futuresTradeSignalComputed && !state.HasFuturesTradeSignalChanged(futuresTradeSignalCompute.FuturesTradeSignal))
                 return new ServiceOk<GuidResult>(new GuidResult(command.CommandId));
             var errorMsg = "unable to apply trade signal events";
@@ -58,8 +58,8 @@ public static class UpdateFuturesTradeSignal
         /// <param name="futuresTradeSignalCompute">The computed business decision, including accepted domain values and any no-change or rejection information.</param>
         /// <returns>True when the proposed business result advances or is accepted; otherwise, false. The output retains the no-change or rejection decision.</returns>
         /// <remarks>Accumulator validation exceptions propagate to the command actor exception boundary.</remarks>
-        internal bool Compute(out FuturesTradeSignalCompute futuresTradeSignalCompute)
-            => FuturesTradeSignalCompute.Create(command, out futuresTradeSignalCompute);
+        internal bool Compute(out FuturesTradeSignalCompute futuresTradeSignalCompute, TimeProvider? timeProvider = null)
+            => FuturesTradeSignalCompute.Create(command, out futuresTradeSignalCompute, timeProvider);
 
         /// <summary>Creates the Futures Trade Signal event payload from accepted business data without changing state or publishing messages.</summary>
         ///

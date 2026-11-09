@@ -42,7 +42,7 @@ public sealed class FinancialProjectionBaseline(IPostgresEventTransaction transa
                 var rows=(string)(await (db.ScalarAsync($"SELECT COALESCE(jsonb_agg(j ORDER BY j::text),'[]'::jsonb)::text FROM (SELECT to_jsonb(t)-'created_transaction_id' AS j FROM {Qualified(table)} t) q;",[],ct)).ConfigureAwait(false))!;
                 images.Add(new(table,columns,rows,Hash(rows)));
             }
-            var source=new FinancialProjectionBaselineEvent { Id=Guid.NewGuid(),CommandId=Guid.NewGuid(),ReceivedOn=DateTime.UtcNow,
+            var source=new FinancialProjectionBaselineEvent { Id=Guid.NewGuid(),CommandId=Guid.NewGuid(),ReceivedOn=db.BusinessTime.GetUtcNow().UtcDateTime,
                 SourceCut=cut,FinancialSchemaVersion=schema,Tables=images.ToArray(),SchemaVersion=includeComposition?2:1 };
             await (db.AppendAsync("FinancialProjectionBaseline",source.CommandId,source,
                 Convert.ToInt64(await (db.ScalarAsync("SELECT COALESCE(max(e.streamversion),0) FROM event_log e JOIN event_stream_id s ON s.eventstreamid=e.eventstreamid WHERE s.eventstream=$1;",["FinancialProjectionBaseline"],ct)).ConfigureAwait(false),System.Globalization.CultureInfo.InvariantCulture),ct)).ConfigureAwait(false);

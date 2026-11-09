@@ -13,6 +13,8 @@ public abstract record MarketOutlookUpdate
 {
     /// <summary>Originating disposable actor lifetime, carried only inside this process.</summary>
     public TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration? ActorGeneration { get; init; }
+    /// <summary>Physical admission time used only for queue latency diagnostics.</summary>
+    public long EnqueuedTimestamp { get; init; } = System.Diagnostics.Stopwatch.GetTimestamp();
     internal long QueueSequence { get; init; }
     public required Guid UpdateId { get; init; }
     public abstract MarketOutlookUpdateKind Kind { get; }

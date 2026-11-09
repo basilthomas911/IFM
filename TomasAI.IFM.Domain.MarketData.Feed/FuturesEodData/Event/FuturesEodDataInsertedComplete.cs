@@ -62,7 +62,7 @@ public static class FuturesEodDataInsertedComplete
                         CommandId = @event.CommandId,
                         AggregateId = @event.AggregateId ?? string.Empty,
                         EventSource = nameof(FuturesEodDataInsertedCompleteEvent),
-                        ReceivedOn = DateTime.UtcNow,
+
                         FuturesEodData = @event.FuturesEodData
                     }).ConfigureAwait(false);
             }

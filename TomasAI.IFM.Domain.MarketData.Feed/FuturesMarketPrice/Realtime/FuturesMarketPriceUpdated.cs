@@ -53,11 +53,11 @@ public static class FuturesMarketPriceUpdated
                     && @event.SourceTrade is { } trade)
                 {
                     await context.SendAsync<FuturesTickTradeDataChangedEvent, TickDataEntityId>(
-                        trade with
+                        global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(trade, trade with
                         {
                             SourceDataset = @event.SourceDataset,
                             SourceGenerationId = @event.SourceGenerationId
-                        }).ConfigureAwait(false);
+                        })).ConfigureAwait(false);
                 }
                 return true;
             }

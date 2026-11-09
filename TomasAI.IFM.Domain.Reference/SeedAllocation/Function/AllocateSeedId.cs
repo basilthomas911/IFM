@@ -27,7 +27,7 @@ public static class AllocateSeedId
                 CommandId = request.CommandId,
                 EntityId = request.EntityId,
                 EventSource = request.EventSource,
-                ReceivedOn = DateTime.UtcNow,
+
                 SeedType = request.SeedType,
                 Value = value
             };

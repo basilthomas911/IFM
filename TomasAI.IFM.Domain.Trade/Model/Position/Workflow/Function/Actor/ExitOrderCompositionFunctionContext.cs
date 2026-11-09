@@ -10,13 +10,14 @@ public abstract class ExitOrderCompositionFunctionContext<TActor> : FunctionActo
 {
     readonly Lazy<IEventSourceFunctionStateRepository<ExitOrderCompositionFunctionState, ComposeExitOrderCommand>> repository;
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "This typed context adapts services for its actor and intentionally retains the actor logger category.")]
-    protected ExitOrderCompositionFunctionContext(IActorSupervisor supervisor, string actorName, ILogger<TActor> logger) : base(supervisor, new(ActorType.Function, actorName))
+    protected ExitOrderCompositionFunctionContext(IActorSupervisor supervisor, string actorName, ILogger<TActor> logger, TimeProvider? timeProvider = null) : base(supervisor, new(ActorType.Function, actorName))
     {
+        TimeProvider = timeProvider ?? TimeProvider.System;
         Logger = logger;
         repository = new(() => Container.Resolve<IEventSourceFunctionStateRepository<ExitOrderCompositionFunctionState, ComposeExitOrderCommand>>());
     }
 
-    public TimeProvider TimeProvider { get; } = TimeProvider.System;
+    public TimeProvider TimeProvider { get; }
     public ILogger<TActor> Logger { get; }
     public IEventSourceFunctionStateRepository<ExitOrderCompositionFunctionState, ComposeExitOrderCommand> StateRepository => repository.Value;
 }

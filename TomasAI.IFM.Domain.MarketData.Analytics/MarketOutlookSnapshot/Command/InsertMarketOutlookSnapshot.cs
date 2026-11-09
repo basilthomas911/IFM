@@ -61,7 +61,7 @@ public static class InsertMarketOutlookSnapshot
             Id = Guid.NewGuid(),
             AggregateId = command.EntityId.Format(),
             EventSource = command.EventSource,
-            ReceivedOn = DateTime.UtcNow,
+
             MarketOutlook = marketOutlook
         };
     }

@@ -252,12 +252,18 @@ public sealed partial class NativeMarketDataRuntime
         finally{System.Buffers.ArrayPool<byte>.Shared.Return(bytes,clearArray:true);}
     }
 
+    [MessagePack.MessagePackObject(AllowPrivate = true)]
+    internal sealed record CurrentOriginRow(
+        [property: MessagePack.Key(0)] TomasAI.IFM.Application.MarketData.Databento.Workers.DatasetPublicationEnvelope Frame,
+        [property: MessagePack.Key(1)] string? OriginJson);
+
     /// <summary>Copies an explicit bounded startup/reconnect snapshot page.
     /// This method creates no subscription, timer or streaming receiver.</summary>
     public unsafe TomasAI.IFM.Application.MarketData.Databento.Workers.DatasetPublicationEnvelope[] ReadDatasetOwnerCurrent(MarketDataLane lane,long after=0,uint maximum=256)
     {
         if(after<0 || maximum is <1 or >256)throw new ArgumentOutOfRangeException(nameof(maximum));
-        var call=library.OwnerCurrent??throw new NotSupportedException("Native current-publication query is unavailable.");
+        var withOrigins = library.OwnerCurrentWithOrigins;
+        var call=withOrigins??library.OwnerCurrent??throw new NotSupportedException("Native current-publication query is unavailable.");
         const int capacity=4*1024*1024;var bytes=System.Buffers.ArrayPool<byte>.Shared.Rent(capacity);
         try
         {
@@ -267,8 +273,19 @@ public sealed partial class NativeMarketDataRuntime
                 fixed(byte* output=bytes)NativeMarketDataLibrary.Check(call(handle.Identity,(uint)lane,after,maximum,output,capacity,out count),"query native current publications");
                 if(count>capacity)throw new InvalidDataException("Native current publication page exceeds capacity.");
                 if(count==0)return [];
-                var frames=MessagePack.MessagePackSerializer.Deserialize<TomasAI.IFM.Application.MarketData.Databento.Workers.DatasetPublicationEnvelope[]>(bytes.AsMemory(0,(int)count),
-                    MessagePack.MessagePackSerializerOptions.Standard.WithSecurity(MessagePack.MessagePackSecurity.UntrustedData));
+                var format = MessagePack.MessagePackSerializerOptions.Standard.WithSecurity(MessagePack.MessagePackSecurity.UntrustedData);
+                TomasAI.IFM.Application.MarketData.Databento.Workers.DatasetPublicationEnvelope[] frames;
+                if (withOrigins is not null)
+                {
+                    var rows = MessagePack.MessagePackSerializer.Deserialize<CurrentOriginRow[]>(bytes.AsMemory(0,(int)count), format);
+                    frames = rows.Select(row => TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Restore(row.Frame,
+                        TomasAI.IFM.Shared.EventModelActor.MessageOriginJson.Deserialize(row.OriginJson))).ToArray();
+                }
+                else
+                {
+                    frames = MessagePack.MessagePackSerializer.Deserialize<TomasAI.IFM.Application.MarketData.Databento.Workers.DatasetPublicationEnvelope[]>(bytes.AsMemory(0,(int)count), format);
+                    foreach (var frame in frames) TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Restore(frame, null);
+                }
                 if(frames is null||frames.Length>maximum||frames.Any(f=>f is null||f.WorkerInstanceId==Guid.Empty||f.GenerationId==Guid.Empty||f.PublicationSequence<=after))throw new InvalidDataException("Malformed native current publication page.");
                 return frames;
             }

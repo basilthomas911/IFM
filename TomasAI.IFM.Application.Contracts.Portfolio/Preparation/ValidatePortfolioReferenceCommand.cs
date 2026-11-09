@@ -31,7 +31,7 @@ public sealed record ValidatePortfolioReferenceCommand : ICommand<ActorEntityId>
     [IgnoreMember] public string CommandName => nameof(ValidatePortfolioReferenceCommand);
     [IgnoreMember] public string StreamId => Subject.StreamId;
     [IgnoreMember] public string EventSource => Actor + "Actor";
-    [IgnoreMember] public DateTime OriginatedOn => DateTime.UtcNow;
+    [IgnoreMember] public DateTime OriginatedOn => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Get(this)?.OriginatedAtUtc.UtcDateTime ?? default;
     [IgnoreMember] public string OriginatedBy => string.Empty;
     [IgnoreMember] public bool RequiresEvidence => Mandate is { SchemaVersion: >= 3 } ||
         Mandate is { PermittedTradeStrategyFamilies.Length: > 0 } || Assignment?.TradeStrategyFamily is not null ||

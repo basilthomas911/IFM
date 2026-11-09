@@ -140,11 +140,11 @@ public static partial class CoreServiceRegistration
     static void RegisterGenericTypes(
     Container siContainer,
     ConfigurationManager config,
-    Microsoft.Extensions.Logging.ILogger logger)
+    Microsoft.Extensions.Logging.ILogger logger, TimeProvider businessClock)
     {
         logger.LogInformationEvent("ApiServer","{Component}.{Method} "+"register open generic handlers...",nameof(CoreServiceRegistration),nameof(RegisterGenericTypes));
         siContainer.RegisterSingleton<IDataCacheService, DataCacheService>();
-        siContainer.RegisterInstance<TimeProvider>(TimeProvider.System);
+        siContainer.RegisterInstance<TimeProvider>(businessClock);
         siContainer.RegisterInstance<TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts.IScheduledTaskOutputReader>(
         new TomasAI.IFM.Application.Storage.FileSystem.ScheduledTaskOutputReader(
         config["ScheduledTasks:OutputRoot"] ?? Path.Combine(Environment.GetEnvironmentVariable("IFM_REPOSITORY_ROOT") ?? Directory.GetCurrentDirectory(), ".artifacts", "scheduled-tasks", "development", "TaskRuns")));
@@ -246,7 +246,7 @@ public static partial class CoreServiceRegistration
         siContainer.GetInstance<IDbContextFactory>(),
 
         siContainer.GetInstance<Microsoft.Extensions.Logging.ILogger<DbProvider>>(),
-        eventLogPersistenceOptions, commandAuditPersistenceOptions, true), siContainer);
+        eventLogPersistenceOptions, commandAuditPersistenceOptions, true, businessClock), siContainer);
         siContainer.AddRegistration<IObjectRepository<EventSourceActorDbContext>>(eventSourceRegistration);
         var systemAdminRegistration = Lifestyle.Singleton.CreateRegistration<SystemAdminDbContext>(siContainer);
         siContainer.AddRegistration<ISystemAdminDbContext>(systemAdminRegistration);

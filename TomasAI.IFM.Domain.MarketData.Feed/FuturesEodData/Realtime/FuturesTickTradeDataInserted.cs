@@ -251,7 +251,7 @@ public static class FuturesTickTradeDataInserted
             CommandId = source.CommandId,
             AggregateId = source.AggregateId,
             EventSource = nameof(FuturesTickTradeDataInsertedEvent),
-            ReceivedOn = DateTime.UtcNow,
+
             FuturesEodData = eodData,
             CreatedOn = DateTime.UtcNow,
             CreatedBy = source.UserName

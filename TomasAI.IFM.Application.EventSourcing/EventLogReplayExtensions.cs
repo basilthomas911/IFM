@@ -1,4 +1,5 @@
 using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing.ViewModels;
 
 namespace TomasAI.IFM.Application.EventSourcing;
@@ -15,18 +16,18 @@ public static class EventLogReplayExtensions
     extension(EventLogReadModel row)
     {
         public IEvent ToDomainEvent()
-            => EventLogBinaryReader.Read(row.EventTypeName, row.EventVersion, row.EventData);
+            => MessageOrigins.Restore(EventLogBinaryReader.Read(row.EventTypeName, row.EventVersion, row.EventData), row.Origin);
 
         public IEvent ToDomainEvent(IEventTypeResolver resolver)
-            => EventLogBinaryReader.Read(row.EventTypeName, row.EventVersion, row.EventData, resolver);
+            => MessageOrigins.Restore(EventLogBinaryReader.Read(row.EventTypeName, row.EventVersion, row.EventData, resolver), row.Origin);
     }
 
     extension(EventStreamReadModel row)
     {
         public IEvent ToDomainEvent()
-            => EventLogBinaryReader.Read(row.EventTypeName, row.EventVersion, row.EventData);
+            => MessageOrigins.Restore(EventLogBinaryReader.Read(row.EventTypeName, row.EventVersion, row.EventData), row.Origin);
 
         public IEvent ToDomainEvent(IEventTypeResolver resolver)
-            => EventLogBinaryReader.Read(row.EventTypeName, row.EventVersion, row.EventData, resolver);
+            => MessageOrigins.Restore(EventLogBinaryReader.Read(row.EventTypeName, row.EventVersion, row.EventData, resolver), row.Origin);
     }
 }

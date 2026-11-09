@@ -89,7 +89,7 @@ impl Delivery {
                             let bytes=super::diagnostic::encode(record,record.worker)
                                 .map_err(|error|format!("Internal native diagnostic encoding: {error}"))?;
                             let identity=format!("{:X}",Sha256::digest(&bytes));
-                            publisher.try_diagnostic_bytes(record.lane,bytes).map_err(str::to_owned)?;
+                            publisher.try_diagnostic_bytes(record.lane,bytes,record.observed).map_err(str::to_owned)?;
                             sequence=sequence.checked_add(1).ok_or("Native diagnostic ordinal exhausted")?;
                             Deadline::recovery().run(&stopping,async {
                                 let mut accepted=false;

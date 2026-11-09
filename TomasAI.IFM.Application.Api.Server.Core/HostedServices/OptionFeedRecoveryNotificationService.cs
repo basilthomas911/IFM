@@ -156,8 +156,8 @@ public sealed class OptionFeedRecoveryNotificationService(IMarketDataApi market,
         {
             Subject = new(ActorType.Event, MarketDataDatasetRecoveryFailedEvent.Actor, MarketDataDatasetRecoveryFailedEvent.Verb, id.Format()),
             EntityId = id, Id = Guid.NewGuid(), CommandId = dataset.OperationId,
-            ErrorDate = dataset.ChangedAtUtc == default ? DateTime.UtcNow : dataset.ChangedAtUtc.UtcDateTime,
-            ReceivedOn = DateTime.UtcNow, EventSource = nameof(OptionFeedRecoveryNotificationService),
+            ErrorDate = dataset.ChangedAtUtc == default ? default : dataset.ChangedAtUtc.UtcDateTime,
+            ReceivedOn = default, EventSource = nameof(OptionFeedRecoveryNotificationService),
             ErrorCode = 503, ErrorType = ErrorType.System,
             ErrorMessage = $"{dataset.Role}/{dataset.Dataset}: {dataset.Error ?? "Dataset recovery failed."}",
             Dataset = dataset.Dataset, Role = dataset.Role, WorkerInstanceId = dataset.WorkerInstanceId, GenerationId = dataset.GenerationId
@@ -170,8 +170,8 @@ public sealed class OptionFeedRecoveryNotificationService(IMarketDataApi market,
         return new()
         {
             Subject = new(ActorType.Event, OptionMarketDataFeedFailedEvent.Actor, OptionMarketDataFeedFailedEvent.Verb, id.Format()),
-            EntityId = id, Id = Guid.NewGuid(), CommandId = dataset.OperationId, ErrorDate = dataset.ChangedAtUtc == default ? DateTime.UtcNow : dataset.ChangedAtUtc.UtcDateTime,
-            ReceivedOn = DateTime.UtcNow, EventSource = nameof(OptionFeedRecoveryNotificationService),
+            EntityId = id, Id = Guid.NewGuid(), CommandId = dataset.OperationId, ErrorDate = dataset.ChangedAtUtc == default ? default : dataset.ChangedAtUtc.UtcDateTime,
+            ReceivedOn = default, EventSource = nameof(OptionFeedRecoveryNotificationService),
             ErrorCode = 503, ErrorType = ErrorType.System, ErrorMessage = dataset.Error ?? "Option dataset recovery failed.",
             Dataset = dataset.Dataset, WorkerInstanceId = dataset.WorkerInstanceId, GenerationId = dataset.GenerationId,
             CleanupConfirmed = dataset.Lifecycle == "StoppedError" && !dataset.Running

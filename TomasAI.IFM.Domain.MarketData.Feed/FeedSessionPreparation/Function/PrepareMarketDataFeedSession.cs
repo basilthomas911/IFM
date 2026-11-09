@@ -33,7 +33,7 @@ public static class PrepareMarketDataFeedSession
                 CommandId = request.CommandId,
                 EntityId = request.EntityId,
                 EventSource = request.EventSource,
-                ReceivedOn = DateTime.UtcNow,
+
                 ValueDate = valueDate,
                 Contracts = contracts
             };

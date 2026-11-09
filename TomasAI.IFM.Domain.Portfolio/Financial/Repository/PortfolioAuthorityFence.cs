@@ -115,7 +115,7 @@ public sealed class PortfolioAuthorityFence(IPostgresEventTransaction transactio
         var value=accepted.Single();
         var migration=(string)(await (db.ScalarAsync(PortfolioDbSql.Financial.LedgerConfigurationProjection.ReadMigrationState,[portfolioId],ct)).ConfigureAwait(false))!;
         var snapshot=new FinancialAuthoritySnapshotEvent { Id=Guid.NewGuid(),CommandId=domainEvent.CommandId,
-            Subject=domainEvent.Subject,AggregateId=portfolioId.ToString(System.Globalization.CultureInfo.InvariantCulture),ReceivedOn=DateTime.UtcNow,PortfolioId=portfolioId,
+            Subject=domainEvent.Subject,AggregateId=portfolioId.ToString(System.Globalization.CultureInfo.InvariantCulture),ReceivedOn=db.BusinessTime.GetUtcNow().UtcDateTime,PortfolioId=portfolioId,
             SourceEventId=domainEvent.Id,Book=value.Book,PreviousFinancialRevision=current.Revision,FinancialRevision=value.Revision,
             AuthorityEpoch=value.Epoch,OperatingState=value.State,MigrationState=migration };
         var authorityStream=$"FinancialAuthoritySnapshot.{portfolioId}";

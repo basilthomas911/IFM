@@ -15,7 +15,7 @@ public sealed class NativeOwnerRuntimeOperations(NativeDatasetBackend backend,
     {token.ThrowIfCancellationRequested();return Task.FromResult(Business(backend.Runtime.ReadDatasetOwnerBackendStatus(Ready)));}
     /// <summary>Copies the complete native fenced snapshot without managed mirror caches.</summary>
     public Task<MarketDataReadSnapshot> GetBackendReadSnapshotAsync(CancellationToken token=default)
-    {token.ThrowIfCancellationRequested();var snapshot=backend.Runtime.ReadDatasetOwnerSnapshot(Ready);return Task.FromResult(snapshot with{Status=Business(snapshot.Status)});}
+    {token.ThrowIfCancellationRequested();var snapshot=backend.Runtime.ReadDatasetOwnerSnapshot(Ready);return Task.FromResult(TomasAI.IFM.Application.MarketData.Remote.MarketDataSnapshotOrigins.Capture(snapshot with{Status=Business(snapshot.Status)}));}
     /// <summary>Native code accepts and owns the original two-minute episode.</summary>
     public Task<MarketDataRecoveryResult> RecoverMarketDataAsync(MarketDataRecoveryRequest request,CancellationToken token=default)
         =>backend.Runtime.RecoverDatasetOwnerAsync(request,token);

@@ -13,4 +13,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.Portfolio.CapacityReservation.Command;
 
 public sealed record CapacityReservationCommandServices(ICapacityReservationStore Store, IPortfolioDbReadContext Database,
-    IEventProjector<CapacityReservationCommandActor> Projector, ILogger<CapacityReservationCommandActor> Logger);
+    IEventProjector<CapacityReservationCommandActor> Projector, ILogger<CapacityReservationCommandActor> Logger, TimeProvider? timeProvider = null)
+{
+    public TimeProvider Clock { get; } = timeProvider ?? TimeProvider.System;
+}

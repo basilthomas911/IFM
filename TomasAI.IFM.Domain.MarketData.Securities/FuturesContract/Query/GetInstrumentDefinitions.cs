@@ -26,7 +26,7 @@ public static class GetInstrumentDefinitions
             ArgumentNullException.ThrowIfNull(context);
             ArgumentNullException.ThrowIfNull(query);
             var result = await (context.InstrumentDefinitions.GetSelectionPageAsync(
-                query.Request, DateTimeOffset.UtcNow, cancellationToken)).ConfigureAwait(false);
+                query.Request, (context.Container?.Resolve<TimeProvider>() ?? TimeProvider.System).GetUtcNow(), cancellationToken)).ConfigureAwait(false);
             return new ServiceResult<InstrumentDefinitionPage>(result);
         }
     }

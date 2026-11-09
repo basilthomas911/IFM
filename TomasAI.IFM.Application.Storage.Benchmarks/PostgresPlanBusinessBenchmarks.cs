@@ -229,7 +229,7 @@ public class PostgresPlanBusinessBenchmarks
                 MovementEvidence = new() { Status = MovementStatus.Confirmed, SourceReference = "integration-movement" }
             }
         };
-        return request with { InputSha256 = FinancialCanonicalHash.Request(request) };
+        return global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(request, request with { InputSha256 = FinancialCanonicalHash.Request(request) });
     }
     static PreparedLedgerPosting[] Prepare(PostFundTransactionCommand request) => [new(Random.Shared.NextInt64(100000, long.MaxValue), Random.Shared.NextInt64(100000, long.MaxValue), request.Body)];
     Task<LedgerPostingCompletedEvent> Post(PostFundTransactionCommand request) => new GeneralLedgerStore(Transactions()).PostAsync(request, Prepare(request),

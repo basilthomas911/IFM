@@ -18,7 +18,7 @@ public record FuturesBarDataDeletedFailEvent : IErrorEvent<FuturesBarDataId>
     [Key(0)] public ActorSubject Subject { get; init; }
     [Key(1)] public FuturesBarDataId EntityId { get; init; }
     [Key(2)] public Guid Id { get; init; } = Guid.NewGuid();
-    [Key(3)] public DateTime ErrorDate { get; init; } = DateTime.UtcNow;
+    [Key(3)] public DateTime ErrorDate { get; init; }
     [Key(4)] public long EventId { get; init; }
     [Key(5)] public Guid CommandId { get; init; }
     [Key(6)] public string EventSource { get; init; } = string.Empty;

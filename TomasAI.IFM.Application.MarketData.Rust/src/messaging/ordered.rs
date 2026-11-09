@@ -30,6 +30,7 @@ pub struct Ordered {
     header: Header,
     sequence: Mutex<i64>,
     current: Arc<Current>,
+    clock: Option<Arc<crate::runtime::clock::Clock>>,
 }
 impl Ordered {
     /// Validates the logical envelope before any submission. The port's owner
@@ -38,6 +39,16 @@ impl Ordered {
     /// # Errors
     /// Invalid logical identity or retained snapshot bounds fail construction.
     pub fn new(port: Port, header: Header) -> Result<Arc<Self>, &'static str> {
+        Self::create(port, header, None)
+    }
+    /// Creates a production sequencer using the application-supplied clock.
+    ///
+    /// # Errors
+    /// Invalid source identity or retained bounds.
+    pub fn new_with_clock(port: Port, header: Header, clock: Arc<crate::runtime::clock::Clock>) -> Result<Arc<Self>, &'static str> {
+        Self::create(port, header, Some(clock))
+    }
+    fn create(port: Port, header: Header, clock: Option<Arc<crate::runtime::clock::Clock>>) -> Result<Arc<Self>, &'static str> {
         Frame {
             lane: header.lane,
             value_date: header.value_date,
@@ -47,11 +58,13 @@ impl Ordered {
             sequence: 1,
             kind: 3,
             payload: vec![0xc0],
+            origin_ticks: None,
         }
         .content()?;
         Ok(Arc::new(Self {
             port,
             header,
+            clock,
             sequence: Mutex::new(0),
             current: Arc::new(Current::new(4096, 32 * 1024 * 1024)?),
         }))
@@ -88,6 +101,7 @@ impl Ordered {
             sequence: next,
             kind,
             payload,
+            origin_ticks: self.clock.as_ref().map(|clock| clock.utc_ticks().map_err(|_| "Publication clock unavailable")).transpose()?,
         };
         if let Some(contract) = contract {
             self.current.retain(contract, &frame)?;

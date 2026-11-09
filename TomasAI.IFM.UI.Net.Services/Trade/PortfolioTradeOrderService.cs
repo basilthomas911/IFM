@@ -82,7 +82,7 @@ public sealed class PortfolioTradeOrderService(
                 ["OrderCompositionEvaluate"],
                 [portfolioId])
         };
-        request = request with { InputSha256 = FinancialCanonicalHash.Request(request) };
+        request = global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(request, request with { InputSha256 = FinancialCanonicalHash.Request(request) });
 
         _logger.LogInformation("OrderSubmission PortfolioEvaluationStarted PortfolioId={PortfolioId} OperationId={OperationId} CompositionId={CompositionId} Channel={Channel}", portfolioId, operationId, candidate.CompositionId, executionChannel);
         var result = await _portfolio.EvaluateAsync(request, cancellationToken).ConfigureAwait(false);
@@ -130,7 +130,7 @@ public sealed class PortfolioTradeOrderService(
             RequestedAtUtc = DateTime.UtcNow, ExpiresAtUtc = candidate.ValidUntilUtc, Body = candidate,
             Access = new FinancialAccess($"Desktop:{Environment.UserName}", ["OrderCompositionClose"], [portfolioId])
         };
-        request = request with { InputSha256 = FinancialCanonicalHash.Request(request) };
+        request = global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(request, request with { InputSha256 = FinancialCanonicalHash.Request(request) });
         var result = await _portfolio.EvaluateCloseAsync(request, cancellationToken).ConfigureAwait(false);
         if (!result.Success || result.Value is null)
             throw new InvalidOperationException($"Portfolio close composition failed ({result.ErrorCode}): {result.ErrorMessage}");

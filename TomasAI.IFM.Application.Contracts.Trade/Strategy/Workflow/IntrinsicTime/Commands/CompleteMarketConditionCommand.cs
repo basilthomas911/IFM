@@ -61,7 +61,7 @@ public sealed record CompleteMarketConditionCommand : ICommand<IntrinsicTimeStra
     [IgnoreMember] public string EventSource => $"{Actor}Actor";
     /// <summary>Gets the local observation timestamp for command diagnostics.</summary>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Preserve the existing public instance model API used by consumers and reflection.")]
-    [IgnoreMember] public DateTime OriginatedOn => DateTime.UtcNow;
+    [IgnoreMember] public DateTime OriginatedOn => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Get(this)?.OriginatedAtUtc.UtcDateTime ?? default;
     /// <summary>Gets the local command-origin user for diagnostics.</summary>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Preserve the existing public instance model API used by consumers and reflection.")]
     [IgnoreMember] public string OriginatedBy => $"{Environment.UserDomainName}\\{Environment.UserName}";

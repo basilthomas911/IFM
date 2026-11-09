@@ -73,7 +73,7 @@ public sealed class BrokerExecutionAccountingApi(IFinancialQueryStore financialQ
                 Body = batch,
                 Access = access
             };
-            return command with { InputSha256 = FinancialCanonicalHash.Request(command) };
+            return global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(command, command with { InputSha256 = FinancialCanonicalHash.Request(command) });
         }
         var command = execution.PositionType == TradeOrderPositionType.Closing
             ? await new ClosingBasisIntentClaim(transactions, databases).ClaimAsync(

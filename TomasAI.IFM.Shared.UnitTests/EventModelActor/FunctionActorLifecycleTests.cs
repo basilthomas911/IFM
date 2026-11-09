@@ -17,6 +17,40 @@ namespace TomasAI.IFM.Shared.UnitTests.EventModelActor;
 
 public sealed class FunctionActorLifecycleTests
 {
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Frozen_business_clock_cannot_disable_physical_stage_watchdog(bool logicalDeadline)
+    {
+        var state = new TestState();
+        var repository = new TestRepository(state, [])
+        {
+            LoadOperation = async token =>
+            {
+                await Task.Delay(Timeout.InfiniteTimeSpan, token);
+                return state;
+            }
+        };
+        var clock = new FrozenBusinessClock();
+        var actor = new TestFunctionActor(repository, null,
+            (_, request) => FunctionResult<TestCompletedEvent, TestFailedEvent>.Complete(Completed(request)))
+        {
+            Policy = (_, _) => new(clock, logicalDeadline ? clock.GetUtcNow().UtcDateTime.AddMinutes(10) : null,
+                physicalTimeout: TimeSpan.FromMilliseconds(100))
+        };
+        var message = new TestMessage(new TestRequest());
+        await actor.HandleMessageAsync(message).AsTask().WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.True(message.Reply!.Value!.IsFailed);
+        Assert.Equal(0, actor.Executions);
+        Assert.False(state.IsCompleted);
+        Assert.Equal(new DateTimeOffset(2026, 11, 9, 12, 0, 0, TimeSpan.Zero), clock.GetUtcNow());
+    }
+
+    sealed class FrozenBusinessClock : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => new(2026, 11, 9, 12, 0, 0, TimeSpan.Zero);
+    }
+
     [Fact]
     public async Task Completed_result_is_projected_then_saved_and_returned()
     {

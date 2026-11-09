@@ -8,7 +8,7 @@ public sealed class DatabaseBackupSetCommandState : DatabaseOperationCommandStat
     internal DatabaseBackupSetDecisionState BackupSetDecision => new(Operation, BackupSet);
 
     protected override DatabaseOperationStateSnapshottedEvent CaptureConcern(DatabaseOperationStateSnapshottedEvent snapshot)
-        => snapshot with { BackupSet = BackupSet };
+        => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(snapshot, snapshot with { BackupSet = BackupSet });
 
     protected override bool HasConcernSnapshot(DatabaseOperationStateSnapshottedEvent snapshot) => snapshot.BackupSet is not null;
 

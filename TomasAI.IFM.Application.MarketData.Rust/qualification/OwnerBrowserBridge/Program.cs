@@ -56,13 +56,13 @@ var before=backend.Runtime.ReadDatasetOwnerBackendStatus(true).Datasets.Single(d
 query.SubscriptionOwnerId="view-two";
 var second=await api.EvaluateOptionChainAsync(query).WaitAsync(TimeSpan.FromSeconds(8));
 if(!second.Success||second.Value?.WindowMethod!="ImpliedVolatility5Delta"||backend.Runtime.ReadDatasetOwnerIdentity(MarketDataLane.OptionsGlbx)?.Generation!=before.GenerationId)throw new Exception("Native ATM window or shared-view source continuity failed.");
-var released=await api.EvaluateOptionChainAsync(query with{SubscriptionOwnerId="view-one",ReleaseOnly=true}).WaitAsync(TimeSpan.FromSeconds(8));
+var released=await api.EvaluateOptionChainAsync(global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(query, query with{SubscriptionOwnerId="view-one",ReleaseOnly=true})).WaitAsync(TimeSpan.FromSeconds(8));
 if(!released.Success||released.Value?.WindowMethod!="Released"||backend.Runtime.ReadDatasetOwnerBinding(row.ContractId,true) is not{Active:true,Healthy:true})throw new Exception("Releasing one view removed another native owner.");
 var recovered=await backend.Runtime.RecoverDatasetOwnerAsync(new(Guid.NewGuid(),"Options","GLBX.MDP3",before.WorkerInstanceId,before.GenerationId,date,"Actual browser adapter recovery qualification")).WaitAsync(TimeSpan.FromSeconds(8));
 if(!recovered.Recovered||!recovered.CleanupConfirmed||recovered.GenerationId==before.GenerationId)throw new Exception("Native browser dataset recovery failed.");
 var restored=await api.EvaluateOptionChainAsync(query).WaitAsync(TimeSpan.FromSeconds(8));
 if(!restored.Success||restored.Value?.Contracts.Single().ContractId!=row.ContractId||backend.Runtime.ReadDatasetOwnerBinding(row.ContractId,true)?.Generation!=recovered.GenerationId)throw new Exception("Native view demand or result did not survive physical replacement.");
-await api.EvaluateOptionChainAsync(query with{ReleaseOnly=true}).WaitAsync(TimeSpan.FromSeconds(8));
+await api.EvaluateOptionChainAsync(global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(query, query with{ReleaseOnly=true})).WaitAsync(TimeSpan.FromSeconds(8));
 if(backend.Runtime.ReadDatasetOwnerBinding(row.ContractId,true) is{Active:true})throw new Exception("Final native view did not retire its provider source.");
 backend.Runtime.StopDatasetOwnerFeeds();await backend.Runtime.WaitDatasetOwnerFeedsStoppedAsync().WaitAsync(TimeSpan.FromSeconds(8));
 Console.WriteLine("PASS actual C# -> DLL -> native-owned SDK browser: published IMarketDataApi/Host adapter; typed quote/Greek/statistics values; native ATM window; two-view continuity; release isolation; physical recovery with retained managed results; restored view demand; final release and joined shutdown; no managed acquisition ports.");

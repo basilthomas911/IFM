@@ -17,7 +17,7 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Command.Even
 public sealed class FuturesMacdSignalEventProjector(
     IDbContextFactory dbFactory, IDurableReplayQueue durableReplayQueue,
     IEventSourceActorDbContext dbEventSource, ILogger<FuturesMacdSignalEventProjector> logger, EventProjectorReliabilityOptions? reliabilityOptions = null,
-    IPostgresEventTransaction? transactions = null)
+    IPostgresEventTransaction? transactions = null, TimeProvider? timeProvider = null)
     : ConventionalEventProjector<FuturesMacdSignalCommandActor>(durableReplayQueue, dbEventSource, logger, reliabilityOptions)
 {
     readonly ImmutableArray<EventProjectionDescriptor> _descriptors =
@@ -25,12 +25,12 @@ public sealed class FuturesMacdSignalEventProjector(
         Describe<FuturesMacdSignalGeneratedEvent, FuturesMacdSignalGeneratedCompleteEvent, FuturesMacdSignalGeneratedFailEvent, FuturesMacdSignalEntityId>(
             (Func<FuturesMacdSignalGeneratedEvent, Task>)(async e => { if (!string.Equals(dbFactory.MarketDataDb.ProviderName,"System.Data.Postgres",StringComparison.Ordinal)) {
 await dbFactory.MarketDataDb.InsertFuturesMacdSignalAsync(e.FuturesMacdSignal).ConfigureAwait(false);}
-RegimeDiscoverySignalCacheAdapter.Publish(e.FuturesMacdSignal); }))
+RegimeDiscoverySignalCacheAdapter.Publish(e.FuturesMacdSignal, timeProvider); }))
             .WithReadModelRebuild((source,token) => AcceptedSignalRebuild.MaterializeAsync(dbFactory,transactions,source,token)),
         Describe<FuturesMacdDailySignalGeneratedEvent, FuturesMacdDailySignalGeneratedCompleteEvent, FuturesMacdDailySignalGeneratedFailEvent, FuturesMacdDailySignalEntityId>(
             (Func<FuturesMacdDailySignalGeneratedEvent, Task>)(async e => { if (!string.Equals(dbFactory.MarketDataDb.ProviderName,"System.Data.Postgres",StringComparison.Ordinal)) {
 await dbFactory.MarketDataDb.InsertFuturesMacdSignalAsync(e.FuturesMacdSignal).ConfigureAwait(false);}
-RegimeDiscoverySignalCacheAdapter.Publish(e.FuturesMacdSignal); }))
+RegimeDiscoverySignalCacheAdapter.Publish(e.FuturesMacdSignal, timeProvider); }))
             .WithReadModelRebuild((source,token) => AcceptedSignalRebuild.MaterializeAsync(dbFactory,transactions,source,token)),
         DescribeNotification<FuturesMacdSignalStartedEvent, FuturesMacdSignalEntityId>(useDurableReplay: false),
         DescribeNotification<FuturesMacdSignalStoppedEvent, FuturesMacdSignalEntityId>(useDurableReplay: false)

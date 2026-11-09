@@ -41,9 +41,9 @@ public sealed class IntrinsicTimeStrategyWorkflowRealtimeContext : EventActorCon
     readonly Lazy<IRegimeDiscoveryMarketSignalSnapshotProvider> _regimeDiscoverySnapshotProvider;
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "This typed context adapts services for its actor and intentionally retains the actor logger category.")]
     /// <summary>Initializes the realtime context.</summary>
-    public IntrinsicTimeStrategyWorkflowRealtimeContext(IActorSupervisor supervisor, ILogger<IntrinsicTimeStrategyWorkflowRealtimeActor> logger, IntrinsicTimeStrategyWorkflowOptions options, RegimeDiscoveryExecutionOptions regimeDiscoveryExecutionOptions) : base(supervisor, new ActorMailboxId(ActorType.Realtime, IntrinsicTimeStrategyWorkflowRealtimeActor.ActorName))
+    public IntrinsicTimeStrategyWorkflowRealtimeContext(IActorSupervisor supervisor, ILogger<IntrinsicTimeStrategyWorkflowRealtimeActor> logger, IntrinsicTimeStrategyWorkflowOptions options, RegimeDiscoveryExecutionOptions regimeDiscoveryExecutionOptions, TimeProvider? timeProvider = null) : base(supervisor, new ActorMailboxId(ActorType.Realtime, IntrinsicTimeStrategyWorkflowRealtimeActor.ActorName))
     {
-        TimeProvider = TimeProvider.System;
+        TimeProvider = timeProvider ?? TimeProvider.System;
         Logger = IsArgumentNull.Set(logger);
         Options = IsArgumentNull.Set(options);
         RegimeDiscoveryExecutionOptions = IsArgumentNull.Set(regimeDiscoveryExecutionOptions);

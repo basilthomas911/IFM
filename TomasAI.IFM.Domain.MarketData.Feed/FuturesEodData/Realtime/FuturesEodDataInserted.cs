@@ -33,7 +33,7 @@ public static class FuturesEodDataInserted
                     EntityId = domainEvent.EntityId,
                     CommandId = domainEvent.CommandId,
                     EventSource = nameof(FuturesEodDataInsertedEvent),
-                    ReceivedOn = DateTime.UtcNow,
+
                     FuturesEodData = domainEvent.FuturesEodData,
                     IsPersisted = false
                 })).ConfigureAwait(false);
@@ -47,7 +47,7 @@ public static class FuturesEodDataInserted
                         EntityId = id,
                         CommandId = domainEvent.CommandId,
                         EventSource = nameof(FuturesEodDataInsertedEvent),
-                        ReceivedOn = DateTime.UtcNow,
+
                         FuturesEodData = domainEvent.FuturesEodData
                     })).ConfigureAwait(false);
                 }

@@ -68,5 +68,5 @@ public sealed record RecordFundTradeClosingCommand : ICommand<PortfolioFundId>, 
     [IgnoreMember] public string StreamId => Subject.StreamId;
     [IgnoreMember] public string EventSource => Subject.Name;
 
-    ICommand ICommandRetryIdentity.ForRetryIdentity() => this with { CorrelationId = Guid.Empty, RequestedOnUtc = default };
+    ICommand ICommandRetryIdentity.ForRetryIdentity() => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(this, this with { CorrelationId = Guid.Empty, RequestedOnUtc = default });
 }

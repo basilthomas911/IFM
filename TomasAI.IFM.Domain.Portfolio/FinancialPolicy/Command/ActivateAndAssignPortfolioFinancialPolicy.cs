@@ -50,7 +50,7 @@ public static class ActivateAndAssignPortfolioFinancialPolicy
             IEventProjector<PortfolioFinancialPolicyCommandActor> projector,
             ILogger logger,
             string principal,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken, TimeProvider? timeProvider = null)
         {
             ArgumentNullException.ThrowIfNull(aggregate);
             ArgumentNullException.ThrowIfNull(command);
@@ -62,7 +62,7 @@ public static class ActivateAndAssignPortfolioFinancialPolicy
             await assignmentLock.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
-                return await ActivateAndAssignAsync(command, aggregate, policyId, events, portfolioProjector, projector, logger, principal, cancellationToken).ConfigureAwait(false);
+                return await ActivateAndAssignAsync(command, aggregate, policyId, events, portfolioProjector, projector, logger, principal, cancellationToken, timeProvider).ConfigureAwait(false);
             }
             finally
             {
@@ -92,16 +92,16 @@ public static class ActivateAndAssignPortfolioFinancialPolicy
         IEventProjector<PortfolioFinancialPolicyCommandActor> projector,
         ILogger logger,
         string principal,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, TimeProvider? timeProvider = null)
     {
         var committed = await events.FindCommittedPolicyCommandAsync(policyId, command.CommandId, cancellationToken).ConfigureAwait(false);
         var portfolioId = new PortfolioId(policyId.PortfolioId);
         if (committed is PortfolioFinancialPolicyActivatedEvent activated)
-            return await CompleteAcceptedAssignmentAsync(command, aggregate, portfolioId, activated, events, portfolioProjector, projector, logger, principal, cancellationToken).ConfigureAwait(false);
+            return await CompleteAcceptedAssignmentAsync(command, aggregate, portfolioId, activated, events, portfolioProjector, projector, logger, principal, cancellationToken, timeProvider).ConfigureAwait(false);
         if (committed is not null)
             return new ServiceFailed<GuidResult>(PortfolioErrorCodes.IdempotencyConflict, "IdempotencyKeyConflict: the command was committed for a different policy operation.");
 
-        var now = DateTime.UtcNow;
+        var now = (timeProvider ?? TimeProvider.System).GetUtcNow().UtcDateTime;
         if (!command.Compute(aggregate, now, principal, out var financialPolicyChange))
             return command.UpdateFailed($"{financialPolicyChange.RejectionCode};{financialPolicyChange.RejectionReason}");
         var candidate = aggregate.Versions.Single(policy => policy.PolicyVersion == command.PolicyVersion)
@@ -135,14 +135,14 @@ public static class ActivateAndAssignPortfolioFinancialPolicy
         ActivateAndAssignPortfolioFinancialPolicyCommand command, PortfolioFinancialPolicyAggregate aggregate,
         PortfolioId portfolioId,
         PortfolioFinancialPolicyActivatedEvent activated, IPortfolioEventStore events, IEventProjector<PortfolioCommandActor> portfolioProjector,
-        IEventProjector<PortfolioFinancialPolicyCommandActor> projector, ILogger logger, string principal, CancellationToken cancellationToken)
+        IEventProjector<PortfolioFinancialPolicyCommandActor> projector, ILogger logger, string principal, CancellationToken cancellationToken, TimeProvider? timeProvider = null)
     {
         var assignmentEvent = await events.FindCommittedPortfolioCommandAsync(portfolioId, command.CommandId, cancellationToken).ConfigureAwait(false);
         if (assignmentEvent is null)
         {
             var replayCandidate = aggregate.Versions.Single(x => x.PolicyVersion == activated.PolicyVersion);
             assignmentEvent = await events.RepairPolicyAssignmentAsync(command, replayCandidate,
-                DateTime.UtcNow, principal, cancellationToken).ConfigureAwait(false);
+                (timeProvider ?? TimeProvider.System).GetUtcNow().UtcDateTime, principal, cancellationToken).ConfigureAwait(false);
         }
         // A prior attempt may have committed the policy event and failed before
         // projection/assignment. Both operations are idempotent, so replay heals

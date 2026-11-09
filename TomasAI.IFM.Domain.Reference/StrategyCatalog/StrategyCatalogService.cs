@@ -10,7 +10,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.Reference.StrategyCatalog;
 
 /// <summary>Coordinates catalog source-event acceptance, durable projection, and projected reads.</summary>
-public sealed class StrategyCatalogService(IDbContextFactory factory, IPostgresEventTransaction? transactions = null)
+public sealed class StrategyCatalogService(IDbContextFactory factory, IPostgresEventTransaction? transactions = null, TimeProvider? timeProvider = null)
 {
     public async Task ExecuteEventSourcedAsync(CatalogCommandRequest request, string principal,
         IEventProjector<StrategyCatalogCommandActor> projector, ActorEntityId entityId, CancellationToken token)
@@ -45,7 +45,7 @@ public sealed class StrategyCatalogService(IDbContextFactory factory, IPostgresE
             CatalogQueryOperation.Exact when request.Key is not null => StrategyCatalogJson.Write(await (db.GetStrategyCatalogAsync(request.Key, ct)).ConfigureAwait(false)),
             CatalogQueryOperation.DeploymentChoices => StrategyCatalogJson.Write(await (DeploymentChoices(request, ct)).ConfigureAwait(false)),
             CatalogQueryOperation.ValidatePublishedDeployment when request.Key is not null =>
-                StrategyCatalogJson.Write((await (db.GetPublishedStrategyDeploymentAsync(request.Key, new DateTime(DateTime.UtcNow.Ticks / 10 * 10, DateTimeKind.Utc), ct)).ConfigureAwait(false)).ContentHash),
+                StrategyCatalogJson.Write((await (db.GetPublishedStrategyDeploymentAsync(request.Key, new DateTime((timeProvider ?? TimeProvider.System).GetUtcNow().UtcTicks / 10 * 10, DateTimeKind.Utc), ct)).ConfigureAwait(false)).ContentHash),
             _ => throw new ArgumentException("Unsupported catalog query.",nameof(request))
         };
     }

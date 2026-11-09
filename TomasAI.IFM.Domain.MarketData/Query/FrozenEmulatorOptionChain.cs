@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.MarketData.Query.Actor;
 using TomasAI.IFM.Domain.MarketData.Shared.Queries;
@@ -33,7 +33,7 @@ internal static class FrozenEmulatorOptionChain
         // The operational date may already be the next session's date during a weekend closure.
         // The last EOD observation identifies the session to read persisted option ticks from.
         var observationDate = inputs.ObservationDate;
-        var at = DateTimeOffset.UtcNow;
+        var at = (context.Container?.Resolve<TimeProvider>() ?? TimeProvider.System).GetUtcNow();
         var contracts = new EvaluatedOptionContractReadModel[window.Contracts.Length];
         var storedQuotes = observationDate is { } date
             ? await context.DbFactory.MarketDataDb.GetLatestFuturesOptionChainQuoteDataAsync(

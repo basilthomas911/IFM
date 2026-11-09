@@ -30,7 +30,7 @@ internal static class VxFuturesEodDataEventFactory
             CommandId = source.CommandId,
             AggregateId = source.AggregateId,
             EventSource = source.EventName,
-            ReceivedOn = DateTime.UtcNow,
+
             VixFuturesTickData = tickData,
             SessionStatistics = sessionStatistics,
             CreatedOn = DateTime.UtcNow,

@@ -1,3 +1,5 @@
+using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Framework.Messaging.Nats;
 using System.Buffers;
 using System.Threading.Channels;
 using MessagePack;
@@ -12,7 +14,7 @@ namespace TomasAI.IFM.Application.MarketData.Rust.Host;
 /// It is deliberately separate from the native command/control subscribers.
 /// A blocked database job holds copied bytes only; it cannot retain native leases.</summary>
 public sealed class NativeReferenceStorageService(IConfiguration configuration, MarketDataHostConnection connection,
-    NativeReferenceStorage storage, ILogger<NativeReferenceStorageService> logger) : BackgroundService
+    NativeReferenceStorage storage, ILogger<NativeReferenceStorageService> logger, TimeProvider? clock = null, TomasAI.IFM.Shared.Time.PhysicalTime? physicalTime = null) : BackgroundService
 {
     /// <inheritdoc/>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -40,6 +42,7 @@ public sealed class NativeReferenceStorageService(IConfiguration configuration, 
                     {
                         var request = message.Data;
                         if (request is null || string.IsNullOrWhiteSpace(message.ReplyTo)) return;
+                        MessageOrigins.Restore(request, MessageOriginHeaders.Read(message.Headers));
                         NativeReferencePage receipt;
                         try { receipt = await storage.ReadAsync(request, token).ConfigureAwait(false); }
                         catch (Exception error) when (!token.IsCancellationRequested)
@@ -49,7 +52,7 @@ public sealed class NativeReferenceStorageService(IConfiguration configuration, 
                             // or database diagnostics are not echoed onto broker subjects.
                             receipt = new(request.Id, 0, 0, "", [], "Raw reference database operation failed.");
                         }
-                        await message.ReplyAsync(receipt, serializer: Plain<NativeReferencePage>.Default,
+                        await message.ReplyAsync(receipt, headers: MessageOriginHeaders.Add(null, MessageOrigins.ForPublication(receipt, physicalTime?.Provider ?? TimeProvider.System, "control")), serializer: Plain<NativeReferencePage>.Default,
                             cancellationToken: token).ConfigureAwait(false);
                     }).ConfigureAwait(false);
             }

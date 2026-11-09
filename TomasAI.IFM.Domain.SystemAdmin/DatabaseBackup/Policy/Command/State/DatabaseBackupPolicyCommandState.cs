@@ -9,7 +9,7 @@ public sealed class DatabaseBackupPolicyCommandState : DatabaseOperationCommandS
 
     internal TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Model.DatabaseServiceReconciliationDecisionState ReconciliationDecision => new(Operation, new(), new(), OperationDecision.ProcessedServiceEvents);
     protected override DatabaseOperationStateSnapshottedEvent CaptureConcern(DatabaseOperationStateSnapshottedEvent snapshot)
-        => snapshot with { Policy = Policy };
+        => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(snapshot, snapshot with { Policy = Policy });
 
     protected override bool HasConcernSnapshot(DatabaseOperationStateSnapshottedEvent snapshot) => snapshot.Policy is not null;
 

@@ -18,7 +18,7 @@ public sealed class ScheduledTaskQueryApi(IActorProducer producer) : IScheduledT
     {
         ArgumentNullException.ThrowIfNull(query);
         var identity = query.EntityId.IsValid ? query.EntityId : new ScheduledTaskId(Guid.NewGuid());
-        var normalized = query with { EntityId = identity, Subject = new(ActorType.Query, GetScheduledTaskOutputQuery.Actor, GetScheduledTaskOutputQuery.Verb, identity.Format()) };
+        var normalized = global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(query, query with { EntityId = identity, Subject = new(ActorType.Query, GetScheduledTaskOutputQuery.Actor, GetScheduledTaskOutputQuery.Verb, identity.Format()) });
         return producer.RequestAsync<ScheduledTaskOutputPage, GetScheduledTaskOutputQuery>(normalized.Subject, normalized, cancellationToken);
     }
     /// <inheritdoc />
@@ -26,7 +26,7 @@ public sealed class ScheduledTaskQueryApi(IActorProducer producer) : IScheduledT
     {
         ArgumentNullException.ThrowIfNull(query);
         var identity = query.EntityId.IsValid ? query.EntityId : new ScheduledTaskId(Guid.NewGuid());
-        var normalized = query with { EntityId = identity, Subject = new(ActorType.Query, GetScheduledTaskRunHistoryQuery.Actor, GetScheduledTaskRunHistoryQuery.Verb, identity.Format()) };
+        var normalized = global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(query, query with { EntityId = identity, Subject = new(ActorType.Query, GetScheduledTaskRunHistoryQuery.Actor, GetScheduledTaskRunHistoryQuery.Verb, identity.Format()) });
         return producer.RequestAsync<ScheduledTaskRunPage, GetScheduledTaskRunHistoryQuery>(normalized.Subject, normalized, cancellationToken);
     }
     /// <inheritdoc />
@@ -34,7 +34,7 @@ public sealed class ScheduledTaskQueryApi(IActorProducer producer) : IScheduledT
     {
         ArgumentNullException.ThrowIfNull(query);
         var identity = query.EntityId.IsValid ? query.EntityId : new ScheduledTaskId(Guid.NewGuid());
-        var normalized = query with { EntityId = identity, Subject = new(ActorType.Query, GetScheduledTaskCatalogQuery.Actor, GetScheduledTaskCatalogQuery.Verb, identity.Format()) };
+        var normalized = global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(query, query with { EntityId = identity, Subject = new(ActorType.Query, GetScheduledTaskCatalogQuery.Actor, GetScheduledTaskCatalogQuery.Verb, identity.Format()) });
         return producer.RequestAsync<ScheduledTaskCatalog, GetScheduledTaskCatalogQuery>(normalized.Subject, normalized, cancellationToken);
     }
     /// <inheritdoc />
@@ -42,7 +42,7 @@ public sealed class ScheduledTaskQueryApi(IActorProducer producer) : IScheduledT
     {
         ArgumentNullException.ThrowIfNull(query);
         var identity = query.EntityId.IsValid ? query.EntityId : new ScheduledTaskId(Guid.NewGuid());
-        var normalized = query with { EntityId = identity, Subject = new(ActorType.Query, GetScheduledTasksDashboardQuery.Actor, GetScheduledTasksDashboardQuery.Verb, identity.Format()) };
+        var normalized = global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(query, query with { EntityId = identity, Subject = new(ActorType.Query, GetScheduledTasksDashboardQuery.Actor, GetScheduledTasksDashboardQuery.Verb, identity.Format()) });
         return producer.RequestAsync<ScheduledTasksDashboard, GetScheduledTasksDashboardQuery>(normalized.Subject, normalized, cancellationToken);
     }
     /// <inheritdoc />
@@ -50,7 +50,7 @@ public sealed class ScheduledTaskQueryApi(IActorProducer producer) : IScheduledT
     {
         ArgumentNullException.ThrowIfNull(query);
         var identity = query.EntityId.IsValid ? query.EntityId : new ScheduledTaskId(Guid.NewGuid());
-        var normalized = query with { EntityId = identity, Subject = new(ActorType.Query, GetScheduledTaskQuery.Actor, GetScheduledTaskQuery.Verb, identity.Format()) };
+        var normalized = global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(query, query with { EntityId = identity, Subject = new(ActorType.Query, GetScheduledTaskQuery.Actor, GetScheduledTaskQuery.Verb, identity.Format()) });
         return producer.RequestAsync<ScheduledTaskDefinition, GetScheduledTaskQuery>(normalized.Subject, normalized, cancellationToken);
     }
     /// <inheritdoc />
@@ -58,7 +58,7 @@ public sealed class ScheduledTaskQueryApi(IActorProducer producer) : IScheduledT
     {
         ArgumentNullException.ThrowIfNull(query);
         var identity = query.EntityId.IsValid ? query.EntityId : new ScheduledTaskId(Guid.NewGuid());
-        var normalized = query with { EntityId = identity, Subject = new(ActorType.Query, PreviewScheduledTaskScheduleQuery.Actor, PreviewScheduledTaskScheduleQuery.Verb, identity.Format()) };
+        var normalized = global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(query, query with { EntityId = identity, Subject = new(ActorType.Query, PreviewScheduledTaskScheduleQuery.Actor, PreviewScheduledTaskScheduleQuery.Verb, identity.Format()) });
         return producer.RequestAsync<ScheduledTaskSchedulePreview, PreviewScheduledTaskScheduleQuery>(normalized.Subject, normalized, cancellationToken);
     }
     /// <inheritdoc />
@@ -66,7 +66,7 @@ public sealed class ScheduledTaskQueryApi(IActorProducer producer) : IScheduledT
     {
         ArgumentNullException.ThrowIfNull(query);
         var identity = query.EntityId.IsValid ? query.EntityId : new ScheduledTaskId(Guid.NewGuid());
-        var normalized = query with { EntityId = identity, Subject = new(ActorType.Query, GetScheduledTaskRunQuery.Actor, GetScheduledTaskRunQuery.Verb, identity.Format()) };
+        var normalized = global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(query, query with { EntityId = identity, Subject = new(ActorType.Query, GetScheduledTaskRunQuery.Actor, GetScheduledTaskRunQuery.Verb, identity.Format()) });
         return producer.RequestAsync<ScheduledTaskRun, GetScheduledTaskRunQuery>(normalized.Subject, normalized, cancellationToken);
     }
     /// <inheritdoc />
@@ -74,7 +74,7 @@ public sealed class ScheduledTaskQueryApi(IActorProducer producer) : IScheduledT
     {
         ArgumentNullException.ThrowIfNull(query);
         var identity = query.EntityId.IsValid ? query.EntityId : new ScheduledTaskId(Guid.NewGuid());
-        var normalized = query with { EntityId = identity, Subject = new(ActorType.Query, ListScheduledTaskRunsQuery.Actor, ListScheduledTaskRunsQuery.Verb, identity.Format()) };
+        var normalized = global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(query, query with { EntityId = identity, Subject = new(ActorType.Query, ListScheduledTaskRunsQuery.Actor, ListScheduledTaskRunsQuery.Verb, identity.Format()) });
         return producer.RequestAsync<ScheduledTaskRun[], ListScheduledTaskRunsQuery>(normalized.Subject, normalized, cancellationToken);
     }
     /// <inheritdoc />
@@ -82,7 +82,7 @@ public sealed class ScheduledTaskQueryApi(IActorProducer producer) : IScheduledT
     {
         ArgumentNullException.ThrowIfNull(query);
         var identity = query.EntityId.IsValid ? query.EntityId : new ScheduledTaskId(Guid.NewGuid());
-        var normalized = query with { EntityId = identity, Subject = new(ActorType.Query, GetScheduledTaskHostHealthQuery.Actor, GetScheduledTaskHostHealthQuery.Verb, identity.Format()) };
+        var normalized = global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(query, query with { EntityId = identity, Subject = new(ActorType.Query, GetScheduledTaskHostHealthQuery.Actor, GetScheduledTaskHostHealthQuery.Verb, identity.Format()) });
         return producer.RequestAsync<ScheduledTaskHostCapability, GetScheduledTaskHostHealthQuery>(normalized.Subject, normalized, cancellationToken);
     }
     /// <inheritdoc />
@@ -90,7 +90,7 @@ public sealed class ScheduledTaskQueryApi(IActorProducer producer) : IScheduledT
     {
         ArgumentNullException.ThrowIfNull(query);
         var identity = query.EntityId.IsValid ? query.EntityId : new ScheduledTaskId(Guid.NewGuid());
-        var normalized = query with { EntityId = identity, Subject = new(ActorType.Query, GetScheduledMarketPositionsQuery.Actor, GetScheduledMarketPositionsQuery.Verb, identity.Format()) };
+        var normalized = global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(query, query with { EntityId = identity, Subject = new(ActorType.Query, GetScheduledMarketPositionsQuery.Actor, GetScheduledMarketPositionsQuery.Verb, identity.Format()) });
         return producer.RequestAsync<ScheduledMarketPositionPage, GetScheduledMarketPositionsQuery>(normalized.Subject, normalized, cancellationToken);
     }
 }

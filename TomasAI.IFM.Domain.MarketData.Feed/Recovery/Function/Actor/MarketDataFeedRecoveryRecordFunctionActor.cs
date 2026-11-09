@@ -14,18 +14,21 @@ public sealed class MarketDataFeedRecoveryRecordFunctionActor(
     IFunctionActorContext<MarketDataFeedRecoveryRecordFunctionActor> context,
     IEventSourceFunctionStateRepository<MarketDataFeedRecoveryRecordState, RecordMarketDataFeedRecoveryCommand> repository,
     IActorService actors,
-    ILogger<MarketDataFeedRecoveryRecordFunctionActor> logger)
+    ILogger<MarketDataFeedRecoveryRecordFunctionActor> logger,
+    TimeProvider? clock = null)
     : BaseEventSourceFunctionActor<MarketDataFeedRecoveryRecordFunctionActor, RecordMarketDataFeedRecoveryCommand,
         MarketDataFeedRecoveryId, MarketDataFeedRecoveryId, MarketDataFeedRecoveryRecordState,
         MarketDataFeedRecoveryRecordStoredEvent, MarketDataFeedRecoveryRecordStorageFailedEvent>(context, repository, null, logger)
 {
+    readonly TimeProvider _clock = clock ?? TimeProvider.System;
+
     public const string ActorName = RecordMarketDataFeedRecoveryCommand.Actor;
 
     static readonly FrozenDictionary<string, Func<IActorMessage, RecordMarketDataFeedRecoveryCommand>> _parseMap =
         new Dictionary<string, Func<IActorMessage, RecordMarketDataFeedRecoveryCommand>>(StringComparer.Ordinal)
         {
             [RecordMarketDataFeedRecoveryCommand.Verb] = static message =>
-                message.AsCommand<RecordMarketDataFeedRecoveryCommand>()! with { ReceivedAtUtc = DateTime.UtcNow }
+                message.AsCommand<RecordMarketDataFeedRecoveryCommand>()!
         }.ToFrozenDictionary(StringComparer.Ordinal);
 
     static readonly FrozenDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
@@ -68,7 +71,8 @@ public sealed class MarketDataFeedRecoveryRecordFunctionActor(
     protected override RecordMarketDataFeedRecoveryCommand ParseMessage(
         IFunctionActorContext<MarketDataFeedRecoveryRecordFunctionActor> services, IActorMessage message)
     {
-        var request = ParseMappedFunction(services, message, _parseMap);
+        var parsed = ParseMappedFunction(services, message, _parseMap);
+        var request = MessageOrigins.Copy(parsed, parsed with { ReceivedAtUtc = _clock.GetUtcNow().UtcDateTime });
         logger.LogDebug("Recovery audit record received {RecordId} {AttemptId} {RequestSubject} {ReceivedAtUtc} {RequestDeadlineUtc}",
             request.EntityId.Value, request.AttemptId, request.Subject.ToString(), request.ReceivedAtUtc, request.RequestDeadlineUtc);
         return request;
@@ -84,7 +88,7 @@ public sealed class MarketDataFeedRecoveryRecordFunctionActor(
 
     protected override FunctionExecutionPolicy ResolveExecutionPolicy(RecordMarketDataFeedRecoveryCommand request,
         FunctionFailureStage stage)
-        => DispatchMappedExecutionPolicy(request, stage, TimeProvider.System, _executionPolicyMap);
+        => DispatchMappedExecutionPolicy(request, stage, _clock, _executionPolicyMap);
 
     protected override async ValueTask<FunctionResult<MarketDataFeedRecoveryRecordStoredEvent, MarketDataFeedRecoveryRecordStorageFailedEvent>>
         ExecuteFunctionAsync(IFunctionActorContext<MarketDataFeedRecoveryRecordFunctionActor> services,
@@ -98,5 +102,5 @@ public sealed class MarketDataFeedRecoveryRecordFunctionActor(
     protected override FunctionResult<MarketDataFeedRecoveryRecordStoredEvent, MarketDataFeedRecoveryRecordStorageFailedEvent>
         HandleFunctionEvent(IFunctionActorContext<MarketDataFeedRecoveryRecordFunctionActor> services,
             FunctionEventContext<RecordMarketDataFeedRecoveryCommand> input)
-        => DispatchMappedFunctionEvent(input, TimeProvider.System, _eventMap);
+        => DispatchMappedFunctionEvent(input, _clock, _eventMap);
 }

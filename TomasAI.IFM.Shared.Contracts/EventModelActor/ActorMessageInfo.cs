@@ -8,6 +8,11 @@ public readonly struct ActorMessageInfo
     public ActorMessageInfo(IActorMessage message, IEvent value) { Message=message; Event=value; }
     public ActorMessageInfo(IActorMessage message, IQuery query) { Message=message; Query=query; }
     public IActorMessage Message { get; }
+    /// <summary>Creation metadata remains available after payload storage is released.</summary>
+    public MessageOrigin? Origin => Message?.Origin
+        ?? (Command is not null ? MessageOrigins.Get(Command)
+            : Event is not null ? MessageOrigins.Get(Event)
+            : Query is not null ? MessageOrigins.Get(Query) : null);
     public ICommand Command { get; }
     public IEvent Event { get; }
     public IQuery Query { get; }

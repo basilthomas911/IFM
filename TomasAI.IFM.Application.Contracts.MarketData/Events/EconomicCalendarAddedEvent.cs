@@ -125,7 +125,7 @@ public record EconomicCalendarAddedEvent : IEvent<EconomicCalendarId>, IRequireD
             Subject = new ActorSubject(ActorType.Event, EconomicCalendarAddedFailEvent.Actor, EconomicCalendarAddedFailEvent.Verb, this.Subject.EntityId),
             EntityId = this.EntityId,
             Id = this.Id,
-            ErrorDate = DateTime.UtcNow,
+            ErrorDate = default,
             EventId = this.EventId,
             CommandId = this.CommandId == Guid.Empty ? Guid.NewGuid() : this.CommandId,
             EventSource = this.EventSource,

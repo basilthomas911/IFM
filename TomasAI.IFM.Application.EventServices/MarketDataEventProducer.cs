@@ -1,4 +1,4 @@
-﻿using System.Threading.Tasks;
+using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
@@ -28,8 +28,8 @@ public class MarketDataEventProducer : NatsEventProducer, IMarketDataEventProduc
     public MarketDataEventProducer(
         INatsProducerOptions options,
         INatsJetStreamProducerOptions jetStreamOptions,
-        ILoggerFactory loggerFactory)
-        : base(options, jetStreamOptions, loggerFactory)
+        ILoggerFactory loggerFactory, TimeProvider? timeProvider = null)
+        : base(options, jetStreamOptions, loggerFactory, timeProvider)
     {
     }
 

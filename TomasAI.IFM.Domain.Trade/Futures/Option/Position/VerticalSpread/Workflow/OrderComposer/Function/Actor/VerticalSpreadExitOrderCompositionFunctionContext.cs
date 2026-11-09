@@ -5,6 +5,6 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.VerticalSpread.Workflow.OrderComposer.Function.Actor;
 
 public sealed class VerticalSpreadExitOrderCompositionFunctionContext(
-    IActorSupervisor supervisor, ILogger<VerticalSpreadExitOrderCompositionFunctionActor> logger)
+    IActorSupervisor supervisor, ILogger<VerticalSpreadExitOrderCompositionFunctionActor> logger, TimeProvider? timeProvider = null)
     : ExitOrderCompositionFunctionContext<VerticalSpreadExitOrderCompositionFunctionActor>(
-        supervisor, VerticalSpreadExitOrderCompositionFunctionActor.ActorName, logger);
+        supervisor, VerticalSpreadExitOrderCompositionFunctionActor.ActorName, logger, timeProvider);

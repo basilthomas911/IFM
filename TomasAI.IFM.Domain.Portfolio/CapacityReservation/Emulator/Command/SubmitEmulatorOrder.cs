@@ -60,7 +60,7 @@ public static class SubmitEmulatorOrder
             ArgumentNullException.ThrowIfNull(services);
             var replay = await (services.Database.ReadOperationAsync<EmulatorOrderSubmittedEvent>(command.PortfolioId, command.OperationId, command.InputSha256, cancellationToken)).ConfigureAwait(false);
             if (replay is not null) return await (replay.NotifyAsync(services.Projector, services.Logger)).ConfigureAwait(false);
-            FinancialRequestValidation.Demand(command, "EmulatorSubmit", DateTime.UtcNow);
+            FinancialRequestValidation.Demand(command, "EmulatorSubmit", services.Clock.GetUtcNow().UtcDateTime);
             var completed = await (services.Store.SubmitAsync(command, cancellationToken)).ConfigureAwait(false);
             return await (completed.NotifyAsync(services.Projector, services.Logger)).ConfigureAwait(false);
         }

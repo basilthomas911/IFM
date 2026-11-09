@@ -24,7 +24,7 @@ public class FuturesAdxSignalCommandState : BaseEventSourceActorState<FuturesAdx
         Id = Guid.NewGuid(),
         CommandId = command.CommandId,
         EventSource = command.EventSource,
-        ReceivedOn = DateTime.UtcNow,
+
         RetainedWindow = replayWindow,
         Signals = _adxSignals.ToArray(),
     };

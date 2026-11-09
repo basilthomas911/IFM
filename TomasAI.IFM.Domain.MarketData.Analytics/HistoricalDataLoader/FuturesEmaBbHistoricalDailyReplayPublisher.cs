@@ -25,7 +25,7 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.HistoricalDataLoader;
 public sealed class FuturesEmaBbHistoricalDailyReplayPublisher(
     IActorService actorService,
     IMarketOutlookUpdateWriter updateWriter,
-    IEventSourceActorDbContext? eventStore = null)
+    IEventSourceActorDbContext? eventStore = null, TimeProvider? timeProvider = null)
     : IHistoricalDailyReplayPublisher
 {
     /// <inheritdoc />
@@ -182,7 +182,7 @@ public sealed class FuturesEmaBbHistoricalDailyReplayPublisher(
                 {
                     UpdateId = latestEsEma.Metadata.ObservationId.Value,
                     EntityId = outlookEntityId,
-                    ReceivedAtUtc = DateTime.UtcNow,
+                    ReceivedAtUtc = (timeProvider ?? TimeProvider.System).GetUtcNow().UtcDateTime,
                     MarketDataAsOfUtc = latestEsEma.Metadata.MarketDataAsOfUtc.UtcDateTime,
                     CommandId = latestEsEma.Metadata.ObservationId.Value,
                     AggregateId = outlookEntityId.Format(),

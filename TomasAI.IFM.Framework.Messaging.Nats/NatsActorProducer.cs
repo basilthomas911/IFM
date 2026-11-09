@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NATS.Net;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
@@ -22,13 +22,15 @@ namespace TomasAI.IFM.Framework.Messaging.NatsJetStream;
 public class NatsActorProducer(
     INatsProducerOptions options,
     ILogger logger,
-    NatsConnectionManager? connectionManager = null)
+    NatsConnectionManager? connectionManager = null,
+    TimeProvider? timeProvider = null)
     : IActorProducer, IAsyncDisposable
 {
     readonly INatsProducerOptions _options = IsArgumentNull.Set(options);
     readonly ILogger _logger = IsArgumentNull.Set(logger);
     readonly NatsConnectionManager _connectionManager = connectionManager ?? new NatsConnectionManager();
     readonly bool _ownsConnectionManager = connectionManager is null;
+    readonly TimeProvider _clock = timeProvider ?? TimeProvider.System;
     int _disposeStarted;
 
     /// <summary>Stops owned transport activity before releasing the host lifetime gate.</summary>
@@ -301,12 +303,13 @@ public class NatsActorProducer(
             var reply = await _nc!.RequestAsync<TQuery, ServiceResult<TResult>>(
                 subject.ToString(),
                  query,
-                 headers: global::TomasAI.IFM.Framework.Messaging.Nats.NatsActorTrace.Headers(),
+                 headers: global::TomasAI.IFM.Framework.Messaging.Nats.MessageOriginHeaders.Add(global::TomasAI.IFM.Framework.Messaging.Nats.NatsActorTrace.Headers(), MessageOrigins.ForPublication(query, _clock)),
                  requestSerializer: NatsMessagePackSerializer<TQuery>.Default,
                  replySerializer: NatsMessagePackSerializer<ServiceResult<TResult>>.Default,
                  cancellationToken: operationCancellation.Token)
                 .ConfigureAwait(false);
-            result = IsArgumentNull.Set(reply.Data);
+            result = MessageOrigins.Restore(IsArgumentNull.Set(reply.Data),
+                global::TomasAI.IFM.Framework.Messaging.Nats.MessageOriginHeaders.Read(reply.Headers));
             NatsMessagingMetrics.Published.Add(1);
             if (_logger.IsEnabled(LogLevel.Debug))
                 global::TomasAI.IFM.Framework.Messaging.NatsJetStream.PersistenceDiagnosticLog.Write10(_logger, null, nameof(NatsActorProducer), nameof(RequestAsync), subject, query.GetType().Name);
@@ -408,7 +411,7 @@ public class NatsActorProducer(
             await _nc!.PublishAsync(
                 subject,
                 message,
-                headers: RealtimeSourceGenerationHeaders.Add(global::TomasAI.IFM.Framework.Messaging.Nats.NatsActorTrace.Headers(), message!),
+                headers: RealtimeSourceGenerationHeaders.Add(global::TomasAI.IFM.Framework.Messaging.Nats.MessageOriginHeaders.Add(global::TomasAI.IFM.Framework.Messaging.Nats.NatsActorTrace.Headers(), MessageOrigins.ForPublication(message!, _clock)), message!),
                 serializer: NatsMessagePackSerializer<T>.Default,
                 cancellationToken: cancellationToken).ConfigureAwait(false);
             NatsMessagingMetrics.Published.Add(1);
@@ -437,12 +440,13 @@ public class NatsActorProducer(
             var reply = await _nc!.RequestAsync<TRequest, ServiceResult<TResult>>(
                 subject,
                 message,
-                headers: global::TomasAI.IFM.Framework.Messaging.Nats.NatsActorTrace.Headers(),
+                headers: global::TomasAI.IFM.Framework.Messaging.Nats.MessageOriginHeaders.Add(global::TomasAI.IFM.Framework.Messaging.Nats.NatsActorTrace.Headers(), MessageOrigins.ForPublication(message!, _clock)),
                 requestSerializer: NatsMessagePackSerializer<TRequest>.Default,
                 replySerializer: NatsMessagePackSerializer<ServiceResult<TResult>>.Default,
                 cancellationToken: operationCancellation.Token).ConfigureAwait(false);
             NatsMessagingMetrics.Published.Add(1);
-            return IsArgumentNull.Set(reply.Data);
+            return MessageOrigins.Restore(IsArgumentNull.Set(reply.Data),
+                global::TomasAI.IFM.Framework.Messaging.Nats.MessageOriginHeaders.Read(reply.Headers));
         }
         catch
         {

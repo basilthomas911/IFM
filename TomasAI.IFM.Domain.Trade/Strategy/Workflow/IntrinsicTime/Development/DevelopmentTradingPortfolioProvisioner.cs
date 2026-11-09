@@ -545,10 +545,10 @@ public sealed class DevelopmentTradingPortfolioProvisioner(DevelopmentTradingPor
                     }
                 }
             };
-            post = post with
+            post = global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(post, post with
             {
                 InputSha256 = FinancialCanonicalHash.Request(post)
-            };
+            });
             await RequireFinancial(await financial.PostAsync(post, token).ConfigureAwait(false), "Post Development capital").ConfigureAwait(false);
         }
 
@@ -594,10 +594,10 @@ public sealed class DevelopmentTradingPortfolioProvisioner(DevelopmentTradingPor
             Access = new(Principal, ["PortfolioAdministrator", "LedgerConfigure", "LedgerImport"]),
             Body = body
         };
-        command = command with
+        command = global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(command, command with
         {
             InputSha256 = FinancialCanonicalHash.Request(command)
-        };
+        });
         await RequireFinancial(await financial.ConfigureAsync(command, token).ConfigureAwait(false), body.Action.ToString()).ConfigureAwait(false);
     }
 

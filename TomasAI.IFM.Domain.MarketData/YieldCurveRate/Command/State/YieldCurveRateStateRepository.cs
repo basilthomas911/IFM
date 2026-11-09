@@ -50,9 +50,9 @@ public class YieldCurveRateStateRepository(
             {
                 state.Events[index] = state.Events[index] switch
                 {
-                    YieldCurveRateAddedEvent added => added with { UseDurableProjection = true },
-                    YieldCurveRateChangedEvent changed => changed with { UseDurableProjection = true },
-                    YieldCurveRateRemovedEvent removed => removed with { UseDurableProjection = true },
+                    YieldCurveRateAddedEvent added => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(added, added with { UseDurableProjection = true }),
+                    YieldCurveRateChangedEvent changed => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(changed, changed with { UseDurableProjection = true }),
+                    YieldCurveRateRemovedEvent removed => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(removed, removed with { UseDurableProjection = true }),
                     var source => source
                 };
             }

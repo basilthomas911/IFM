@@ -7,13 +7,14 @@ using static TomasAI.IFM.Domain.Portfolio.Financial.Repository.FinancialReposito
 namespace TomasAI.IFM.Domain.Portfolio.Financial.Repository;
 
 /// <summary>Durable dispatch journal only. Expiry changes money/usage exclusively through the lifecycle Command actor.</summary>
-public sealed class CapacityExpiryDispatchStore(IPostgresEventTransaction transactions)
+public sealed class CapacityExpiryDispatchStore(IPostgresEventTransaction transactions, TimeProvider? timeProvider = null)
 {
+    readonly TimeProvider businessClock = timeProvider ?? TimeProvider.System;
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1068", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
     public Task<IReadOnlyList<CapacityExpiryDispatch>> PrepareAsync(Func<CapacityExpiryCandidate, DateTime, ChangeCapacityReservationCommand> create,
         CancellationToken token = default, int? portfolioId = null) => transactions.ExecuteAsync(async (db, ct) =>
     {
-        var now = DateTime.UtcNow;
+        var now = businessClock.GetUtcNow().UtcDateTime;
         var candidates = await (db.QueryAsync(PortfolioDbSql.Financial.CapacityExpiryDispatchStore.Select01, [now, portfolioId], r => new CapacityExpiryCandidate(r.GetInt32(0), r.GetInt32(1), r.GetGuid(2), r.GetInt64(3), r.GetInt32(4), r.GetString(5), r.GetInt64(6), r.GetDateTime(7)), ct)).ConfigureAwait(false);
         foreach (var candidate in candidates)
         {
@@ -38,9 +39,9 @@ public sealed class CapacityExpiryDispatchStore(IPostgresEventTransaction transa
                 FinancialReasons.RequestMismatch, "Expiry receipt differs from the dispatched operation.");
             status = "Committed";
         }
-        else if (DateTime.UtcNow >= request.ExpiresAtUtc) status = "ExpiredWithoutCommit";
+        else if (businessClock.GetUtcNow().UtcDateTime >= request.ExpiresAtUtc) status = "ExpiredWithoutCommit";
         if (status is null) return false;
-        await (db.ExecuteAsync(PortfolioDbSql.Financial.CapacityExpiryDispatchStore.Update01, [request.OperationId, request.InputSha256, status, DateTime.UtcNow], ct)).ConfigureAwait(false);
+        await (db.ExecuteAsync(PortfolioDbSql.Financial.CapacityExpiryDispatchStore.Update01, [request.OperationId, request.InputSha256, status, businessClock.GetUtcNow().UtcDateTime], ct)).ConfigureAwait(false);
         return true;
     }, token);
 }

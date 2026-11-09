@@ -1,4 +1,4 @@
-﻿using System.Collections.Immutable;
+using System.Collections.Immutable;
 using System.Text.Json.Serialization;
 using TomasAI.IFM.Application.MarketData.Databento.Workers;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
@@ -11,8 +11,9 @@ namespace TomasAI.IFM.Application.MarketData.Pricing;
 public sealed class CompositionMarketPreparation(QualifiedCompositionDiscovery discovery,
     CompositionPreparationService preparations, ICompositionPreparationStore store,
     DatasetWorkerAdmissionRegistry admissions, TimeProvider? time = null,
-    ICompositionRoutePlanStore? routePlans = null, DatasetDesiredSubscriptionRegistry? desired = null)
+    ICompositionRoutePlanStore? routePlans = null, DatasetDesiredSubscriptionRegistry? desired = null, TomasAI.IFM.Shared.Time.PhysicalTime? physicalTime = null)
 {
+    readonly TimeProvider physicalClock = physicalTime?.Provider ?? TimeProvider.System;
     readonly TimeProvider clock = time ?? TimeProvider.System;
 
     /// <summary>Freezes a resident snapshot with durable acceptance; never acquires, polls or calls a worker.</summary>
@@ -41,7 +42,7 @@ public sealed class CompositionMarketPreparation(QualifiedCompositionDiscovery d
         var wait = deadline - clock.GetUtcNow();
         if (wait > TimeSpan.FromSeconds(10)) wait = TimeSpan.FromSeconds(10);
         if (wait <= TimeSpan.Zero) return Failed("PreparationTimeout");
-        using var timeout = new CancellationTokenSource(wait, clock);
+        using var timeout = new TomasAI.IFM.Shared.Time.ClockDeadline(wait, clock, physicalClock);
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
         WorkerOptionChainRequest? lease = null;
         var retainLease = false;
@@ -93,7 +94,7 @@ public sealed class CompositionMarketPreparation(QualifiedCompositionDiscovery d
                 retainLease = prepared.Preparation is not null;
                 if (prepared.Preparation is not null || prepared.Failure?.Code is not ("QuoteUnavailable" or "UnderlyingQuoteUnavailable"
                     or "StaleData" or "IncoherentQuotes")) return prepared;
-                await Task.Delay(TimeSpan.FromMilliseconds(25), clock, linked.Token).ConfigureAwait(false);
+                await Task.Delay(TimeSpan.FromMilliseconds(25), physicalClock, linked.Token).ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { return Failed("PreparationTimeout"); }

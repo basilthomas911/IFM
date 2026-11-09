@@ -151,6 +151,7 @@ pub async fn read(
     deadline: Deadline,
 ) -> Result<Vec<u8>, String> {
     let id = rand::random::<u64>().max(1);
+    let origin = super::wire::control_origin_json()?;
     let mut first = Some(request(id, kind, args, 0)?);
     let (mut publisher, mut replies) =
         Publisher::start_evidence_exchange(broker, scope, 1, 32 * 1024, deadline, &parent)?;
@@ -185,7 +186,7 @@ pub async fn read(
             } else {
                 request(id, kind, args, payload.len() as u32)?
             };
-            publisher.try_raw_reference(packet)?;
+            publisher.try_raw_reference(packet, &origin)?;
             let page = loop {
                 let bytes = deadline
                     .run(stop, replies.recv())

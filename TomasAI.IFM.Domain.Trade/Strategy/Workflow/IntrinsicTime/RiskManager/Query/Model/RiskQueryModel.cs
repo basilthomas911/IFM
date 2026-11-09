@@ -53,7 +53,7 @@ internal static class RiskQueryModel
         var isCurrent = current is not null && current.WorkflowId == workflow && current.RiskExecution?.CommandId == invocation;
         var behind = isCurrent && current!.WorkflowRevision > snapshot.WorkflowRevision;
         if (isCurrent && current!.WorkflowRevision != snapshot.WorkflowRevision)
-            return new(snapshot, calculation, "Unavailable", "Unavailable", DateTime.UtcNow, null, behind, accepted);
+            return new(snapshot, calculation, "Unavailable", "Unavailable", s.TimeProvider.GetUtcNow().UtcDateTime, null, behind, accepted);
         TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundOrderProjectionReadModel order;
         try
         {
@@ -67,7 +67,7 @@ internal static class RiskQueryModel
         {
             if (s.Logger.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Warning))
                 global::TomasAI.IFM.Domain.Trade.TradeBoundaryDiagnosticLog.Write53(s.Logger, e, nameof(RiskQueryModel), nameof(ExactAsync), invocation);
-            return new(snapshot, calculation, "Unavailable", "Unavailable", DateTime.UtcNow, null, behind, accepted);
+            return new(snapshot, calculation, "Unavailable", "Unavailable", s.TimeProvider.GetUtcNow().UtcDateTime, null, behind, accepted);
         }
 
         try
@@ -104,7 +104,7 @@ internal static class RiskQueryModel
             }
 
             var authority = "Not authorized";
-            var now = DateTime.UtcNow;
+            var now = s.TimeProvider.GetUtcNow().UtcDateTime;
             if (snapshot.State.FinancialHandoff is { Phase: RiskFinancialHandoffPhase.Authorized, Authorization: { } authorization })
             {
                 authority = "Superseded";
@@ -118,7 +118,7 @@ internal static class RiskQueryModel
                     };
                     var reservation = await (s.Financial.ReadAsync(scope, new GetCapacityReservationRequest(authorization.ReservationId), t)).ConfigureAwait(false);
                     var admission = await (s.Financial.ReadAsync(scope, new GetFinancialAdmissionSnapshotRequest(snapshot.State.RiskExecution!.Authority.DeploymentKey, snapshot.State.RiskExecution.SizingAuthority.UnderlyingId), t)).ConfigureAwait(false);
-                    now = DateTime.UtcNow;
+                    now = s.TimeProvider.GetUtcNow().UtcDateTime;
                     authority = ((reservation.Status == FinancialReadStatus.Found && admission.Status == FinancialReadStatus.Found && reservation.FinancialRevision != admission.FinancialRevision) switch
                     {
                         true => "Changed during read; refresh",
@@ -154,7 +154,7 @@ internal static class RiskQueryModel
         {
             if (s.Logger.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Warning))
                 global::TomasAI.IFM.Domain.Trade.TradeBoundaryDiagnosticLog.Write54(s.Logger, e, nameof(RiskQueryModel), nameof(ExactAsync), invocation);
-            return new(snapshot, calculation, "Unavailable", "Pending: financial state unavailable", DateTime.UtcNow, order, behind, accepted);
+            return new(snapshot, calculation, "Unavailable", "Pending: financial state unavailable", s.TimeProvider.GetUtcNow().UtcDateTime, order, behind, accepted);
         }
     }
 }

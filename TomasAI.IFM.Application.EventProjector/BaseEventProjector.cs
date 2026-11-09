@@ -944,7 +944,8 @@ public abstract class BaseEventProjector<TActor>(
                 ProjectorName,
                 PublishProjectionEventAsync,
                 SignalOutbox,
-                Logger);
+                Logger,
+                DbEventSource.BusinessClock);
             return Interlocked.CompareExchange(ref _executionEngine, created, null) ?? created;
         }
     }

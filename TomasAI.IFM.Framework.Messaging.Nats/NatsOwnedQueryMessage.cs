@@ -1,4 +1,4 @@
-﻿using NATS.Client.Core;
+using NATS.Client.Core;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Serializers;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -13,21 +13,26 @@ namespace TomasAI.IFM.Framework.Messaging.NatsJetStream;
 public sealed class NatsOwnedQueryMessage : IActorMessage
 {
     readonly INatsConnection _connection;
+    readonly TimeProvider _clock;
     readonly string? _replyTo;
     NatsMemoryOwner<byte> _owner;
     int _released;
 
     public NatsOwnedQueryMessage(
         NatsMsg<NatsMemoryOwner<byte>> sourceMessage,
-        ActorSubject subject)
+        ActorSubject subject, TimeProvider? timeProvider = null)
     {
+        Origin = global::TomasAI.IFM.Framework.Messaging.Nats.MessageOriginHeaders.Read(sourceMessage.Headers);
         _connection = sourceMessage.Connection;
+        _clock = timeProvider ?? TimeProvider.System;
         _replyTo = sourceMessage.ReplyTo;
         _owner = sourceMessage.Data;
         Subject = subject;
         TraceContext = global::TomasAI.IFM.Framework.Messaging.Nats.NatsActorTrace.Extract(sourceMessage.Headers);
         NatsMessagingMetrics.AcquirePayloadLease(_owner.Memory.Length);
     }
+
+    public MessageOrigin? Origin { get; }
 
     public System.Diagnostics.ActivityContext TraceContext { get; }
 
@@ -55,7 +60,7 @@ public sealed class NatsOwnedQueryMessage : IActorMessage
         where TResult : class
         => Deserialize<TQuery>();
 
-    T? Deserialize<T>()
+    T? Deserialize<T>() where T : class
     {
         ObjectDisposedException.ThrowIf(
             Volatile.Read(ref _released) != 0,
@@ -63,8 +68,9 @@ public sealed class NatsOwnedQueryMessage : IActorMessage
         var owner = _owner;
         if (owner.Memory.IsEmpty)
             return default;
-        return NatsMessagePackSerializer<T>.Default.Deserialize(
+        var value = NatsMessagePackSerializer<T>.Default.Deserialize(
             new System.Buffers.ReadOnlySequence<byte>(owner.Memory));
+        return value is null ? null : MessageOrigins.Restore(value, Origin);
     }
 
     public async ValueTask ReplyAsync<TResult>(TResult result) where TResult : class
@@ -74,6 +80,8 @@ public sealed class NatsOwnedQueryMessage : IActorMessage
         await _connection.PublishAsync(
             _replyTo,
             result,
+            headers: global::TomasAI.IFM.Framework.Messaging.Nats.MessageOriginHeaders.Add(null,
+                MessageOrigins.ForPublication(result, _clock)),
             serializer: NatsMessagePackSerializer<TResult>.Default).ConfigureAwait(false);
     }
 

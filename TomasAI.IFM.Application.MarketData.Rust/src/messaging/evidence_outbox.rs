@@ -27,6 +27,8 @@ pub struct Record {
     pub receipt: u64,
     /// Monotonic first submission time; retry cannot extend recovery allowance.
     pub submitted: tokio::time::Instant,
+    /// Original application UTC clock, preserved through persistence retries.
+    pub origin_ticks: i64,
 }
 struct Item {
     record: Arc<Record>,
@@ -101,6 +103,7 @@ impl Outbox {
             bytes: bytes.into(),
             receipt,
             submitted: tokio::time::Instant::now(),
+            origin_ticks: evidence.at,
         });
         state.next = receipt;
         state.bytes += record.bytes.len();

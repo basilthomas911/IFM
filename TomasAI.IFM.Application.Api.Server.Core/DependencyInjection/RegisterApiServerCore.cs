@@ -134,9 +134,19 @@ namespace TomasAI.IFM.Application.Api.Server.Core.DependencyInjection;
 
 public static partial class CoreServiceRegistration
 {
-    public static IServiceCollection RegisterServices(IServiceCollection services, ConfigurationManager config, Microsoft.Extensions.Logging.ILogger logger, IHostEnvironment? hostEnvironment = null)
+    public static IServiceCollection RegisterServices(IServiceCollection services, ConfigurationManager config, Microsoft.Extensions.Logging.ILogger logger, IHostEnvironment? hostEnvironment = null, TimeProvider? timeProvider = null)
     {
         var siContainer = services.GetSimpleInjectorContainer();
+        var clockRegistration = services.LastOrDefault(x => x.ServiceType == typeof(TimeProvider));
+        if (clockRegistration is not null && clockRegistration.ImplementationInstance is not TimeProvider)
+            throw new InvalidOperationException("Register the shared TimeProvider as an explicit singleton instance before configuring both containers.");
+        var businessClock = clockRegistration?.ImplementationInstance as TimeProvider ?? timeProvider ?? TimeProvider.System;
+        if (timeProvider is not null && !ReferenceEquals(timeProvider, businessClock))
+            throw new InvalidOperationException("Both application containers must use the same TimeProvider instance.");
+        if (clockRegistration is null) services.AddSingleton<TimeProvider>(businessClock);
+        var physicalTime = new TomasAI.IFM.Shared.Time.PhysicalTime();
+        services.AddSingleton(physicalTime);
+        siContainer.RegisterInstance(physicalTime);
         if (EventLogQualification.Active is { } qualification)
         {
             qualification.Validate(config);
@@ -152,7 +162,7 @@ public static partial class CoreServiceRegistration
         RegisterServiceHandlers(services, config, logger, hostEnvironment, siContainer, focusedActorIntegration);
         RegisterEventProducers(services, config, logger, hostEnvironment, siContainer, focusedActorIntegration);
         RegisterHostedServices(services, config, logger, hostEnvironment, siContainer, focusedActorIntegration);
-        RegisterGenericTypes(siContainer, config, logger);
+        RegisterGenericTypes(siContainer, config, logger, businessClock);
         return services;
 
 

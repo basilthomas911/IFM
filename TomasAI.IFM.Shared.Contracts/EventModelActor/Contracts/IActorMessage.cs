@@ -11,6 +11,9 @@ namespace TomasAI.IFM.Shared.EventModelActor.Contracts;
 /// which identifies  the actor or entity associated with the message.</remarks>
 public interface IActorMessage : IDisposable
 {
+    /// <summary>Immutable application origin; null denotes unknown legacy provenance.</summary>
+    MessageOrigin? Origin => null;
+
     /// <summary>Original NATS subject before realtime fanout changes the mailbox destination.</summary>
     ActorSubject SourceSubject => Subject;
 

@@ -35,8 +35,10 @@ namespace TomasAI.IFM.Application.Storage.TradeDb;
 /// <param name = "dbFactory">Retained for constructor compatibility with host registration.</param>
 /// <param name = "sequenceIdGenerator">The technical sequence allocator.</param>
 /// <param name = "logger">The storage logger.</param>
-public sealed class TradeDbContext(IDbConnectionSettings connectionSettings, IDbContextFactory dbFactory, ISequenceIdGenerator sequenceIdGenerator, ILogger<DbProvider> logger) : ObjectDataRepository<TradeDbContext>(connectionSettings[TradeDbConnection], logger), ITradeDbContext, IEnlistedTradeDbWriter
+public sealed class TradeDbContext(IDbConnectionSettings connectionSettings, IDbContextFactory dbFactory, ISequenceIdGenerator sequenceIdGenerator, ILogger<DbProvider> logger, TimeProvider? timeProvider = null) : ObjectDataRepository<TradeDbContext>(connectionSettings[TradeDbConnection], logger), ITradeDbContext, IEnlistedTradeDbWriter
 {
+    /// <summary>Business clock for dated projections; transport and database limits remain physical.</summary>
+    internal TimeProvider BusinessClock { get; } = timeProvider ?? TimeProvider.System;
     public const string TradeDbConnection = "TradeDbConnection";
     /// <inheritdoc/>
     public Task ProjectWorkflowAsync(EventSourceDb.IEnlistedPostgresTransaction transaction, WorkflowStrategyStateUpdatedEvent source, CancellationToken token = default) => TradeDbContextExtensions.WorkflowProjectAsync(transaction, source, token);
@@ -618,7 +620,7 @@ public sealed class TradeDbContext(IDbConnectionSettings connectionSettings, IDb
     public Task InsertOptionLegAsync(OptionTradeLegReadModel e) => this.InsertOptionLegAsyncCoreBinding(e);
     /// <inheritdoc/>
     public async Task InsertOptionLegsAsync(ICollection<OptionTradeLegReadModel> optionLegs) => await (this.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.InsertOptionLeg)}", TradeDbSql.InsertOptionLeg)
-            .SetParameters(optionLegs.Select(e => new InsertOptionLeg(e.OrderId, e.TradeId, e.ContractId, e.Quantity, e.StrikePrice, e.OptionLegType.ToStringFast(), e.OptionLegAction.ToStringFast(), DateTime.Now, e.CreatedBy, DateTime.Now, e.CreatedBy)))
+            .SetParameters(optionLegs.Select(e => new InsertOptionLeg(e.OrderId, e.TradeId, e.ContractId, e.Quantity, e.StrikePrice, e.OptionLegType.ToStringFast(), e.OptionLegAction.ToStringFast(), BusinessClock.GetLocalNow().DateTime, e.CreatedBy, BusinessClock.GetLocalNow().DateTime, e.CreatedBy)))
             .ExecuteCommandAsync())
             .ConfigureAwait(false);
     /// <inheritdoc/>
@@ -629,7 +631,7 @@ public sealed class TradeDbContext(IDbConnectionSettings connectionSettings, IDb
     public Task InsertOptionLegDataAsync(OptionTradeLegDataReadModel e) => this.InsertOptionLegDataAsyncCoreBinding(e);
     /// <inheritdoc/>
     public async Task InsertOptionLegDataAsync(ICollection<OptionTradeLegDataReadModel> optionLegData) => await (this.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.InsertOptionLegData)}", TradeDbSql.InsertOptionLegData)
-            .SetParameters(optionLegData.Select(e => new InsertOptionLegData(e.OrderId, e.TradeId, e.TradeType.ToStringFast(), e.ValueDate, e.DaysToExpiry, e.TradeStatus.ToStringFast(), e.OptionLegId, e.BidPrice, e.AskPrice, e.ImpliedVolatility, e.Delta, e.Gamma, e.Theta, e.Vega, e.Rho, DateTime.Now, e.CreatedBy, DateTime.Now, e.CreatedBy)))
+            .SetParameters(optionLegData.Select(e => new InsertOptionLegData(e.OrderId, e.TradeId, e.TradeType.ToStringFast(), e.ValueDate, e.DaysToExpiry, e.TradeStatus.ToStringFast(), e.OptionLegId, e.BidPrice, e.AskPrice, e.ImpliedVolatility, e.Delta, e.Gamma, e.Theta, e.Vega, e.Rho, BusinessClock.GetLocalNow().DateTime, e.CreatedBy, BusinessClock.GetLocalNow().DateTime, e.CreatedBy)))
             .ExecuteCommandAsync())
             .ConfigureAwait(false);
     /// <inheritdoc/>
@@ -641,7 +643,7 @@ public sealed class TradeDbContext(IDbConnectionSettings connectionSettings, IDb
     public Task InsertOptionTradeAsync(OptionTradeReadModel e) => this.InsertOptionTradeAsyncCoreBinding(e);
     /// <inheritdoc/>
     public async Task InsertOptionTradesAsync(ICollection<OptionTradeReadModel> optionTrades) => await (this.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.InsertOptionTrade)}", TradeDbSql.InsertOptionTrade)
-            .SetParameters(optionTrades.Select(e => new InsertOptionTrade(e.TradeId, e.OrderId, e.TradeDate, e.MaturityDate, e.TradeType.ToStringFast(), e.TradeState.ToStringFast(), e.TradeStrategy ?? string.Empty, e.TradeAction.ToStringFast(), e.UnderlyingContractId, e.UnderlyingAssetType.ToStringFast(), e.IsPrimaryTrade, e.IsHedgeTrade, DateTime.Now, e.CreatedBy, DateTime.Now, e.CreatedBy)))
+            .SetParameters(optionTrades.Select(e => new InsertOptionTrade(e.TradeId, e.OrderId, e.TradeDate, e.MaturityDate, e.TradeType.ToStringFast(), e.TradeState.ToStringFast(), e.TradeStrategy ?? string.Empty, e.TradeAction.ToStringFast(), e.UnderlyingContractId, e.UnderlyingAssetType.ToStringFast(), e.IsPrimaryTrade, e.IsHedgeTrade, BusinessClock.GetLocalNow().DateTime, e.CreatedBy, BusinessClock.GetLocalNow().DateTime, e.CreatedBy)))
             .ExecuteCommandAsync())
             .ConfigureAwait(false);
     /// <inheritdoc/>
@@ -656,7 +658,7 @@ public sealed class TradeDbContext(IDbConnectionSettings connectionSettings, IDb
     public Task InsertTradePositionAsync(ICollection<TradePositionReadModel> tradePositions) => this.InsertTradePositionAsyncCoreBinding(tradePositions);
     /// <inheritdoc/>
     public async Task InsertTradePositionsAsync(ICollection<TradePositionReadModel> tradePositions) => await (this.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.InsertTradePosition)}", TradeDbSql.InsertTradePosition)
-            .SetParameters(tradePositions.Select(e => new InsertTradePosition(e.OrderId, e.TradeId, e.TradeType.ToStringFast(), e.ValueDate, e.DaysToExpiry, e.TradeStatus.ToStringFast(), e.Commission, e.DeltaHedge, e.NetSpread, e.TradeValue, e.TradePnl, e.AssetPrice, e.OTMProbability, e.ForwardPrice, e.ForwardLossRatio, e.LossProbability, e.RiskFreeRate, DateTime.Now, e.CreatedBy, DateTime.Now, e.UpdatedBy)))
+            .SetParameters(tradePositions.Select(e => new InsertTradePosition(e.OrderId, e.TradeId, e.TradeType.ToStringFast(), e.ValueDate, e.DaysToExpiry, e.TradeStatus.ToStringFast(), e.Commission, e.DeltaHedge, e.NetSpread, e.TradeValue, e.TradePnl, e.AssetPrice, e.OTMProbability, e.ForwardPrice, e.ForwardLossRatio, e.LossProbability, e.RiskFreeRate, BusinessClock.GetLocalNow().DateTime, e.CreatedBy, BusinessClock.GetLocalNow().DateTime, e.UpdatedBy)))
             .ExecuteCommandAsync())
             .ConfigureAwait(false);
     /// <inheritdoc/>

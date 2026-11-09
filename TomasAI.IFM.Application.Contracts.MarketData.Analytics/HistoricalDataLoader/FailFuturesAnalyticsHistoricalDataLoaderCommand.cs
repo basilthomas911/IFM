@@ -52,6 +52,6 @@ public sealed record FailFuturesAnalyticsHistoricalDataLoaderCommand : ICommand<
     [IgnoreMember] public string CommandName => nameof(FailFuturesAnalyticsHistoricalDataLoaderCommand);
     [IgnoreMember] public string StreamId => Subject.StreamId;
     [IgnoreMember] public string EventSource => LoadFuturesAnalyticsHistoricalDataCommand.Actor + "Actor";
-    [IgnoreMember] public DateTime OriginatedOn => DateTime.UtcNow;
+    [IgnoreMember] public DateTime OriginatedOn => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Get(this)?.OriginatedAtUtc.UtcDateTime ?? default;
     [IgnoreMember] public string OriginatedBy => nameof(FailFuturesAnalyticsHistoricalDataLoaderCommand);
 }

@@ -152,7 +152,7 @@ public static class MarketOutlookSnapshotRealtimeContextExtensions
             CommandId = commandId == Guid.Empty ? Guid.NewGuid() : commandId,
             AggregateId = aggregateId ?? string.Empty,
             EventSource = eventSource,
-            ReceivedOn = DateTime.UtcNow,
+
             FuturesRsiSignal = rsi,
             FuturesTdiSignal = tdi,
             FuturesItiSignal = iti,

@@ -7,13 +7,14 @@ namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Workflow.R
 public sealed class IronCondorExitPositionWorkflowRealtimeContext : EventActorContext, IIronCondorExitPositionWorkflowRealtimeContext
 {
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "This typed context adapts services for its actor and intentionally retains the actor logger category.")]
-    public IronCondorExitPositionWorkflowRealtimeContext(IActorSupervisor supervisor, IDbContextFactory dbFactory, ILogger<IronCondorExitPositionWorkflowRealtimeActor> logger) : base(supervisor, new(ActorType.Realtime, IronCondorExitPositionWorkflowRealtimeActor.ActorName))
+    public IronCondorExitPositionWorkflowRealtimeContext(IActorSupervisor supervisor, IDbContextFactory dbFactory, ILogger<IronCondorExitPositionWorkflowRealtimeActor> logger, TimeProvider? timeProvider = null) : base(supervisor, new(ActorType.Realtime, IronCondorExitPositionWorkflowRealtimeActor.ActorName))
     {
+        TimeProvider = timeProvider ?? TimeProvider.System;
         DbFactory = dbFactory;
         Logger = logger;
     }
 
     public IDbContextFactory DbFactory { get; }
-    public TimeProvider TimeProvider { get; } = TimeProvider.System;
+    public TimeProvider TimeProvider { get; }
     public ILogger<IronCondorExitPositionWorkflowRealtimeActor> Logger { get; }
 }

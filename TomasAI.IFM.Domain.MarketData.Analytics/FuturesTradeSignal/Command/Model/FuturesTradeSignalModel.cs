@@ -18,8 +18,9 @@ public class FuturesTradeSignalModel(
     FuturesEodDataV2ReadModel futuresEodData,
     FuturesRsiSignalReadModel? rsiSignal,
     FuturesTdiSignalReadModel? tdiSignal,
-    FuturesItiSignalDataReadModel? itiSignalData)
+    FuturesItiSignalDataReadModel? itiSignalData, TimeProvider? timeProvider = null)
 {
+    readonly TimeProvider clock = timeProvider ?? TimeProvider.System;
     readonly FuturesEodDataV2ReadModel _futuresEodData = futuresEodData;
     readonly FuturesRsiSignalReadModel? _rsiSignal = rsiSignal;
     readonly FuturesTdiSignalReadModel? _tdiSignal = tdiSignal;
@@ -246,11 +247,11 @@ public class FuturesTradeSignalModel(
     }
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6561", Justification = "This decision compares recorded intrinsic local wall-clock times; preserve the existing clock convention.")]
     bool CheckTradeExecuteState()
-            => (DateTime.Now - _itiSignalData!.TrendDirectionChange!.IntrinsicTime).TotalSeconds <= 30;
+            => (clock.GetLocalNow().DateTime - _itiSignalData!.TrendDirectionChange!.IntrinsicTime).TotalSeconds <= 30;
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6561", Justification = "This decision compares recorded intrinsic local wall-clock times; preserve the existing clock convention.")]
     bool InHoldTradeExecuteState()
-            => _itiSignalData!.TrendDirectionChange!.TradeState == IntrinsicTimeTradeState.Hold && (DateTime.Now - _itiSignalData.TrendDirectionChange.IntrinsicTime).TotalMinutes < 5;
+            => _itiSignalData!.TrendDirectionChange!.TradeState == IntrinsicTimeTradeState.Hold && (clock.GetLocalNow().DateTime - _itiSignalData.TrendDirectionChange.IntrinsicTime).TotalMinutes < 5;
 
 
 }

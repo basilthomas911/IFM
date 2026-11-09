@@ -45,7 +45,7 @@ internal static class PrepareOptionContracts
                 CommandId = request.CommandId,
                 EntityId = request.EntityId,
                 EventSource = request.EventSource,
-                ReceivedOn = DateTime.UtcNow,
+
                 Contracts = contracts,
                 OriginalContractId = request.OriginalContractId,
                 RequestFingerprint = request.GetFingerprint()

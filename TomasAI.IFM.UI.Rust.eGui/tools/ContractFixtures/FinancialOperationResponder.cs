@@ -62,7 +62,7 @@ internal sealed class FinancialOperationResponder {
    LedgerConfigurationAction.AddPostingRuleVersion=>TomasAI.IFM.UI.Net.ViewModels.Portfolio.FinancialControlPreparation.EditRule(scope,read,FinancialLedgerFixtures.DepositRule.RuleId,new(102,1),new(101,1),false,null,null,new(2026,10,26),reason,at),
    _=>TomasAI.IFM.UI.Net.ViewModels.Portfolio.FinancialControlPreparation.Create(scope,read,command.Body.Action,reason,at,FinancialConfigurationFixtures.PeriodId,new(2027,1,1),new(2027,12,31),101,FinancialLedgerFixtures.DepositRule.RuleId)
   };
-  if(command.Body.Action==LedgerConfigurationAction.OpenPeriod){if(command.Body.PeriodId==Guid.Empty)throw new InvalidDataException("Missing new period identity");expected=expected with{Body=expected.Body with{PeriodId=command.Body.PeriodId}};}
+  if(command.Body.Action==LedgerConfigurationAction.OpenPeriod){if(command.Body.PeriodId==Guid.Empty)throw new InvalidDataException("Missing new period identity");expected=global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(expected, expected with{Body=expected.Body with{PeriodId=command.Body.PeriodId}});}
   if(command.ExpectedFinancialRevision!=expected.ExpectedFinancialRevision||command.ExpiresAtUtc!=expected.ExpiresAtUtc||!MessagePackSerializer.Serialize(command.Body,MessagePackBinarySerializer.ContentOptions).SequenceEqual(MessagePackSerializer.Serialize(expected.Body,MessagePackBinarySerializer.ContentOptions)))throw new InvalidDataException("Configuration body/revision differs from unchanged managed preparation: "+command.Body.Action);
  }
 }

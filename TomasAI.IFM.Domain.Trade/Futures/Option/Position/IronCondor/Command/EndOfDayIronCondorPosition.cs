@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.Trade.Futures.Position.Command.Model;
+using TomasAI.IFM.Domain.Trade.Futures.Position.Command.Model;
 using TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Command.Model;
 using TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Command.State;
 using TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position;
@@ -70,7 +70,7 @@ public static class EndOfDayIronCondorPosition
         {
             CommandId = command.CommandId,
             Subject = new(ActorType.Event, "FuturesIronCondorTradePositionEvent", IronCondorPositionChangedEvent.Verb, command.EntityId.Format()),
-            ReceivedOn = DateTime.UtcNow,
+
             EntityId = command.EntityId,
             PositionSnapshot = positionSnapshot,
             HistoricalEndOfDay = command.HistoricalSnapshot is { } mark

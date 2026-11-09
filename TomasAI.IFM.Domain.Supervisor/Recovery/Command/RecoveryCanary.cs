@@ -27,7 +27,7 @@ public static class RecoveryCanary
                 EntityId = command.EntityId,
                 CommandId = command.CommandId,
                 AggregateId = command.CorrelationId.ToString("N"),
-                ReceivedOn = DateTime.UtcNow,
+
                 CorrelationId = command.CorrelationId,
                 GenerationId = command.GenerationId,
                 ValueDate = command.ValueDate,

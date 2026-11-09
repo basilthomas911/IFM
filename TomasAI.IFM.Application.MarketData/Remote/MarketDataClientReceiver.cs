@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using TomasAI.IFM.Application.MarketData.Contracts;
@@ -46,6 +46,8 @@ public sealed class MarketDataClientReceiver(MarketDataHostConnection connection
                 serializer: NatsMessagePackSerializer<DatasetPublicationEnvelope>.Default, cancellationToken: stoppingToken).ConfigureAwait(false))
             {
                 if (message.Data is not { } frame) continue;
+                TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Restore(frame,
+                    TomasAI.IFM.Framework.Messaging.Nats.MessageOriginHeaders.Read(message.Headers));
                 var isOption = message.Subject.StartsWith(connection.Scope + ".publications.Options.", StringComparison.Ordinal);
                 try
                 {

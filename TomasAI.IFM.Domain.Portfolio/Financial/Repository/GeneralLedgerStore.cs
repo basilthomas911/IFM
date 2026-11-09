@@ -9,8 +9,9 @@ namespace TomasAI.IFM.Domain.Portfolio.Financial.Repository;
 
 /// <summary>Single and bounded batch posting share the same financial fence and event transaction.</summary>
 public sealed class GeneralLedgerStore(IPostgresEventTransaction transactions,
-    FinancialDevelopmentPolicy? developmentPolicy = null) : IGeneralLedgerStore
+    FinancialDevelopmentPolicy? developmentPolicy = null, TimeProvider? timeProvider = null) : IGeneralLedgerStore
 {
+    readonly TimeProvider businessClock = timeProvider ?? TimeProvider.System;
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Retain the existing bounded persistence failure boundary: complete cleanup or report failure while preserving ambiguous commit/recovery evidence and the original cause.")]
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep the transaction, resource ownership and failure ordering together during this provider migration; splitting it would obscure the atomic persistence boundary.")]
     public async Task<T> PostAsync<T>(IFinancialRequest request, IReadOnlyList<PreparedLedgerPosting> items,
@@ -31,7 +32,7 @@ public sealed class GeneralLedgerStore(IPostgresEventTransaction transactions,
             replay = await (ReadOperationAsync<T>(db, request.PortfolioId, request.OperationId, request.InputSha256, cancellation)).ConfigureAwait(false);
             if (replay is not null) return replay;
             Require(authority.Revision == request.ExpectedFinancialRevision, FinancialReasons.RevisionConflict, "Financial state changed since the request was prepared.");
-            var revision = checked(authority.Revision + 1); var now = DateTime.UtcNow; var eventId = Guid.NewGuid();
+            var revision = checked(authority.Revision + 1); var now = businessClock.GetUtcNow().UtcDateTime; var eventId = Guid.NewGuid();
             Require(now < request.ExpiresAtUtc, FinancialReasons.TimeExpired, "Posting expired before acquiring financial authority.");
             var receipts = new List<LedgerPostedTransaction>();
             var facts = new List<AcceptedLedgerPosting>();
@@ -169,8 +170,8 @@ public sealed class GeneralLedgerStore(IPostgresEventTransaction transactions,
             { ActorName = request.Subject.Name, ExecutionId = request.Subject.EntityId, Items = facts.ToArray() };
             completed = (T)(IFinancialCompletedEvent)(completed switch
             {
-                LedgerPostingCompletedEvent single => single with { SchemaVersion = 2, ProjectionFacts = projectionFacts },
-                LedgerPostingBatchCompletedEvent batch => batch with { SchemaVersion = 2, ProjectionFacts = projectionFacts },
+                LedgerPostingCompletedEvent single => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(single, single with { SchemaVersion = 2, ProjectionFacts = projectionFacts }),
+                LedgerPostingBatchCompletedEvent batch => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(batch, batch with { SchemaVersion = 2, ProjectionFacts = projectionFacts }),
                 _ => throw new InvalidOperationException("Ledger completion must carry accepted posting facts.")
             });
             Require(completed.Id == eventId && completed.OperationId == request.OperationId && string.Equals(completed.InputHash,request.InputSha256,StringComparison.Ordinal),

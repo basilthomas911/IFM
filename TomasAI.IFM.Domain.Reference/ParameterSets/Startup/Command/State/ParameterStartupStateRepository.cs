@@ -47,7 +47,7 @@ public sealed class ParameterStartupStateRepository(
         var creation = new ParameterStartupCreatedEvent
         {
             CommandId = new Guid(operationBytes.AsSpan(0, 16)), Id = new Guid(operationBytes.AsSpan(0, 16)),
-            EventSource = ApplySignalStartupPlanCommand.Actor, ReceivedOn = DateTime.UtcNow,
+            EventSource = ApplySignalStartupPlanCommand.Actor,
             EntityId = new(startup.RunId), RunId = startup.RunId,
             Subject = new ActorSubject(ActorType.Event, ParameterStartupCreatedEvent.Actor, ParameterStartupCreatedEvent.Verb, startup.RunId.ToString("N")),
             Revision = 1, Run = run, Report = legacy.Reports.GetValueOrDefault(startup.RunId),

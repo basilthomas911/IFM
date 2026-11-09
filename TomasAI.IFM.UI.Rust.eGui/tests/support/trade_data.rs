@@ -172,15 +172,27 @@ async fn trade_workspace_publication_matches_hybrid_and_fences_stale_choices() {
         context.remove("asOfUtc"),
         Some("2026-10-26T12:30:00.0000000Z".into())
     );
-    assert_eq!(context, managed.context);
+    // The legacy managed workspace predates the optional draft tab-label field.
+    // Its absent value is equivalent to the native empty label before Add Trade.
+    let mut managed_context = managed.context.clone();
+    managed_context.entry("preparedTradeLabel".into()).or_default();
+    assert_eq!(context, managed_context);
     assert_eq!(first.result.rows.len(), managed.rows.len());
     for (native, source) in first.result.rows.iter().zip(&managed.rows) {
         assert_eq!(native.id, source.id);
         assert_eq!(native.fields, source.fields);
-        assert_eq!(
-            ifm_ui_egui::wire::decode::<serde_json::Value>(native.data.as_ref().unwrap()).unwrap(),
-            ifm_ui_egui::wire::decode::<serde_json::Value>(source.data.as_ref().unwrap()).unwrap()
-        );
+        let native_data = ifm_ui_egui::wire::decode::<serde_json::Value>(native.data.as_ref().unwrap()).unwrap();
+        let mut managed_data = ifm_ui_egui::wire::decode::<serde_json::Value>(source.data.as_ref().unwrap()).unwrap();
+        // These additive native fields default to empty when an older managed row omits them.
+        // Populated native values must still match managed evidence exactly.
+        if let Some(row) = managed_data.as_object_mut() {
+            for key in ["tradeStatus", "tradeReference", "instructionReference"] {
+                if native_data.get(key).is_some() {
+                    row.entry(key).or_insert_with(|| serde_json::Value::String(String::new()));
+                }
+            }
+        }
+        assert_eq!(native_data, managed_data);
     }
     let stale = state
         .execute(

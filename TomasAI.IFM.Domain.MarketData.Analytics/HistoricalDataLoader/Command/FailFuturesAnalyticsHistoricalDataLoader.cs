@@ -26,7 +26,7 @@ public static class FailFuturesAnalyticsHistoricalDataLoader
                     FuturesAnalyticsHistoricalDataLoaderFailedEvent.Verb, command.EntityId.Format()),
                 EntityId = command.EntityId,
                 CommandId = command.CommandId,
-                ReceivedOn = DateTime.UtcNow,
+
                 ErrorMessage = command.ErrorMessage,
                 LastCompletedBatchOrdinal = command.LastCompletedBatchOrdinal,
                 LastCompletedRecordOrdinal = command.LastCompletedRecordOrdinal,

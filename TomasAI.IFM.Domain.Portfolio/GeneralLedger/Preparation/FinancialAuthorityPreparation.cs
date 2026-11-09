@@ -8,8 +8,9 @@ using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
 
 namespace TomasAI.IFM.Domain.Portfolio.GeneralLedger.Preparation;
 /// <summary>Reads committed authority sources outside the financial transaction and prepares a revision-bound review draft.</summary>
-public sealed class FinancialAuthorityPreparation(FinancialAuthorityPreparationStore financial, IPortfolioEventStore sources, IConfigurationDbContext catalog)
+public sealed class FinancialAuthorityPreparation(FinancialAuthorityPreparationStore financial, IPortfolioEventStore sources, IConfigurationDbContext catalog, TimeProvider? timeProvider = null)
 {
+    readonly TimeProvider businessClock = timeProvider ?? TimeProvider.System;
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "S3267", Justification = "Perform lifecycle or preparation operations sequentially with cancellation and failure handling at each item; retain explicit ordered awaits.")]
     public async Task<FinancialRead<FinancialAuthorityDraft>> PrepareAsync(FinancialReadScope scope, PrepareFinancialAuthorityRequest request, CancellationToken token)
     {
@@ -38,7 +39,7 @@ public sealed class FinancialAuthorityPreparation(FinancialAuthorityPreparationS
         }
 
         var policies = portfolio.Current?.ActivePolicyId is> 0 ? await (sources.LoadPolicyAsync(new(scope.PortfolioId, portfolio.Current.ActivePolicyId), token)).ConfigureAwait(false) : null;
-        var now = DateTime.UtcNow;
+        var now = businessClock.GetUtcNow().UtcDateTime;
         var draft = FinancialAuthorityPreparationModel.Create(snapshot, portfolio, funds, policies, definitions, request.PermitNewSpending, now);
         return new(FinancialReadStatus.Found, draft, snapshot.Revision, now);
     }

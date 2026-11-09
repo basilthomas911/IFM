@@ -11,8 +11,9 @@ using TomasAI.IFM.Framework.Serialization;
 namespace TomasAI.IFM.Domain.Portfolio.OrderComposition.Repository;
 
 /// <summary>Atomically accepts a reduce-only order and its canonical completed event.</summary>
-public sealed class PortfolioCloseOrderCompositionStore(IPostgresEventTransaction transactions, FinancialDevelopmentPolicy? developmentPolicy = null)
+public sealed class PortfolioCloseOrderCompositionStore(IPostgresEventTransaction transactions, FinancialDevelopmentPolicy? developmentPolicy = null, TimeProvider? timeProvider = null)
 {
+    readonly TimeProvider businessClock = timeProvider ?? TimeProvider.System;
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep the transaction, resource ownership and failure ordering together during this provider migration; splitting it would obscure the atomic persistence boundary.")]
     public Task<PortfolioCloseOrderCompositionCompletedEvent> EvaluateAsync(
         EvaluatePortfolioCloseOrderCompositionCommand request,
@@ -32,7 +33,7 @@ public sealed class PortfolioCloseOrderCompositionStore(IPostgresEventTransactio
                 db, request.PortfolioId,
                 request.ExpectedFinancialRevision > 0 ? request.ExpectedFinancialRevision : null,
                 token, developmentPolicy).ConfigureAwait(false);
-            var now = DateTime.UtcNow;
+            var now = businessClock.GetUtcNow().UtcDateTime;
             if (request.ExpiresAtUtc <= now)
                 throw new TimeoutException("Portfolio close-order composition expired before evaluation.");
 

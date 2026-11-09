@@ -30,7 +30,7 @@ public class FuturesMacdSignalCommandState : BaseEventSourceActorState<FuturesMa
         Id = Guid.NewGuid(),
         CommandId = command.CommandId,
         EventSource = command.EventSource,
-        ReceivedOn = DateTime.UtcNow,
+
         Signals = _macdSignals.ToArray()
     };
 

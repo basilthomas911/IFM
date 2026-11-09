@@ -99,7 +99,7 @@ public sealed class IronCondorPositionStateRepository(IEventSourceActorStateFact
                     Id = command.CommandId, CommandId = command.CommandId, EntityId = command.EntityId,
                     Subject = new(ActorType.Event, "FuturesIronCondorTradePositionEvent", IronCondorPositionChangedEvent.Verb,
                         command.EntityId.Format()),
-                    EventSource = command.EventSource, ReceivedOn = DateTime.UtcNow,
+                    EventSource = command.EventSource,
                     CurrencyEvidenceEventId = evidence.EventId,
                     PositionSnapshot = repaired with
                     {

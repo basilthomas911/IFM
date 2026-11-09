@@ -23,6 +23,7 @@ internal sealed class NatsSharedEventPayload : IDisposable
         ActorSubject sourceSubject = default,
         NatsHeaders? headers = null)
     {
+        Origin = global::TomasAI.IFM.Framework.Messaging.Nats.MessageOriginHeaders.Read(headers);
         _owner = owner;
         TraceContext = traceContext;
         SourceSubject = sourceSubject;
@@ -34,6 +35,7 @@ internal sealed class NatsSharedEventPayload : IDisposable
         NatsMessagingMetrics.AcquirePayloadLease(owner.Memory.Length);
     }
 
+    internal MessageOrigin? Origin { get; }
     internal System.Diagnostics.ActivityContext TraceContext { get; }
     internal ActorSubject SourceSubject { get; }
     internal string? SourceDataset { get; }

@@ -25,7 +25,8 @@ static class EventProjectorOutboxSerializer
         return new EventProjectorOutboxMessage(
             identity,
             EventWriteIdentityRegistry.Default.GetIdentity(eventType).EventTypeName,
-            MessagePackSerializer.Serialize(eventType, domainEvent, Options));
+            MessagePackSerializer.Serialize(eventType, domainEvent, Options),
+            MessageOrigins.Get(domainEvent));
     }
 
     public static IEvent Deserialize(string eventTypeName, byte[] payload)

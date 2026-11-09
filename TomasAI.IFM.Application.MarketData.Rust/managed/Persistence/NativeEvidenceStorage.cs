@@ -94,7 +94,7 @@ public sealed class NativeEvidenceStorage(IOptionTradeEvidenceWriter writer)
         if (!string.Equals(evidence.Source.Identity, request.Identity, StringComparison.Ordinal)
             || !string.Equals(evidence.Source.SourceDigest, request.Digest, StringComparison.Ordinal))
             throw new InvalidDataException("Native evidence receipt differs from its immutable source.");
-        return evidence;
+        return TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(request, evidence);
     }
 
     static NativeEvidenceReceipt Receipt(NativeEvidenceWrite request, bool accepted)

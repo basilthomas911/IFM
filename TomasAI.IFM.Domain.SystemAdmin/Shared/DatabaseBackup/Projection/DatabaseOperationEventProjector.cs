@@ -79,7 +79,7 @@ public abstract class DatabaseOperationEventProjector<TActor> : BaseEventProject
         CommandId = source.CommandId,
         AggregateId = source.AggregateId,
         EventSource = "DatabaseBackupEventProjector",
-        ReceivedOn = DateTime.UtcNow
+        ReceivedOn = default
     };
 
     static DatabaseBackupProjectionFailedEvent Fail(DatabaseBackupEventContract source, Exception exception) => new()
@@ -91,7 +91,7 @@ public abstract class DatabaseOperationEventProjector<TActor> : BaseEventProject
         CommandId = source.CommandId,
         AggregateId = source.AggregateId,
         EventSource = "DatabaseBackupEventProjector",
-        ReceivedOn = DateTime.UtcNow,
+
         ErrorDate = DateTime.UtcNow,
         ErrorMessage = exception.Message,
         CommandName = source.EventName

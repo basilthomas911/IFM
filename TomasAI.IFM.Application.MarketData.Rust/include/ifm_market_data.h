@@ -452,6 +452,8 @@ int32_t ifm_market_data_owner_state_v1(uint64_t handle, uint32_t selected, uint3
 int32_t ifm_market_data_owner_cache_v1(uint64_t handle, const uint8_t* scope, uint32_t scope_length, uint8_t* output, uint32_t capacity, uint32_t* required);
 int32_t ifm_market_data_owner_wait_v1(uint64_t handle, uint64_t operation, uint32_t selected, uint32_t require_active);
 int32_t ifm_market_data_owner_current_v1(uint64_t handle, uint32_t selected, int64_t after, uint32_t maximum, uint8_t* output, uint32_t capacity, uint32_t* required);
+/* Optional additive snapshot page: each row is [existing eight-key frame, origin JSON or nil]. */
+int32_t ifm_market_data_owner_current_with_origins_v1(uint64_t handle, uint32_t selected, int64_t after, uint32_t maximum, uint8_t* output, uint32_t capacity, uint32_t* required);
 int32_t ifm_market_data_owner_quote_greeks_v1(uint64_t handle, uint32_t instrument, uint32_t publisher, uint8_t* output, uint32_t capacity, uint32_t* required);
 int32_t ifm_market_data_owner_trade_greeks_v1(uint64_t handle, uint32_t instrument, uint32_t publisher, uint8_t* output, uint32_t capacity, uint32_t* required);
 int32_t ifm_market_data_owner_raw_prices_v1(uint64_t handle, uint32_t selected, const uint8_t* contract, uint32_t contract_length, uint32_t date, uint8_t* output, uint32_t capacity, uint32_t* required);

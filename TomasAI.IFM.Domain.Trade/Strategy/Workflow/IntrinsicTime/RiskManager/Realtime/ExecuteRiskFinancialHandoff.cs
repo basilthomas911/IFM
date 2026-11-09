@@ -98,32 +98,32 @@ public static class ExecuteRiskFinancialHandoff
                 if (!order.Success || order.Value is not { Status: "RiskPending" })
                     return advance;
                 var candidate = view.OrderComposition.Result!.ReadCompositionResult().Candidate!;
-                return advance with
+                return global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(advance, advance with
                 {
                     FundOrder = order.Value,
                     Financial = await ReadFinancialAsync(FinancialScopeKeys.Underlying(candidate.Product.Symbol, candidate.Product.Exchange, candidate.Product.Currency)).ConfigureAwait(false)
-                };
+                });
             case RiskFinancialHandoffPhase.ReservePending:
             {
                 var request = view.FinancialHandoff!.ReservationRequest;
                 using var reservationRead = WorkflowTrace.Start("authorization.verify.reservation_receipt", view);
                 var receipt = await api.GetPostingReceiptAsync(scope, new(request.OperationId), token).ConfigureAwait(false);
                 reservationRead?.Stop();
-                return advance with
+                return global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(advance, advance with
                 {
                     ReservationReceipt = receipt.Success ? receipt.Value : null,
                     ReservationReceiptOperationId = request.OperationId,
                     Financial = receipt.Success && receipt.Value is not null && RiskResizing.IsFencedOut(request, receipt.Value)
                         ? await ReadFinancialAsync(view.RiskExecution!.SizingAuthority.UnderlyingId).ConfigureAwait(false)
                         : null
-                };
+                });
             }
             case RiskFinancialHandoffPhase.FundPending:
             {
                 using var fundRead = WorkflowTrace.Start("authorization.verify.fund_receipt", view);
                 var fund = await api.GetFundRiskAuthorizationAsync(scope, new(view.FinancialHandoff!.FundCommandId), token).ConfigureAwait(false);
                 fundRead?.Stop();
-                return advance with { FundReceipt = fund.Success ? fund.Value : null };
+                return global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(advance, advance with { FundReceipt = fund.Success ? fund.Value : null });
             }
             default:
                 return advance;

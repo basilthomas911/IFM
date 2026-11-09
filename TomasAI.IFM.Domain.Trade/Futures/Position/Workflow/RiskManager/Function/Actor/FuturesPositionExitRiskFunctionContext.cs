@@ -7,6 +7,6 @@ namespace TomasAI.IFM.Domain.Trade.Futures.Position.Workflow.RiskManager.Functio
 
 public sealed class FuturesPositionExitRiskFunctionContext(
     IActorSupervisor supervisor, IPortfolioOrderCompositionApi portfolio,
-    ILogger<FuturesPositionExitRiskFunctionActor> logger)
+    ILogger<FuturesPositionExitRiskFunctionActor> logger, TimeProvider? timeProvider = null)
     : PositionExitRiskFunctionContext<FuturesPositionExitRiskFunctionActor>(
-        supervisor, FuturesPositionExitRiskFunctionActor.ActorName, portfolio, logger);
+        supervisor, FuturesPositionExitRiskFunctionActor.ActorName, portfolio, logger, timeProvider);

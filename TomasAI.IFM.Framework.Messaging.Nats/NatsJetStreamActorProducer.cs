@@ -30,13 +30,15 @@ namespace TomasAI.IFM.Framework.Messaging.NatsJetStream;
 public class NatsJetStreamActorProducer(
     INatsJetStreamProducerOptions options,
     ILogger<NatsJetStreamActorProducer> logger,
-    NatsConnectionManager? connectionManager = null)
+    NatsConnectionManager? connectionManager = null,
+    TimeProvider? timeProvider = null)
     : IJSActorProducer, IAsyncDisposable
 {
     readonly INatsJetStreamProducerOptions _options = IsArgumentNull.Set(options);
     readonly ILogger<NatsJetStreamActorProducer> _logger = IsArgumentNull.Set(logger);
     readonly NatsConnectionManager _connectionManager = connectionManager ?? new NatsConnectionManager();
     readonly bool _ownsConnectionManager = connectionManager is null;
+    readonly TimeProvider _clock = timeProvider ?? TimeProvider.System;
     int _disposeStarted;
 
     /// <summary>Stops owned transport activity before releasing the host lifetime gate.</summary>
@@ -190,6 +192,7 @@ public class NatsJetStreamActorProducer(
             var acknowledgement = await _js.PublishAsync(
                 subject,
                 message,
+                headers: global::TomasAI.IFM.Framework.Messaging.Nats.MessageOriginHeaders.Add(null, MessageOrigins.ForPublication(message!, _clock)),
                 serializer: NatsMessagePackSerializer<T>.Default,
                 cancellationToken: operationCancellation.Token).ConfigureAwait(false);
             acknowledgement.EnsureSuccess();

@@ -26,11 +26,11 @@ public static class ParameterCommandEvidenceExtensions
                 throw new InvalidOperationException("PARAM.PREPARATION_IDENTITY_MISMATCH");
             return request switch
             {
-                { Assignment: { } value } => request with { Assignment = value with { Evidence = result.Evidence } },
-                { Retirement: { } value } => request with { Retirement = value with { Evidence = result.Evidence } },
-                { Publication: { } value } => request with { Publication = value with { Evidence = result.Evidence } },
-                { Startup: { } value } => request with { Startup = value with { Evidence = result.Evidence } },
-                { Creation: { } value } => request with { Creation = value with { Evidence = result.Evidence } },
+                { Assignment: { } value } => request with { Assignment = global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(value, value with { Evidence = result.Evidence }) },
+                { Retirement: { } value } => request with { Retirement = global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(value, value with { Evidence = result.Evidence }) },
+                { Publication: { } value } => request with { Publication = global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(value, value with { Evidence = result.Evidence }) },
+                { Startup: { } value } => request with { Startup = global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(value, value with { Evidence = result.Evidence }) },
+                { Creation: { } value } => request with { Creation = global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(value, value with { Evidence = result.Evidence }) },
                 _ => throw new InvalidOperationException("PARAM.PREPARATION_INVALID")
             };
         }

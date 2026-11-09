@@ -27,12 +27,13 @@ public sealed class CommandAuditMessagePackCodec
             CommandAuditPayloadFormat.MessagePack,
             CurrentVersion,
             bytes,
-            SHA256.HashData(bytes));
+            SHA256.HashData(bytes), TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Get(command));
     }
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-    public object Deserialize(Type commandType, ReadOnlyMemory<byte> payload, short format, int version)
+    public object Deserialize(Type commandType, ReadOnlyMemory<byte> payload, short format, int version,
+        TomasAI.IFM.Shared.EventModelActor.MessageOrigin? origin = null)
     {
         ArgumentNullException.ThrowIfNull(commandType);
         if (!typeof(ICommand).IsAssignableFrom(commandType))
@@ -40,8 +41,9 @@ public sealed class CommandAuditMessagePackCodec
         if (format != (short)CommandAuditPayloadFormat.MessagePack || version != CurrentVersion)
             throw new InvalidDataException($"Unsupported command audit payload format/version {format}/{version}.");
         if (payload.IsEmpty) throw new InvalidDataException("Command audit payload is empty.");
-        return MessagePackSerializer.Deserialize(commandType, payload, Options)
+        var value = MessagePackSerializer.Deserialize(commandType, payload, Options)
             ?? throw new InvalidDataException("Command audit payload produced no command.");
+        return TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Restore(value, origin);
     }
 
     public bool Matches(ICommand command, ReadOnlySpan<byte> expectedHash)

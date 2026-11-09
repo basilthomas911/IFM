@@ -64,7 +64,7 @@ internal sealed partial class NativeMarketDataLibrary
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)] internal unsafe delegate int OwnerCurrentCall(ulong handle,uint lane,long after,uint maximum,byte* output,uint capacity,out uint required);
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)] internal delegate int OwnerWaitCall(ulong handle,ulong operation,uint lane,uint requireActive);
     internal OwnerWaitCall? OwnerWait;
-    internal OwnerCurrentCall? OwnerCurrent;
+    internal OwnerCurrentCall? OwnerCurrent, OwnerCurrentWithOrigins;
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)] internal unsafe delegate int OwnerContractsCall(ulong handle,uint lane,byte* output,uint capacity,out uint required);
     internal OwnerContractsCall? OwnerContracts;
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)] internal unsafe delegate int OwnerPreparedCacheCall(ulong handle,byte* input,uint length,byte* output,uint capacity,out uint required);
@@ -99,6 +99,7 @@ internal sealed partial class NativeMarketDataLibrary
         OwnerRecover = Optional<OwnerRecoverCall>("ifm_market_data_owner_recover_v1");
         OwnerWait=Optional<OwnerWaitCall>("ifm_market_data_owner_wait_v1");
         OwnerCurrent=Optional<OwnerCurrentCall>("ifm_market_data_owner_current_v1");
+        OwnerCurrentWithOrigins=Optional<OwnerCurrentCall>("ifm_market_data_owner_current_with_origins_v1");
         OwnerContracts=Optional<OwnerContractsCall>("ifm_market_data_owner_contracts_v1");
         OwnerPreparedCache=Optional<OwnerPreparedCacheCall>("ifm_market_data_owner_prepared_cache_v1");
         OwnerRawPrices = Optional<OwnerRawPricesCall>("ifm_market_data_owner_raw_prices_v1");

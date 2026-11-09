@@ -32,7 +32,7 @@ public static class ChangeCapacityReservation
             ArgumentNullException.ThrowIfNull(services);
             var replay = await (services.Database.ReadOperationAsync<CapacityLifecycleCompletedEvent>(command.PortfolioId, command.OperationId, command.InputSha256, cancellationToken)).ConfigureAwait(false);
             if (replay is not null) return await (replay.NotifyAsync(services.Projector, services.Logger)).ConfigureAwait(false);
-            FinancialRequestValidation.Demand(command, "CapacityLifecycle", DateTime.UtcNow);
+            FinancialRequestValidation.Demand(command, "CapacityLifecycle", services.Clock.GetUtcNow().UtcDateTime);
             var completed = await (services.Store.ChangeAsync(command, false, command.Compute, receipt => command.Complete(receipt), cancellationToken)).ConfigureAwait(false);
             return await (completed.NotifyAsync(services.Projector, services.Logger)).ConfigureAwait(false);
         }

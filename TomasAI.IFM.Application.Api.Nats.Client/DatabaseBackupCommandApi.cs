@@ -58,18 +58,18 @@ public sealed class DatabaseBackupCommandApi(IActorProducer actorProducer) : IDa
     static IDatabaseBackupCommand Normalize(IDatabaseBackupCommand command, DatabaseRecoveryOperationId id, ActorSubject subject, int errorCode)
         => command switch
         {
-            RequestDatabaseBackupCommand c => c with { CommandId = c.Request.RequestId, EntityId = id, Subject = subject, ErrorCode = errorCode },
-            CancelDatabaseBackupCommand c => c with { CommandId = c.Request.RequestId, EntityId = id, Subject = subject, ErrorCode = errorCode },
-            RequestDatabaseRestoreCommand c => c with { CommandId = c.Request.RequestId, EntityId = id, Subject = subject, ErrorCode = errorCode },
-            ApproveDatabaseRestoreCommand c => c with { CommandId = c.Request.RequestId, EntityId = id, Subject = subject, ErrorCode = errorCode },
-            CancelDatabaseRestoreCommand c => c with { CommandId = c.Request.RequestId, EntityId = id, Subject = subject, ErrorCode = errorCode },
-            ApproveDatabaseCutoverCommand c => c with { CommandId = c.Request.RequestId, EntityId = id, Subject = subject, ErrorCode = errorCode },
-            RequestDatabaseRestoreDrillCommand c => c with { CommandId = c.Request.RequestId, EntityId = id, Subject = subject, ErrorCode = errorCode },
-            UpdateDatabaseBackupPolicyCommand c => c with { CommandId = c.Request.RequestId, EntityId = id, Subject = subject, ErrorCode = errorCode },
-            PlaceBackupLegalHoldCommand c => c with { CommandId = c.Request.RequestId, EntityId = id, Subject = subject, ErrorCode = errorCode },
-            ReleaseBackupLegalHoldCommand c => c with { CommandId = c.Request.RequestId, EntityId = id, Subject = subject, ErrorCode = errorCode },
-            RequestBackupRetentionEvaluationCommand c => c with { CommandId = c.Request.RequestId, EntityId = id, Subject = subject, ErrorCode = errorCode },
-            ExecuteBackupRetentionPlanCommand c => c with { CommandId = c.Request.RequestId, EntityId = id, Subject = subject, ErrorCode = errorCode },
+            RequestDatabaseBackupCommand c => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.CopyCommandIfSameIdentity(c, c with { CommandId = c.Request.RequestId, EntityId = id, Subject = subject, ErrorCode = errorCode }),
+            CancelDatabaseBackupCommand c => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.CopyCommandIfSameIdentity(c, c with { CommandId = c.Request.RequestId, EntityId = id, Subject = subject, ErrorCode = errorCode }),
+            RequestDatabaseRestoreCommand c => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.CopyCommandIfSameIdentity(c, c with { CommandId = c.Request.RequestId, EntityId = id, Subject = subject, ErrorCode = errorCode }),
+            ApproveDatabaseRestoreCommand c => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.CopyCommandIfSameIdentity(c, c with { CommandId = c.Request.RequestId, EntityId = id, Subject = subject, ErrorCode = errorCode }),
+            CancelDatabaseRestoreCommand c => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.CopyCommandIfSameIdentity(c, c with { CommandId = c.Request.RequestId, EntityId = id, Subject = subject, ErrorCode = errorCode }),
+            ApproveDatabaseCutoverCommand c => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.CopyCommandIfSameIdentity(c, c with { CommandId = c.Request.RequestId, EntityId = id, Subject = subject, ErrorCode = errorCode }),
+            RequestDatabaseRestoreDrillCommand c => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.CopyCommandIfSameIdentity(c, c with { CommandId = c.Request.RequestId, EntityId = id, Subject = subject, ErrorCode = errorCode }),
+            UpdateDatabaseBackupPolicyCommand c => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.CopyCommandIfSameIdentity(c, c with { CommandId = c.Request.RequestId, EntityId = id, Subject = subject, ErrorCode = errorCode }),
+            PlaceBackupLegalHoldCommand c => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.CopyCommandIfSameIdentity(c, c with { CommandId = c.Request.RequestId, EntityId = id, Subject = subject, ErrorCode = errorCode }),
+            ReleaseBackupLegalHoldCommand c => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.CopyCommandIfSameIdentity(c, c with { CommandId = c.Request.RequestId, EntityId = id, Subject = subject, ErrorCode = errorCode }),
+            RequestBackupRetentionEvaluationCommand c => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.CopyCommandIfSameIdentity(c, c with { CommandId = c.Request.RequestId, EntityId = id, Subject = subject, ErrorCode = errorCode }),
+            ExecuteBackupRetentionPlanCommand c => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.CopyCommandIfSameIdentity(c, c with { CommandId = c.Request.RequestId, EntityId = id, Subject = subject, ErrorCode = errorCode }),
             _ => throw new ArgumentException("Unsupported DatabaseBackup command.", nameof(command))
         };
 }

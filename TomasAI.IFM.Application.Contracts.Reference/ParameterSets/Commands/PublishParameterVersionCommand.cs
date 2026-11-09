@@ -64,9 +64,9 @@ public sealed record PublishParameterVersionCommand : IParameterSetMutation, IAp
     [IgnoreMember] public string StreamId => Subject.StreamId;
     [IgnoreMember] public string EventSource => Actor;
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "This instance property implements command or exception metadata required by the published interface.")]
-    [IgnoreMember] public DateTime OriginatedOn => DateTime.UtcNow;
+    [IgnoreMember] public DateTime OriginatedOn => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Get(this)?.OriginatedAtUtc.UtcDateTime ?? default;
     [IgnoreMember] public string OriginatedBy => $"{Environment.UserDomainName}\\{Environment.UserName}";
     /// <summary>Excludes per-attempt evidence while retaining the complete business request identity.</summary>
-    ICommand ICommandRetryIdentity.ForRetryIdentity() => this with { Evidence = null };
+    ICommand ICommandRetryIdentity.ForRetryIdentity() => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(this, this with { Evidence = null });
 
 }

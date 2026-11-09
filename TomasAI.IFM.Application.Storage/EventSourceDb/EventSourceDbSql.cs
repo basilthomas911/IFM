@@ -28,19 +28,19 @@ public static class EventSourceDbSql
             ) latest
             WHERE $4 AND s.is_concern AND n.EventTypeName=ANY($3)
         ), selected AS (
-            SELECT NOT s.is_concern AS is_legacy,e.EventVersion,e.EventNameId,e.StreamVersion,e.EventPayload
-            FROM streams s CROSS JOIN checkpoint c JOIN event_log e ON e.EventStreamId=s.EventStreamId
+            SELECT NOT s.is_concern AS is_legacy,e.EventVersion,e.EventNameId,e.StreamVersion,e.EventPayload, e.MessageOriginJson AS MessageOriginJson
+        FROM streams s CROSS JOIN checkpoint c JOIN event_log e ON e.EventStreamId=s.EventStreamId
             WHERE e.StreamVersion<=s.CurrentVersion
               AND e.StreamVersion>=coalesce(c.stream_version,1)
               AND (s.is_concern OR c.stream_version IS NULL)
             UNION ALL
-            SELECT false,e.EventVersion,e.EventNameId,e.StreamVersion,e.EventPayload
-            FROM streams s CROSS JOIN checkpoint c JOIN event_log e ON e.EventStreamId=s.EventStreamId
+            SELECT false,e.EventVersion,e.EventNameId,e.StreamVersion,e.EventPayload, e.MessageOriginJson AS MessageOriginJson
+        FROM streams s CROSS JOIN checkpoint c JOIN event_log e ON e.EventStreamId=s.EventStreamId
             WHERE s.is_concern AND c.stream_version IS NOT NULL AND e.StreamVersion=1
         )
         SELECT h.concern_head,h.legacy_head,coalesce(c.stream_version,0),coalesce(e.is_legacy,false),
                coalesce(n.EventTypeName=ANY($3),false),
-               e.EventVersion,n.EventTypeName,e.StreamVersion,e.EventPayload
+               e.EventVersion,n.EventTypeName,e.StreamVersion,e.EventPayload, e.MessageOriginJson AS MessageOriginJson
         FROM heads h CROSS JOIN checkpoint c LEFT JOIN selected e ON true
         LEFT JOIN event_name_id n ON n.EventNameId=e.EventNameId
         ORDER BY e.is_legacy DESC,e.StreamVersion;
@@ -66,32 +66,34 @@ public static class EventSourceDbSql
             WHERE $5 < 0
               AND NOT EXISTS (SELECT FROM event_aggregate_checkpoint c WHERE c.checkpoint_event_version=el.EventVersion)
         ), selected AS (
-            SELECT 1 AS Kind, source_revision, EventVersion, EventNameId, StreamVersion, EventPayload FROM checkpoint
+            SELECT 1 AS Kind, source_revision, EventVersion, EventNameId, StreamVersion, EventPayload, MessageOriginJson AS MessageOriginJson
+        FROM checkpoint
             UNION ALL
-            SELECT 2, 0, EventVersion, EventNameId, StreamVersion, EventPayload FROM legacy
+            SELECT 2, 0, EventVersion, EventNameId, StreamVersion, EventPayload, MessageOriginJson AS MessageOriginJson
+        FROM legacy
             UNION ALL
-            SELECT 3, 0, el.EventVersion, el.EventNameId, el.StreamVersion, el.EventPayload
-            FROM source s JOIN event_log el ON el.EventStreamId=s.EventStreamId
+            SELECT 3, 0, el.EventVersion, el.EventNameId, el.StreamVersion, el.EventPayload, el.MessageOriginJson AS MessageOriginJson
+        FROM source s JOIN event_log el ON el.EventStreamId=s.EventStreamId
             WHERE (EXISTS (SELECT FROM checkpoint) OR NOT EXISTS (SELECT FROM legacy))
               AND el.StreamVersion>COALESCE((SELECT source_revision FROM checkpoint),GREATEST($5,0))
               AND el.StreamVersion<=s.Head
         )
         SELECT s.Head, chosen.Kind, chosen.source_revision, chosen.EventVersion,
-               n.EventTypeName, chosen.StreamVersion, chosen.EventPayload
+               n.EventTypeName, chosen.StreamVersion, chosen.EventPayload, chosen.MessageOriginJson AS MessageOriginJson
         FROM source s LEFT JOIN selected chosen ON true
         LEFT JOIN event_name_id n ON n.EventNameId=chosen.EventNameId
         ORDER BY chosen.Kind, chosen.StreamVersion;
         """;
 
     internal const string ReadAggregateEventByCommand = """
-        SELECT el.EventVersion, n.EventTypeName, el.StreamVersion, el.EventPayload
+        SELECT el.EventVersion, n.EventTypeName, el.StreamVersion, el.EventPayload, el.MessageOriginJson AS MessageOriginJson
         FROM event_log el JOIN event_stream_id s USING(EventStreamId) JOIN event_name_id n USING(EventNameId)
         WHERE el.CommandId=$2 AND s.EventStream=$1
         LIMIT 2;
         """;
 
     internal const string ReadAggregateCreation = """
-        SELECT el.EventVersion, n.EventTypeName, el.StreamVersion, el.EventPayload
+        SELECT el.EventVersion, n.EventTypeName, el.StreamVersion, el.EventPayload, el.MessageOriginJson AS MessageOriginJson
         FROM event_stream_id s JOIN event_log el USING(EventStreamId) JOIN event_name_id n USING(EventNameId)
         WHERE s.EventStream=$1 AND el.StreamVersion=1;
         """;
@@ -134,7 +136,7 @@ public static class EventSourceDbSql
         )
         SELECT el.EventStreamId,en.EventName,en.EventTypeName,el.EventVersion,
                el.EventPayload,el.CommandId,el.EventTimestamp,el.StreamVersion,
-               snapshot_head.CurrentVersion AS SnapshotHead,el.StreamVersion AS CheckpointVersion
+               snapshot_head.CurrentVersion AS SnapshotHead,el.StreamVersion AS CheckpointVersion, el.MessageOriginJson AS MessageOriginJson
         FROM snapshot_head CROSS JOIN selected
         LEFT JOIN event_log el ON el.EventStreamId=$1 AND el.StreamVersion=selected.StreamVersion
         LEFT JOIN event_name_id en ON en.EventNameId=el.EventNameId
@@ -149,7 +151,7 @@ public static class EventSourceDbSql
         )
         SELECT el.EventStreamId,en.EventName,en.EventTypeName,el.EventVersion,
                el.EventPayload,el.CommandId,el.EventTimestamp,el.StreamVersion,
-               snapshot_head.CurrentVersion AS SnapshotHead,snapshot_head.CurrentVersion AS CheckpointVersion
+               snapshot_head.CurrentVersion AS SnapshotHead,snapshot_head.CurrentVersion AS CheckpointVersion, el.MessageOriginJson AS MessageOriginJson
         FROM snapshot_head
         LEFT JOIN LATERAL (
             SELECT * FROM event_log creation
@@ -171,7 +173,7 @@ public static class EventSourceDbSql
         )
         SELECT el.EventStreamId, en.EventName, en.EventTypeName, el.EventVersion,
                el.EventPayload, el.CommandId, el.EventTimestamp, el.StreamVersion,
-               snapshot_head.CurrentVersion AS SnapshotHead
+               snapshot_head.CurrentVersion AS SnapshotHead, el.MessageOriginJson AS MessageOriginJson
         FROM snapshot_head
         LEFT JOIN event_log el ON el.EventStreamId = $1
             AND el.StreamVersion >= 1 AND el.StreamVersion <= snapshot_head.CurrentVersion
@@ -203,7 +205,7 @@ public static class EventSourceDbSql
         )
         SELECT el.EventStreamId, en.EventName, en.EventTypeName, el.EventVersion,
                el.EventPayload, el.CommandId, el.EventTimestamp, el.StreamVersion,
-               snapshot_head.CurrentVersion AS SnapshotHead, checkpoint.StreamVersion AS CheckpointVersion
+               snapshot_head.CurrentVersion AS SnapshotHead, checkpoint.StreamVersion AS CheckpointVersion, el.MessageOriginJson AS MessageOriginJson
         FROM snapshot_head CROSS JOIN checkpoint
         LEFT JOIN LATERAL (
             SELECT * FROM event_log creation
@@ -288,7 +290,8 @@ DELETE FROM event_stream_id WHERE EventStream = $1;
       cl.CommandPayload as "CommandPayload",
       cl.CommandPayloadFormat as "CommandPayloadFormat",
       cl.CommandPayloadVersion as "CommandPayloadVersion",
-      cl.CommandPayloadSha256 as "CommandPayloadSha256"
+      cl.CommandPayloadSha256 as "CommandPayloadSha256",
+      cl.MessageOriginJson AS MessageOriginJson
     from command_log cl
     where cl.CommandId = $1
     """;
@@ -351,8 +354,8 @@ SELECT
         el.EventPayload as "EventPayload",
         el.commandId as "CommandId",
         el.eventTimestamp as "EventTimeStamp",
-        el.StreamVersion as "StreamVersion"
-    FROM
+        el.StreamVersion as "StreamVersion", el.MessageOriginJson AS MessageOriginJson
+        FROM
         event_log el JOIN event_name_id en ON el.eventNameId = en.eventNameId
     WHERE
         el.eventStreamId = $1
@@ -372,8 +375,8 @@ SELECT
       el.EventPayload as "EventPayload",
       el.commandId as "CommandId",
       el.eventTimestamp as "EventTimeStamp",
-      el.StreamVersion as "StreamVersion"
-    FROM
+      el.StreamVersion as "StreamVersion", el.MessageOriginJson AS MessageOriginJson
+        FROM
       event_log el JOIN event_name_id en ON el.eventNameId = en.eventNameId
     WHERE
       el.eventVersion >= $2 and el.eventStreamId = $1
@@ -390,8 +393,8 @@ SELECT
       el.EventPayload as "EventPayload",
       el.commandId as "CommandId",
       el.eventTimestamp as "EventTimeStamp",
-      el.StreamVersion as "StreamVersion"
-    FROM
+      el.StreamVersion as "StreamVersion", el.MessageOriginJson AS MessageOriginJson
+        FROM
       event_log el JOIN event_name_id en ON el.eventNameId = en.eventNameId
     WHERE
       el.eventVersion = $1
@@ -411,8 +414,8 @@ SELECT
         el.EventPayload as "EventPayload",
         el.commandId as "CommandId",
         el.eventTimestamp as "EventTimeStamp",
-        el.StreamVersion as "StreamVersion"
-    FROM
+        el.StreamVersion as "StreamVersion", el.MessageOriginJson AS MessageOriginJson
+        FROM
         event_log el JOIN event_name_id en ON el.eventNameId = en.eventNameId
     WHERE
         el.eventStreamId = $1
@@ -432,8 +435,8 @@ WITH last_event_range AS (
         el.StreamVersion,
         el.EventPayload,
         el.commandId,
-        el.eventTimestamp
-    FROM event_log el
+        el.eventTimestamp, el.MessageOriginJson AS MessageOriginJson
+        FROM event_log el
     WHERE el.eventStreamId = $1
       AND el.eventNameId = ANY($2)
     ORDER BY el.eventVersion DESC
@@ -447,8 +450,8 @@ SELECT
     el.EventPayload AS "EventPayload",
     el.commandId AS "CommandId",
     el.eventTimestamp AS "EventTimeStamp",
-    el.StreamVersion AS "StreamVersion"
-FROM last_event_range el
+    el.StreamVersion AS "StreamVersion", el.MessageOriginJson AS MessageOriginJson
+        FROM last_event_range el
 JOIN event_name_id en ON el.eventNameId = en.eventNameId
 ORDER BY el.eventVersion ASC;
 """;
@@ -476,8 +479,8 @@ last_event_range AS (
         el.StreamVersion,
         el.EventPayload,
         el.commandId,
-        el.eventTimestamp
-    FROM event_log el
+        el.eventTimestamp, el.MessageOriginJson AS MessageOriginJson
+        FROM event_log el
     CROSS JOIN latest_snapshot snapshot
     WHERE snapshot.snapshotVersion IS NOT NULL
       AND el.eventStreamId = $1
@@ -494,8 +497,8 @@ replay_range AS (
         el.StreamVersion,
         el.EventPayload,
         el.commandId,
-        el.eventTimestamp
-    FROM event_log el
+        el.eventTimestamp, el.MessageOriginJson AS MessageOriginJson
+        FROM event_log el
     CROSS JOIN latest_snapshot snapshot
     WHERE snapshot.snapshotVersion IS NOT NULL
       AND el.eventStreamId = $1
@@ -510,8 +513,8 @@ replay_range AS (
         StreamVersion,
         EventPayload,
         commandId,
-        eventTimestamp
-    FROM last_event_range
+        eventTimestamp, MessageOriginJson AS MessageOriginJson
+        FROM last_event_range
 )
 SELECT
     el.eventStreamId AS "EventStreamId",
@@ -521,8 +524,8 @@ SELECT
     el.EventPayload AS "EventPayload",
     el.commandId AS "CommandId",
     el.eventTimestamp AS "EventTimeStamp",
-    el.StreamVersion AS "StreamVersion"
-FROM replay_range el
+    el.StreamVersion AS "StreamVersion", el.MessageOriginJson AS MessageOriginJson
+        FROM replay_range el
 JOIN event_name_id en ON el.eventNameId = en.eventNameId
 ORDER BY el.eventVersion ASC;
 """;
@@ -842,9 +845,9 @@ ORDER BY el.eventVersion ASC;
         ), staged AS (
             INSERT INTO event_projector_outbox (
                 ProjectorName, EventId, EffectKind, MessageId, EventTypeName,
-                EventPayload, Status, AttemptCount, NextAttemptAtUtc, CreatedAtUtc, LastError)
+                EventPayload, Status, AttemptCount, NextAttemptAtUtc, CreatedAtUtc, LastError, MessageOriginJson)
             SELECT ProjectorName, EventId, $17, $18, $19,
-                   $20, 'Pending', 0, $21, $21, ''
+                   $20, 'Pending', 0, $21, $21, '', $22
             FROM transitioned
             ON CONFLICT (ProjectorName, EventId, EffectKind) DO NOTHING
         )
@@ -894,9 +897,9 @@ ORDER BY el.eventVersion ASC;
         ), staged AS (
             INSERT INTO event_projector_outbox (
                 ProjectorName, EventId, EffectKind, MessageId, EventTypeName,
-                EventPayload, Status, AttemptCount, NextAttemptAtUtc, CreatedAtUtc, LastError)
+                EventPayload, Status, AttemptCount, NextAttemptAtUtc, CreatedAtUtc, LastError, MessageOriginJson)
             SELECT ProjectorName, EventId, $15, $16, $17,
-                   $18, 'Pending', 0, $19, $19, ''
+                   $18, 'Pending', 0, $19, $19, '', $20
             FROM transitioned
             ON CONFLICT (ProjectorName, EventId, EffectKind) DO NOTHING
         )
@@ -942,7 +945,8 @@ ORDER BY el.eventVersion ASC;
             o.PublishedAtUtc as "PublishedAtUtc",
             o.LastError as "LastError",
             o.DispatchToken as "DispatchToken",
-            o.DispatchLeaseExpiresAtUtc as "DispatchLeaseExpiresAtUtc";
+            o.DispatchLeaseExpiresAtUtc as "DispatchLeaseExpiresAtUtc",
+            o.MessageOriginJson AS MessageOriginJson;
         """;
 
     public const string MarkEventProjectorOutboxPublished = """
@@ -1093,7 +1097,7 @@ ORDER BY el.eventVersion ASC;
             eps.LastCompletedStage as "LastCompletedStage",
             eps.UpdatedAtUtc as "UpdatedAtUtc",
             eps.BlockedStage as "BlockedStage",
-            eps.StreamVersion as "StateStreamVersion"
+            eps.StreamVersion as "StateStreamVersion", el.MessageOriginJson AS MessageOriginJson
         FROM event_projector_state eps
         JOIN event_log el ON el.EventVersion = eps.EventId
         JOIN event_name_id en ON en.EventNameId = el.EventNameId
@@ -1129,10 +1133,10 @@ ORDER BY el.eventVersion ASC;
             SELECT *
             FROM unnest(
                 $1::uuid[], $2::text[], $3::text[], $4::text[], $5::text[], $6::text[], $7::text[],
-                $8::bytea[], $9::smallint[], $10::integer[], $11::bytea[])
+                $8::bytea[], $9::smallint[], $10::integer[], $11::bytea[], $12::text[])
             WITH ORDINALITY AS i(
                 CommandId, StreamId, ActorName, CommandName, CommandTimestamp, CommandStatus, CommandData,
-                CommandPayload, CommandPayloadFormat, CommandPayloadVersion, CommandPayloadSha256, Ordinal)
+                CommandPayload, CommandPayloadFormat, CommandPayloadVersion, CommandPayloadSha256, MessageOriginJson, Ordinal)
         ),
         input AS (
             SELECT *, row_number() OVER (PARTITION BY CommandId ORDER BY Ordinal) AS CommandOccurrence
@@ -1141,9 +1145,9 @@ ORDER BY el.eventVersion ASC;
         inserted AS (
             INSERT INTO command_log (
                 CommandId, StreamId, ActorName, CommandName, CommandTimestamp, CommandStatus, CommandData,
-                CommandPayload, CommandPayloadFormat, CommandPayloadVersion, CommandPayloadSha256)
+                CommandPayload, CommandPayloadFormat, CommandPayloadVersion, CommandPayloadSha256, MessageOriginJson)
             SELECT CommandId, StreamId, ActorName, CommandName, CommandTimestamp, CommandStatus, CommandData,
-                   CommandPayload, CommandPayloadFormat, CommandPayloadVersion, CommandPayloadSha256
+                   CommandPayload, CommandPayloadFormat, CommandPayloadVersion, CommandPayloadSha256, MessageOriginJson
             FROM input
             WHERE CommandOccurrence = 1
             ORDER BY Ordinal
@@ -1172,7 +1176,7 @@ ORDER BY el.eventVersion ASC;
             el.EventPayload as "EventPayload",
             el.commandId as "CommandId",
             el.eventTimestamp as "EventTimestamp",
-            el.StreamVersion as "StreamVersion"
+            el.StreamVersion as "StreamVersion", el.MessageOriginJson AS MessageOriginJson
         FROM event_log el
         JOIN event_name_id en ON el.eventNameId = en.eventNameId
         JOIN event_projector_state eps
@@ -1251,7 +1255,8 @@ FROM snapshot_versions
             StreamVersion,
             EventPayload,
             CommandId,
-            EventTimestamp
+            EventTimestamp,
+            MessageOriginJson
         )
         SELECT
             $1,
@@ -1259,7 +1264,8 @@ FROM snapshot_versions
             next_stream_version.StreamVersion,
             $3,
             $4,
-            $5
+            $5,
+            $6
         FROM next_stream_version
         RETURNING EventVersion;
     """;
@@ -1279,7 +1285,8 @@ FROM snapshot_versions
             StreamVersion,
             EventPayload,
             CommandId,
-            EventTimestamp
+            EventTimestamp,
+            MessageOriginJson
         )
         SELECT
             $1,
@@ -1287,7 +1294,8 @@ FROM snapshot_versions
             next_stream_version.StreamVersion,
             $3,
             $4,
-            $5
+            $5,
+            $7
         FROM next_stream_version
         RETURNING EventVersion;
     """;

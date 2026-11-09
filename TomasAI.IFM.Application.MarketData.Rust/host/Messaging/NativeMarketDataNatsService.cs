@@ -57,8 +57,13 @@ public sealed class NativeMarketDataNatsService(IMarketDataApi api,MarketDataHos
                     // Retain the original subject while moving long history
                     // operations off the control slots used by startup seeds.
                     if (!bulkHistory.Writer.TryWrite(message))
-                        await message.ReplyAsync(new MarketDataHostReply([], "Native Host bulk history capacity exhausted. Retry with the same operation identity."),
+                    {
+                        var rejected = new MarketDataHostReply([], "Native Host bulk history capacity exhausted. Retry with the same operation identity.");
+                        await message.ReplyAsync(rejected,
+                            headers: TomasAI.IFM.Framework.Messaging.Nats.MessageOriginHeaders.Add(null,
+                                TomasAI.IFM.Shared.EventModelActor.MessageOrigins.ForPublication(rejected, clock)),
                             serializer: NatsMessagePackSerializer<MarketDataHostReply>.Default, cancellationToken: ct).ConfigureAwait(false);
+                    }
                     return;
                 }
                 await ReplyAsync(message, suffix == ".stop", ct).ConfigureAwait(false);
@@ -82,6 +87,8 @@ public sealed class NativeMarketDataNatsService(IMarketDataApi api,MarketDataHos
         try
         {
             var request = message.Data ?? throw new InvalidDataException("Missing market-data request.");
+            TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Restore(request,
+                TomasAI.IFM.Framework.Messaging.Nats.MessageOriginHeaders.Read(message.Headers));
             // Emergency work never waits for ordinary deduplication capacity.
             reply = await (emergency ? DispatchAsync(request, token) : JoinAsync(request, token)).ConfigureAwait(false);
         }
@@ -90,7 +97,10 @@ public sealed class NativeMarketDataNatsService(IMarketDataApi api,MarketDataHos
             logger.LogError(error, "Native Host RPC failed");
             reply = new([], TomasAI.IFM.Application.MarketData.Recovery.OptionFeedProcessingHealth.Redact(error.Message));
         }
-        await message.ReplyAsync(reply, serializer: NatsMessagePackSerializer<MarketDataHostReply>.Default,
+        var origin = TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Capture(reply, clock);
+        await message.ReplyAsync(reply,
+            headers: TomasAI.IFM.Framework.Messaging.Nats.MessageOriginHeaders.Add(null, origin),
+            serializer: NatsMessagePackSerializer<MarketDataHostReply>.Default,
             cancellationToken: token).ConfigureAwait(false);
     }
 
@@ -130,6 +140,7 @@ public sealed class NativeMarketDataNatsService(IMarketDataApi api,MarketDataHos
         try
         {
             var call=MarketDataHostConnection.Decode<MarketDataApiCall>(request.Payload);
+            TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(request, call);
             // Reject envelope/signature mismatches before invoking a potentially
             // billable or mutating API operation.
             var operation = request.Path.AsSpan(4);

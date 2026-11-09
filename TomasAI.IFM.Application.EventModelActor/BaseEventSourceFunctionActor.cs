@@ -377,21 +377,28 @@ public abstract class BaseEventSourceFunctionActor<
         var policy = ResolveExecutionPolicy(request, stage)
             ?? throw new InvalidOperationException("Function execution policy is required.");
         var deadline = policy.DeadlineUtc;
-        if (deadline is null) return await operation(callerToken).ConfigureAwait(false);
+        if (deadline is null && policy.PhysicalTimeout is null)
+            return await operation(callerToken).ConfigureAwait(false);
         var clock = policy.Clock;
-        var remaining = deadline.Value - clock.GetUtcNow().UtcDateTime;
-        if (remaining <= TimeSpan.Zero) throw new TimeoutException();
+        var remaining = deadline is { } at ? at - clock.GetUtcNow().UtcDateTime : Timeout.InfiniteTimeSpan;
+        if (deadline is not null && remaining <= TimeSpan.Zero) throw new TimeoutException();
         var workerCancellation = CancellationTokenSource.CreateLinkedTokenSource(callerToken);
         var cancellationTransferred = false;
         Task<T>? task = null;
         try
         {
             task = operation(workerCancellation.Token).AsTask();
-            var result = await task.WaitAsync(remaining, clock, callerToken).ConfigureAwait(false);
+            var logicalWait = deadline is null ? task : task.WaitAsync(remaining, clock, workerCancellation.Token);
+            // Preserve the single timer in ordinary System-clock Development. A controlled
+            // business clock must never disable the independent physical execution bound.
+            var result = ReferenceEquals(clock, policy.PhysicalClock) && policy.PhysicalTimeout is null
+                ? await logicalWait.ConfigureAwait(false)
+                : await logicalWait.WaitAsync(policy.PhysicalTimeout ?? remaining,
+                    policy.PhysicalClock, callerToken).ConfigureAwait(false);
             if (!preserveConfirmedCommit)
             {
                 callerToken.ThrowIfCancellationRequested();
-                if (clock.GetUtcNow().UtcDateTime >= deadline.Value) throw new TimeoutException();
+                if (deadline is { } expires && clock.GetUtcNow().UtcDateTime >= expires) throw new TimeoutException();
             }
             return result;
         }

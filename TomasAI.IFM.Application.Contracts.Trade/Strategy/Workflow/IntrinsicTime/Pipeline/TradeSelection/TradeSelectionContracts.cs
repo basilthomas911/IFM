@@ -280,8 +280,8 @@ public static partial class TradeSelectionContracts
         ArgumentNullException.ThrowIfNull(right);
         var leftResult = ReadResult(left.Result);
         var rightResult = ReadResult(right.Result);
-        var a = left with { EventId = 0, Result = StrategyStageResultEnvelope.CreateSelection(leftResult, 524288) };
-        var b = right with { EventId = 0, Result = StrategyStageResultEnvelope.CreateSelection(rightResult, 524288) };
+        var a = global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(left, left with { EventId = 0, Result = StrategyStageResultEnvelope.CreateSelection(leftResult, 524288) });
+        var b = global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(right, right with { EventId = 0, Result = StrategyStageResultEnvelope.CreateSelection(rightResult, 524288) });
         return string.Equals(EvidenceHash(a),EvidenceHash(b),StringComparison.Ordinal);
     }
 

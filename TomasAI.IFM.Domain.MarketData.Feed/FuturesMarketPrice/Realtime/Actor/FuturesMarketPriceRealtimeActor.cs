@@ -27,10 +27,14 @@ public class FuturesMarketPriceRealtimeActor(IRealtimeActorContext<FuturesMarket
         new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
         {
             [FuturesMarketPriceUpdatedRealtimeEvent.Verb] =
-            message => message.AsEvent<FuturesMarketPriceUpdatedRealtimeEvent>()! with
+            message =>
             {
-                SourceDataset = message.SourceDataset ?? string.Empty,
-                SourceGenerationId = message.SourceGenerationId
+                var value = message.AsEvent<FuturesMarketPriceUpdatedRealtimeEvent>()!;
+                return MessageOrigins.Copy(value, value with
+                {
+                    SourceDataset = message.SourceDataset ?? string.Empty,
+                    SourceGenerationId = message.SourceGenerationId
+                });
             }
         };
 

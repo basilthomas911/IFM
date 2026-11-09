@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -28,8 +28,8 @@ public class TradePlacementEventProducer : NatsEventProducer, ITradePlacementEve
     public TradePlacementEventProducer(
         INatsProducerOptions options,
         INatsJetStreamProducerOptions jetStreamOptions,
-        ILoggerFactory loggerFactory)
-        : base(options, jetStreamOptions, loggerFactory)
+        ILoggerFactory loggerFactory, TimeProvider? timeProvider = null)
+        : base(options, jetStreamOptions, loggerFactory, timeProvider)
     {
     }
 

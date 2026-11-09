@@ -45,7 +45,7 @@ public class FuturesItiIngressBenchmarks
                     NormalizedTradeAction.New, NormalizedTradeSide.Buy,
                     NormalizedTradeConditionFlags.None, Guid.Empty, 77))
         };
-        filtered = eligible with { UpdateSource = FuturesMarketPriceUpdateSource.Quote };
+        filtered = global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(eligible, eligible with { UpdateSource = FuturesMarketPriceUpdateSource.Quote });
     }
 
     /// <summary>Measures the allocation-free local eligibility predicate over the configured event count.</summary>

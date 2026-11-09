@@ -78,7 +78,7 @@ public sealed class PortfolioTradeValuationApi : IPortfolioTradeValuationApi
             Body = body,
             Access = access
         };
-        command = command with { InputSha256 = FinancialCanonicalHash.Request(command) };
+        command = global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(command, command with { InputSha256 = FinancialCanonicalHash.Request(command) });
         return await _actors.SendAsync<PostFundTransactionCommand, LedgerPortfolioId>(
             command, command.EntityId, cancellationToken).ConfigureAwait(false);
     }

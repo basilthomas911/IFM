@@ -17,10 +17,11 @@ namespace TomasAI.IFM.Domain.Portfolio.ReferencePreparation.Function.Actor;
 public sealed class PortfolioReferenceValidationFunctionActor(
     IFunctionActorContext<PortfolioReferenceValidationFunctionActor> context,
     IEventSourceFunctionStateRepository<PortfolioReferenceValidationFunctionState, ValidatePortfolioReferenceCommand> repository,
-    IReferenceQueryApi references, IPortfolioOperationalGuard guard, ILogger<PortfolioReferenceValidationFunctionActor> logger)
+    IReferenceQueryApi references, IPortfolioOperationalGuard guard, ILogger<PortfolioReferenceValidationFunctionActor> logger, TimeProvider? timeProvider = null)
     : BaseEventSourceFunctionActor<PortfolioReferenceValidationFunctionActor, ValidatePortfolioReferenceCommand, ActorEntityId, ActorEntityId,
         PortfolioReferenceValidationFunctionState, PortfolioReferenceValidationCompletedEvent, PortfolioReferenceValidationFailedEvent>(context, repository, null, logger)
 {
+    readonly TimeProvider businessClock = timeProvider ?? TimeProvider.System;
     public const string ActorName = ValidatePortfolioReferenceCommand.Actor;
 
     static readonly FrozenDictionary<string, Func<IActorMessage, ValidatePortfolioReferenceCommand>> _parseMap =
@@ -29,10 +30,10 @@ public sealed class PortfolioReferenceValidationFunctionActor(
             [ValidatePortfolioReferenceCommand.Verb] = message => message.AsCommand<ValidatePortfolioReferenceCommand>()!
         }.ToFrozenDictionary(StringComparer.Ordinal);
 
-    static readonly FrozenDictionary<Type, Func<ValidatePortfolioReferenceCommand, IReferenceQueryApi, IPortfolioOperationalGuard, CancellationToken, ValueTask<PortfolioReferenceValidationCompletedEvent>>> _receiveMap =
-        new Dictionary<Type, Func<ValidatePortfolioReferenceCommand, IReferenceQueryApi, IPortfolioOperationalGuard, CancellationToken, ValueTask<PortfolioReferenceValidationCompletedEvent>>>
+    static readonly FrozenDictionary<Type, Func<ValidatePortfolioReferenceCommand, IReferenceQueryApi, IPortfolioOperationalGuard, TimeProvider, CancellationToken, ValueTask<PortfolioReferenceValidationCompletedEvent>>> _receiveMap =
+        new Dictionary<Type, Func<ValidatePortfolioReferenceCommand, IReferenceQueryApi, IPortfolioOperationalGuard, TimeProvider, CancellationToken, ValueTask<PortfolioReferenceValidationCompletedEvent>>>
         {
-            [typeof(ValidatePortfolioReferenceCommand)] = static (request, referenceApi, operationalGuard, token) => request.ExecuteAsync(referenceApi, operationalGuard, token)
+            [typeof(ValidatePortfolioReferenceCommand)] = static (request, referenceApi, operationalGuard, clock, token) => request.ExecuteAsync(referenceApi, operationalGuard, token, clock)
         }.ToFrozenDictionary();
 
     static readonly FrozenDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
@@ -70,18 +71,18 @@ public sealed class PortfolioReferenceValidationFunctionActor(
     }
 
     protected override FunctionExecutionPolicy ResolveExecutionPolicy(ValidatePortfolioReferenceCommand request, FunctionFailureStage stage)
-        => DispatchMappedExecutionPolicy(request, stage, TimeProvider.System, _executionPolicyMap);
+        => DispatchMappedExecutionPolicy(request, stage, businessClock, _executionPolicyMap);
 
     protected override async ValueTask<FunctionResult<PortfolioReferenceValidationCompletedEvent, PortfolioReferenceValidationFailedEvent>> ExecuteFunctionAsync(
         IFunctionActorContext<PortfolioReferenceValidationFunctionActor> services, PortfolioReferenceValidationFunctionState state,
         ValidatePortfolioReferenceCommand request, CancellationToken cancellationToken)
     {
         var receive = ResolveMappedFunctionHandler(request, _receiveMap);
-        var completed = await receive(request, references, guard, cancellationToken).ConfigureAwait(false);
+        var completed = await receive(request, references, guard, businessClock, cancellationToken).ConfigureAwait(false);
         return FunctionResult<PortfolioReferenceValidationCompletedEvent, PortfolioReferenceValidationFailedEvent>.Complete(completed);
     }
 
     protected override FunctionResult<PortfolioReferenceValidationCompletedEvent, PortfolioReferenceValidationFailedEvent> HandleFunctionEvent(
         IFunctionActorContext<PortfolioReferenceValidationFunctionActor> services, FunctionEventContext<ValidatePortfolioReferenceCommand> input)
-        => DispatchMappedFunctionEvent(input, TimeProvider.System, _eventMap);
+        => DispatchMappedFunctionEvent(input, businessClock, _eventMap);
 }

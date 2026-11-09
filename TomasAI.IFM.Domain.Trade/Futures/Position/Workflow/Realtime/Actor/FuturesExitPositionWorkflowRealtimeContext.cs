@@ -7,13 +7,14 @@ namespace TomasAI.IFM.Domain.Trade.Futures.Position.Workflow.Realtime.Actor;
 public sealed class FuturesExitPositionWorkflowRealtimeContext : EventActorContext, IFuturesExitPositionWorkflowRealtimeContext
 {
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "This typed context adapts services for its actor and intentionally retains the actor logger category.")]
-    public FuturesExitPositionWorkflowRealtimeContext(IActorSupervisor supervisor, IDbContextFactory dbFactory, ILogger<FuturesExitPositionWorkflowRealtimeActor> logger) : base(supervisor, new(ActorType.Realtime, FuturesExitPositionWorkflowRealtimeActor.ActorName))
+    public FuturesExitPositionWorkflowRealtimeContext(IActorSupervisor supervisor, IDbContextFactory dbFactory, ILogger<FuturesExitPositionWorkflowRealtimeActor> logger, TimeProvider? timeProvider = null) : base(supervisor, new(ActorType.Realtime, FuturesExitPositionWorkflowRealtimeActor.ActorName))
     {
+        TimeProvider = timeProvider ?? TimeProvider.System;
         DbFactory = dbFactory;
         Logger = logger;
     }
 
     public IDbContextFactory DbFactory { get; }
-    public TimeProvider TimeProvider { get; } = TimeProvider.System;
+    public TimeProvider TimeProvider { get; }
     public ILogger<FuturesExitPositionWorkflowRealtimeActor> Logger { get; }
 }

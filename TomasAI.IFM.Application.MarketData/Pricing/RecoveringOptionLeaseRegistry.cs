@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Shared.Diagnostics;
+using TomasAI.IFM.Shared.Diagnostics;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Shared.MarketData.Contracts.Ticker;
@@ -8,8 +8,10 @@ namespace TomasAI.IFM.Application.MarketData.Pricing;
 /// <summary>Retains requested option ownership independently of replaceable worker leases.</summary>
 public sealed class RecoveringOptionLeaseRegistry(
     IRecoverableOptionDiscovery discovery, DatasetWorkerAdmissionRegistry admissions,
-    IndividualOptionRiskReader? riskReader = null, ILogger? logger = null, Recovery.OptionFeedProcessingHealth? health = null) : IAsyncDisposable
+    IndividualOptionRiskReader? riskReader = null, ILogger? logger = null, Recovery.OptionFeedProcessingHealth? health = null, TimeProvider? clock = null) : IAsyncDisposable
 {
+    readonly TimeProvider businessClock = clock ?? TimeProvider.System;
+
     sealed class Registration(CompositionDiscoveryRequest request)
     {
         public CompositionDiscoveryRequest Request { get; set; } = request;
@@ -109,7 +111,7 @@ public sealed class RecoveringOptionLeaseRegistry(
         // Stable request identity makes an uncertain acknowledgement retry idempotent in this generation.
         var acquired = await discovery.AcquireAsync(request with
         {
-            GenerationId = current.GenerationId, DeadlineUtc = DateTimeOffset.UtcNow.AddSeconds(60)
+            GenerationId = current.GenerationId, DeadlineUtc = businessClock.GetUtcNow().AddSeconds(60)
         }, deadline.Token, renewAutomatically: true).WaitAsync(deadline.Token).ConfigureAwait(false);
         if (acquired.Lease is not { } lease || acquired.Failure is not null)
         {

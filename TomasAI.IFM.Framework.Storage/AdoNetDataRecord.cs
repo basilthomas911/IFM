@@ -27,6 +27,22 @@ public sealed class AdoNetDataRecord : IObjectDataRecord
     }
 
     /// <inheritdoc />
+    public bool TryGetString(string columnName, out string? value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(columnName);
+        // Optional metadata is appended to SELECT lists. Fast-path the last column
+        // while retaining compatibility with queries whose projection orders differ.
+        for (var index = _reader.FieldCount - 1; index >= 0; index--)
+        {
+            if (!string.Equals(_reader.GetName(index), columnName, StringComparison.OrdinalIgnoreCase)) continue;
+            value = _reader.IsDBNull(index) ? null : _reader.GetString(index);
+            return true;
+        }
+        value = null;
+        return false;
+    }
+
+    /// <inheritdoc />
     public bool IsNull(int index) => _reader.IsDBNull(index);
 
     /// <inheritdoc />

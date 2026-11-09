@@ -15,7 +15,7 @@ if(string.IsNullOrWhiteSpace(builder.Configuration["urls"])&&string.IsNullOrWhit
 builder.Logging.ClearProviders().AddSerilog(NativeHostLogging.Create(builder.Configuration),dispose:true);
 builder.Services.Configure<HostOptions>(options=>options.ShutdownTimeout=TimeSpan.FromMinutes(2));
 builder.Services.AddSingleton<NatsConnectionManager>();
-builder.Services.AddSingleton(p=>new MarketDataHostConnection(p.GetRequiredService<NatsConnectionManager>(),builder.Configuration["MarketDataHost:NatsUrl"]??"nats://127.0.0.1:4222",builder.Configuration["MarketDataHost:Scope"]??"development"));
+builder.Services.AddSingleton(p=>new MarketDataHostConnection(p.GetRequiredService<NatsConnectionManager>(),builder.Configuration["MarketDataHost:NatsUrl"]??"nats://127.0.0.1:4222",builder.Configuration["MarketDataHost:Scope"]??"development",p.GetRequiredService<TimeProvider>(),p.GetRequiredService<TomasAI.IFM.Shared.Time.PhysicalTime>()));
 builder.Services.AddNativeMarketDataBackend(builder.Configuration);
 await using var app=builder.Build();
 app.MapGet("/health/live",()=>Results.Ok(new{Status="Healthy",Implementation="RustFFI"}));

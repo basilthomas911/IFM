@@ -210,19 +210,23 @@ public sealed partial class MarkerProjectorPipelineTests(MarkerProjectorFixture 
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task Real_outbox_retries_publication_with_stable_identity_without_reapplying_target(bool batched)
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task Real_outbox_retries_publication_with_stable_identity_without_reapplying_target(bool batched, bool legacy)
     {
         var name = "MarkerPipeline." + Guid.NewGuid().ToString("N");
-        var stream = await Append(batched, name, 1);
+        var stream = await Append(batched, name, 1, captureOrigin: !legacy);
         var context = Substitute.For<ICommandActorContext>();
         var publications = new ConcurrentQueue<Guid>();
+        var origins = new ConcurrentQueue<TomasAI.IFM.Shared.EventModelActor.MessageOrigin?>();
         var attempts = 0;
         context.SendAsync<ProbeEvent, ActorEntityId>(Arg.Any<ProbeEvent>(), Arg.Any<CancellationToken>())
             .Returns(call =>
             {
                 publications.Enqueue(call.ArgAt<ProbeEvent>(0).Id);
+                origins.Enqueue(TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Get(call.ArgAt<ProbeEvent>(0)));
                 if (Interlocked.Increment(ref attempts) == 1) throw new InvalidOperationException("Injected transport failure");
                 return ValueTask.CompletedTask;
             });
@@ -236,6 +240,9 @@ public sealed partial class MarkerProjectorPipelineTests(MarkerProjectorFixture 
                 "SELECT count(*) FROM event_projector_outbox WHERE projectorname=$1 AND status='Published'", name)) != 1)
                 await Task.Delay(10, deadline.Token);
             Assert.Equal(2, attempts);
+            if (legacy) Assert.All(origins, value => Assert.Null(value));
+            else Assert.All(origins, value => Assert.NotNull(value));
+            Assert.Single(origins.Distinct());
             Assert.Single(publications.Distinct());
             Assert.Equal(2L, Convert.ToInt64(await fixture.Sql(
                 "SELECT attemptcount FROM event_projector_outbox WHERE projectorname=$1", name)));
@@ -244,18 +251,24 @@ public sealed partial class MarkerProjectorPipelineTests(MarkerProjectorFixture 
             Assert.Equal(1L, Convert.ToInt64(await fixture.Sql(
                 "SELECT count(*) FROM event_projector_outbox WHERE projectorname=$1", name)));
             Assert.Equal(2, attempts);
+            if (legacy) Assert.All(origins, value => Assert.Null(value));
+            else Assert.All(origins, value => Assert.NotNull(value));
+            Assert.Single(origins.Distinct());
         }
         finally { await projector.StopAsync(); }
     }
 
     sealed record Stream(long Id, string Projector, ProbeEvent[] Events);
-    async Task<Stream> Append(bool batched, string projector, int count)
+    async Task<Stream> Append(bool batched, string projector, int count, bool captureOrigin = true)
     {
         var streamName = "MarkerPipeline.Stream." + Guid.NewGuid().ToString("N");
         var id = await fixture.Storage.ActorEventDb.GetEventStreamIdAsync(streamName);
         var commandId = Guid.NewGuid();
         var events = Enumerable.Range(1, count).Select(value => new ProbeEvent
         { AggregateId = streamName, CommandId = commandId, Value = value, Projector = projector }).ToArray();
+        if (captureOrigin)
+            foreach (var source in events)
+                TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Capture(source, fixture.Storage.ActorEventDb.BusinessClock);
         var eventName = await fixture.Storage.ActorEventDb.GetEventNameIdFromDomainEventAsync(events[0]);
         var layout = EventLogSqlLayout.ForBenchmark(fixture.Provider, batched);
         await using var writer = new BinaryCopyEventLogAppender(fixture.Provider, true,

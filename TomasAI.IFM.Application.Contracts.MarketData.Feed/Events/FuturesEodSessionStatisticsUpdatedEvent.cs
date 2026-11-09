@@ -115,7 +115,7 @@ public sealed record FuturesEodSessionStatisticsUpdatedEvent : IEvent<FuturesEod
                 EntityId.Format()),
             EntityId = EntityId,
             Id = Id,
-            ErrorDate = DateTime.UtcNow,
+            ErrorDate = default,
             EventId = EventId,
             CommandId = CommandId,
             EventSource = EventSource,

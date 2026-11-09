@@ -29,6 +29,7 @@ internal static class CommandAuditPostgres
         Add(command, envelopes.Select(static item => (short)item.Payload.Format).ToArray());
         Add(command, envelopes.Select(static item => item.Payload.Version).ToArray());
         Add(command, envelopes.Select(static item => item.Payload.Sha256).ToArray());
+        Add(command, envelopes.Select(static item => TomasAI.IFM.Shared.EventModelActor.MessageOriginJson.Serialize(item.Origin)).ToArray());
 
         var results = new CommandAuditWriteResult[envelopes.Count];
         var reader = await command.ExecuteReaderAsync(cancellationToken)

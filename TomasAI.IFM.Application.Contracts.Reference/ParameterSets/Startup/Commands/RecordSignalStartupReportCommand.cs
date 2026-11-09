@@ -49,7 +49,7 @@ public sealed record RecordSignalStartupReportCommand : IParameterStartupMutatio
     [IgnoreMember] public string StreamId => Subject.StreamId;
     [IgnoreMember] public string EventSource => Actor;
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "This instance property implements command or exception metadata required by the published interface.")]
-    [IgnoreMember] public DateTime OriginatedOn => DateTime.UtcNow;
+    [IgnoreMember] public DateTime OriginatedOn => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Get(this)?.OriginatedAtUtc.UtcDateTime ?? default;
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "This instance property implements command or exception metadata required by the published interface.")]
     [IgnoreMember] public string OriginatedBy => $"{Environment.UserDomainName}\\{Environment.UserName}";
     /// <summary>Preserves intent while refreshing evidence or migrating the known registry address.</summary>
@@ -60,7 +60,7 @@ public sealed record RecordSignalStartupReportCommand : IParameterStartupMutatio
             && Subject.ActorType == ActorType.Command && Subject.Name == Actor && Subject.Verb == Verb)
         {
             var id = new ParameterStartupEntityId(RunId);
-            normalized = normalized with { EntityId = id, Subject = Subject with { EntityId = id.Format() } };
+            normalized = global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(normalized, normalized with { EntityId = id, Subject = Subject with { EntityId = id.Format() } });
         }
         return normalized;
     }

@@ -78,7 +78,7 @@ public sealed class LatestMarketOutlookSnapshotPublisher(
             EventSource = string.IsNullOrWhiteSpace(update.EventSource)
                 ? nameof(LatestMarketOutlookSnapshotPublisher)
                 : update.EventSource,
-            ReceivedOn = DateTime.UtcNow,
+
             MarketOutlook = latest
         };
         if (!notification.IsValid)

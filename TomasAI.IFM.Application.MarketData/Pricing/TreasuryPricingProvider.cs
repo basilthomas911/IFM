@@ -7,13 +7,15 @@ public sealed class TreasuryPricingProvider : IDisposable
 {
     readonly ITreasuryCurve source;
     readonly TimeProvider clock;
+    readonly TimeProvider physicalClock;
     readonly TimeSpan refreshInterval;
     readonly TimeSpan fetchTimeout;
     readonly SemaphoreSlim refresh = new(1, 1);
     TreasuryCurveSnapshot? cached;
     DateTimeOffset retryAfter;
-    public TreasuryPricingProvider(ITreasuryCurve source, TimeProvider? clock = null, TimeSpan? refreshInterval = null, TimeSpan? fetchTimeout = null)
+    public TreasuryPricingProvider(ITreasuryCurve source, TimeProvider? clock = null, TimeSpan? refreshInterval = null, TimeSpan? fetchTimeout = null, TomasAI.IFM.Shared.Time.PhysicalTime? physicalTime = null)
     {
+        physicalClock = physicalTime?.Provider ?? TimeProvider.System;
         this.source = source ?? throw new ArgumentNullException(nameof(source));
         this.clock = clock ?? TimeProvider.System;
         this.refreshInterval = refreshInterval ?? TimeSpan.FromMinutes(1);
@@ -42,7 +44,7 @@ public sealed class TreasuryPricingProvider : IDisposable
             return new(null, default, "TreasuryPublicationCoverageUnavailable");
         }
 
-        using var timeout = new CancellationTokenSource(fetchTimeout, clock);
+        using var timeout = new CancellationTokenSource(fetchTimeout, physicalClock);
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(timeout.Token, cancellationToken);
         try
         {

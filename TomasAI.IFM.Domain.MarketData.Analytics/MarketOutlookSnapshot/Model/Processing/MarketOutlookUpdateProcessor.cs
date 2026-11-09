@@ -31,9 +31,10 @@ public sealed class MarketOutlookUpdateProcessor(
     IMarketOutlookSnapshotPublisher publisher,
     MarketOutlookProcessorMetrics metrics,
     ILogger<MarketOutlookUpdateProcessor> logger,
-    IMarketDataOperationsRecorder? operationsRecorder = null)
+    IMarketDataOperationsRecorder? operationsRecorder = null, TimeProvider? timeProvider = null)
     : BackgroundService, IMarketOutlookOperations
 {
+    readonly TimeProvider businessClock = timeProvider ?? TimeProvider.System;
     int processing;
 
     public bool IsReady => metrics.GetSnapshot(reader).IsProcessorReady;
@@ -175,7 +176,7 @@ public sealed class MarketOutlookUpdateProcessor(
         ArgumentNullException.ThrowIfNull(entityId);
         if (!readCache.TryGetInputs(entityId, out var state))
             return false;
-        var now = DateTime.UtcNow;
+        var now = businessClock.GetUtcNow().UtcDateTime;
         writer.Submit(new RecomposeMarketOutlookUpdate
         {
             UpdateId = Guid.NewGuid(),
@@ -192,7 +193,7 @@ public sealed class MarketOutlookUpdateProcessor(
     async ValueTask ProcessAsync(MarketOutlookUpdate update, CancellationToken cancellationToken)
     {
         var started = Stopwatch.GetTimestamp();
-        var queueLatency = DateTime.UtcNow - NormalizeUtc(update.ReceivedAtUtc);
+        var queueLatency = Stopwatch.GetElapsedTime(update.EnqueuedTimestamp);
         var result = Apply(update);
         RecordComposition(update, started, queueLatency);
 
@@ -278,7 +279,7 @@ public sealed class MarketOutlookUpdateProcessor(
             NormalizeUtc(update.MarketDataAsOfUtc),
             update.StreamEpochId,
             update.StreamOrdinal);
-        var now = DateTime.UtcNow;
+        var now = businessClock.GetUtcNow().UtcDateTime;
 
         if (update is RsiMarketOutlookUpdate or TdiMarketOutlookUpdate or ItiMarketOutlookUpdate
             or EmaMarketOutlookUpdate or BollingerBandMarketOutlookUpdate or VwapMarketOutlookUpdate
@@ -463,7 +464,7 @@ public sealed class MarketOutlookUpdateProcessor(
     {
         var trade = update.PriceUpdate.Price.Trade!.Value;
         MarketOutlookDailyPreviewCalculator.TryCalculate(update.PriceUpdate, out var liveEma, out var liveBb,
-            out var priorStandardDeviation);
+            out var priorStandardDeviation, businessClock);
         return Write(
             update,
             [new(CacheComponentType.EsTrade, position)],

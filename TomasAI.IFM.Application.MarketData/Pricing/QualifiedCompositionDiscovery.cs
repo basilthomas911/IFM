@@ -12,9 +12,10 @@ namespace TomasAI.IFM.Application.MarketData.Pricing;
 /// Application entry point from a complete definition scope to a worker-owned qualified chain.
 /// Reference lookup and Treasury I/O run here, never inside a worker quote callback.
 /// </summary>
-public sealed class QualifiedCompositionDiscovery(EuropeanOptionUniverse universe, IOptionPricingContextProvider contexts, ICompositionMarketDataApi market, TimeProvider? time = null, ILogger<QualifiedCompositionDiscovery>? logger = null, ICompositionRoutePlanStore? routePlans = null, DatasetDesiredSubscriptionRegistry? desired = null, Contracts.IOptionChainStatisticsStore? statistics = null, Recovery.OptionFeedProcessingHealth? health = null) : IAsyncDisposable, IRecoverableOptionDiscovery
+public sealed class QualifiedCompositionDiscovery(EuropeanOptionUniverse universe, IOptionPricingContextProvider contexts, ICompositionMarketDataApi market, TimeProvider? time = null, ILogger<QualifiedCompositionDiscovery>? logger = null, ICompositionRoutePlanStore? routePlans = null, DatasetDesiredSubscriptionRegistry? desired = null, Contracts.IOptionChainStatisticsStore? statistics = null, Recovery.OptionFeedProcessingHealth? health = null, TomasAI.IFM.Shared.Time.PhysicalTime? physicalTime = null) : IAsyncDisposable, IRecoverableOptionDiscovery
 {
     readonly TimeProvider clock = time ?? TimeProvider.System;
+    readonly TimeProvider physicalClock = physicalTime?.Provider ?? TimeProvider.System;
     readonly ConcurrentDictionary<Guid, RefreshRegistration> registrations = new();
     readonly CancellationTokenSource stopping = new();
     readonly System.Threading.Lock lifecycle = new();
@@ -34,7 +35,7 @@ public sealed class QualifiedCompositionDiscovery(EuropeanOptionUniverse univers
         var maximumDiscoveryWait = request.Definitions.Count > 80 ? TimeSpan.FromSeconds(45) : TimeSpan.FromSeconds(10);
         if (wait > maximumDiscoveryWait)
             wait = maximumDiscoveryWait;
-        using var timeout = new CancellationTokenSource(wait, clock);
+        using var timeout = new TomasAI.IFM.Shared.Time.ClockDeadline(wait, clock, physicalClock);
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
         OptionPricingFailure? lastUnderlyingFailure = null;
         try
@@ -133,7 +134,7 @@ public sealed class QualifiedCompositionDiscovery(EuropeanOptionUniverse univers
             while (string.Equals(acquired.Failure?.Code, "UnderlyingQuoteUnavailable", StringComparison.Ordinal))
             {
                 lastUnderlyingFailure = acquired.Failure;
-                await Task.Delay(TimeSpan.FromMilliseconds(25), clock, linked.Token).ConfigureAwait(false);
+                await Task.Delay(TimeSpan.FromMilliseconds(25), physicalClock, linked.Token).ConfigureAwait(false);
                 acquired = await market.AcquireAsync("GLBX.MDP3", lease, linked.Token).ConfigureAwait(false);
             }
 
@@ -223,7 +224,7 @@ public sealed class QualifiedCompositionDiscovery(EuropeanOptionUniverse univers
     public async Task<CompositionContextRefreshResult> RefreshAsync(WorkerOptionChainRequest lease, OptionPricingCalendar calendar, TreasuryPublicationPolicy publication, TreasuryRateConversionPolicy conversion, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(lease);
-        using var timeout = new CancellationTokenSource(lease.Options.Length > 80 ? TimeSpan.FromSeconds(45) : TimeSpan.FromSeconds(10), clock);
+        using var timeout = new CancellationTokenSource(lease.Options.Length > 80 ? TimeSpan.FromSeconds(45) : TimeSpan.FromSeconds(10), physicalClock);
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
         var values = ImmutableArray.CreateBuilder<WorkerOptionDefinition>(lease.Options.Length);
         foreach (var option in lease.Options.OrderBy(x => x.Pricing.Contract.ContractId, StringComparer.Ordinal))

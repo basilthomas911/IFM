@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.Portfolio.Shared.Common;
+using TomasAI.IFM.Domain.Portfolio.Shared.Common;
 using TomasAI.IFM.Domain.Portfolio.FinancialPolicy.Command.Validation;
 using TomasAI.IFM.Domain.Portfolio.Shared.Preparation;
 using Microsoft.Extensions.Logging;
@@ -29,9 +29,10 @@ public sealed class PortfolioFinancialPolicyCommandActor(
     IEventProjector<PortfolioCommandActor> portfolioProjector,
     IEventProjector<PortfolioFinancialPolicyCommandActor> projector,
     IPortfolioOperationalGuard operationalGuard,
-    ILogger<PortfolioFinancialPolicyCommandActor> logger)
+    ILogger<PortfolioFinancialPolicyCommandActor> logger, TimeProvider? timeProvider = null)
     : BaseEventSourceCommandActor<PortfolioFinancialPolicyCommandActor>(context, logger)
 {
+    readonly TimeProvider businessClock = timeProvider ?? TimeProvider.System;
     public const string ActorName = CreatePortfolioFinancialPolicyCommand.Actor;
     IPortfolioEventStore GetEventStore() => events;
     IEventProjector<PortfolioCommandActor> GetPortfolioProjector() => portfolioProjector;
@@ -110,7 +111,7 @@ public sealed class PortfolioFinancialPolicyCommandActor(
                     (createEvent, conflict) => actor.CommitPolicyMutationAsync(state, (AddPortfolioFinancialPolicyVersionCommand)command, createEvent, conflict, cancellationToken)),
             [typeof(ActivateAndAssignPortfolioFinancialPolicyCommand)] = static (actor, command, state, principal, cancellationToken) =>
                 ((ActivateAndAssignPortfolioFinancialPolicyCommand)command).ExecuteAsync(state.Aggregate, state.PolicyId,
-                    actor.GetEventStore(), actor.GetPortfolioProjector(), actor.GetProjector(), actor.Logger, principal, cancellationToken),
+                    actor.GetEventStore(), actor.GetPortfolioProjector(), actor.GetProjector(), actor.Logger, principal, cancellationToken, actor.businessClock),
             [typeof(RetirePortfolioFinancialPolicyCommand)] = static (actor, command, state, principal, cancellationToken) =>
                 ((RetirePortfolioFinancialPolicyCommand)command).ExecuteAsync(state.Aggregate, principal,
                     (createEvent, conflict) => actor.CommitPolicyMutationAsync(state, (RetirePortfolioFinancialPolicyCommand)command, createEvent, conflict, cancellationToken)),
@@ -196,7 +197,7 @@ public sealed class PortfolioFinancialPolicyCommandActor(
                 return new ServiceFailed<GuidResult>(PortfolioErrorCodes.IdempotencyConflict, "IdempotencyKeyConflict: the command was committed for a different policy payload.");
             return new ServiceOk<GuidResult>(new(command.CommandId));
         }
-        var now = DateTime.UtcNow;
+        var now = businessClock.GetUtcNow().UtcDateTime;
         // Retirement/deletion reference checks use the current Portfolio projection inside the append fence.
         var acceptance = applyPolicyChange(false, now);
         if (!acceptance.Success) return acceptance;

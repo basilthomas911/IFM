@@ -11,4 +11,7 @@ using TomasAI.IFM.Shared.Validation;
 namespace TomasAI.IFM.Domain.Portfolio.CapacityReservation.Emulator.Command;
 
 public sealed record EmulatorExecutionCommandServices(EmulatorExecutionStore Store, IPortfolioDbReadContext Database,
-    IEventProjector<EmulatorExecutionCommandActor> Projector, ILogger<EmulatorExecutionCommandActor> Logger);
+    IEventProjector<EmulatorExecutionCommandActor> Projector, ILogger<EmulatorExecutionCommandActor> Logger, TimeProvider? timeProvider = null)
+{
+    public TimeProvider Clock { get; } = timeProvider ?? TimeProvider.System;
+}

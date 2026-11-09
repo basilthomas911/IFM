@@ -73,10 +73,10 @@ public static class RiskPreparation
             IncrementalLossReserve = parameters.IncrementalLossReserve,
             Funding = EmulatorMarginModel.Quote(parameters, candidate, financial.ExecutionAccountReference, financial.Environment, now, expiry)
         };
-        request = request with
+        request = global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(request, request with
         {
             InputSha256 = request.Fingerprint()
-        };
+        });
         var validation = new List<ValidationError>().ValidateRiskFields(request);
         RiskUnitModel.Require(validation.Count == 0, validation.Count == 0 ? "RM.PREPARATION.INVALID" : $"RM.PREPARATION.INVALID:{string.Join(',', validation.Select(x => x.ErrorMessage))}");
         return request;

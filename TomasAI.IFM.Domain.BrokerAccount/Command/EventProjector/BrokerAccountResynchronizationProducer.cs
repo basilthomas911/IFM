@@ -18,9 +18,10 @@ internal static class BrokerAccountResynchronizationProducer
 
     internal static async ValueTask<EventProjectionApplyResult> SendAsync(
         BrokerAccountResynchronizationRequestedEvent request, ITradeBroker broker,
-        IActorService actorService, IEventSourceActorDbContext eventSource, CancellationToken cancellationToken)
+        IActorService actorService, IEventSourceActorDbContext eventSource, CancellationToken cancellationToken, TimeProvider? timeProvider = null)
     {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(RequestBudget);
         try
         {
             var subject = new ActorSubject(ActorType.Event, BrokerAccountActorNames.Event,
@@ -38,7 +39,7 @@ internal static class BrokerAccountResynchronizationProducer
                     ? new(EventProjectionApplyOutcome.AlreadyApplied)
                     : new(EventProjectionApplyOutcome.Failed, preparation.FailureReason);
 
-            var remaining = RequestBudget - (DateTime.UtcNow - request.RequestedAtUtc);
+            var remaining = RequestBudget - ((timeProvider ?? TimeProvider.System).GetUtcNow().UtcDateTime - request.RequestedAtUtc);
             if (remaining <= TimeSpan.Zero || remaining > RequestBudget)
                 return new(EventProjectionApplyOutcome.Failed, "BrokerAccount.RESYNC.DEADLINE_EXPIRED");
             deadline.CancelAfter(remaining);
@@ -56,7 +57,7 @@ internal static class BrokerAccountResynchronizationProducer
                     CommandId = request.CommandId,
                     AggregateId = subject.EntityId,
                     EventSource = nameof(BrokerAccountResynchronizationProducer),
-                    ReceivedOn = DateTime.UtcNow,
+
                     Environment = broker.Environment
                 };
                 await eventSource.SaveEventsAsync(subject.StreamId, request.CommandId, new DomainEventCollection([attempt]),

@@ -1,4 +1,4 @@
-﻿using System.Security.Cryptography;
+using System.Security.Cryptography;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.MarketData.Contracts.Historical;
 using TomasAI.IFM.Application.MarketData.Historical;
@@ -34,7 +34,7 @@ public static class FuturesAnalyticsHistoricalDataLoaderRequested
             if (existing?.Status != HistoricalDataLoaderStatus.Completed
                 && requested.FuturesAnalyticsHistoricalDataLoaderParameters.AutomaticStartupWarmup
                 && requested.ReceivedOn != default
-                && DateTime.UtcNow - DateTime.SpecifyKind(requested.ReceivedOn, DateTimeKind.Utc)
+                && (context.Container?.Resolve<TimeProvider>() ?? TimeProvider.System).GetUtcNow().UtcDateTime - DateTime.SpecifyKind(requested.ReceivedOn, DateTimeKind.Utc)
                     > AutomaticRequestMaximumAge)
             {
                 global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write26(logger, null, requested.EntityId.Value, requested.ReceivedOn);
@@ -93,7 +93,7 @@ public static class FuturesAnalyticsHistoricalDataLoaderRequested
                     DataLoadAttemptId = requested.EntityId.Value,
                     Stage = HistoricalAcquisitionStage.None
                 },
-                UpdatedAtUtc = DateTimeOffset.UtcNow
+                UpdatedAtUtc = (context.Container?.Resolve<TimeProvider>() ?? TimeProvider.System).GetUtcNow()
             }, CancellationToken.None).ConfigureAwait(false);
             global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write28(logger, null, requested.EntityId.Value);
             var warmupResult = await context.WarmupService.EnsureAsync(
@@ -110,7 +110,7 @@ public static class FuturesAnalyticsHistoricalDataLoaderRequested
                 }) with { DataLoadAttemptId = requested.EntityId.Value, Stage = HistoricalAcquisitionStage.Completed },
                 Manifest = lastLoad?.Manifest,
                 Audit = lastLoad?.Audit ?? new HistoricalDataLoaderAudit(warmupResult.ValidSessionCount, [], []),
-                UpdatedAtUtc = DateTimeOffset.UtcNow
+                UpdatedAtUtc = (context.Container?.Resolve<TimeProvider>() ?? TimeProvider.System).GetUtcNow()
             };
             await context.DataLoaderStore.SaveAsync(state, CancellationToken.None).ConfigureAwait(false);
             global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write29(logger, null, warmupResult.Outcome, warmupResult.StartDate, warmupResult.EndDate, warmupResult.ValidSessionCount, warmupResult.MissingSessionCount);
@@ -137,7 +137,7 @@ public static class FuturesAnalyticsHistoricalDataLoaderRequested
             {
                 Status = HistoricalDataLoaderStatus.Failed,
                 ErrorMessage = exception.Message,
-                UpdatedAtUtc = DateTimeOffset.UtcNow
+                UpdatedAtUtc = (context.Container?.Resolve<TimeProvider>() ?? TimeProvider.System).GetUtcNow()
             };
             await context.DataLoaderStore.SaveAsync(state, CancellationToken.None)
                 .ConfigureAwait(false);

@@ -37,7 +37,7 @@ public sealed record FuturesBbSignalGeneratedFailEvent : IErrorEvent<FuturesTrad
         Subject = new(ActorType.Event, FuturesBbSignalGeneratedEvent.Actor, Verb, source.EntityId.Format()),
         EntityId = source.EntityId,
         Id = source.Id,
-        ErrorDate = DateTime.UtcNow,
+        ErrorDate = default,
         EventId = source.EventId,
         CommandId = source.CommandId,
         EventSource = source.EventSource,

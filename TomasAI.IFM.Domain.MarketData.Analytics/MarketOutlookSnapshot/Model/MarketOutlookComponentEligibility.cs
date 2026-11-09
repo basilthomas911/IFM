@@ -162,7 +162,7 @@ internal static class MarketOutlookComponentEligibility
         var atr = SelectComponent(source.FuturesAtrSignal, source.EntityId, IsEligible, rejected, "atr-profile");
         var macd = SelectComponent(source.FuturesMacdSignal, source.EntityId, IsEligible, rejected, "macd-profile");
         reason = rejected.Count == 0 ? string.Empty : string.Join(", ", rejected);
-        return source with
+        return global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(source, source with
         {
             FuturesRsiSignal = rsi,
             FuturesTdiSignal = tdi,
@@ -175,7 +175,7 @@ internal static class MarketOutlookComponentEligibility
             FuturesAdxSignal = adx,
             FuturesAtrSignal = atr,
             FuturesMacdSignal = macd
-        };
+        });
     }
     /// <summary>Removes an incompatible component and records its exact rejection code; valid siblings remain eligible.</summary>
     static T? SelectComponent<T>(T? component, MarketOutlookEntityId entityId,

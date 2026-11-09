@@ -48,5 +48,5 @@ public sealed record AdvanceRiskFinancialHandoffCommand : ICommand<IntrinsicTime
     [IgnoreMember] public string StreamId => Subject.StreamId;
     [IgnoreMember] public string EventSource => $"{Actor}Actor";
     /// <summary>Retains the exact checkpoint request when the producer refreshes its read evidence.</summary>
-    public ICommand ForRetryIdentity() => this with { FundOrder = null, Financial = null, ReservationReceipt = null, FundReceipt = null, ReservationReceiptOperationId = null };
+    public ICommand ForRetryIdentity() => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(this, this with { FundOrder = null, Financial = null, ReservationReceipt = null, FundReceipt = null, ReservationReceiptOperationId = null });
 }

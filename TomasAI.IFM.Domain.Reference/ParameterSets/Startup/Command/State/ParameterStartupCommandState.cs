@@ -32,7 +32,7 @@ public sealed class ParameterStartupCommandState : BaseEventSourceActorState<Par
         Id = Guid.NewGuid(),
         CommandId = command.CommandId,
         EventSource = command.EventSource,
-        ReceivedOn = DateTime.UtcNow,
+
         RunId = RunId,
         Revision = Revision,
         Released = Released,

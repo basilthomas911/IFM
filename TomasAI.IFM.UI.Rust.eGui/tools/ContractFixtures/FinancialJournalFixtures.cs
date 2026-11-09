@@ -9,14 +9,14 @@ internal static class FinancialJournalFixtures {
  public static readonly Guid ConfigurationId=Guid.Parse("a5ff011f-c20e-40b5-bba7-0ab1baf28cf8");
  public static void Export(string output){
   var posting=new PostFundTransactionCommand{OperationId=PostingId,CommandId=PostingId,PortfolioId=1,EntityId=new(1),RequestedAtUtc=StrategyFixtures.At,ExpiresAtUtc=StrategyFixtures.At.AddMinutes(2),ExpectedFinancialRevision=42,Body=new(){BookId=11,FundId=2,TransactionKind=LedgerTransactionKind.DepositConfirmed,AccountingDate=new(2026,10,26),ValueDate=new(2026,10,26),Currency="USD",Amount=100.2500m,Description="Native journal compatibility fixture"},Access=new("Fixture",["LedgerPost"],[1])};
-  posting=posting with{InputSha256=FinancialCanonicalHash.Request(posting)};
+  posting=global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(posting, posting with{InputSha256=FinancialCanonicalHash.Request(posting)});
   var prepared=new PendingFinancialOperation(posting,PendingFinancialPhase.Prepared,"Fixture prepared");
   FixtureFiles.WriteAllBytes(Path.Combine(output,"financial-posting-retained.msgpack"),MessagePackSerializer.Serialize(posting,MessagePackBinarySerializer.ContentOptions));
   var committed=prepared with{Phase=PendingFinancialPhase.Committed,Message="Fixture committed",Completion=new(){OperationId=PostingId,CommandId=PostingId,PortfolioId=1,InputHash=posting.InputSha256,CommittedAtUtc=StrategyFixtures.At}};
   FixtureFiles.WriteAllText(Path.Combine(output,"financial-posting-pending.json"),JsonSerializer.Serialize(prepared));
   FixtureFiles.WriteAllText(Path.Combine(output,"financial-posting-committed.json"),JsonSerializer.Serialize(committed));
   var configuration=new ConfigureLedgerCommand{OperationId=ConfigurationId,CommandId=ConfigurationId,PortfolioId=1,EntityId=new(1),RequestedAtUtc=StrategyFixtures.At,ExpiresAtUtc=StrategyFixtures.At.AddMinutes(2),ExpectedFinancialRevision=42,Access=new("Fixture",["LedgerConfigure"],[1])};
-  configuration=configuration with{InputSha256=FinancialCanonicalHash.Request(configuration)};
+  configuration=global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(configuration, configuration with{InputSha256=FinancialCanonicalHash.Request(configuration)});
   FixtureFiles.WriteAllBytes(Path.Combine(output,"financial-configuration-retained.msgpack"),MessagePackSerializer.Serialize(configuration,MessagePackBinarySerializer.ContentOptions));
   FixtureFiles.WriteAllText(Path.Combine(output,"financial-configuration-pending.json"),JsonSerializer.Serialize(new PendingFinancialConfiguration(configuration,PendingFinancialPhase.OutcomeUnknown,"Fixture unknown")));
  }

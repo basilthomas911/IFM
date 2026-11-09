@@ -7,7 +7,8 @@ namespace TomasAI.IFM.Shared.EventProjector;
 public sealed record EventProjectorOutboxMessage(
     EventProjectorEffectIdentity Identity,
     string EventTypeName,
-    byte[] EventPayload)
+    byte[] EventPayload,
+    TomasAI.IFM.Shared.EventModelActor.MessageOrigin? Origin = null)
 {
     public string MessageId => Identity.MessageId;
 }

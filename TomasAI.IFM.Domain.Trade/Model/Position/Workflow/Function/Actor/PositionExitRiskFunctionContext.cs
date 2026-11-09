@@ -10,15 +10,16 @@ public abstract class PositionExitRiskFunctionContext<TActor> : FunctionActorCon
 {
     readonly Lazy<IEventSourceFunctionStateRepository<PositionExitRiskFunctionState, EvaluatePositionExitRiskCommand>> repository;
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "This typed context adapts services for its actor and intentionally retains the actor logger category.")]
-    protected PositionExitRiskFunctionContext(IActorSupervisor supervisor, string actorName, IPortfolioOrderCompositionApi portfolio, ILogger<TActor> logger) : base(supervisor, new(ActorType.Function, actorName))
+    protected PositionExitRiskFunctionContext(IActorSupervisor supervisor, string actorName, IPortfolioOrderCompositionApi portfolio, ILogger<TActor> logger, TimeProvider? timeProvider = null) : base(supervisor, new(ActorType.Function, actorName))
     {
+        TimeProvider = timeProvider ?? TimeProvider.System;
         Portfolio = portfolio;
         Logger = logger;
         repository = new(() => Container.Resolve<IEventSourceFunctionStateRepository<PositionExitRiskFunctionState, EvaluatePositionExitRiskCommand>>());
     }
 
     public IPortfolioOrderCompositionApi Portfolio { get; }
-    public TimeProvider TimeProvider { get; } = TimeProvider.System;
+    public TimeProvider TimeProvider { get; }
     public ILogger<TActor> Logger { get; }
     public IEventSourceFunctionStateRepository<PositionExitRiskFunctionState, EvaluatePositionExitRiskCommand> StateRepository => repository.Value;
 }

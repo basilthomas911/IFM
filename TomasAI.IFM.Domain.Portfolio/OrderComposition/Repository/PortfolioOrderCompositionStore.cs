@@ -7,8 +7,9 @@ using TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition;
 
 namespace TomasAI.IFM.Domain.Portfolio.OrderComposition.Repository;
 
-public sealed class PortfolioOrderCompositionStore(IPostgresEventTransaction transactions, FinancialDevelopmentPolicy? developmentPolicy = null)
+public sealed class PortfolioOrderCompositionStore(IPostgresEventTransaction transactions, FinancialDevelopmentPolicy? developmentPolicy = null, TimeProvider? timeProvider = null)
 {
+    readonly TimeProvider businessClock = timeProvider ?? TimeProvider.System;
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep the transaction, resource ownership and failure ordering together during this provider migration; splitting it would obscure the atomic persistence boundary.")]
     public Task<PortfolioOrderCompositionCompletedEvent> EvaluateAsync(
         EvaluatePortfolioOrderCompositionCommand request,
@@ -24,7 +25,7 @@ public sealed class PortfolioOrderCompositionStore(IPostgresEventTransaction tra
                 db, request.PortfolioId,
                 request.ExpectedFinancialRevision > 0 ? request.ExpectedFinancialRevision : null,
                 token, developmentPolicy).ConfigureAwait(false);
-            var now = DateTime.UtcNow;
+            var now = businessClock.GetUtcNow().UtcDateTime;
             if (request.ExpiresAtUtc <= now) throw new TimeoutException("Portfolio order composition expired before evaluation.");
             var requestedLimits = authority.Book.Funds.SelectMany(fund => fund.Limits.Concat(
                     fund.Deployments.Where(deployment => deployment.Reference.DeploymentKey == request.Body.DeploymentKey)

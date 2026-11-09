@@ -31,8 +31,10 @@ namespace TomasAI.IFM.Application.Storage.ConfigurationDb;
 /// <param name = "logger">The database-provider logger.</param>
 /// <param name = "catalogCapabilities">The optional strategy-catalog capability registry.</param>
 /// <param name = "catalogReferences">The optional strategy-catalog reference validator.</param>
-public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSettings, IDbContextFactory dbFactory, ILogger<DbProvider> logger, IStrategyCatalogCapabilities? catalogCapabilities = null, IStrategyCatalogReferences? catalogReferences = null) : ObjectDataRepository<ConfigurationDbContext>(connectionSettings[ConfigurationDbConnection], logger), IConfigurationDbContext
+public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSettings, IDbContextFactory dbFactory, ILogger<DbProvider> logger, IStrategyCatalogCapabilities? catalogCapabilities = null, IStrategyCatalogReferences? catalogReferences = null, TimeProvider? timeProvider = null) : ObjectDataRepository<ConfigurationDbContext>(connectionSettings[ConfigurationDbConnection], logger), IConfigurationDbContext
 {
+    /// <summary>Business clock for dated projections; transport and database limits remain physical.</summary>
+    internal TimeProvider BusinessClock { get; } = timeProvider ?? TimeProvider.System;
     internal IStrategyCatalogCapabilities? CatalogCapabilities { get; } = catalogCapabilities;
     internal IStrategyCatalogReferences? CatalogReferences { get; } = catalogReferences;
 
@@ -59,7 +61,7 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
     {
         var payload = RegimeDiscoveryParameterPayload.Serialize(parameterSet);
         await dbFactory.ConfigurationDb.Use($"{nameof(ConfigurationDbSql)}.{nameof(ConfigurationDbSql.InsertDraft)}", ConfigurationDbSql.InsertDraft)
-            .SetParameters(new InsertConfigurationDraft(parameterSet.ParameterSetId, parameterSet.Version, checked((short)parameterSet.SchemaVersion), (short)ConfigurationParameterSetStatus.Draft, payload, RegimeDiscoveryParameterPayload.ComputeSha256(payload), description ?? string.Empty, DateTime.UtcNow, createdBy))
+            .SetParameters(new InsertConfigurationDraft(parameterSet.ParameterSetId, parameterSet.Version, checked((short)parameterSet.SchemaVersion), (short)ConfigurationParameterSetStatus.Draft, payload, RegimeDiscoveryParameterPayload.ComputeSha256(payload), description ?? string.Empty, BusinessClock.GetUtcNow().UtcDateTime, createdBy))
             .ExecuteCommandAsync(cancellationToken)
             .ConfigureAwait(false);
     }
@@ -140,7 +142,7 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
     {
         var payload = MarketConditionParameterPayload.Serialize(parameterSet);
         await dbFactory.ConfigurationDb.Use($"{nameof(ConfigurationDbSql)}.{nameof(ConfigurationDbSql.InsertMarketConditionDraft)}", ConfigurationDbSql.InsertMarketConditionDraft)
-            .SetParameters(new InsertConfigurationDraft(parameterSet.ParameterSetId, parameterSet.Version, checked((short)parameterSet.SchemaVersion), (short)ConfigurationParameterSetStatus.Draft, payload, MarketConditionParameterPayload.ComputeSha256(payload), description ?? string.Empty, DateTime.UtcNow, createdBy))
+            .SetParameters(new InsertConfigurationDraft(parameterSet.ParameterSetId, parameterSet.Version, checked((short)parameterSet.SchemaVersion), (short)ConfigurationParameterSetStatus.Draft, payload, MarketConditionParameterPayload.ComputeSha256(payload), description ?? string.Empty, BusinessClock.GetUtcNow().UtcDateTime, createdBy))
             .ExecuteCommandAsync(cancellationToken)
             .ConfigureAwait(false);
     }
@@ -328,7 +330,7 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
             Sources = parameters.Sources
         };
         await dbFactory.ConfigurationDb.Use($"{nameof(ConfigurationDbSql)}.{nameof(ConfigurationDbSql.InsertMarketConditionAssessmentDraft)}", ConfigurationDbSql.InsertMarketConditionAssessmentDraft)
-            .SetParameters(new InsertMarketConditionAssessmentDraft(normalized.ParameterSetId, normalized.Version, normalized.SchemaVersion, normalized.MarketProfileId, normalized.InstrumentRoot, (short)normalized.TargetHorizon, MarketConditionAssessmentHash.Serialize(normalized), MarketConditionAssessmentHash.Parameters(normalized), description ?? string.Empty, DateTime.UtcNow, createdBy))
+            .SetParameters(new InsertMarketConditionAssessmentDraft(normalized.ParameterSetId, normalized.Version, normalized.SchemaVersion, normalized.MarketProfileId, normalized.InstrumentRoot, (short)normalized.TargetHorizon, MarketConditionAssessmentHash.Serialize(normalized), MarketConditionAssessmentHash.Parameters(normalized), description ?? string.Empty, BusinessClock.GetUtcNow().UtcDateTime, createdBy))
             .ExecuteCommandAsync(cancellationToken)
             .ConfigureAwait(false);
     }
@@ -458,7 +460,7 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
     public async Task InsertStrategyPositionRiskDraftAsync(TomasAI.IFM.Domain.Trade.Shared.Strategy.Risk.StrategyRiskParameterSet policy, string description, string createdBy, CancellationToken cancellationToken = default)
     {
         await dbFactory.ConfigurationDb.Use($"{nameof(ConfigurationDbSql)}.{nameof(ConfigurationDbSql.InsertStrategyPositionRiskDraft)}", ConfigurationDbSql.InsertStrategyPositionRiskDraft)
-            .SetParameters(new InsertConfigurationDraft(policy.ParameterSetId, policy.Version, checked((short)policy.SchemaVersion), 0, policy.Serialize(), policy.Hash(), description, DateTime.UtcNow, createdBy))
+            .SetParameters(new InsertConfigurationDraft(policy.ParameterSetId, policy.Version, checked((short)policy.SchemaVersion), 0, policy.Serialize(), policy.Hash(), description, BusinessClock.GetUtcNow().UtcDateTime, createdBy))
             .ExecuteCommandAsync(cancellationToken)
             .ConfigureAwait(false);
     }
@@ -494,7 +496,7 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
     public async Task InsertRiskManagementDraftAsync(RiskParameterSet policy, string description, string createdBy, CancellationToken token = default)
     {
         await dbFactory.ConfigurationDb.Use($"{nameof(ConfigurationDbSql)}.{nameof(ConfigurationDbSql.InsertRiskManagementDraft)}", ConfigurationDbSql.InsertRiskManagementDraft)
-            .SetParameters(new InsertConfigurationDraft(policy.ParameterSetId, policy.Version, policy.SchemaVersion, 0, policy.Serialize(), policy.Hash(), description, DateTime.UtcNow, createdBy))
+            .SetParameters(new InsertConfigurationDraft(policy.ParameterSetId, policy.Version, policy.SchemaVersion, 0, policy.Serialize(), policy.Hash(), description, BusinessClock.GetUtcNow().UtcDateTime, createdBy))
             .ExecuteCommandAsync(token)
             .ConfigureAwait(false);
     }
@@ -718,7 +720,7 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
         var fact = new StrategyCatalogSourceEvent
         {
             Subject = subject, EntityId = entityId, Id = request.OperationId, CommandId = request.OperationId,
-            AggregateId = entityId.Format(), EventSource = "StrategyCatalogCommandActor", ReceivedOn = DateTime.UtcNow,
+            AggregateId = entityId.Format(), EventSource = "StrategyCatalogCommandActor", ReceivedOn = BusinessClock.GetUtcNow().UtcDateTime,
             RequestJson = requestJson, BeforeJson = before is null ? string.Empty : StrategyCatalogJson.Write(before),
             AfterJson = StrategyCatalogJson.Write(after), Principal = principal
         };
@@ -801,7 +803,7 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
                 IsBaseline = true,
                 Subject = new(ActorType.Event, "StrategyCatalogEvent", "BaselineCaptured", entityId.Format()),
                 EntityId = entityId, Id = id, CommandId = id, AggregateId = entityId.Format(),
-                EventSource = "StrategyCatalogMigration", ReceivedOn = DateTime.UtcNow,
+                EventSource = "StrategyCatalogMigration", ReceivedOn = BusinessClock.GetUtcNow().UtcDateTime,
                 AfterJson = StrategyCatalogJson.Write(version), Principal = version.CreatedBy
             };
             await enlisted.AppendAsync($"StrategyCatalog.{entityId.Format()}", id, fact, 0, token)
@@ -894,7 +896,7 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
     public async Task InsertSelectionConstructionDraftAsync(SelectionConstructionPolicy policy, string description, string createdBy, CancellationToken cancellationToken = default)
     {
         await dbFactory.ConfigurationDb.Use($"{nameof(ConfigurationDbSql)}.{nameof(ConfigurationDbSql.InsertOrderCompositionDraft)}", ConfigurationDbSql.InsertOrderCompositionDraft)
-            .SetParameters(new InsertConfigurationDraft(policy.ParameterSetId, policy.Version, policy.SchemaVersion, 0, policy.Serialize(), policy.Hash(), description, DateTime.UtcNow, createdBy))
+            .SetParameters(new InsertConfigurationDraft(policy.ParameterSetId, policy.Version, policy.SchemaVersion, 0, policy.Serialize(), policy.Hash(), description, BusinessClock.GetUtcNow().UtcDateTime, createdBy))
             .ExecuteCommandAsync(cancellationToken)
             .ConfigureAwait(false);
     }
@@ -912,7 +914,7 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
     public async Task InsertTradeSelectionActivationDraftAsync(TradeSelectionActivation activation, string description, string createdBy, CancellationToken cancellationToken = default)
     {
         await dbFactory.ConfigurationDb.Use($"{nameof(ConfigurationDbSql)}.{nameof(ConfigurationDbSql.InsertStrategyWorkflowDraft)}", ConfigurationDbSql.InsertStrategyWorkflowDraft)
-            .SetParameters(new InsertConfigurationDraft(activation.ParameterSetId, activation.Version, activation.SchemaVersion, 0, activation.Serialize(), activation.Hash(), description, DateTime.UtcNow, createdBy))
+            .SetParameters(new InsertConfigurationDraft(activation.ParameterSetId, activation.Version, activation.SchemaVersion, 0, activation.Serialize(), activation.Hash(), description, BusinessClock.GetUtcNow().UtcDateTime, createdBy))
             .ExecuteCommandAsync(cancellationToken)
             .ConfigureAwait(false);
     }
@@ -958,7 +960,7 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
     public async Task InsertTradeSelectionDraftAsync(TradeSelectionParameterSet parameters, string description, string createdBy, CancellationToken cancellationToken = default)
     {
         await dbFactory.ConfigurationDb.Use($"{nameof(ConfigurationDbSql)}.{nameof(ConfigurationDbSql.InsertTradeSelectionDraft)}", ConfigurationDbSql.InsertTradeSelectionDraft)
-            .SetParameters(new InsertConfigurationDraft(parameters.ParameterSetId, parameters.Version, parameters.SchemaVersion, 0, TradeSelectionPolicy.Serialize(parameters), TradeSelectionPolicy.Hash(parameters), description ?? "", DateTime.UtcNow, createdBy))
+            .SetParameters(new InsertConfigurationDraft(parameters.ParameterSetId, parameters.Version, parameters.SchemaVersion, 0, TradeSelectionPolicy.Serialize(parameters), TradeSelectionPolicy.Hash(parameters), description ?? "", BusinessClock.GetUtcNow().UtcDateTime, createdBy))
             .ExecuteCommandAsync(cancellationToken)
             .ConfigureAwait(false);
     }

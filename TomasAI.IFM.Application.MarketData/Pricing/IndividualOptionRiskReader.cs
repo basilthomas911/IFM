@@ -5,8 +5,9 @@ using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 namespace TomasAI.IFM.Application.MarketData.Pricing;
 
 /// <summary>Reads qualified valuation evidence from already-owned exact option scopes; it never opens a subscription.</summary>
-public sealed class IndividualOptionRiskReader(ICompositionMarketDataApi market, DatasetWorkerAdmissionRegistry admissions, ILogger<IndividualOptionRiskReader>? logger = null, Recovery.OptionFeedProcessingHealth? processingHealth = null)
+public sealed class IndividualOptionRiskReader(ICompositionMarketDataApi market, DatasetWorkerAdmissionRegistry admissions, ILogger<IndividualOptionRiskReader>? logger = null, Recovery.OptionFeedProcessingHealth? processingHealth = null, TimeProvider? clock = null)
 {
+    readonly TimeProvider businessClock = clock ?? TimeProvider.System;
     readonly ConcurrentDictionary<Guid, WorkerOptionChainRequest> scopes = new();
     readonly ConcurrentDictionary<string, DateTimeOffset> unavailableReportedAt = new(StringComparer.Ordinal);
 
@@ -51,7 +52,7 @@ public sealed class IndividualOptionRiskReader(ICompositionMarketDataApi market,
         var lease = scopes.Values.FirstOrDefault(value => value.ValueDate == valueDate && value.GenerationId == admitted.GenerationId
             && value.Options.Length == 1 && string.Equals(value.Options[0].Pricing.Contract.ContractId,contractId,StringComparison.Ordinal));
         if (lease is null) return null;
-        var now = DateTimeOffset.UtcNow;
+        var now = businessClock.GetUtcNow();
         // The worker freezes observations before selecting its valuation instant. A host timestamp
         // chosen before the pipe round trip incorrectly rejects newly received live quotes.
         CompositionSnapshotResult result;
@@ -64,7 +65,7 @@ public sealed class IndividualOptionRiskReader(ICompositionMarketDataApi market,
             throw;
         }
         if (result.Failure is null && result.Snapshot is { } snapshot && snapshot.GenerationId == admitted.GenerationId
-            && snapshot.ValidUntilUtc > DateTimeOffset.UtcNow && snapshot.Instruments.Length == 1
+            && snapshot.ValidUntilUtc > businessClock.GetUtcNow() && snapshot.Instruments.Length == 1
             && string.Equals(snapshot.Instruments[0].Instrument.ContractId,contractId,StringComparison.Ordinal) && snapshot.Instruments[0].Valuation is not null)
         {
             return snapshot;

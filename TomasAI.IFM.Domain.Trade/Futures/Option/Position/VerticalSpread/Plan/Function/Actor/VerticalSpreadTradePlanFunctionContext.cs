@@ -10,14 +10,15 @@ public sealed class VerticalSpreadTradePlanFunctionContext : FunctionActorContex
 {
     readonly Lazy<IEventSourceFunctionStateRepository<VerticalSpreadTradePlanFunctionState, UpdateVerticalSpreadTradePlanCommand>> _repository;
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "This typed context adapts services for its actor and intentionally retains the actor logger category.")]
-    public VerticalSpreadTradePlanFunctionContext(IActorSupervisor supervisor, ILogger<VerticalSpreadTradePlanFunctionActor> logger) : base(supervisor, new(ActorType.Function, VerticalSpreadTradePlanFunctionActor.ActorName))
+    public VerticalSpreadTradePlanFunctionContext(IActorSupervisor supervisor, ILogger<VerticalSpreadTradePlanFunctionActor> logger, TimeProvider? timeProvider = null) : base(supervisor, new(ActorType.Function, VerticalSpreadTradePlanFunctionActor.ActorName))
     {
+        TimeProvider = timeProvider ?? TimeProvider.System;
         Logger = logger;
         _repository = new(() => Container.Resolve<IEventSourceFunctionStateRepository<VerticalSpreadTradePlanFunctionState, UpdateVerticalSpreadTradePlanCommand>>());
     }
 
     public VerticalSpreadTradePlanAlgorithm Algorithm { get; } = new();
-    public TimeProvider TimeProvider { get; } = TimeProvider.System;
+    public TimeProvider TimeProvider { get; }
     public ILogger<VerticalSpreadTradePlanFunctionActor> Logger { get; }
     public IEventSourceFunctionStateRepository<VerticalSpreadTradePlanFunctionState, UpdateVerticalSpreadTradePlanCommand> StateRepository => _repository.Value;
 }

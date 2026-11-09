@@ -316,7 +316,7 @@ internal static class EventSourceActorDbContextExtensions
             long expectedStreamVersion,
             CancellationToken cancellationToken)
         {
-            var envelope = CommandAuditEnvelope.Create(command, context._commandAuditCodec);
+            var envelope = CommandAuditEnvelope.Create(command, context._commandAuditCodec, context._businessClock);
             if (domainEvents.Count == 0)
             {
                 if (!await context.TryInsertCommandAuditAsync(envelope, cancellationToken)
@@ -355,17 +355,20 @@ internal static class EventSourceActorDbContextExtensions
             .ConfigureAwait(false);
                 var entries = new List<EventLogAppendEntry>(domainEvents.Count);
                 foreach (var domainEvent in domainEvents)
+                {
+                    MessageOrigins.ForPublication(domainEvent, context._businessClock);
                     entries.Add(new EventLogAppendEntry(
                         await context.GetEventNameIdFromDomainEventAsync(domainEvent, cancellationToken)
             .ConfigureAwait(false),
                         domainEvent));
+                }
                 persistence = context._atomicCommandEventAppender.Value.AppendAsync(new EventLogAppendRequest(
                     command.StreamId,
                     streamId,
                     command.CommandId,
                     entries,
                     expectedStreamVersion,
-                    DateTime.UtcNow,
+                    context._businessClock.GetUtcNow().UtcDateTime,
                     commandAudit), cancellationToken).AsTask();
             }
             finally
@@ -641,7 +644,8 @@ internal static class EventSourceActorDbContextExtensions
                 return new EventStreamReadModel
                 {
                     EventVersion = record.GetLong(3), EventTypeName = record.GetString(2),
-                    EventData = record.GetBytes(4), StreamVersion = version
+                    EventData = record.GetBytes(4), StreamVersion = version,
+                    Origin = EventSourceActorDbContext.MapToOrigin(record)
                 };
             }
         }

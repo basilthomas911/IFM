@@ -63,7 +63,7 @@ public sealed class PortfolioFundCommandApi(IActorProducer actorProducer, IPortf
             var order = await _identity.AllocateForOperationAsync(PortfolioBusinessIdentityKind.Order, operationId, cancellationToken).ConfigureAwait(false);
             if (!order.Success || order.Value is not { Value: > 0 } allocated)
                 return new ServiceFailed<FundCompositionReservationResult>(PortfolioErrorCodes.SequenceAllocationFailed, order.ErrorMessage);
-            command = command with { Preparation = new() { OrderId = allocated.Value, Parent = portfolio, ParentSourceRevision = revision } };
+            command = global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(command, command with { Preparation = new() { OrderId = allocated.Value, Parent = portfolio, ParentSourceRevision = revision } });
         }
         var acknowledged = await Send(fund, CreateManualFundOrderCommand.Verb,
             command, PortfolioErrorCodes.ValidationFailed, cancellationToken,
@@ -290,7 +290,7 @@ public sealed class PortfolioFundCommandApi(IActorProducer actorProducer, IPortf
                     return new ServiceFailed<FundCompositionReservationResult>(PortfolioErrorCodes.SequenceAllocationFailed, trade.ErrorMessage);
                 trades[index] = tradeId.Value;
             }
-            command = command with { Preparation = new() { OrderId = allocated.Value, TradeIds = trades } };
+            command = global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(command, command with { Preparation = new() { OrderId = allocated.Value, TradeIds = trades } });
         }
         var acknowledged = await Send(fund, ReserveFundOrderCompositionCommand.Verb, command, PortfolioErrorCodes.IdempotencyConflict, cancellationToken, commandId, WorkflowAccess).ConfigureAwait(false);
         if (!acknowledged.Success) return new ServiceFailed<FundCompositionReservationResult>(acknowledged.ErrorCode, acknowledged.ErrorMessage);
@@ -378,22 +378,22 @@ public sealed class PortfolioFundCommandApi(IActorProducer actorProducer, IPortf
         var actualAccess = access ?? AdministratorAccess;
         object command = message switch
         {
-            CreateFundMandateCommand value => value with { CommandId = actualCommandId, Subject = subject, EntityId = id, ErrorCode = errorCode, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = actualAccess },
-            AddFundMandateVersionCommand value => value with { CommandId = actualCommandId, Subject = subject, EntityId = id, ErrorCode = errorCode, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = actualAccess },
-            ChangeFundOperatingStateCommand value => value with { CommandId = actualCommandId, Subject = subject, EntityId = id, ErrorCode = errorCode, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = actualAccess },
-            AssignTradeTemplateCommand value => value with { CommandId = actualCommandId, Subject = subject, EntityId = id, ErrorCode = errorCode, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = actualAccess },
-            ReserveFundOrderCompositionCommand value => value with { CommandId = actualCommandId, Subject = subject, EntityId = id, ErrorCode = errorCode, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = actualAccess },
-            CreateManualFundOrderCommand value => value with { CommandId = actualCommandId, Subject = subject, EntityId = id, ErrorCode = errorCode, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = actualAccess },
-            AddManualFundOrderTradeCommand value => value with { CommandId = actualCommandId, Subject = subject, EntityId = id, ErrorCode = errorCode, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = actualAccess },
-            MarkFundOrderComposingCommand value => value with { CommandId = actualCommandId, Subject = subject, EntityId = id, ErrorCode = errorCode, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = actualAccess },
-            RecordFundOrderComposedCommand value => value with { CommandId = actualCommandId, Subject = subject, EntityId = id, ErrorCode = errorCode, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = actualAccess },
-            RemoveManualFundOrderTradeCommand value => value with { CommandId = actualCommandId, Subject = subject, EntityId = id, ErrorCode = errorCode, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = actualAccess },
-            DeleteManualFundOrderCommand value => value with { CommandId = actualCommandId, Subject = subject, EntityId = id, ErrorCode = errorCode, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = actualAccess },
-            RecordFundOrderRiskOutcomeCommand value => value with { CommandId = actualCommandId, Subject = subject, EntityId = id, ErrorCode = errorCode, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = actualAccess },
-            AuthorizeFundOrderRiskCommand value => value with { CommandId = actualCommandId, Subject = subject, EntityId = id, ErrorCode = errorCode, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = actualAccess },
-            SynchronizeFundRiskOutcomeCommand value => value with { CommandId = actualCommandId, Subject = subject, EntityId = id, ErrorCode = errorCode, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = actualAccess },
-            CancelFundOrderCompositionCommand value => value with { CommandId = actualCommandId, Subject = subject, EntityId = id, ErrorCode = errorCode, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = actualAccess },
-            ExpireFundOrderCompositionCommand value => value with { CommandId = actualCommandId, Subject = subject, EntityId = id, ErrorCode = errorCode, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = actualAccess },
+            CreateFundMandateCommand value => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.CopyCommandIfSameIdentity(value, value with { CommandId = actualCommandId, Subject = subject, EntityId = id, ErrorCode = errorCode, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = actualAccess }),
+            AddFundMandateVersionCommand value => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.CopyCommandIfSameIdentity(value, value with { CommandId = actualCommandId, Subject = subject, EntityId = id, ErrorCode = errorCode, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = actualAccess }),
+            ChangeFundOperatingStateCommand value => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.CopyCommandIfSameIdentity(value, value with { CommandId = actualCommandId, Subject = subject, EntityId = id, ErrorCode = errorCode, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = actualAccess }),
+            AssignTradeTemplateCommand value => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.CopyCommandIfSameIdentity(value, value with { CommandId = actualCommandId, Subject = subject, EntityId = id, ErrorCode = errorCode, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = actualAccess }),
+            ReserveFundOrderCompositionCommand value => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.CopyCommandIfSameIdentity(value, value with { CommandId = actualCommandId, Subject = subject, EntityId = id, ErrorCode = errorCode, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = actualAccess }),
+            CreateManualFundOrderCommand value => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.CopyCommandIfSameIdentity(value, value with { CommandId = actualCommandId, Subject = subject, EntityId = id, ErrorCode = errorCode, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = actualAccess }),
+            AddManualFundOrderTradeCommand value => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.CopyCommandIfSameIdentity(value, value with { CommandId = actualCommandId, Subject = subject, EntityId = id, ErrorCode = errorCode, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = actualAccess }),
+            MarkFundOrderComposingCommand value => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.CopyCommandIfSameIdentity(value, value with { CommandId = actualCommandId, Subject = subject, EntityId = id, ErrorCode = errorCode, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = actualAccess }),
+            RecordFundOrderComposedCommand value => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.CopyCommandIfSameIdentity(value, value with { CommandId = actualCommandId, Subject = subject, EntityId = id, ErrorCode = errorCode, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = actualAccess }),
+            RemoveManualFundOrderTradeCommand value => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.CopyCommandIfSameIdentity(value, value with { CommandId = actualCommandId, Subject = subject, EntityId = id, ErrorCode = errorCode, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = actualAccess }),
+            DeleteManualFundOrderCommand value => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.CopyCommandIfSameIdentity(value, value with { CommandId = actualCommandId, Subject = subject, EntityId = id, ErrorCode = errorCode, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = actualAccess }),
+            RecordFundOrderRiskOutcomeCommand value => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.CopyCommandIfSameIdentity(value, value with { CommandId = actualCommandId, Subject = subject, EntityId = id, ErrorCode = errorCode, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = actualAccess }),
+            AuthorizeFundOrderRiskCommand value => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.CopyCommandIfSameIdentity(value, value with { CommandId = actualCommandId, Subject = subject, EntityId = id, ErrorCode = errorCode, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = actualAccess }),
+            SynchronizeFundRiskOutcomeCommand value => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.CopyCommandIfSameIdentity(value, value with { CommandId = actualCommandId, Subject = subject, EntityId = id, ErrorCode = errorCode, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = actualAccess }),
+            CancelFundOrderCompositionCommand value => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.CopyCommandIfSameIdentity(value, value with { CommandId = actualCommandId, Subject = subject, EntityId = id, ErrorCode = errorCode, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = actualAccess }),
+            ExpireFundOrderCompositionCommand value => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.CopyCommandIfSameIdentity(value, value with { CommandId = actualCommandId, Subject = subject, EntityId = id, ErrorCode = errorCode, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = actualAccess }),
             _ => throw new InvalidOperationException($"Unsupported Portfolio Fund command message {typeof(TCommand).FullName}."),
         };
         try
@@ -418,13 +418,13 @@ public sealed class PortfolioFundCommandApi(IActorProducer actorProducer, IPortf
                     if (!assignments.Success || assignments.Value is null)
                         return new ServiceFailed<Guid>(PortfolioErrorCodes.VersionConflict, "Fund assignments are unavailable for activation.");
                     activation = new() { ParentSourceRevision = revision, ParentPortfolioVersion = portfolio.PortfolioVersion };
-                    reference = reference with { ActivationAssignments = assignments.Value.Where(assignment => assignment.Enabled).ToArray() };
+                    reference = global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(reference, reference with { ActivationAssignments = assignments.Value.Where(assignment => assignment.Enabled).ToArray() });
                 }
                 var preparation = command switch
                 {
-                    CreateFundMandateCommand value => reference with { Mandate = value.Mandate },
-                    AddFundMandateVersionCommand value => reference with { Mandate = value.Mandate },
-                    AssignTradeTemplateCommand value => reference with { Assignment = value.Assignment },
+                    CreateFundMandateCommand value => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(reference, reference with { Mandate = value.Mandate }),
+                    AddFundMandateVersionCommand value => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(reference, reference with { Mandate = value.Mandate }),
+                    AssignTradeTemplateCommand value => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(reference, reference with { Assignment = value.Assignment }),
                     ChangeFundOperatingStateCommand when activation is not null => reference,
                     _ => null
                 };
@@ -434,10 +434,10 @@ public sealed class PortfolioFundCommandApi(IActorProducer actorProducer, IPortf
                     if (!receipt.Success) return receipt;
                     command = command switch
                     {
-                        CreateFundMandateCommand value => value with { ReferencePreparationId = receipt.Value },
-                        AddFundMandateVersionCommand value => value with { ReferencePreparationId = receipt.Value, ActivationPreparation = activation },
-                        AssignTradeTemplateCommand value => value with { ReferencePreparationId = receipt.Value },
-                        ChangeFundOperatingStateCommand value => value with { ReferencePreparationId = receipt.Value, ActivationPreparation = activation },
+                        CreateFundMandateCommand value => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(value, value with { ReferencePreparationId = receipt.Value }),
+                        AddFundMandateVersionCommand value => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(value, value with { ReferencePreparationId = receipt.Value, ActivationPreparation = activation }),
+                        AssignTradeTemplateCommand value => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(value, value with { ReferencePreparationId = receipt.Value }),
+                        ChangeFundOperatingStateCommand value => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(value, value with { ReferencePreparationId = receipt.Value, ActivationPreparation = activation }),
                         _ => command
                     };
                 }

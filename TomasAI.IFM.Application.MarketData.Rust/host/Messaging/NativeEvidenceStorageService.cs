@@ -1,3 +1,5 @@
+using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Framework.Messaging.Nats;
 using System.Buffers;
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
@@ -14,7 +16,7 @@ namespace TomasAI.IFM.Application.MarketData.Rust.Host;
 /// It is deliberately separate from the native command/control subscribers.
 /// A blocked database job holds copied bytes only; it cannot retain native leases.</summary>
 public sealed class NativeEvidenceStorageService(IConfiguration configuration, MarketDataHostConnection connection,
-    NativeEvidenceStorage storage, ILogger<NativeEvidenceStorageService> logger) : BackgroundService
+    NativeEvidenceStorage storage, ILogger<NativeEvidenceStorageService> logger, TimeProvider? clock = null, TomasAI.IFM.Shared.Time.PhysicalTime? physicalTime = null) : BackgroundService
 {
     /// <inheritdoc/>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -49,7 +51,7 @@ public sealed class NativeEvidenceStorageService(IConfiguration configuration, M
                             if (error is not null)
                                 logger.LogError(error, "Native copied evidence persistence failed; Receipt={Receipt}; Source={Source}",
                                     request.Receipt, request.Identity);
-                            await message.ReplyAsync(receipt, serializer: Plain<NativeEvidenceReceipt>.Default,
+                            await message.ReplyAsync(receipt, headers: MessageOriginHeaders.Add(null, MessageOrigins.ForPublication(receipt, physicalTime?.Provider ?? TimeProvider.System, "control")), serializer: Plain<NativeEvidenceReceipt>.Default,
                                 cancellationToken: token).ConfigureAwait(false);
                         }
                     }).ConfigureAwait(false);
@@ -77,7 +79,10 @@ public sealed class NativeEvidenceStorageService(IConfiguration configuration, M
             var batch = new List<(NatsMsg<NativeEvidenceWrite>, NativeEvidenceWrite)>(capacity);
             for (var read = 0; read < capacity && messages.TryRead(out var message); read++)
                 if (message.Data is { } request && !string.IsNullOrWhiteSpace(message.ReplyTo))
+                {
+                    MessageOrigins.Restore(request, MessageOriginHeaders.Read(message.Headers));
                     batch.Add((message, request));
+                }
             if (batch.Count != 0)
                 yield return batch;
         }

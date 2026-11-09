@@ -85,7 +85,7 @@ public sealed record FuturesTradeSessionBarPublishedEvent : IEvent<FuturesTradeS
                 AggregateId = AggregateId,
                 EventSource = EventSource,
                 ReceivedOn = ReceivedOn,
-                ErrorDate = DateTime.UtcNow,
+                ErrorDate = default,
                 ErrorMessage = ex.Message,
                 ErrorCode = ErrorCode,
                 ErrorType = ErrorType.Command,

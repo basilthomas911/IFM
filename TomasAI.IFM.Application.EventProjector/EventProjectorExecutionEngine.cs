@@ -17,7 +17,7 @@ internal sealed class EventProjectorExecutionEngine(
     string projectorName,
     Func<IEvent, CancellationToken, ValueTask> publishAsync,
     Action signalOutbox,
-    ILogger logger)
+    ILogger logger, TimeProvider? timeProvider = null)
 {
     readonly IEventSourceActorDbContext _eventSource = eventSource ?? throw new ArgumentNullException(nameof(eventSource));
     readonly EventProjectorReliabilityOptions _options = (options ?? throw new ArgumentNullException(nameof(options))).Validate();
@@ -25,6 +25,7 @@ internal sealed class EventProjectorExecutionEngine(
     readonly string _projectorName = RequireName(projectorName, nameof(projectorName));
     readonly Func<IEvent, CancellationToken, ValueTask> _publishAsync = publishAsync ?? throw new ArgumentNullException(nameof(publishAsync));
     readonly Action _signalOutbox = signalOutbox ?? throw new ArgumentNullException(nameof(signalOutbox));
+    readonly TimeProvider _businessClock = timeProvider ?? TimeProvider.System;
     readonly ILogger _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
     public async Task<EventProjectorExecutionStateReadModel> InitializeAsync(
@@ -537,6 +538,7 @@ internal sealed class EventProjectorExecutionEngine(
             lastCompletedStage,
             state.RetryCount,
             ErrorMessage: errorMessage);
+        TomasAI.IFM.Shared.EventModelActor.MessageOrigins.ForPublication(publication, _businessClock);
         var message = EventProjectorOutboxSerializer.Serialize(
             publication,
             new EventProjectorEffectIdentity(_projectorName, state.EventId, effectKind));
@@ -571,6 +573,7 @@ internal sealed class EventProjectorExecutionEngine(
             LastErrorAtUtc: outcome == EventProjectorOutcomeType.Failed ? nowUtc : null,
             ErrorMessage: errorMessage,
             BlockedReason: blockedReason);
+        TomasAI.IFM.Shared.EventModelActor.MessageOrigins.ForPublication(publication, _businessClock);
         var message = EventProjectorOutboxSerializer.Serialize(
             publication,
             new EventProjectorEffectIdentity(_projectorName, state.EventId, effectKind));

@@ -78,7 +78,7 @@ public sealed class FuturesTdiSignalRealtimeState
             CommandId = command.CommandId,
             AggregateId = source.AggregateId,
             EventSource = source.EventName,
-            ReceivedOn = DateTime.UtcNow
+            ReceivedOn = default
         };
         evaluation = new(command.EntityId, generated.FuturesTdiSignal, generated);
         return true;

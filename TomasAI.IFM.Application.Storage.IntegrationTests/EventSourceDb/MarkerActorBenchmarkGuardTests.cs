@@ -29,7 +29,9 @@ public sealed class MarkerActorBenchmarkGuardTests
     public void Public_construction_exposes_no_candidate_switch()
     {
         var constructor = Assert.Single(typeof(EventSourceActorDbContext).GetConstructors());
-        Assert.Equal(5, constructor.GetParameters().Length);
+        Assert.Equal(6, constructor.GetParameters().Length);
+        Assert.Equal(typeof(TimeProvider), constructor.GetParameters()[^1].ParameterType);
+        Assert.True(constructor.GetParameters()[^1].IsOptional);
         Assert.DoesNotContain(constructor.GetParameters(), parameter => parameter.ParameterType == typeof(bool));
         Assert.False(EventLogSqlLayout.Current.BatchProjectionMarkers);
     }

@@ -71,22 +71,22 @@ public static class RegimeDiscoverySignalCacheAdapter
     }
 
     /// <summary>Publishes ADX14, +DI14, and -DI14.</summary>
-    public static void Publish(FuturesAdxSignalReadModel signal)
+    public static void Publish(FuturesAdxSignalReadModel signal, TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(signal);
         var metadata = Metadata(signal.Metadata, signal.ContractId, signal.TimePeriod, signal.ValueDate,
-            signal.Timestamp, "adx-v1");
+            signal.Timestamp, "adx-v1", timeProvider);
         Publish(metadata, RegimeDiscoverySignalMetric.Adx14, (decimal)signal.AdxValue, true);
         Publish(metadata, RegimeDiscoverySignalMetric.PlusDi14, (decimal)signal.PlusDI, true);
         Publish(metadata, RegimeDiscoverySignalMetric.MinusDi14, (decimal)signal.MinusDI, true);
     }
 
     /// <summary>Publishes Wilder ATR14 and its warm baseline ratio.</summary>
-    public static void Publish(FuturesAtrSignalReadModel signal)
+    public static void Publish(FuturesAtrSignalReadModel signal, TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(signal);
         var metadata = Metadata(signal.Metadata, signal.ContractId, signal.TimePeriod, signal.ValueDate,
-            signal.Timestamp, "atr-v1");
+            signal.Timestamp, "atr-v1", timeProvider);
         Publish(metadata, RegimeDiscoverySignalMetric.Atr14, (decimal)signal.AtrValue, signal.IsWarm);
         LatestAtr[(signal.ContractId, signal.TimePeriod)] = (decimal)signal.AtrValue;
         PublishNullable(metadata, RegimeDiscoverySignalMetric.AtrBaselineRatio,
@@ -94,24 +94,24 @@ public static class RegimeDiscoverySignalCacheAdapter
     }
 
     /// <summary>Publishes RSI14 and its slope.</summary>
-    public static void Publish(FuturesRsiSignalReadModel signal)
+    public static void Publish(FuturesRsiSignalReadModel signal, TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(signal);
         if (signal is not { PeriodLength: 14, IsWarm: true, RSI: >= 0d }
             || signal.Metadata is { IsValid: false })
             return;
         var metadata = Metadata(signal.Metadata, signal.ContractId, signal.TimePeriod, signal.ValueDate,
-            signal.Timestamp, "rsi-v1");
+            signal.Timestamp, "rsi-v1", timeProvider);
         Publish(metadata, RegimeDiscoverySignalMetric.Rsi14, (decimal)signal.RSI, true);
         Publish(metadata, RegimeDiscoverySignalMetric.Rsi14Slope, (decimal)signal.RSISlope, true);
     }
 
     /// <summary>Publishes the conventional MACD histogram.</summary>
-    public static void Publish(FuturesMacdSignalReadModel signal)
+    public static void Publish(FuturesMacdSignalReadModel signal, TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(signal);
         var metadata = Metadata(signal.Metadata, signal.ContractId, signal.TimePeriod, signal.ValueDate,
-            signal.Timestamp, "macd-v1");
+            signal.Timestamp, "macd-v1", timeProvider);
         Publish(metadata, RegimeDiscoverySignalMetric.MacdHistogram,
             (decimal)(signal.MacdLine - signal.SignalLine), true);
     }
@@ -357,8 +357,8 @@ public static class RegimeDiscoverySignalCacheAdapter
 
     static MarketAnalyticsSignalMetadata Metadata(MarketAnalyticsSignalMetadata? metadata,
         string contractId, TimeFrameType timeFrame, DateOnly valueDate, TimeOnly timestamp,
-        string configurationId) => metadata ?? Synthetic(contractId, timeFrame, valueDate,
-            valueDate.ToDateTime(timestamp, DateTimeKind.Utc), DateTime.UtcNow, 1,
+        string configurationId, TimeProvider? timeProvider = null) => metadata ?? Synthetic(contractId, timeFrame, valueDate,
+            valueDate.ToDateTime(timestamp, DateTimeKind.Utc), (timeProvider ?? TimeProvider.System).GetUtcNow().UtcDateTime, 1,
             MarketAnalyticsSignalKind.MarketStructure, configurationId);
 
     static MarketAnalyticsSignalMetadata Alias(

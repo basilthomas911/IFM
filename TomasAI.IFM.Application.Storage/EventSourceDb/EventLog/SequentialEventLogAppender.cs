@@ -19,8 +19,8 @@ public sealed class SequentialEventLogAppender : IEventLogAppender
             RETURNING CurrentVersion AS StreamVersion
         )
         INSERT INTO event_log (
-            EventStreamId, EventNameId, StreamVersion, EventPayload, CommandId, EventTimestamp)
-        SELECT $1, $2, next_stream_version.StreamVersion, $3, $4, $5
+            EventStreamId, EventNameId, StreamVersion, EventPayload, CommandId, EventTimestamp, MessageOriginJson)
+        SELECT $1, $2, next_stream_version.StreamVersion, $3, $4, $5, $6
         FROM next_stream_version
         RETURNING EventVersion, StreamVersion;
         """;
@@ -28,12 +28,12 @@ public sealed class SequentialEventLogAppender : IEventLogAppender
         WITH next_stream_version AS (
             UPDATE event_stream_id
             SET CurrentVersion = CurrentVersion + 1
-            WHERE EventStreamId = $1 AND CurrentVersion = $6
+            WHERE EventStreamId = $1 AND CurrentVersion = $7
             RETURNING CurrentVersion AS StreamVersion
         )
         INSERT INTO event_log (
-            EventStreamId, EventNameId, StreamVersion, EventPayload, CommandId, EventTimestamp)
-        SELECT $1, $2, next_stream_version.StreamVersion, $3, $4, $5
+            EventStreamId, EventNameId, StreamVersion, EventPayload, CommandId, EventTimestamp, MessageOriginJson)
+        SELECT $1, $2, next_stream_version.StreamVersion, $3, $4, $5, $6
         FROM next_stream_version
         RETURNING EventVersion;
         """;
@@ -230,6 +230,7 @@ public sealed class SequentialEventLogAppender : IEventLogAppender
         EventLogAppenderSupport.Add(command, BindValues.Bytea(entry.Payload));
         EventLogAppenderSupport.Add(command, BindValues.Uuid(request.CommandId));
         EventLogAppenderSupport.Add(command, BindValues.Text($"{request.EventTimestampUtc:o}"));
+        EventLogAppenderSupport.Add(command, BindValues.Text(entry.MessageOriginJson));
     }
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;

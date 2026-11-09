@@ -106,6 +106,7 @@ impl Delivery {
             sequence: 1,
             kind: 6,
             payload: vec![0xc0],
+            origin_ticks: None,
         }
         .subject(&config.scope)?;
         let stop = parent.cancellation().child_token();
@@ -369,6 +370,7 @@ impl Delivery {
             sequence,
             kind: 6,
             payload: record.bytes.to_vec(),
+            origin_ticks: Some(record.origin_ticks),
         }
     }
     async fn receipt(

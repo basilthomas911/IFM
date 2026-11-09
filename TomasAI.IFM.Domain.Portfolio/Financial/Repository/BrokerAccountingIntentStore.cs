@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.EventModelActor;
 
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit;
@@ -39,6 +40,7 @@ public sealed class BrokerAccountingIntentStore(IPostgresEventTransaction transa
             "Existing accounting operation has no immutable intent; reconciliation is required.");
         Require(string.Equals(proposed.InputSha256,FinancialCanonicalHash.Request(proposed),StringComparison.Ordinal),
             FinancialReasons.RequestMismatch, "Accounting intent hash is invalid.");
+        MessageOrigins.ForPublication(proposed, db.BusinessTime);
         var payload = new CommandAuditMessagePackCodec().Serialize(proposed);
         await (db.ExecuteAsync("""
             INSERT INTO portfolio_financial.broker_accounting_intent
@@ -47,8 +49,8 @@ public sealed class BrokerAccountingIntentStore(IPostgresEventTransaction transa
             """, [proposed.PortfolioId, proposed.OperationId, evidenceHash, Json(payload),
                 Convert.ToHexString(payload.Sha256)], ct)).ConfigureAwait(false);
         var source=new BrokerAccountingIntentCapturedEvent { Id=Guid.NewGuid(),CommandId=proposed.CommandId,Subject=proposed.Subject,
-            AggregateId=proposed.OperationId.ToString("N"),ReceivedOn=DateTime.UtcNow,PortfolioId=proposed.PortfolioId,OperationId=proposed.OperationId,
-            EvidenceHash=evidenceHash,PayloadFormat=(short)payload.Format,PayloadVersion=payload.Version,CommandBytes=payload.Bytes,CommandSha256=payload.Sha256 };
+            AggregateId=proposed.OperationId.ToString("N"),ReceivedOn=db.BusinessTime.GetUtcNow().UtcDateTime,PortfolioId=proposed.PortfolioId,OperationId=proposed.OperationId,
+            EvidenceHash=evidenceHash,PayloadFormat=(short)payload.Format,PayloadVersion=payload.Version,CommandBytes=payload.Bytes,CommandSha256=payload.Sha256,CommandOriginJson=MessageOriginJson.Serialize(payload.Origin) };
         await (FinancialOperationalEventPersistence.AppendAsync(db,$"BrokerAccountingIntent.{proposed.PortfolioId}.{proposed.OperationId:N}",source,proposed.PortfolioId,ct)).ConfigureAwait(false);
         return proposed;
     }
@@ -62,7 +64,7 @@ public sealed class BrokerAccountingIntentStore(IPostgresEventTransaction transa
         {
             await (db.ScalarAsync(PortfolioDbSql.Financial.LedgerConfigurationStore.Select01,[source.PortfolioId],ct)).ConfigureAwait(false);
             if(!await (FinancialOperationalEventPersistence.ClaimAsync(db,source,source.PortfolioId,ct)).ConfigureAwait(false)) return false;
-            var payload=new CommandAuditPayload((CommandAuditPayloadFormat)source.PayloadFormat,source.PayloadVersion,source.CommandBytes,source.CommandSha256);
+            var payload=new CommandAuditPayload((CommandAuditPayloadFormat)source.PayloadFormat,source.PayloadVersion,source.CommandBytes,source.CommandSha256,MessageOriginJson.Deserialize(source.CommandOriginJson));
             await (db.ExecuteAsync("""
                 INSERT INTO portfolio_financial.broker_accounting_intent(portfolio_id,operation_id,evidence_hash,command_payload,command_hash)
                 VALUES($1,$2,$3,$4::jsonb,$5);
@@ -90,7 +92,7 @@ public sealed class BrokerAccountingIntentStore(IPostgresEventTransaction transa
             FinancialReasons.RequestMismatch, "Stored accounting transport failed integrity validation.");
         var codec = new CommandAuditMessagePackCodec();
         var command = (PostFundTransactionsCommand)codec.Deserialize(typeof(PostFundTransactionsCommand),
-            payload.Bytes, (short)payload.Format, payload.Version);
+            payload.Bytes, (short)payload.Format, payload.Version, payload.Origin);
         Require(command.PortfolioId == portfolioId && command.OperationId == operationId &&
             string.Equals(command.InputSha256,FinancialCanonicalHash.Request(command),StringComparison.Ordinal) &&
             codec.Matches(command, payload.Sha256),

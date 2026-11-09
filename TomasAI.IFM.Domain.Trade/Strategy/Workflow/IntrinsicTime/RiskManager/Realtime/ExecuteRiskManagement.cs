@@ -72,12 +72,12 @@ public static class ExecuteRiskManagement
                         var financial = await context.FinancialApi.GetFinancialAdmissionSnapshotAsync(
                             new() { PortfolioId = candidate.PortfolioId, FundId = candidate.FundId, Access = new("IntrinsicTimeStrategyWorkflow", ["LedgerRead"], [candidate.PortfolioId]) },
                             new(candidate.DeploymentKey, FinancialScopeKeys.Underlying(candidate.Product.Symbol, candidate.Product.Exchange, candidate.Product.Currency))).ConfigureAwait(false);
-                        prepare = prepare with
+                        prepare = global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(prepare, prepare with
                         {
                             Policy = policy,
                             Financial = financial.Success ? financial.Value : null,
                             EvidenceCollectedAtUtc = context.TimeProvider.GetUtcNow().UtcDateTime
-                        };
+                        });
                     }
                 }
                 await context.SendAsync<PrepareRiskManagementCommand, IntrinsicTimeStrategyWorkflowEntityId>(prepare, view.EntityId).ConfigureAwait(false);

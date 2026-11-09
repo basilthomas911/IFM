@@ -53,11 +53,11 @@ public sealed class PortfolioFinancialPolicyCommandApi(IActorProducer actorProdu
         var access = Access;
         object command = payload switch
         {
-            CreatePortfolioFinancialPolicyCommand value => value with { CommandId = commandId, Subject = subject, EntityId = id, ErrorCode = PortfolioErrorCodes.ValidationFailed, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = access },
-            AddPortfolioFinancialPolicyVersionCommand value => value with { CommandId = commandId, Subject = subject, EntityId = id, ErrorCode = PortfolioErrorCodes.ValidationFailed, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = access },
-            ActivateAndAssignPortfolioFinancialPolicyCommand value => value with { CommandId = commandId, Subject = subject, EntityId = id, ErrorCode = PortfolioErrorCodes.ValidationFailed, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = access },
-            RetirePortfolioFinancialPolicyCommand value => value with { CommandId = commandId, Subject = subject, EntityId = id, ErrorCode = PortfolioErrorCodes.ValidationFailed, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = access },
-            DeleteDraftPortfolioFinancialPolicyCommand value => value with { CommandId = commandId, Subject = subject, EntityId = id, ErrorCode = PortfolioErrorCodes.ValidationFailed, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = access },
+            CreatePortfolioFinancialPolicyCommand value => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.CopyCommandIfSameIdentity(value, value with { CommandId = commandId, Subject = subject, EntityId = id, ErrorCode = PortfolioErrorCodes.ValidationFailed, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = access }),
+            AddPortfolioFinancialPolicyVersionCommand value => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.CopyCommandIfSameIdentity(value, value with { CommandId = commandId, Subject = subject, EntityId = id, ErrorCode = PortfolioErrorCodes.ValidationFailed, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = access }),
+            ActivateAndAssignPortfolioFinancialPolicyCommand value => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.CopyCommandIfSameIdentity(value, value with { CommandId = commandId, Subject = subject, EntityId = id, ErrorCode = PortfolioErrorCodes.ValidationFailed, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = access }),
+            RetirePortfolioFinancialPolicyCommand value => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.CopyCommandIfSameIdentity(value, value with { CommandId = commandId, Subject = subject, EntityId = id, ErrorCode = PortfolioErrorCodes.ValidationFailed, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = access }),
+            DeleteDraftPortfolioFinancialPolicyCommand value => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.CopyCommandIfSameIdentity(value, value with { CommandId = commandId, Subject = subject, EntityId = id, ErrorCode = PortfolioErrorCodes.ValidationFailed, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = access }),
             _ => throw new InvalidOperationException($"Unsupported Portfolio FinancialPolicy command payload {typeof(T).FullName}."),
         };
         try
@@ -85,7 +85,7 @@ public sealed class PortfolioFinancialPolicyCommandApi(IActorProducer actorProdu
                         || revision.Revision != activate.ExpectedPortfolioRevision || revision != after.Value
                         || !parent.Success || parent.Value is not { } exactParent || exactParent.PortfolioId != id.PortfolioId)
                         return new ServiceFailed<Guid>(PortfolioErrorCodes.VersionConflict, "The projected parent Portfolio does not match the expected revision.");
-                    command = activate with { ParentPortfolio = exactParent };
+                    command = global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(activate, activate with { ParentPortfolio = exactParent });
                 }
                 if (policy is not null)
                 {
@@ -99,9 +99,9 @@ public sealed class PortfolioFinancialPolicyCommandApi(IActorProducer actorProdu
                     if (!receipt.Success) return receipt;
                     command = command switch
                     {
-                        CreatePortfolioFinancialPolicyCommand value => value with { ReferencePreparationId = receipt.Value },
-                        AddPortfolioFinancialPolicyVersionCommand value => value with { ReferencePreparationId = receipt.Value },
-                        ActivateAndAssignPortfolioFinancialPolicyCommand value => value with { ReferencePreparationId = receipt.Value },
+                        CreatePortfolioFinancialPolicyCommand value => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(value, value with { ReferencePreparationId = receipt.Value }),
+                        AddPortfolioFinancialPolicyVersionCommand value => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(value, value with { ReferencePreparationId = receipt.Value }),
+                        ActivateAndAssignPortfolioFinancialPolicyCommand value => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(value, value with { ReferencePreparationId = receipt.Value }),
                         _ => command
                     };
                 }

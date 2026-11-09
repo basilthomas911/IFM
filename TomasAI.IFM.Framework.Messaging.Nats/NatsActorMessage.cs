@@ -1,4 +1,4 @@
-﻿using NATS.Client.Core;
+using NATS.Client.Core;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Serializers;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -18,13 +18,19 @@ public sealed class NatsActorMessage : IActorMessage
 {
     static readonly NatsMessagePackDataSerializer _dataSerializer = new();
 
-    public NatsActorMessage(NatsMsg<byte[]> natsMessage)
+    public NatsActorMessage(NatsMsg<byte[]> natsMessage, TimeProvider? timeProvider = null)
     {
         NatsMessage = natsMessage;
+        _clock = timeProvider ?? TimeProvider.System;
+        Origin = global::TomasAI.IFM.Framework.Messaging.Nats.MessageOriginHeaders.Read(natsMessage.Headers);
         TraceContext = global::TomasAI.IFM.Framework.Messaging.Nats.NatsActorTrace.Extract(natsMessage.Headers);
     }
 
     public NatsMsg<byte[]> NatsMessage { get; }
+
+    public MessageOrigin? Origin { get; }
+
+    readonly TimeProvider _clock;
 
     public System.Diagnostics.ActivityContext TraceContext { get; }
 
@@ -42,15 +48,18 @@ public sealed class NatsActorMessage : IActorMessage
     public bool CanReply => !string.IsNullOrEmpty(NatsMessage.ReplyTo);
 
     public TCommand? AsCommand<TCommand>() where TCommand : class, ICommand
-       => _dataSerializer.Deserialize<TCommand>(NatsMessage.Data!);
+       => RestoreOrigin(_dataSerializer.Deserialize<TCommand>(NatsMessage.Data!));
 
     public TEvent? AsEvent<TEvent>() where TEvent : class, IEvent
-        => _dataSerializer.Deserialize<TEvent>(NatsMessage.Data!);
+        => RestoreOrigin(_dataSerializer.Deserialize<TEvent>(NatsMessage.Data!));
 
     public TQuery? AsQuery<TQuery, TResult>()
         where TQuery : class, IQuery<TResult>
         where TResult : class
-        => _dataSerializer.Deserialize<TQuery>(NatsMessage.Data!);
+        => RestoreOrigin(_dataSerializer.Deserialize<TQuery>(NatsMessage.Data!));
+
+    T? RestoreOrigin<T>(T? value) where T : class
+        => value is null ? null : MessageOrigins.Restore(value, Origin);
 
     public async ValueTask ReplyAsync<TResult>(TResult result) where TResult : class
     {
@@ -58,6 +67,8 @@ public sealed class NatsActorMessage : IActorMessage
         {
             await NatsMessage.ReplyAsync(
                 result,
+                headers: global::TomasAI.IFM.Framework.Messaging.Nats.MessageOriginHeaders.Add(null,
+                    MessageOrigins.ForPublication(result, _clock)),
                 serializer: NatsMessagePackSerializer<TResult>.Default).ConfigureAwait(false);
         }
     }

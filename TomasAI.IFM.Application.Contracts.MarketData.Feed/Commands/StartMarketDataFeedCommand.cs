@@ -33,7 +33,7 @@ public record StartMarketDataFeedCommand : ICommand<MarketDataFeedId>
     [IgnoreMember] public string StreamId => $"{Subject.StreamId}";
     [IgnoreMember] public string EventSource => $"{Actor}Actor";
     [IgnoreMember] [System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1822",Justification="Preserve the instance contract consumed by existing callers or BenchmarkDotNet reflection.")]
-public DateTime OriginatedOn => DateTime.UtcNow;
+public DateTime OriginatedOn => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Get(this)?.OriginatedAtUtc.UtcDateTime ?? default;
     [IgnoreMember] [System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1822",Justification="Preserve the instance contract consumed by existing callers or BenchmarkDotNet reflection.")]
 public string OriginatedBy => $"{Environment.UserDomainName}\\{Environment.UserName}";
     [IgnoreMember] public DateOnly ValueDate => EntityId?.ValueDate ?? default;

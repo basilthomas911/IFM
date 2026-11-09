@@ -13,8 +13,9 @@ public sealed class InteractiveBrokersEmulatorTradeBroker : ITradeBroker
     private readonly IFrameworkOrderExecutionBroker _orders;
     private readonly IFrameworkBrokerAccount _account;
     readonly ILogger logger;
+    readonly TimeProvider clock;
 
-    public InteractiveBrokersEmulatorTradeBroker(IFrameworkOrderExecutionBroker orders, IFrameworkBrokerAccount account, ILogger? logger = null)
+    public InteractiveBrokersEmulatorTradeBroker(IFrameworkOrderExecutionBroker orders, IFrameworkBrokerAccount account, ILogger? logger = null, TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(account);
         ArgumentNullException.ThrowIfNull(orders);
@@ -22,6 +23,7 @@ public sealed class InteractiveBrokersEmulatorTradeBroker : ITradeBroker
             throw new ArgumentException("Emulator order and account ports are not aligned.", nameof(orders));
         _orders = orders;
         _account = account;
+        clock = timeProvider ?? TimeProvider.System;
         this.logger = logger ?? NullLogger.Instance;
     }
 
@@ -34,10 +36,10 @@ public sealed class InteractiveBrokersEmulatorTradeBroker : ITradeBroker
     {
         if (request.Environment != Environment || !string.Equals(request.AccountAlias, AccountAlias, StringComparison.Ordinal))
             return new(BrokerDispatchOutcome.RejectedLocally, request.OperationId, request.BrokerOrderId,
-                "TB.ACCOUNT.MISMATCH", "Broker environment or account does not match the loaded adapter/account.", DateTime.UtcNow);
+                "TB.ACCOUNT.MISMATCH", "Broker environment or account does not match the loaded adapter/account.", clock.GetUtcNow().UtcDateTime);
         if (Capabilities.Validate(request) is { } capabilityFailure)
             return new(BrokerDispatchOutcome.RejectedLocally, request.OperationId, request.BrokerOrderId,
-                "TB.CAPABILITY.UNSUPPORTED", capabilityFailure, DateTime.UtcNow);
+                "TB.CAPABILITY.UNSUPPORTED", capabilityFailure, clock.GetUtcNow().UtcDateTime);
         return TradeBrokerMapper.ToApplication(await (_orders.PlaceAsync(TradeBrokerMapper.ToFramework(request), cancellationToken)).ConfigureAwait(false));
     }
 

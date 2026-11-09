@@ -1,12 +1,40 @@
 # Application Backtesting System Implementation Plan
 
-**Version:** 0.1  
+**Version:** 0.2
 **Date:** 2026-11-09  
-**Status:** Planned; implementation not started
+**Status:** Shared-system changes implemented and qualified in Development; core backtesting deferred
 
 Implement an isolated historical execution mode using the normal trading application, a file-backed market-data emulator and the existing broker emulator. The first release proves functional correctness over historical time while retaining profitability outputs. It must preserve live trading defaults, financial rules and existing UI layout.
 
-This plan follows the [consolidated design](Application-Backtesting-System-Draft-Design-v0.1.md), [functional specification](Application-Backtesting-System-Specification-v0.1.md) and [shared-code inventories](Application-Backtesting-Shared-Code-Inventories-2026-11-09.md). Creating this plan does not start implementation, reset storage, acquire data or restart Development.
+This plan follows the [consolidated design](Application-Backtesting-System-Draft-Design-v0.1.md), [functional specification](Application-Backtesting-System-Specification-v0.1.md) and [shared-code inventories](Application-Backtesting-Shared-Code-Inventories-2026-11-09.md). The shared-system phase is authorized. Core backtesting is not authorized by this phase.
+
+## Shared phase completion — 2026-11-09
+
+S0–S6 are complete for the authorized shared-system scope. See the [qualification report](Application-Backtesting-Shared-System-Qualification-2026-11-09.md), [clock disposition register](backtesting-inventories/2026-11-09/shared-clock-disposition.csv), and [disposition counts](backtesting-inventories/2026-11-09/shared-change-disposition-summary.json).
+
+The selected qualification runs passed 9,250 .NET cases across 30 assemblies, with 12 existing opt-in/environment skips, plus native Rust and complete standalone Rust UI verification. Real PostgreSQL and NATS tests cover snapshot provenance, both append modes, retries, restart, legacy unknown origins and repeated empty RPC results. Development startup, all 76 active indicator health entries, API/native readiness, the scheduler and UI were checked after deployment. Planned background option provider-registration handoffs remain operational changes; they are recorded separately from processing failures and do not require constant worker generations.
+
+Origin capture belongs to a message or transport envelope. Shared empty arrays and other decoded value objects have no independent message identity. Missing optional causation is represented by null. Neither case relaxes immutable-origin validation.
+
+The core P0–P9 feature work below remains deferred. This delivery introduces no Backtesting environment, destructive reset, historical file-feed emulator, replay runner, launcher, broker integration mode or Backtesting UI tab.
+
+## Shared system delivery takes precedence
+
+The following sequence supersedes the interleaved P0–P9 implementation order below. Those sections remain the detailed future feature scope; their backtesting tasks are deferred.
+
+| Stage | Current authorized scope | Acceptance evidence |
+| --- | --- | --- |
+| S0 | Capture current Development/process, unit/BDD/integration and performance baselines; classify clock/message inventory sites | Reproducible commands, results, timings and existing failures recorded |
+| S1 | Shared injected business/physical clock contracts and live composition; split mixed timers/deadlines | System-backed Development defaults; controlled-clock tests; real watchdog/cancellation while business time is frozen |
+| S2 | Immutable origin, additive transport/context metadata and stable contract timestamp consumers | Creation/read/retry/fanout/reply/legacy compatibility tests; existing serialization keys and source dates preserved |
+| S3 | Atomic per-message origin persistence, command/event audit, outboxes and latest-snapshot reads | Real PostgreSQL and NATS retry/restart tests; both append modes; no duplicate identity or fabricated legacy origin |
+| S4 | Remaining active shared clock/timestamp paths, including native publication and market-data RPC boundaries | Every inventory candidate migrated, retained or excluded with evidence; source/wire checks and regression suites pass |
+| S5 | Development deployment and full functional qualification | Unit, BDD and integration suites pass; startup, indicators, horizons, options, scheduler, order/reconciliation and Fund paths verified; no unexpected application errors in the recorded qualification window |
+| S6 | Before/after measurements and final shared-system report | Comparable timings/allocations/GC/locking evidence; no unresolved functional or performance regression; Development restored healthy |
+
+Do not implement a backtesting launcher/profile, reset controller, historical provider, replay engine/coordinator, simulation execution model or Backtesting UI during S0–S6. Controlled-clock tests are shared infrastructure tests, not a replay engine. Keep Development on the live Rust market-data stack and existing broker selection. Expected fault-injection errors, legitimate broker rejections and valid NoTrade must end in the correct explicit state, and must not be hidden to claim an error-free system.
+
+Only after S0–S6 acceptance and a subsequent instruction may core backtesting begin. The historical proof then remains a core-backtesting feasibility gate; it no longer precedes completion of the shared migration. Runtime qualification must name its observation interval and actually exercised paths rather than claim universal correctness.
 
 ## 1. Scope and completion criteria
 

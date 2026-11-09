@@ -15,9 +15,9 @@ internal class FuturesTradeSignalCompute
     /// <param name="updateCmd"></param>
     /// <param name="model"></param>
     /// <returns></returns>
-    internal static bool Create(UpdateFuturesTradeSignalCommand updateCmd, out FuturesTradeSignalCompute model)
+    internal static bool Create(UpdateFuturesTradeSignalCommand updateCmd, out FuturesTradeSignalCompute model, TimeProvider? timeProvider = null)
     {
-        model = new(updateCmd);
+        model = new(updateCmd, timeProvider ?? TimeProvider.System);
         return true;
     }
 
@@ -25,10 +25,10 @@ internal class FuturesTradeSignalCompute
     /// 
     /// </summary>
     /// <param name="updateCmd"></param>
-    FuturesTradeSignalCompute(UpdateFuturesTradeSignalCommand updateCmd)
+    FuturesTradeSignalCompute(UpdateFuturesTradeSignalCommand updateCmd, TimeProvider clock)
     {
         _updateCmd = IsArgumentNull.Set(updateCmd);
-        FuturesTradeSignal = ComputeFuturesTradeSignalFromEodData();
+        FuturesTradeSignal = ComputeFuturesTradeSignalFromEodData(clock);
     }
 
     /// <summary>
@@ -47,14 +47,14 @@ internal class FuturesTradeSignalCompute
     /// accurate results.</remarks>
     /// <returns>A <see cref="FuturesTradeSignalV2ReadModel"/> containing the computed trading signal details, including risk
     /// metrics, trend analysis, and indicator values for the specified contract and date.</returns>
-    FuturesTradeSignalV2ReadModel ComputeFuturesTradeSignalFromEodData()
+    FuturesTradeSignalV2ReadModel ComputeFuturesTradeSignalFromEodData(TimeProvider clock)
     {
         var score = new FuturesTradeSignalModel(
             _updateCmd.FuturesEodData,
             _updateCmd.FuturesRsiSignal,
             _updateCmd.FuturesTdiSignal,
-            _updateCmd.FuturesItiSignalData);
-        var utcNow = DateTime.UtcNow;
+            _updateCmd.FuturesItiSignalData, clock);
+        var utcNow = clock.GetUtcNow().UtcDateTime;
         var timestamp = new TimeOnly(utcNow.Hour, utcNow.Minute, utcNow.Second);
         return new FuturesTradeSignalV2ReadModel(
             _updateCmd.FuturesEodData.ContractId,

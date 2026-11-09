@@ -37,7 +37,7 @@ public sealed record FuturesVwapSignalUpdatedFailEvent : IErrorEvent<FuturesVwap
             Subject = new(ActorType.Event, FuturesVwapSignalUpdatedEvent.Actor, Verb, source.EntityId.Format()),
             EntityId = source.EntityId,
             Id = source.Id,
-            ErrorDate = DateTime.UtcNow,
+            ErrorDate = default,
             EventId = source.EventId,
             CommandId = source.CommandId,
             EventSource = source.EventSource,

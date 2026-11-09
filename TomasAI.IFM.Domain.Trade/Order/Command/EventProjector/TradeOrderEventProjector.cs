@@ -34,7 +34,7 @@ public sealed class TradeOrderEventProjector : ConventionalEventProjector<TradeO
             await context.DbFactory.TradeDb.UpsertTradeOrderAsync(changed.TradeOrderDefinition).ConfigureAwait(false);
         if (changed.TradeOrderDefinition.Status != TradeOrderStatus.Executing || changed.ExecutionAttemptId == Guid.Empty)
             return;
-        await TomasAI.IFM.Domain.Trade.Order.Execution.Command.EventProjector.FundExecutionLifecycle.SubmittedAsync(context.ActorService, changed.TradeOrderDefinition, changed.ExecutionAttemptId, changed.ReceivedOn.Kind == DateTimeKind.Utc ? changed.ReceivedOn : DateTime.UtcNow).ConfigureAwait(false);
+        await TomasAI.IFM.Domain.Trade.Order.Execution.Command.EventProjector.FundExecutionLifecycle.SubmittedAsync(context.ActorService, changed.TradeOrderDefinition, changed.ExecutionAttemptId, changed.ReceivedOn.Kind == DateTimeKind.Utc ? changed.ReceivedOn : (context.Container?.Resolve<TimeProvider>() ?? TimeProvider.System).GetUtcNow().UtcDateTime).ConfigureAwait(false);
         var executionId = new OrderExecutionId(changed.TradeOrderDefinition.Id, changed.ExecutionAttemptId);
         var command = new StartOrderExecutionCommand
         {
@@ -44,7 +44,7 @@ public sealed class TradeOrderEventProjector : ConventionalEventProjector<TradeO
             Order = changed.TradeOrderDefinition,
             ExecutionAttemptId = changed.ExecutionAttemptId,
             Channel = changed.ExecutionChannel,
-            EffectiveAtUtc = changed.ReceivedOn.Kind == DateTimeKind.Utc ? changed.ReceivedOn : DateTime.UtcNow
+            EffectiveAtUtc = changed.ReceivedOn.Kind == DateTimeKind.Utc ? changed.ReceivedOn : (context.Container?.Resolve<TimeProvider>() ?? TimeProvider.System).GetUtcNow().UtcDateTime
         };
         var result = await context.ActorService.SendAsync<StartOrderExecutionCommand, TomasAI.IFM.Domain.Trade.Shared.OrderExecutionId>(command, command.EntityId).ConfigureAwait(false);
         if (!result.Success)

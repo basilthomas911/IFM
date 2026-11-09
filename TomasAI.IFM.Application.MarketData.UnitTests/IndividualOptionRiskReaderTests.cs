@@ -7,17 +7,19 @@ namespace TomasAI.IFM.Application.MarketData.UnitTests;
 
 public sealed class IndividualOptionRiskReaderTests
 {
-    [Fact]
-    public async Task Monitoring_requests_worker_frozen_time_without_changing_the_owned_scope_or_deadline()
+    [Theory]
+    [InlineData(2020)]
+    [InlineData(2035)]
+    public async Task Monitoring_requests_worker_frozen_time_without_changing_the_owned_scope_or_deadline(int year)
     {
         var date = new DateOnly(2026, 9, 8);
         var admissions = new DatasetWorkerAdmissionRegistry();
         admissions.Admit(new("GLBX.MDP3", date, Guid.NewGuid(), Generation, 1));
         var market = Substitute.For<ICompositionMarketDataApi>();
-        var reader = new IndividualOptionRiskReader(market, admissions);
+        var now = new DateTimeOffset(year, 9, 8, 12, 0, 0, TimeSpan.Zero);
+        var reader = new IndividualOptionRiskReader(market, admissions, clock: new FixedClock(now));
         reader.Register(new("owned-leg", Guid.NewGuid(), Generation, date, new(2026, 10, 2),
-            DateTimeOffset.UtcNow.AddMinutes(1), [new(Context(), 5000, true)], SeparateContractConnection: true));
-        var now = DateTimeOffset.UtcNow;
+            now.AddMinutes(1), [new(Context(), 5000, true)], SeparateContractConnection: true));
         var valuation = Black76PricingModel.Calculate(Context(), Quote("ES-future", 5000), Quote("ES-option-call", 100), 5000, true, At).Value;
         var snapshot = new MarketCompositionSnapshot(1, Guid.NewGuid(), "owned-leg", "scope/v1", "Daily", Generation,
             now, now.AddSeconds(2), [new(new("ES-option-call", Quote("ES-option-call", 100), Context(), 5000, true, Quote("ES-future", 5000)), valuation)], "digest");
@@ -30,5 +32,10 @@ public sealed class IndividualOptionRiskReaderTests
             && request.GenerationId == Generation && request.MaximumContracts == 1
             && request.DeadlineUtc >= now && request.DeadlineUtc <= now.AddSeconds(4)), Arg.Any<CancellationToken>());
         Assert.DoesNotContain(market.ReceivedCalls(), call => call.GetMethodInfo().Name == nameof(ICompositionMarketDataApi.AcquireAsync));
+    }
+
+    sealed class FixedClock(DateTimeOffset now) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => now;
     }
 }

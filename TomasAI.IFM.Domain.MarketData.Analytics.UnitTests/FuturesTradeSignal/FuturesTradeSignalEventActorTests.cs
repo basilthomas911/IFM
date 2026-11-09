@@ -249,11 +249,14 @@ public class FuturesTradeSignalEventActorTests : IClassFixture<MarketDataAnalyti
                     && notification.IsValid));
     }
 
-    [Fact]
-    public async Task ReceiveAsync_CompletionEvent_PublishesDistinctSerializableNotifyEvent()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ReceiveAsync_CompletionEvent_PublishesDistinctSerializableNotifyEvent(bool legacyMissingEventId)
     {
         var scenario = CreateScenario();
         var @event = SampleData.CreateTradeSignalUpdatedCompleteEventFor(TimeFrameType.Daily);
+        if (legacyMissingEventId) @event = @event with { Id = Guid.Empty };
         FuturesTradeSignalUpdatedNotifyEvent? published = null;
         scenario.Context.SendAsync<FuturesTradeSignalUpdatedNotifyEvent, FuturesTradeSignalEntityId>(
                 Arg.Do<FuturesTradeSignalUpdatedNotifyEvent>(value => published = value))
@@ -263,6 +266,7 @@ public class FuturesTradeSignalEventActorTests : IClassFixture<MarketDataAnalyti
 
         published.Should().NotBeNull();
         published!.Id.Should().NotBe(@event.Id);
+        MessageOrigins.Get(published)!.CausationId.Should().Be(legacyMissingEventId ? (Guid?)null : @event.Id);
         published.EventSource.Should().Be(nameof(FuturesTradeSignalUpdatedCompleteEvent));
         published.ReceivedOn.Kind.Should().Be(DateTimeKind.Utc);
         var roundTrip = MessagePackSerializer.Deserialize<FuturesTradeSignalUpdatedNotifyEvent>(

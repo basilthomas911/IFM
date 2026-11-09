@@ -10,6 +10,13 @@ namespace TomasAI.IFM.Shared.Storage;
 /// </remarks>
 public interface IObjectDataRecord
 {
+    /// <summary>Reads an optional named text column without shifting established positional mappings.</summary>
+    bool TryGetString(string columnName, out string? value)
+    {
+        value = null;
+        return false;
+    }
+
     /// <summary>
     /// Determines whether the value at the specified column index is null.
     /// </summary>

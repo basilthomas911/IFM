@@ -11,14 +11,15 @@ namespace TomasAI.IFM.Domain.Portfolio.OrderComposition.Function.Actor;
 public sealed class PortfolioOrderCompositionFunctionContext : FunctionActorContext, IPortfolioOrderCompositionFunctionContext
 {
     readonly Lazy<IEventSourceFunctionStateRepository<PortfolioOrderCompositionFunctionState, EvaluatePortfolioOrderCompositionCommand>> repository;
-    public PortfolioOrderCompositionFunctionContext(IActorSupervisor supervisor, ILogger<PortfolioOrderCompositionFunctionActor> logger)
+    public PortfolioOrderCompositionFunctionContext(IActorSupervisor supervisor, ILogger<PortfolioOrderCompositionFunctionActor> logger, TimeProvider? timeProvider = null)
         : base(supervisor, new ActorMailboxId(ActorType.Function, PortfolioOrderCompositionFunctionActor.ActorName))
     {
+        TimeProvider = timeProvider ?? TimeProvider.System;
         Logger = logger;
         repository = new(() => Container.Resolve<IEventSourceFunctionStateRepository<PortfolioOrderCompositionFunctionState, EvaluatePortfolioOrderCompositionCommand>>()
             ?? throw new InvalidOperationException("Portfolio order-composition repository is not registered."));
     }
     public IEventSourceFunctionStateRepository<PortfolioOrderCompositionFunctionState, EvaluatePortfolioOrderCompositionCommand> StateRepository => repository.Value;
-    public TimeProvider TimeProvider => global::System.TimeProvider.System;
+    public TimeProvider TimeProvider { get; }
     public ILogger<PortfolioOrderCompositionFunctionActor> Logger { get; }
 }

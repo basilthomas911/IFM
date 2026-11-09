@@ -14,10 +14,10 @@ public sealed class OrderCompositionFunctionContext : FunctionActorContext, IOrd
     readonly Lazy<IEventSourceFunctionStateRepository<OrderCompositionFunctionState, ExecuteOrderCompositionPipelineCommand>> _repository;
     readonly Lazy<IFunctionProjector<OrderCompositionFunctionCompletedEvent>> _projector;
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "This typed context adapts services for its actor and intentionally retains the actor logger category.")]
-    public OrderCompositionFunctionContext(IActorSupervisor supervisor, ILogger<OrderCompositionFunctionActor> logger) : base(supervisor, new ActorMailboxId(ActorType.Function, OrderCompositionFunctionActor.ActorName))
+    public OrderCompositionFunctionContext(IActorSupervisor supervisor, ILogger<OrderCompositionFunctionActor> logger, TimeProvider? timeProvider = null) : base(supervisor, new ActorMailboxId(ActorType.Function, OrderCompositionFunctionActor.ActorName))
     {
         Logger = IsArgumentNull.Set(logger);
-        TimeProvider = TimeProvider.System;
+        TimeProvider = timeProvider ?? TimeProvider.System;
         _repository = new(() => Container.Resolve<IEventSourceFunctionStateRepository<OrderCompositionFunctionState, ExecuteOrderCompositionPipelineCommand>>());
         _projector = new(() => Container.Resolve<IFunctionProjector<OrderCompositionFunctionCompletedEvent>>());
     }

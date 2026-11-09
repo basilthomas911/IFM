@@ -16,7 +16,7 @@ namespace TomasAI.IFM.Domain.BrokerAccount.Command.EventProjector;
 /// <summary>Projects committed account event payloads into PostgreSQL with durable retry.</summary>
 public sealed class BrokerAccountEventProjector(IBrokerAccountProjectionWriter writer, IDurableReplayQueue queue,
     IEventSourceActorDbContext eventSource, ILogger<BrokerAccountEventProjector> logger,
-    ITradeBroker broker, IActorService actorService, EventProjectorReliabilityOptions? options = null)
+    ITradeBroker broker, IActorService actorService, EventProjectorReliabilityOptions? options = null, TimeProvider? timeProvider = null)
     : ConventionalEventProjector<BrokerAccountCommandActor>(queue, eventSource, logger, options)
 {
     public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors { get; } =
@@ -25,7 +25,7 @@ public sealed class BrokerAccountEventProjector(IBrokerAccountProjectionWriter w
         Describe(typeof(BrokerAccountOperationAppliedEvent), writer, true),
         new EventProjectionDescriptor(typeof(BrokerAccountResynchronizationRequestedEvent), EventProjectionIdempotencyStrategy.NaturalKeyMutation,
             (source, execution) => BrokerAccountResynchronizationProducer.SendAsync(
-                (BrokerAccountResynchronizationRequestedEvent)source, broker, actorService, eventSource, execution.CancellationToken),
+                (BrokerAccountResynchronizationRequestedEvent)source, broker, actorService, eventSource, execution.CancellationToken, timeProvider),
             source => Complete((BrokerAccountResynchronizationRequestedEvent)source),
             (source, error) => Fail((BrokerAccountResynchronizationRequestedEvent)source, error),
             publishProcessingEvent: false).WithReadModelRebuild((_, _) => Task.CompletedTask),
@@ -86,8 +86,8 @@ public sealed class BrokerAccountEventProjector(IBrokerAccountProjectionWriter w
             _ => throw new InvalidDataException("Unknown broker account operation.")
         };
         if (source is BrokerAccountOperationDecidedEvent { Accepted: false } decision)
-            return outcome with { ErrorType = ErrorType.Command, ErrorCode = decision.RejectionCode, ErrorMessage = decision.RejectionReason };
-        return outcome with { ErrorType = ErrorType.Denormalizer, ErrorCode = 25104, ErrorMessage = error.Message };
+            return global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(outcome, outcome with { ErrorType = ErrorType.Command, ErrorCode = decision.RejectionCode, ErrorMessage = decision.RejectionReason });
+        return global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(outcome, outcome with { ErrorType = ErrorType.Denormalizer, ErrorCode = 25104, ErrorMessage = error.Message });
     }
 
     private static T Outcome<T>(BrokerAccountChangedEvent source) where T : BrokerAccountOperationOutcome, new() => new()

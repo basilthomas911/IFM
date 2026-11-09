@@ -27,7 +27,7 @@ public abstract class DatabaseOperationCommandState<TState> : BaseEventSourceAct
         Id = Guid.NewGuid(),
         CommandId = command.CommandId,
         EventSource = command.EventSource,
-        ReceivedOn = DateTime.UtcNow,
+
         Concern = typeof(TState).Name,
         LegacyStreamVersion = LegacyStreamVersion,
         Operation = Operation,

@@ -8,7 +8,7 @@ public sealed class DatabaseBackupRetentionCommandState : DatabaseOperationComma
     internal DatabaseRetentionDecisionState RetentionDecision => new(Operation, Retention);
     internal TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Model.DatabaseServiceReconciliationDecisionState ReconciliationDecision => new(Operation, new(), Retention, OperationDecision.ProcessedServiceEvents);
     protected override DatabaseOperationStateSnapshottedEvent CaptureConcern(DatabaseOperationStateSnapshottedEvent snapshot)
-        => snapshot with { Retention = Retention };
+        => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(snapshot, snapshot with { Retention = Retention });
 
     protected override bool HasConcernSnapshot(DatabaseOperationStateSnapshottedEvent snapshot) => snapshot.Retention is not null;
 

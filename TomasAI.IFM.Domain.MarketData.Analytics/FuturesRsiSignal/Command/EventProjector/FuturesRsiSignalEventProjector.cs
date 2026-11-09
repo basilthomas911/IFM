@@ -17,7 +17,7 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Command.Event
 public sealed class FuturesRsiSignalEventProjector(
     IDbContextFactory dbFactory, IDurableReplayQueue durableReplayQueue,
     IEventSourceActorDbContext dbEventSource, ILogger<FuturesRsiSignalEventProjector> logger, EventProjectorReliabilityOptions? reliabilityOptions = null,
-    IPostgresEventTransaction? transactions = null)
+    IPostgresEventTransaction? transactions = null, TimeProvider? timeProvider = null)
     : ConventionalEventProjector<FuturesRsiSignalCommandActor>(durableReplayQueue, dbEventSource, logger, reliabilityOptions)
 {
     readonly ImmutableArray<EventProjectionDescriptor> _descriptors =
@@ -25,12 +25,12 @@ public sealed class FuturesRsiSignalEventProjector(
         Describe<FuturesRsiSignalGeneratedEvent, FuturesRsiSignalGeneratedCompleteEvent, FuturesRsiSignalGeneratedFailEvent, FuturesRsiSignalEntityId>(
             (Func<FuturesRsiSignalGeneratedEvent, Task>)(async e => { if (!string.Equals(dbFactory.MarketDataDb.ProviderName,"System.Data.Postgres",StringComparison.Ordinal)) {
 await dbFactory.MarketDataDb.InsertFuturesRsiSignalAsync(e.FuturesRsiSignal).ConfigureAwait(false);}
-RegimeDiscoverySignalCacheAdapter.Publish(e.FuturesRsiSignal); }))
+RegimeDiscoverySignalCacheAdapter.Publish(e.FuturesRsiSignal, timeProvider); }))
             .WithReadModelRebuild((source,token) => AcceptedSignalRebuild.MaterializeAsync(dbFactory,transactions,source,token)),
         Describe<FuturesRsiDailySignalGeneratedEvent, FuturesRsiDailySignalGeneratedCompleteEvent, FuturesRsiDailySignalGeneratedFailEvent, FuturesRsiDailySignalEntityId>(
             (Func<FuturesRsiDailySignalGeneratedEvent, Task>)(async e => { if (!string.Equals(dbFactory.MarketDataDb.ProviderName,"System.Data.Postgres",StringComparison.Ordinal)) {
 await dbFactory.MarketDataDb.InsertFuturesRsiSignalAsync(e.FuturesRsiSignal).ConfigureAwait(false);}
-RegimeDiscoverySignalCacheAdapter.Publish(e.FuturesRsiSignal); }))
+RegimeDiscoverySignalCacheAdapter.Publish(e.FuturesRsiSignal, timeProvider); }))
             .WithReadModelRebuild((source,token) => AcceptedSignalRebuild.MaterializeAsync(dbFactory,transactions,source,token)),
         DescribeNotification<FuturesRsiDailySignalsGeneratedEvent, FuturesRsiDailySignalEntityId>(),
         DescribeNotification<FuturesRsiSignalsGeneratedEvent, FuturesRsiSignalEntityId>(),

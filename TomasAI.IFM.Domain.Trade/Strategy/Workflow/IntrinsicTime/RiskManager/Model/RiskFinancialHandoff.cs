@@ -73,10 +73,10 @@ public static class RiskFinancialHandoff
                 AcceptedIntentReference = Identity(result.InvocationId, "Execution").ToString("N")
             }
         };
-        return request with
+        return global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(request, request with
         {
             InputSha256 = FinancialCanonicalHash.Request(request)
-        };
+        });
     }
 
     public static FundRiskAuthorizationReference Authorize(ReservePortfolioTradeRiskCommand request, CapacityReservationCompletedEvent completed)
@@ -129,10 +129,10 @@ public static class RiskFinancialHandoff
                 }
             }
         };
-        return request with
+        return global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(request, request with
         {
             InputSha256 = FinancialCanonicalHash.Request(request)
-        };
+        });
     }
 
     public static FinancialExecutionOrder Order(IntrinsicTimeStrategyWorkflowView view, Guid executionId)
@@ -188,10 +188,10 @@ public static class RiskFinancialHandoff
             Access = new("IntrinsicTimeStrategyWorkflow", ["EmulatorSubmit"], [entity.PortfolioId]),
             Body = new(handoff.Order, consumption.OperationId, consumption.Id, consumption.InputHash)
         };
-        return request with
+        return global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(request, request with
         {
             InputSha256 = FinancialCanonicalHash.Request(request)
-        };
+        });
     }
 
     static void Require(bool value, string reason) => RiskUnitModel.Require(value, reason);

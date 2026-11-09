@@ -39,7 +39,7 @@ public sealed record FuturesVxTermStructureSignalUpdatedFailEvent
             Subject = new(ActorType.Event, FuturesVxTermStructureSignalUpdatedEvent.Actor, Verb, source.EntityId.Format()),
             EntityId = source.EntityId,
             Id = source.Id,
-            ErrorDate = DateTime.UtcNow,
+            ErrorDate = default,
             EventId = source.EventId,
             CommandId = source.CommandId,
             EventSource = source.EventSource,

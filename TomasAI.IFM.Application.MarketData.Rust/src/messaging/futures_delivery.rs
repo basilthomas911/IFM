@@ -126,6 +126,7 @@ impl Delivery {
             sequence: 1,
             kind: 3,
             payload: vec![0xc0],
+            origin_ticks: None,
         }
         .subject(&config.scope)?;
         let current = Arc::new(Current::new(128, 16 * 1024 * 1024)?);
@@ -454,6 +455,7 @@ impl Delivery {
                             sequence: *sequence,
                             kind: event.kind,
                             payload,
+                            origin_ticks: Some(next.observed),
                         };
                         if let Some(contract) = contract
                             && let Err(error) = current.retain(contract, &frame)

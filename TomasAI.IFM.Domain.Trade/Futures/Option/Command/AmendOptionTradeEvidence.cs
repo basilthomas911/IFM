@@ -94,7 +94,7 @@ public static class AmendOptionTradeEvidence
         {
             CommandId = command.CommandId,
             Subject = new(ActorType.Event, "FuturesOptionTradeEvent", OptionTradeChangedEvent.Verb, command.EntityId.Format()),
-            ReceivedOn = DateTime.UtcNow,
+
             EntityId = command.EntityId,
             EstablishedTradeDefinition = tradeChange.EstablishedTradeDefinition!,
             IsInitialEstablishment = tradeChange.IsInitialEstablishment

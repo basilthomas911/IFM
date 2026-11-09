@@ -1,4 +1,4 @@
-﻿using System.Collections.Immutable;
+using System.Collections.Immutable;
 using MessagePack;
 using TomasAI.IFM.Shared.MarketData.Contracts.Pricing;
 using TomasAI.IFM.Framework.Serialization;
@@ -6,8 +6,9 @@ using TomasAI.IFM.Framework.Serialization;
 namespace TomasAI.IFM.Application.MarketData.Pricing;
 
 /// <summary>Captures all pages and values the bounded scope at one frozen instant; never selects a strategy.</summary>
-public sealed class MarketCompositionSnapshotProvider(ICompositionMarketSource source, TimeProvider? time = null) : IMarketCompositionSnapshotProvider
+public sealed class MarketCompositionSnapshotProvider(ICompositionMarketSource source, TimeProvider? time = null, TomasAI.IFM.Shared.Time.PhysicalTime? physicalTime = null) : IMarketCompositionSnapshotProvider
 {
+    readonly TimeProvider physicalClock = physicalTime?.Provider ?? TimeProvider.System;
     readonly TimeProvider clock = time ?? TimeProvider.System;
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep native resource ownership and recovery failure ordering together during this storage compatibility refactor.")]
@@ -23,7 +24,7 @@ public sealed class MarketCompositionSnapshotProvider(ICompositionMarketSource s
             || request.EvaluatedAtUtc > clock.GetUtcNow() || request.DeadlineUtc <= clock.GetUtcNow()) return Fail("InvalidSnapshotRequest");
         var wait = request.DeadlineUtc - clock.GetUtcNow();
         if (wait > TimeSpan.FromSeconds(10)) wait = TimeSpan.FromSeconds(10);
-        using var timeout = new CancellationTokenSource(wait, clock);
+        using var timeout = new TomasAI.IFM.Shared.Time.ClockDeadline(wait, clock, physicalClock);
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
         var seen = new HashSet<string>(StringComparer.Ordinal);
         var continuations = new HashSet<string>(StringComparer.Ordinal);

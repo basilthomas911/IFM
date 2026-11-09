@@ -11,11 +11,11 @@ public sealed class IntrinsicTimeStrategyWorkflowQueryContext : QueryActorContex
 {
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "This typed context adapts services for its actor and intentionally retains the actor logger category.")]
     /// <summary>Initializes the workflow query context.</summary>
-    public IntrinsicTimeStrategyWorkflowQueryContext(IActorSupervisor supervisor, IDbContextFactory dbFactory, ILogger<IntrinsicTimeStrategyWorkflowQueryActor> logger) : base(supervisor, new ActorMailboxId(ActorType.Query, IntrinsicTimeStrategyWorkflowQueryActor.ActorName))
+    public IntrinsicTimeStrategyWorkflowQueryContext(IActorSupervisor supervisor, IDbContextFactory dbFactory, ILogger<IntrinsicTimeStrategyWorkflowQueryActor> logger, TimeProvider? timeProvider = null) : base(supervisor, new ActorMailboxId(ActorType.Query, IntrinsicTimeStrategyWorkflowQueryActor.ActorName))
     {
         DbFactory = IsArgumentNull.Set(dbFactory);
         ProjectionCache = IntrinsicTimeStrategyWorkflowProjectionCache.Shared;
-        TimeProvider = TimeProvider.System;
+        TimeProvider = timeProvider ?? TimeProvider.System;
         Logger = IsArgumentNull.Set(logger);
     }
 
