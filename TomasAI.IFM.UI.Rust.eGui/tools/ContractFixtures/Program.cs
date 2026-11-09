@@ -440,6 +440,10 @@ if (args.Length == 3 && args[1] is "--serve" or "--desktop-serve")
             outlookAvailable=bool.Parse(MessagePackSerializer.Deserialize<string>(request.Data!,MessagePackBinarySerializer.Options));
             response=MessagePackSerializer.Serialize(new ServiceResult<ScalarReadModel<bool>>{Success=true,ErrorMessage="",Value=new(true)},MessagePackBinarySerializer.Options);
         }
+        else if(request.Subject=="Query.NativeCompatibility.OutlookPreviousSession.none"){
+            MarketHistoryResponder.PreviousOutlookSession=MessagePackSerializer.Deserialize<bool>(request.Data!,MessagePackBinarySerializer.Options);
+            response=MessagePackSerializer.Serialize(new ServiceResult<ScalarReadModel<bool>>{Success=true,ErrorMessage="",Value=new(true)},MessagePackBinarySerializer.Options);
+        }
         else if(request.Subject=="Query.NativeCompatibility.OutlookAvailable.none"){
             outlookAvailable=MessagePackSerializer.Deserialize<bool>(request.Data!,MessagePackBinarySerializer.Options);
             response=MessagePackSerializer.Serialize(new ServiceResult<ScalarReadModel<bool>>{Success=true,ErrorMessage="",Value=new(true)},MessagePackBinarySerializer.Options);

@@ -2348,6 +2348,7 @@
     "calls": [
       "ArgumentNullException.ThrowIfNull",
       "Guid.NewGuid",
+      "global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.CopyCommandIfSameIdentity",
       "entityId.Format",
       "(RequestCommandAsync(cmd!, entityId)).ConfigureAwait",
       "RequestCommandAsync",
@@ -2386,6 +2387,7 @@
     "calls": [
       "ArgumentNullException.ThrowIfNull",
       "Guid.NewGuid",
+      "global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.CopyCommandIfSameIdentity",
       "entityId.Format",
       "(RequestCommandAsync(cmd!, entityId)).ConfigureAwait",
       "RequestCommandAsync",
@@ -2433,6 +2435,7 @@
     "result": "Task\u003CServiceResult\u003CGuid\u003E\u003E",
     "calls": [
       "Guid.NewGuid",
+      "global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.CopyCommandIfSameIdentity",
       "cmd.EntityId.Format",
       "(RequestCommandAsync(cmd!, cmd.EntityId)).ConfigureAwait",
       "RequestCommandAsync",

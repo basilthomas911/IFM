@@ -10,7 +10,7 @@ use crate::{
     market_outlook::OutlookCell,
     services::{actor_requests, business_context::BusinessContext, market_history},
 };
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDate, Utc};
 use std::collections::BTreeMap;
 
 /// Outlook used by the outlook component.
@@ -587,20 +587,104 @@ pub async fn load_for_session(
                 ("ValueDate".into(), date_only_wire(value_date)),
             ]),
         )
-        .await?;
+        .await;
+        let wire = match wire {
+            Ok(wire) => wire,
+            Err(error) if snapshot_not_available(&error) => return Ok(warming(&contract, value_date)),
+            Err(error) => return Err(error),
+        };
         let snapshot = MarketOutlookReadModel::from_backend(&wire)?;
-        let mut outlook = project(&snapshot, true, context.as_of_utc)?;
-        if snapshot.cell("ValueDate").as_str() != Some(value_date.to_string().as_str())
-            || snapshot.contract_id.as_deref() != Some(contract.as_str())
-        {
-            return Err(
-                "Market outlook does not match the API session and current contract".into(),
-            );
-        }
-        let state = if context.is_live_trading() { "LiveTrading" } else { "OffTrading" };
-        outlook.summary = format!("{contract} | {value_date} | {state}");
-        Ok(outlook)
+        project_for_session(&snapshot, &contract, value_date, context)
     })
     .await
     .map_err(|_| "Market outlook refresh deadline expired".to_string())?
+}
+
+
+/// A historical fallback is not current-session data; keep the panel empty until the first new snapshot.
+fn warming(contract: &str, value_date: NaiveDate) -> Outlook {
+    Outlook {
+        cells: BTreeMap::new(),
+        status: format!("Market Outlook warming: awaiting {contract} | {value_date}"),
+        summary: format!("{contract} | {value_date} | Awaiting current-session snapshot"),
+    }
+}
+
+/// Distinguishes the documented absence reply from provider failures using the same error family.
+fn snapshot_not_available(error: &str) -> bool {
+    error.starts_with("Backend error 1019: No Market Outlook snapshot is available for ")
+}
+
+/// Validates identity before projection, rejecting foreign/future data while clearing historical fallback cells.
+fn project_for_session(
+    snapshot: &MarketOutlookReadModel,
+    contract: &str,
+    value_date: NaiveDate,
+    context: &BusinessContext,
+) -> Result<Outlook, String> {
+    let actual_date = snapshot.value_date.as_ref()
+        .and_then(|value| NaiveDate::parse_from_str(value.as_str(), "%Y-%m-%d").ok());
+    if snapshot.contract_id.as_deref() != Some(contract) || actual_date.is_none_or(|date| date > value_date) {
+        return Err(format!(
+            "Market outlook identity is invalid: expected {contract} | {value_date}; received {} | {}",
+            snapshot.contract_id.as_deref().unwrap_or("unknown"),
+            actual_date.map(|date| date.to_string()).unwrap_or_else(|| "unknown".into())
+        ));
+    }
+    if actual_date != Some(value_date) {
+        return Ok(warming(contract, value_date));
+    }
+    let mut outlook = project(snapshot, true, context.as_of_utc)?;
+    let state = if context.is_live_trading() { "LiveTrading" } else { "OffTrading" };
+    outlook.summary = format!("{contract} | {value_date} | {state}");
+    Ok(outlook)
+}
+
+#[cfg(test)]
+mod rollover_tests {
+    use super::*;
+
+    fn source() -> MarketOutlookReadModel {
+        let bytes = std::fs::read(std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/backend/outlook-1-True.msgpack")).unwrap();
+        MarketOutlookReadModel::from_backend(&crate::backend::codec::decode(&bytes).unwrap()).unwrap()
+    }
+
+    fn context(date: NaiveDate) -> BusinessContext {
+        BusinessContext { value_date: date, active_value_date: Some(date),
+            as_of_utc: "2026-10-26T12:30:00Z".parse().unwrap(), revision: 1,
+            market_state: 1, allow_development_emulator: true }
+    }
+
+    #[test]
+    fn yesterday_is_warming_without_any_old_display_values_and_current_snapshot_recovers() {
+        let mut snapshot = source();
+        let contract = snapshot.contract_id.clone().unwrap();
+        let date = NaiveDate::parse_from_str(snapshot.value_date.as_ref().unwrap().as_str(), "%Y-%m-%d").unwrap();
+        let session = context(date.succ_opt().unwrap());
+        let pending = project_for_session(&snapshot, &contract, session.value_date, &session).unwrap();
+        assert!(pending.cells.is_empty());
+        assert!(pending.status.contains("warming"));
+        snapshot.value_date = Some(serde_json::from_value(serde_json::json!(session.value_date.to_string())).unwrap());
+        let current = project_for_session(&snapshot, &contract, session.value_date, &session).unwrap();
+        assert!(!current.cells.is_empty());
+        assert!(current.summary.ends_with("OffTrading"));
+    }
+
+    #[test]
+    fn a_different_contract_or_future_date_still_fails_identity_validation() {
+        let snapshot = source();
+        let contract = snapshot.contract_id.as_ref().unwrap();
+        let date = NaiveDate::parse_from_str(snapshot.value_date.as_ref().unwrap().as_str(), "%Y-%m-%d").unwrap();
+        assert!(project_for_session(&snapshot, "WRONG", date, &context(date)).is_err());
+        let previous = date.pred_opt().unwrap();
+        assert!(project_for_session(&snapshot, contract, previous, &context(previous)).is_err());
+    }
+
+    #[test]
+    fn missing_snapshot_is_warming_but_storage_errors_are_not_suppressed() {
+        assert!(snapshot_not_available("Backend error 1019: No Market Outlook snapshot is available for ES20261218 on or before 2026-11-10."));
+        assert!(!snapshot_not_available("Backend error 1019: PostgreSQL command timeout"));
+        assert!(!snapshot_not_available("Backend error 1019: Market Outlook snapshot payload identity is invalid"));
+    }
 }

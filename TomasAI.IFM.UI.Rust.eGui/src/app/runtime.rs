@@ -66,6 +66,7 @@ async fn poll_market_view<F, Refresh>(
             continue;
         }
 
+        let identity = current.as_ref().map(|value| (value.value_date, value.active_value_date));
         let mut active_session = session.clone();
         let refresh_while_trading = async {
             let mut timer = tokio::time::interval(cadence);
@@ -80,7 +81,8 @@ async fn poll_market_view<F, Refresh>(
         };
         tokio::select! {
             biased;
-            paused = session.wait_for(|next| !next.as_ref().is_some_and(BusinessContext::is_market_open)) => {
+            paused = session.wait_for(|next| !next.as_ref().is_some_and(BusinessContext::is_market_open)
+                || next.as_ref().map(|value| (value.value_date, value.active_value_date)) != identity) => {
                 if paused.is_err() {
                     return;
                 }
@@ -576,6 +578,41 @@ mod tests {
         task.await.unwrap();
     }
 
+
+    /// A reconnect can skip the closed hour; a new session must cancel the old in-flight read.
+    #[tokio::test]
+    async fn market_view_cancels_a_previous_date_read_even_without_observing_close() {
+        let date = chrono::NaiveDate::from_ymd_opt(2026, 11, 9).unwrap();
+        let initial = BusinessContext { value_date: date, active_value_date: Some(date),
+            as_of_utc: "2026-11-09T21:59:00Z".parse().unwrap(), revision: 1,
+            market_state: 1, allow_development_emulator: false };
+        let (session, receiver) = tokio::sync::watch::channel(Some(initial.clone()));
+        let started = std::sync::Arc::new(tokio::sync::Notify::new());
+        let release = std::sync::Arc::new(tokio::sync::Notify::new());
+        let (published, mut publications) = tokio::sync::mpsc::unbounded_channel();
+        let entered = started.notified();
+        let task = tokio::spawn(poll_market_view(receiver, Duration::from_millis(20), {
+            let started = started.clone(); let release = release.clone();
+            move |context| {
+                let started = started.clone(); let release = release.clone(); let published = published.clone();
+                async move {
+                    let Some(context) = context else { return; };
+                    if context.value_date == date { started.notify_one(); release.notified().await; }
+                    published.send(context.value_date).unwrap();
+                }
+            }
+        }));
+        tokio::time::timeout(Duration::from_secs(2), entered).await.unwrap();
+        let next = date.succ_opt().unwrap();
+        session.send_replace(Some(BusinessContext { value_date: next, active_value_date: Some(next), ..initial }));
+        assert_eq!(tokio::time::timeout(Duration::from_secs(2), publications.recv()).await.unwrap(), Some(next));
+        release.notify_waiters();
+        for _ in 0..3 {
+            assert_eq!(tokio::time::timeout(Duration::from_secs(2), publications.recv()).await.unwrap(), Some(next));
+        }
+        drop(session);
+        task.await.unwrap();
+    }
 
     /// Verifies that shutdown does not wait for space in a full action or publication queue.
     #[test]

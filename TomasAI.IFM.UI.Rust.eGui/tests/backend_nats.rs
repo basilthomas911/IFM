@@ -4169,3 +4169,31 @@ async fn operational_health_closed_market_uses_independent_api_clock() {
     assert_eq!(publication.result.rows[0].fields["Status"], "Green");
     worker.join().unwrap();
 }
+
+
+/// An on-or-before history response at session rollover clears stale cells and then recovers automatically.
+#[tokio::test]
+#[ignore = "Requires an isolated NATS broker and the C# compatibility responder"]
+async fn market_outlook_waits_for_current_session_without_accepting_the_historical_fallback() {
+    use ifm_ui_egui::services::{business_context::BusinessContext, outlook};
+    let backend = Backend::connect(Settings {
+        url: std::env::var("IFM_STANDALONE_TEST_NATS_URL").unwrap(), credentials_file: None,
+        token: None, request_timeout: Duration::from_secs(5),
+    }).await.unwrap();
+    let registry = ifm_ui_egui::backend::schema::Registry::compiled().unwrap();
+    let session = BusinessContext::load(&backend).await.unwrap();
+    let available = ActorSubject::query("NativeCompatibility", "OutlookAvailable", "none");
+    service_result(&backend.request(&available, &Value::Boolean(true), None, None).await.unwrap()).unwrap();
+    let lag = ActorSubject::query("NativeCompatibility", "OutlookPreviousSession", "none");
+    service_result(&backend.request(&lag, &Value::Boolean(true), None, None).await.unwrap()).unwrap();
+    let pending = outlook::load_for_session(&backend, &registry, Some(&session)).await;
+    service_result(&backend.request(&lag, &Value::Boolean(false), None, None).await.unwrap()).unwrap();
+    let current = outlook::load_for_session(&backend, &registry, Some(&session)).await;
+    service_result(&backend.request(&available, &Value::Boolean(false), None, None).await.unwrap()).unwrap();
+    let pending = pending.unwrap();
+    assert!(pending.cells.is_empty());
+    assert!(pending.status.contains("warming"));
+    let current = current.unwrap();
+    assert!(!current.cells.is_empty());
+    assert!(current.summary.contains(&session.value_date.to_string()));
+}

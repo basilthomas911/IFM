@@ -15,6 +15,8 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 /// <summary>Isolated protocol oracle: rejects machine-date or unbounded history queries.</summary>
 internal static class MarketHistoryResponder
 {
+    public static bool PreviousOutlookSession { get; set; }
+
     public static byte[]? Handle(string subject,byte[] payload,string directory,bool outlookAvailable)
     {
         var options=MessagePackBinarySerializer.Options;
@@ -49,7 +51,10 @@ internal static class MarketHistoryResponder
         if(subject.StartsWith("Query.MarketOutlookSnapshotQuery.GetMarketOutlookSnapshot.",StringComparison.Ordinal)){
             var query=MessagePackSerializer.Deserialize<GetMarketOutlookSnapshotQuery>(payload,options);
             if(query.Subject.ToString()!=subject||query.ValueDate!=date||query.ContractId!="ESZ6"||!subject.EndsWith(".ESZ6.20261026",StringComparison.Ordinal))throw new InvalidDataException("Invalid API-owned outlook date");
-            if(outlookAvailable)return Result(MessagePackSerializer.Deserialize<MarketOutlookReadModel>(File.ReadAllBytes(Path.Combine(directory,"outlook-1-True.msgpack")),options));
+            if(outlookAvailable) {
+                var snapshot=MessagePackSerializer.Deserialize<MarketOutlookReadModel>(File.ReadAllBytes(Path.Combine(directory,"outlook-1-True.msgpack")),options);
+                return Result(PreviousOutlookSession ? snapshot with { ValueDate=date.AddDays(-1) } : snapshot);
+            }
             return MessagePackSerializer.Serialize(new ServiceResult<MarketOutlookReadModel>{Success=false,ErrorCode=1019,ErrorMessage="Optional current preview unavailable"},options);
         }
         return null;
