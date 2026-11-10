@@ -88,6 +88,15 @@ public static class ExecuteIntrinsicTimeStrategyWorkflow
 
             var expiresAtUtc = now.Add(maximumExecutionDuration);
             var started = CreateStartedView(command, now, expiresAtUtc);
+            if (context is IntrinsicTimeStrategyWorkflowCommandContext { OpeningExecutionsEnabled: true } openingContext)
+            {
+                var broker = openingContext.Container.Resolve<TomasAI.IFM.Application.TradeBroker.Contracts.ITradeBroker>();
+                if (broker.Environment != TomasAI.IFM.Application.TradeBroker.Contracts.BrokerEnvironment.Emulator || string.IsNullOrWhiteSpace(broker.AccountAlias))
+                    return new ServiceFailed<GuidResult>(command.ErrorCode, "EXECUTION.ROUTE.DEVELOPMENT_EMULATOR_REQUIRED");
+                var route = new TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Execution.StrategyOpeningExecutionRoute
+                { AccountAlias = broker.AccountAlias, Environment = TomasAI.IFM.Domain.Trade.Shared.BrokerEnvironment.Emulator };
+                started = started with { OpeningExecutionRoute = route with { PolicyHash = TomasAI.IFM.Domain.Portfolio.Shared.Financial.FinancialCanonicalHash.Compute(route) } };
+            }
             AppendSnapshot(state, command, current?.Status ?? WorkflowStrategyMachineStatus.Empty, started, now);
             return Ok(command);
         }

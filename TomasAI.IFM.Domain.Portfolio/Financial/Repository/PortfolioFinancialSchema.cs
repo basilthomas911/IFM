@@ -51,5 +51,5 @@ public sealed class PortfolioFinancialSchema(IPostgresEventTransaction transacti
         System.Text.RegularExpressions.RegexOptions.CultureInvariant | System.Text.RegularExpressions.RegexOptions.ExplicitCapture, TimeSpan.FromSeconds(1))
         .Select(static match => match.Groups["table"].Value).Distinct(StringComparer.Ordinal).ToArray();
 
-    public const string Ddl = PortfolioSchemaSql.Financial;
+    public const string Ddl = PortfolioSchemaSql.Financial + ExecutionCapacitySql.Create;
 }

@@ -134,7 +134,11 @@ public sealed class FinancialQueryStore(IPostgresEventTransaction transactions, 
             {
                 EmulatorOrderSubmittedEvent x => x.Receipt.Order.FundId == fund,
                 LedgerPostingCompletedEvent x => x.Receipt.FundId == fund,
-                LedgerPostingBatchCompletedEvent => await (db.ScalarAsync(PortfolioDbSql.Financial.FinancialQueryStore.Select11, [scope.PortfolioId, request.OperationId, fund], ct)).ConfigureAwait(false) is true,
+                LedgerPostingBatchCompletedEvent x when x.Receipt.Items.Length == 0 =>
+                    x.ProjectionFacts?.ExecutionCapacity?.Outcome.FundId == fund,
+                LedgerPostingBatchCompletedEvent x =>
+                    (x.ProjectionFacts?.ExecutionCapacity is null || x.ProjectionFacts.ExecutionCapacity.Outcome.FundId == fund) &&
+                    await (db.ScalarAsync(PortfolioDbSql.Financial.FinancialQueryStore.Select11, [scope.PortfolioId, request.OperationId, fund], ct)).ConfigureAwait(false) is true,
                 CapacityReservationCompletedEvent x => x.Receipt.FundId == fund,
                 CapacityConsumptionCompletedEvent x => await (ReservationFund(db, scope.PortfolioId, x.Receipt.ReservationId, ct)).ConfigureAwait(false) == fund,
                 CapacityLifecycleCompletedEvent x => await (ReservationFund(db, scope.PortfolioId, x.Receipt.ReservationId, ct)).ConfigureAwait(false) == fund,

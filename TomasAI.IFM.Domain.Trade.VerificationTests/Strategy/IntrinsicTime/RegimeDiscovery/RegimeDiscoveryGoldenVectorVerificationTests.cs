@@ -77,12 +77,13 @@ public sealed class RegimeDiscoveryGoldenVectorVerificationTests
     }
 
     [Fact]
-    public async Task Optional_realized_volatility_can_be_missing_without_failing_calculation()
+    public async Task Inactive_realized_volatility_does_not_degrade_calculation_quality()
     {
         var result = await CalculateAsync(RegimeDiscoveryScenarioCatalog.OptionalEvidenceMissing);
 
         result.MatchScenario(RegimeDiscoveryScenarioCatalog.OptionalEvidenceMissing);
-        result.OverallQuality.Should().Be(RegimeOverallQuality.Degraded);
+        result.OverallQuality.Should().Be(RegimeOverallQuality.High);
+        result.Reasons.Select(reason => reason.Code).Should().NotContain(RegimeDiscoveryReasonCodes.OptionalDataMissing);
     }
 
     /// <summary>Requires complete golden results before comparing sequential and parallel serialization.</summary>

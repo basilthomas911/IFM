@@ -31,6 +31,7 @@ public sealed class TradeBrokerEmulatorRegistrationTests
     {
         using var container = new Container();
         container.Options.EnableAutoVerification = false;
+        container.RegisterInstance<TimeProvider>(TimeProvider.System);
         container.RegisterInstance<Microsoft.Extensions.Logging.ILogger>(NullLogger.Instance);
         typeof(global::TomasAI.IFM.Application.Actor.IntegrationTests.Startup)
             .GetMethod("RegisterGenericTypes", BindingFlags.Static | BindingFlags.NonPublic)!
@@ -70,7 +71,9 @@ public sealed class TradeBrokerEmulatorRegistrationTests
             ? typeof(global::TomasAI.IFM.Application.Api.Server.Core.DependencyInjection.CoreServiceRegistration)
             : typeof(global::TomasAI.IFM.Application.Actor.IntegrationTests.Startup);
         startup.GetMethod("RegisterGenericTypes", BindingFlags.Static | BindingFlags.NonPublic)!
-            .Invoke(null, [container, new ConfigurationManager(), NullLogger.Instance]);
+            .Invoke(null, productionHost
+                ? [container, new ConfigurationManager(), NullLogger.Instance, TimeProvider.System]
+                : [container, new ConfigurationManager(), NullLogger.Instance]);
 
         var registrations = container.GetCurrentRegistrations();
         var reader = registrations.Single(registration => registration.ServiceType ==
@@ -92,6 +95,7 @@ public sealed partial class TradeBrokerEmulatorHostTests(TomasAI.IFM.Integration
     [Fact]
     public async Task Hosted_emulator_places_updates_and_cancels_through_Nats_actor_lifecycle()
     {
+        await using var sharedActors = await TomasAI.IFM.Domain.Trade.IntegratedTests.Strategy.Workflow.IntrinsicTime.SharedOpeningActorIsolation.EnterAsync();
         await using var host = sourceFactory.WithWebHostBuilder(ConfigureAuditHost);
         using var client = host.CreateClient();
         var lifecycle = host.Services.GetRequiredService<ISupervisorManagedActorLifecycle>();
@@ -102,6 +106,9 @@ public sealed partial class TradeBrokerEmulatorHostTests(TomasAI.IFM.Integration
             var container = host.Services.GetRequiredService<Container>();
             var broker = container.GetInstance<ITradeBroker>();
             broker.Environment.Should().Be(BrokerEnvironment.Emulator);
+            broker.AccountAlias.Should().StartWith("IFM-AUDIT-");
+            (await broker.GetAccountSnapshotAsync()).CashBalance.Should().Be(1_000_000m,
+                "this test must start with its own funded emulator ledger");
             var accounts = container.GetInstance<TomasAI.IFM.Domain.BrokerAccount.Query.Model.IBrokerAccountReadStore>();
             var approval = Guid.NewGuid();
             producer = host.Services.GetRequiredService<TomasAI.IFM.Shared.EventModelActor.Contracts.IActorProducer>();
@@ -114,7 +121,15 @@ public sealed partial class TradeBrokerEmulatorHostTests(TomasAI.IFM.Integration
             evidence.Success.Should().BeTrue(evidence.ErrorMessage);
             var accepted = await accountCommands.AcceptQualificationAsync(accountId, approval, manifest, "isolated-test-reviewer", DateTime.UtcNow);
             accepted.Success.Should().BeTrue(accepted.ErrorMessage);
-            await WaitAsync(() => Task.FromResult(accounts.Get(accountId)?.Gate == TomasAI.IFM.Domain.BrokerAccount.Contracts.BrokerAccountOperationalGate.Open ? accounts.Get(accountId) : null));
+            try
+            {
+                await WaitAsync(() => Task.FromResult(accounts.Get(accountId)?.Gate == TomasAI.IFM.Domain.BrokerAccount.Contracts.BrokerAccountOperationalGate.Open ? accounts.Get(accountId) : null));
+            }
+            catch (TimeoutException error)
+            {
+                throw new InvalidOperationException("Broker qualification projection did not open: " +
+                    System.Text.Json.JsonSerializer.Serialize(accounts.Get(accountId)), error);
+            }
             var componentId = Guid.NewGuid();
             var order = new TomasAI.IFM.Domain.Trade.Shared.TradeOrderDefinition
             {
@@ -237,6 +252,7 @@ public sealed partial class TradeBrokerEmulatorHostTests(TomasAI.IFM.Integration
     [Fact]
     public async Task Isolated_host_starts_broker_and_account_actors_with_one_coherent_snapshot()
     {
+        await using var sharedActors = await TomasAI.IFM.Domain.Trade.IntegratedTests.Strategy.Workflow.IntrinsicTime.SharedOpeningActorIsolation.EnterAsync();
         await using var host = sourceFactory.WithWebHostBuilder(ConfigureAuditHost);
         using var client = host.CreateClient();
         var lifecycle = host.Services.GetRequiredService<ISupervisorManagedActorLifecycle>();

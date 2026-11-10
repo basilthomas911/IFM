@@ -56,8 +56,28 @@ public sealed partial class TradeSelectionRuntimeTests
     [InlineData(TimeFrameType.Monthly, "BullCallDebit")]
     [InlineData(TimeFrameType.Daily, "BearPutDebit")]
     [InlineData(TimeFrameType.Weekly, "ShortBalancedIronCondor")]
+    [InlineData(TimeFrameType.Monthly, "ShortBalancedIronCondor")]
+    [InlineData(TimeFrameType.Weekly, "BullCallDebit")]
     public async Task Workflow_start_runs_every_pipeline_actor_and_authorizes_a_trade(TimeFrameType horizon, string variant)
         => await RunWorkflow(horizon, variant);
+
+    [Theory, Trait("Category", "StrategyOpeningWorkflow")]
+    [InlineData(TimeFrameType.Monthly, "ShortBalancedIronCondor")]
+    [InlineData(TimeFrameType.Weekly, "BullCallDebit")]
+    [InlineData(TimeFrameType.Daily, "LongFuture")]
+    public async Task Workflow_opens_the_requested_strategy_through_the_development_broker_emulator(TimeFrameType horizon, string variant)
+        => await RunWorkflow(horizon, variant, opening: true);
+
+    [Fact, Trait("Category", "StrategyOpeningExpiry")]
+    public async Task Expired_committed_approval_releases_capacity_without_submitting_a_broker_order()
+        => await RunWorkflow(TimeFrameType.Daily, "LongFuture", opening: true, expireOpening: true);
+
+    [Theory, Trait("Category", "StrategyOpeningRecovery")]
+    [InlineData(TimeFrameType.Monthly, "ShortBalancedIronCondor")]
+    [InlineData(TimeFrameType.Weekly, "BullCallDebit")]
+    [InlineData(TimeFrameType.Daily, "LongFuture")]
+    public async Task Missing_broker_replies_recover_the_original_workflow_opening_after_restart(TimeFrameType horizon, string variant)
+        => await RunWorkflow(horizon, variant, opening: true, loseBrokerReplies: true);
 
     [Theory, Trait("Category", "SuccessiveWorkflowStages")]
     [InlineData(1)]
@@ -76,8 +96,9 @@ public sealed partial class TradeSelectionRuntimeTests
         => [view.RegimeDiscovery, view.MarketCondition, view.TradeSelection, view.OrderComposition, view.RiskManagement];
 
     async Task RunWorkflow(TimeFrameType horizon, string variant, int? stageCount = null, bool captureTrace = false,
-        WorkflowBenchmarkSettings? benchmark = null, WorkflowBenchmarkWriter? benchmarkWriter = null)
+        WorkflowBenchmarkSettings? benchmark = null, WorkflowBenchmarkWriter? benchmarkWriter = null, bool opening = false, bool expireOpening = false, bool loseBrokerReplies = false)
     {
+        await using var sharedActorIsolation = opening ? await SharedOpeningActorIsolation.EnterAsync() : null;
         var spans = new System.Collections.Concurrent.ConcurrentQueue<System.Diagnostics.Activity>();
         using var listener = new System.Diagnostics.ActivityListener
         {
@@ -88,19 +109,32 @@ public sealed partial class TradeSelectionRuntimeTests
             ActivityStopped = span => spans.Enqueue(span)
         };
         System.Diagnostics.ActivitySource.AddActivityListener(listener);
-        var broker = Environment.GetEnvironmentVariable("IFM_FINANCIAL_TEST_NATS_URL")
-            ?? throw new InvalidOperationException("An isolated test NATS broker is required.");
+        var broker = Environment.GetEnvironmentVariable(opening ? "IFM_CONFIGURED_TEST_NATS_URL" : "IFM_FINANCIAL_TEST_NATS_URL")
+            ?? throw new InvalidOperationException("A separately configured test NATS broker is required.");
         Action? releaseFixtureCalls = null;
         var measurements = new System.Collections.Concurrent.ConcurrentDictionary<string, WorkflowMeasurement>(StringComparer.Ordinal);
         var starts = new System.Collections.Concurrent.ConcurrentDictionary<Guid, ExecuteIntrinsicTimeStrategyWorkflowCommand>();
+        var workflowOptions = new IntrinsicTimeStrategyWorkflowOptions { Enabled = true, ExecuteDevelopmentOpenings = opening };
+        var openingLedgerPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "IFM-StrategyOpening", Guid.NewGuid().ToString("N"), "ledger.json");
+        // Fresh ledgers must not share an account event stream with another scenario's fills,
+        // qualification or snapshot generation. The intentional restart keeps this same alias.
+        var openingAccountAlias = $"IFM-OPENING-{Guid.NewGuid():N}";
+        var openingResults = new List<(IntrinsicTimeStrategyWorkflowView View, TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Execution.StrategyExecutionHandoffDefinition Handoff)>();
         static string Key(IntrinsicTimeStrategyWorkflowView view) => $"{view.EntityId.Format()}|{view.WorkflowId}";
         await using var host = Host(services =>
         {
             // This fixture explicitly starts a workflow command. The shared Host defaults to
             // disabled starts so unrelated Function tests cannot launch one accidentally.
             services.RemoveAll<IntrinsicTimeStrategyWorkflowOptions>();
-            services.AddSingleton(new IntrinsicTimeStrategyWorkflowOptions { Enabled = true });
+            services.AddSingleton(workflowOptions);
             var container = (SimpleInjector.Container)services.Single(x => x.ServiceType == typeof(SimpleInjector.Container)).ImplementationInstance!;
+            if (opening)
+            {
+                container.RegisterInstance(TomasAI.IFM.Framework.TradeBroker.InteractiveBrokers.Emulator.Engine.EmulatorScenario.Development(openingAccountAlias));
+                container.RegisterInstance<TomasAI.IFM.Framework.TradeBroker.InteractiveBrokers.Emulator.Engine.IEmulatorLedgerStore>(
+                    new TomasAI.IFM.Framework.TradeBroker.InteractiveBrokers.Emulator.Engine.FileEmulatorLedgerStore(openingLedgerPath));
+            }
+            if (loseBrokerReplies) container.RegisterDecorator<TomasAI.IFM.Application.TradeBroker.Contracts.ITradeBroker, LostOpeningBrokerReplies>(SimpleInjector.Lifestyle.Singleton);
             // Observe the post-commit enqueue boundary. Every full-workflow event still reaches
             // the production projector, queue, enlisted PostgreSQL writes, cache and realtime dispatcher.
             var projector = Substitute.For<TomasAI.IFM.Application.EventProjector.Contracts.IEventProjector<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Actor.IntrinsicTimeStrategyWorkflowCommandActor>>();
@@ -118,8 +152,17 @@ public sealed partial class TradeSelectionRuntimeTests
             {
                 var events = call.Arg<DomainEventCollection>();
                 foreach (var state in events.OfType<TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events.WorkflowStrategyStateUpdatedEvent>())
+                {
                     if (measurements.TryGetValue(Key(state.State), out var measurement) && measurement.OnCommitted(state.State))
                         return; // Only the four intentionally truncated successive-stage tests suppress dispatch.
+                    if (expireOpening && state.State is { Status: WorkflowStrategyMachineStatus.Completed, PortfolioRiskDecision: { } approval })
+                    {
+                        // Fault injection: hold post-commit delivery until the original immutable approval expires.
+                        // The source, price eligibility, validity and financial approval are never rewritten.
+                        var remaining = approval.TradeOrders.Min(order => order.ValidUntilUtc) - DateTime.UtcNow;
+                        if (remaining > TimeSpan.Zero) await Task.Delay(remaining + TimeSpan.FromMilliseconds(50));
+                    }
+                }
                 await production!.DomainEventsProjectionAsync(events);
             }));
             container.RegisterInstance(projector);
@@ -144,8 +187,14 @@ public sealed partial class TradeSelectionRuntimeTests
                 async key => (await container.GetInstance<IEventSourceActorStateRepository<IntrinsicTimeStrategyWorkflowCommandState>>().LoadStateAsync(starts[key.WorkflowId])).CurrentView!));
             services.RemoveAll<ICompositionPreparationStore>();
             services.AddSingleton(_ => container.GetInstance<ICompositionPreparationStore>());
-        }, broker, actualPortfolio: true).WithWebHostBuilder(builder => builder.ConfigureAppConfiguration((context, config) =>
+        }, broker, actualPortfolio: true, isolatedTransport: opening).WithWebHostBuilder(builder => builder.ConfigureAppConfiguration((context, config) =>
         {
+            if (opening) config.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["TradeBroker:Emulator:OfflineSimulation:CompletionSeconds"] = "2",
+                ["TradeBroker:Emulator:AccountAlias"] = openingAccountAlias,
+                ["TradeBroker:Emulator:LedgerPath"] = openingLedgerPath
+            });
             if (benchmark is not null) WorkflowBenchmarkSettings.ValidateEnvironment(context.HostingEnvironment, config.Build(), broker);
         }));
         _ = host.CreateClient();
@@ -155,6 +204,7 @@ public sealed partial class TradeSelectionRuntimeTests
         var firstFixture = true;
         WorkflowBenchmarkIteration? currentIteration = null;
         var completedIterations = 0;
+        var stopped = false;
         try
         {
             await host.Services.GetRequiredService<TradeSchemaDb>().CreateAllAsync();
@@ -168,6 +218,14 @@ public sealed partial class TradeSelectionRuntimeTests
                 variant = iteration.Scenario.Variant;
                 await RunOne(iteration);
                 completedIterations++;
+            }
+            if (opening)
+            {
+                await global::SupervisorTestLifecycle.ShutdownAsync(host.Services);
+                await producer.StopAsync();
+                stopped = true;
+                await host.DisposeAsync();
+                await VerifyOpeningRestartAsync(broker, openingLedgerPath, openingAccountAlias, openingResults);
             }
             benchmarkWriter?.Write(new { RecordType = "run_completed", benchmarkWriter.RunId, CompletedIterations = completedIterations });
         }
@@ -188,8 +246,11 @@ public sealed partial class TradeSelectionRuntimeTests
         }
         finally
         {
-            await global::SupervisorTestLifecycle.ShutdownAsync(host.Services);
-            await producer.StopAsync();
+            if (!stopped)
+            {
+                await global::SupervisorTestLifecycle.ShutdownAsync(host.Services);
+                await producer.StopAsync();
+            }
         }
 
         async Task RunOne(WorkflowBenchmarkIteration iteration)
@@ -240,7 +301,23 @@ public sealed partial class TradeSelectionRuntimeTests
             var selection = await TradeSelectionFixture.Command(variant, horizon, DateTime.UtcNow,
                 scopeId: scopeId, compositionReady: true, compositionIntegrationTiming: true,
                 actualAssessmentCommand: assessment, riskPolicy: policy, compositionLifetimeMilliseconds: 30000, policyId: scopeId);
+            var fixtureFundId = selection.SelectionBinding.PortfolioSnapshot.Fund.FundId;
             await InitializeWorkflowPortfolioAsync(host.Services, selection.SelectionBinding, initializeSchema: firstFixture);
+            if (opening)
+            {
+                workflowOptions.PortfolioId = scopeId;
+                var original = selection.SelectionBinding;
+                var universe = new StrategySelectionUniverse
+                {
+                    WorkflowId = selection.WorkflowId.Value, WorkflowRevision = selection.InputWorkflowRevision,
+                    CorrelationId = selection.CorrelationId, InstrumentRoot = TradeSelectionContracts.CommonPolicy(original).InstrumentRoot,
+                    TargetHorizon = horizon, FrozenAtUtc = original.FrozenAtUtc, ValidUntilUtc = original.ValidUntilUtc,
+                    DeploymentKeys = original.DeploymentSnapshots.Select(graph => graph.DeploymentKey).ToArray()
+                };
+                var neutral = TradeSelectionContracts.Seal(original with { SchemaVersion = 2, PortfolioSnapshot = new(),
+                    StrategyUniverse = universe with { PayloadSha256 = TradeSelectionContracts.EvidenceHash(universe) } });
+                selection = selection with { SelectionBinding = neutral, WorkflowView = selection.WorkflowView with { SelectionBinding = neutral } };
+            }
             firstFixture = false;
             var parameters = assessment.WorkflowView.RegimeDiscoveryParameterSet!;
             var cache = host.Services.GetRequiredService<IRegimeDiscoveryMarketSignalCache>();
@@ -276,7 +353,7 @@ public sealed partial class TradeSelectionRuntimeTests
                 WorkflowDefinitionVersion = 1,
                 RegimeDiscoveryParameterSet = parameters,
                 RegimeDiscoveryParameterPayloadSha256 = assessment.WorkflowView.RegimeDiscoveryParameterPayloadSha256,
-                FundId = selection.SelectionBinding.PortfolioSnapshot.Fund.FundId,
+                FundId = fixtureFundId,
                 SelectionBinding = selection.SelectionBinding,
                 AssessmentBinding = new() { Parameters = assessment.ParameterSet, PayloadSha256 = assessment.ParameterPayloadSha256 }
             };
@@ -337,6 +414,18 @@ public sealed partial class TradeSelectionRuntimeTests
                 }
 
                 final = (await repository.LoadStateAsync(start)).CurrentView;
+                if (opening)
+                {
+                    final!.Status.Should().Be(WorkflowStrategyMachineStatus.Completed, final.StopReasonCode);
+                    final.Outcome.Should().Be(StrategyWorkflowOutcome.Completed, final.StopReasonCode);
+                    final.PortfolioRiskDecision.Should().NotBeNull();
+                    final.PortfolioRiskDecision!.Status.Should().Be(PortfolioRiskDecisionStatus.ExecuteTradeOrders);
+                    var handoff = loseBrokerReplies ? await AssertLostOpeningReplyAsync(host.Services, final, timeout.Token)
+                        : expireOpening ? await AssertExpiredOpeningAsync(host.Services, final, timeout.Token)
+                        : await AssertOpeningAsync(host.Services, final, timeout.Token);
+                    openingResults.Add((final, handoff));
+                    return;
+                }
                 final!.WorkflowRevision.Should().Be(observed.WorkflowRevision);
                 final.Should().NotBeNull();
                 if (final?.RiskExecution is { } measured)
@@ -506,7 +595,10 @@ public sealed partial class TradeSelectionRuntimeTests
             var binding = CompositionBindingResolver.Resolve(view.TradeSelection.Result!.ReadSelectionResult(), view.SelectionBinding!, DateTime.UtcNow);
             var at = DateTimeOffset.UtcNow;
             var snapshot = CompositionSnapshotAdapter.To(CompositionFixture.Snapshot(binding, at));
-            var until = new DateTimeOffset(new[] { at.AddSeconds(30).UtcDateTime, view.CompositionHandoff!.Request.ExpiresAtUtc }.Min());
+            var deadline = view.SelectionBinding!.SchemaVersion == 2
+                ? view.OrderComposition.ExpiresAtUtc ?? view.ExpiresAtUtc
+                : view.CompositionHandoff!.Request.ExpiresAtUtc;
+            var until = new DateTimeOffset(new[] { at.AddSeconds(30).UtcDateTime, deadline }.Min());
             snapshot = snapshot with
             {
                 ValidUntilUtc = until,

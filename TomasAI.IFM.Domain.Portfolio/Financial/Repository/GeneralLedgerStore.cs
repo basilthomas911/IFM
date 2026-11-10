@@ -18,7 +18,8 @@ public sealed class GeneralLedgerStore(IPostgresEventTransaction transactions,
         LedgerCalculation calculate, Func<LedgerCommitInfo, T> complete, CancellationToken token = default) where T : class, IFinancialCompletedEvent
     {
         ArgumentNullException.ThrowIfNull(items);
-        Require(items.Count is >= 1 and <= 100, FinancialReasons.InvalidContract, "Posting batch must contain 1â€“100 transactions.");
+        var capacity = (request as PostFundTransactionsCommand)?.Body.ExecutionCapacity;
+        Require(items.Count <= 100 && (items.Count > 0 || capacity is not null), FinancialReasons.InvalidContract, "Posting requires transactions or source-verified execution capacity facts.");
         Require(items.Select(x => (x.Request.Source.System, x.Request.Source.SourceEventId, x.Request.TransactionKind)).Distinct().Count() == items.Count,
             FinancialReasons.SourceConflict, "Batch contains duplicate source identities.");
         try
@@ -31,7 +32,9 @@ public sealed class GeneralLedgerStore(IPostgresEventTransaction transactions,
             // A duplicate may have committed while this attempt waited on the financial fence.
             replay = await (ReadOperationAsync<T>(db, request.PortfolioId, request.OperationId, request.InputSha256, cancellation)).ConfigureAwait(false);
             if (replay is not null) return replay;
-            Require(authority.Revision == request.ExpectedFinancialRevision, FinancialReasons.RevisionConflict, "Financial state changed since the request was prepared.");
+            // Confirmed Trade facts settle under the current fence; they do not admit another order.
+            // Their committed source and original approval are verified below in this same transaction.
+            Require(capacity is not null || authority.Revision == request.ExpectedFinancialRevision, FinancialReasons.RevisionConflict, "Financial state changed since the request was prepared.");
             var revision = checked(authority.Revision + 1); var now = businessClock.GetUtcNow().UtcDateTime; var eventId = Guid.NewGuid();
             Require(now < request.ExpiresAtUtc, FinancialReasons.TimeExpired, "Posting expired before acquiring financial authority.");
             var receipts = new List<LedgerPostedTransaction>();
@@ -48,17 +51,23 @@ public sealed class GeneralLedgerStore(IPostgresEventTransaction transactions,
                  items.Select(x => x.Request.TransactionKind.ToString()).ToArray()],
                 row => (Ordinal: row.GetInt64(0), Hash: row.GetString(1), Operation: row.GetGuid(2)),
                 cancellation).ConfigureAwait(false)).ToDictionary(x => x.Ordinal);
+            long inputOrdinal = 0;
             foreach (var prepared in items)
             {
+                inputOrdinal++;
                 var item = prepared.Request;
                 Require(item.BookId == authority.Book.BookId, FinancialReasons.AuthorityDenied, "Posting book does not match Portfolio authority.");
                 Require(item.Source.SourceEventId != Guid.Empty && !string.IsNullOrWhiteSpace(item.Source.System) &&
                     !string.IsNullOrWhiteSpace(item.Source.SourceContentHash), FinancialReasons.InvalidContract, "Qualified source identity/hash is required.");
                 await (ValidateFundSourcesAsync(db, authority.Book, item.FundId, false, cancellation)).ConfigureAwait(false);
-                if (existingSources.TryGetValue(receipts.Count + 1L, out var previous))
+                if (existingSources.TryGetValue(inputOrdinal, out var previous))
+                {
+                    if (capacity is not null && string.Equals(previous.Hash, item.Source.SourceContentHash, StringComparison.Ordinal))
+                        continue; // A cumulative execution can overlap an earlier committed fill, never post it twice.
                     throw new FinancialOperationException(string.Equals(previous.Hash, item.Source.SourceContentHash, StringComparison.Ordinal)
                         ? FinancialReasons.AlreadyPosted : FinancialReasons.SourceConflict,
                         "Source has already been committed.", FinancialCommitDisposition.NoNewMutation, previous.Operation);
+                }
                 var periodKey = (item.BookId, item.AccountingDate);
                 if (!periods.ContainsKey(periodKey))
                 {
@@ -166,8 +175,10 @@ public sealed class GeneralLedgerStore(IPostgresEventTransaction transactions,
                 receipts.Add(new() { Ordinal = receipts.Count + 1, TransactionId = prepared.TransactionId, JournalId = journalId, JournalHash = journalHash, Source = item.Source, ObligationId = obligation });
             }
             var completed = complete(new(revision, now, eventId, receipts));
+            var capacityFacts = capacity is null ? null : await ExecutionCapacitySettlement.PrepareAndApplyAsync(db,
+                request.PortfolioId, capacity, revision, cancellation).ConfigureAwait(false);
             var projectionFacts = new LedgerProjectionFacts
-            { ActorName = request.Subject.Name, ExecutionId = request.Subject.EntityId, Items = facts.ToArray() };
+            { ActorName = request.Subject.Name, ExecutionId = request.Subject.EntityId, Items = facts.ToArray(), ExecutionCapacity = capacityFacts };
             completed = (T)(IFinancialCompletedEvent)(completed switch
             {
                 LedgerPostingCompletedEvent single => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(single, single with { SchemaVersion = 2, ProjectionFacts = projectionFacts }),

@@ -28,7 +28,7 @@ public static class PostFundTransactions
             var replay = await (services.Database.ReadOperationAsync<LedgerPostingBatchCompletedEvent>(command.PortfolioId, command.OperationId, command.InputSha256, cancellationToken)).ConfigureAwait(false);
             if (replay is not null) return await (replay.NotifyAsync(services.Projector, services.Logger)).ConfigureAwait(false);
             FinancialRequestValidation.Demand(command, "LedgerPost", services.Clock.GetUtcNow().UtcDateTime);
-            if (command.Body.Items.Length is < 1 or > 100 || command.Body.Items.Any(x => x.BookId != command.Body.BookId) ||
+            if (command.Body.Items.Length > 100 || command.Body.Items.Length == 0 && command.Body.ExecutionCapacity is null || command.Body.Items.Any(x => x.BookId != command.Body.BookId) ||
                 !string.Equals(command.Body.ManifestHash, FinancialCanonicalHash.Compute(command.Body.Items), StringComparison.Ordinal))
                 throw new FinancialOperationException(FinancialReasons.InvalidContract, "Batch book/count/manifest is invalid.");
             var items = new List<PreparedLedgerPosting>(command.Body.Items.Length);

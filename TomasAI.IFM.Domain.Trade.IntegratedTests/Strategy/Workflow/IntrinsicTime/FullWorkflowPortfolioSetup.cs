@@ -91,8 +91,18 @@ public sealed partial class TradeSelectionRuntimeTests
             return true;
         });
         var rule = new LedgerPostingRule(Guid.NewGuid(), 1, "five-stage-funding-rule", LedgerTransactionKind.DepositConfirmed, new(101, 1), new(102, 1), true);
+        LedgerPostingRule ExecutionRule(LedgerTransactionKind kind, int debit, int credit) =>
+            new(Guid.NewGuid(), 1, $"workflow-opening-{kind}", kind, new(debit, 1), new(credit, 1), true);
         await new PortfolioFinancialStore(transactions).CreateBookAsync(book,
-            [new(101, 1, "Cash", PostingSide.Debit, true, "cash"), new(102, 1, "Equity", PostingSide.Credit, true, "equity")], [rule], new(2020, 1, 1), new(2099, 12, 31));
+            [new(101, 1, "Cash", PostingSide.Debit, true, "cash"), new(102, 1, "Equity", PostingSide.Credit, true, "equity"),
+                new(103, 1, "Commission", PostingSide.Debit, true, "expense"),
+                new(104, 1, "Settlement clearing", PostingSide.Debit, true, "clearing"),
+                new(105, 1, "Realized PnL", PostingSide.Credit, true, "pnl"),
+                new(106, 1, "Valuation asset", PostingSide.Debit, true, "Asset"),
+                new(107, 1, "Unrealized PnL", PostingSide.Credit, true, "UnrealizedPnl")],
+            [rule, ExecutionRule(LedgerTransactionKind.TradeSettlement, 104, 101), ExecutionRule(LedgerTransactionKind.Commission, 103, 101),
+                new(Guid.NewGuid(), 1, "workflow-close-realized", LedgerTransactionKind.RealizedPnl, new(104, 1), new(105, 1), true, new(106, 1), new(107, 1))],
+            new(2020, 1, 1), new(2099, 12, 31));
         var postingId = Guid.NewGuid(); var now = DateTime.UtcNow;
         var posting = new PostFundTransactionCommand
         {

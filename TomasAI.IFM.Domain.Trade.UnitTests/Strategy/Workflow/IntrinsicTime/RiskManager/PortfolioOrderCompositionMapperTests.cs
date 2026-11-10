@@ -10,6 +10,28 @@ namespace TomasAI.IFM.Domain.Trade.UnitTests.Strategy.Workflow.IntrinsicTime.Ris
 
 public sealed class PortfolioOrderCompositionMapperTests
 {
+    [Theory]
+    [InlineData("LongFuture", 1)]
+    [InlineData("BullCallDebit", 2)]
+    [InlineData("ShortBalancedIronCondor", 4)]
+    public async Task Execution_instruction_preserves_composed_price_bounds_ticks_and_cash_multipliers(string variant, int legCount)
+    {
+        var view = await NeutralView(variant);
+        var candidate = view.OrderComposition.Result!.ReadCompositionResult().Candidate!;
+        var request = PortfolioOrderCompositionMapper.CreateRequest(view, 7, view.UpdatedAtUtc);
+        var component = request.Body.Components.Single();
+
+        component.Legs.Should().HaveCount(legCount);
+        component.Legs.Select(leg => leg.CashMultiplier)
+            .Should().Equal(candidate.Legs.Select(leg => leg.Multiplier));
+        component.Legs.Should().OnlyContain(leg => leg.CashMultiplier > 0);
+        component.SignedNetDebitLimit.Should().Be(candidate.ExecutionEnvelope.ProposedSignedDebit);
+        component.MinimumSignedNetDebitLimit.Should().Be(Math.Min(candidate.ExecutionEnvelope.ProposedSignedDebit, candidate.ExecutionEnvelope.WorstSignedDebit));
+        component.MaximumSignedNetDebitLimit.Should().Be(Math.Max(candidate.ExecutionEnvelope.ProposedSignedDebit, candidate.ExecutionEnvelope.WorstSignedDebit));
+        component.TickIncrement.Should().Be(candidate.ExecutionEnvelope.Tick);
+        component.TickIncrement.Should().BeGreaterThan(0);
+    }
+
     [Fact]
     public async Task Neutral_composition_maps_canonical_contracts_without_allocating_business_ids()
     {

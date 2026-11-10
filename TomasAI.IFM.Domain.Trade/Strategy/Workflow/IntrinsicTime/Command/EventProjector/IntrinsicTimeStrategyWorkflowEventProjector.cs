@@ -145,6 +145,13 @@ public sealed class IntrinsicTimeStrategyWorkflowEventProjector : ConventionalEv
             // These handlers receive the already committed event on the projector worker. They do not scan or
             // deserialize event_log and therefore add no database polling to the workflow command path.
             await _riskProjection.ProjectCommittedAsync(snapshot, cancellationToken).ConfigureAwait(false);
+            if (snapshot.RequiresDurableProjection)
+            foreach (var opening in TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Execution.Model.StrategyOpeningIntentFactory.Create(snapshot, _actorContext.TimeProvider.GetUtcNow().UtcDateTime))
+            {
+                var accepted = await _actorContext.ActorService.RequestAsync<TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Execution.BeginStrategyExecutionHandoffCommand, OrderExecutionId>(opening, cancellationToken).ConfigureAwait(false);
+                if (!accepted.Success)
+                    throw new InvalidOperationException("EXECUTION.INTENT.DELIVERY_FAILED: " + accepted.ErrorMessage);
+            }
             await _subscriptionProjection.ProjectCommittedAsync(snapshot, context).ConfigureAwait(false);
             if (_actorContext.Logger.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Information))
             {

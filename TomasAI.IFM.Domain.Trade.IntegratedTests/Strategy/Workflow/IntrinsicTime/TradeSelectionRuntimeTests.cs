@@ -31,6 +31,8 @@ using TomasAI.IFM.Domain.Trade.UnitTests.Strategy.Workflow.IntrinsicTime.TradeSe
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Framework.Messaging.NatsJetStream;
+using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
 namespace TomasAI.IFM.Domain.Trade.IntegratedTests.Strategy.Workflow.IntrinsicTime;
 
 [Collection(IntrinsicTimeStrategyWorkflowRuntimeCollection.Name)]
@@ -231,9 +233,26 @@ public sealed partial class TradeSelectionRuntimeTests(TomasAI.IFM.IntegrationTe
         public ValueTask SaveCompletedStateAsync(IFunctionActorContext context, TradeSelectionFunctionState state, ExecuteTradeSelectionPipelineCommand c, CancellationToken t = default)
             => Fail ? ValueTask.FromException(new InvalidOperationException("Injected completed append failure")) : Resolve().SaveCompletedStateAsync(context, state, c, t);
     }
-    TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint> Host(Action<IServiceCollection>? configure = null, string? brokerUrl = null, bool actualPortfolio = false) => sourceFactory.WithWebHostBuilder(builder => EventLogEngineQualification.Configure(builder).UseSetting("IFM_TEST_ACTOR_DOMAIN", "TomasAI.IFM.Domain.Trade,TomasAI.IFM.Domain.MarketData.Analytics" + (actualPortfolio ? ",TomasAI.IFM.Domain.Portfolio" : ""))
+    TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint> Host(Action<IServiceCollection>? configure = null, string? brokerUrl = null, bool actualPortfolio = false, bool isolatedTransport = false) => sourceFactory.WithWebHostBuilder(builder => EventLogEngineQualification.Configure(builder).UseSetting("IFM_TEST_ACTOR_DOMAIN", "TomasAI.IFM.Domain.Trade,TomasAI.IFM.Domain.MarketData.Analytics" + (actualPortfolio ? ",TomasAI.IFM.Domain.Portfolio" : ""))
         .UseSetting("IFM_TEST_NATS_URL", brokerUrl ?? DomainActorIntegrationInfrastructureFixture.NatsUrl).ConfigureServices(services =>
         {
+            if (isolatedTransport && brokerUrl is not null)
+            {
+                // The assembly-shared host remains alive on its own broker. Bind every
+                // transport role explicitly so its consumers cannot steal this host's requests.
+                services.RemoveAll<INatsProducerOptions>();
+                services.AddSingleton<INatsProducerOptions>(new NatsProducerOptions { Url = brokerUrl });
+                services.RemoveAll<INatsEventListenerOptions>();
+                services.AddSingleton<INatsEventListenerOptions>(new NatsEventListenerOptions { Url = brokerUrl });
+                services.RemoveAll<INatsJetStreamProducerOptions>();
+                services.AddSingleton<INatsJetStreamProducerOptions>(new NatsJetStreamProducerOptions { Url = brokerUrl });
+                var consumer = services.Last(value => value.ServiceType == typeof(INatsConsumerOptions)).ImplementationInstance as NatsConsumerOptions
+                    ?? throw new InvalidOperationException("Expected explicit Core NATS consumer settings.");
+                consumer.Url = brokerUrl;
+                var eventConsumer = services.Last(value => value.ServiceType == typeof(INatsJetStreamConsumerOptions)).ImplementationInstance as NatsJetStreamConsumerOptions
+                    ?? throw new InvalidOperationException("Expected explicit JetStream consumer settings.");
+                eventConsumer.Url = brokerUrl;
+            }
             services.AddSingleton(new IntrinsicTimeStrategyWorkflowOptions { Enabled = false });
             var validators = TradeSelectionCatalogCapabilities.Create().Concat(TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Model.CompositionCatalogCapabilities.Create())
                 .Concat(TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Model.RiskCatalogCapabilities.Create());

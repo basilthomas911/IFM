@@ -37,6 +37,8 @@ pub struct TradeController {
     order_draft: Option<crate::models::broker_presentation::OrderDraftDisplay>,
     /// Optional prepared trade; `None` represents an absent value.
     prepared_trade: Option<i32>,
+    /// Order and opening identity reviewed when Add Trade was prepared.
+    prepared_trade_scope: Option<(i64, Option<i64>)>,
     /// Established opening tab caption used as the closing trade reference default.
     prepared_trade_label: Option<String>,
     /// Optional pending manual; `None` represents an absent value.
@@ -416,6 +418,7 @@ impl TradeController {
             "cancel-draft" => {
                 self.order_draft = None;
                 self.prepared_trade = None;
+                self.prepared_trade_scope = None;
             }
             "close" => {}
             _ => return Err(format!("Trade action {action} is not yet implemented")),
@@ -429,6 +432,7 @@ impl TradeController {
         {
             self.order_draft = None;
             self.prepared_trade = None;
+            self.prepared_trade_scope = None;
         }
         self.message.clear();
         Ok("Trade workspace loaded".into())
@@ -659,7 +663,9 @@ impl TradeController {
             ("status", self.message.clone()),
             ("canCreateOrder", "True".into()),
             ("canRemoveOrder", (!data.orders.is_empty()).to_string()),
-            ("canAddTrade", (mutable && order.is_some()).to_string()),
+            ("canAddTrade", (mutable && order.is_some() && (data.trades.is_empty()
+                || (data.trades.len() == 1 && primary.as_ref().is_some_and(|trade|
+                    matches!(trade.trade_state.as_deref(), Some("TradeToOpen" | "Open")))))).to_string()),
             ("canRemoveTrade", (mutable && trade.as_ref().is_some_and(|trade|
                 matches!(trade.trade_state.as_deref(), Some("NewTrade" | "Rejected" | "OrderCancelled"))
                     && trade.execution_order_id.unwrap_or_default() == 0

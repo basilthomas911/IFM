@@ -1,4 +1,4 @@
-
+﻿
 
 using System.Security.Cryptography;
 using System.Text;
@@ -20,7 +20,10 @@ public sealed class FinancialProjectionBaseline(IPostgresEventTransaction transa
     static readonly string[] CompositionTables=["portfolio.order_composition_decision","portfolio.order_composition_fund_decision",
         "portfolio.accepted_trade_order","portfolio.accepted_trade_order_leg","portfolio.accepted_trade_order_capacity",
         "portfolio.accepted_position_close","portfolio.financial_operation_by_portfolio_month"];
-    static string[] Scope(bool includeComposition)=>includeComposition ? [..Tables,..CompositionTables] : Tables;
+    static string[] Scope(bool includeComposition, bool includeExecution = false) =>
+        [..Tables, ..(includeExecution ? new[] { "accepted_execution_capacity" } : []),
+            ..(includeComposition ? CompositionTables : [])];
+    static string[] Scope(int version) => Scope(version is 2 or 4, version >= 3);
     static string Qualified(string table)=>table.Contains('.',System.StringComparison.Ordinal) ? table : "portfolio_financial."+table;
 
     /// <summary>Captures a verified full financial database baseline while all application source writers are stopped.
@@ -31,19 +34,19 @@ public sealed class FinancialProjectionBaseline(IPostgresEventTransaction transa
         if(!sourceWritesQuiesced) throw new ArgumentException("Stop source writers before financial baseline capture.",nameof(sourceWritesQuiesced));
         return transactions.ExecuteOnceAsync(async(db,ct)=>
         {
-            await (LockAsync(db,Scope(includeComposition),ct)).ConfigureAwait(false);
+            await (LockAsync(db,Scope(includeComposition, includeExecution: true),ct)).ConfigureAwait(false);
             await (VerifyAsync(db,ct)).ConfigureAwait(false);
             var cut=Convert.ToInt64(await (db.ScalarAsync("SELECT COALESCE(max(eventversion),0) FROM event_log;",[],ct)).ConfigureAwait(false),System.Globalization.CultureInfo.InvariantCulture);
             var schema=Convert.ToInt32(await (db.ScalarAsync("SELECT version FROM portfolio_financial.schema_version WHERE singleton;",[],ct)).ConfigureAwait(false),System.Globalization.CultureInfo.InvariantCulture);
             var images=new List<FinancialBaselineTable>();
-            foreach(var table in Scope(includeComposition))
+            foreach(var table in Scope(includeComposition, includeExecution: true))
             {
                 var columns=await (ColumnsAsync(db,table,ct)).ConfigureAwait(false);
                 var rows=(string)(await (db.ScalarAsync($"SELECT COALESCE(jsonb_agg(j ORDER BY j::text),'[]'::jsonb)::text FROM (SELECT to_jsonb(t)-'created_transaction_id' AS j FROM {Qualified(table)} t) q;",[],ct)).ConfigureAwait(false))!;
                 images.Add(new(table,columns,rows,Hash(rows)));
             }
             var source=new FinancialProjectionBaselineEvent { Id=Guid.NewGuid(),CommandId=Guid.NewGuid(),ReceivedOn=db.BusinessTime.GetUtcNow().UtcDateTime,
-                SourceCut=cut,FinancialSchemaVersion=schema,Tables=images.ToArray(),SchemaVersion=includeComposition?2:1 };
+                SourceCut=cut,FinancialSchemaVersion=schema,Tables=images.ToArray(),SchemaVersion=includeComposition?4:3 };
             await (db.AppendAsync("FinancialProjectionBaseline",source.CommandId,source,
                 Convert.ToInt64(await (db.ScalarAsync("SELECT COALESCE(max(e.streamversion),0) FROM event_log e JOIN event_stream_id s ON s.eventstreamid=e.eventstreamid WHERE s.eventstream=$1;",["FinancialProjectionBaseline"],ct)).ConfigureAwait(false),System.Globalization.CultureInfo.InvariantCulture),ct)).ConfigureAwait(false);
             await (FinancialOperationalEventPersistence.ClaimAsync(db,source,0,ct)).ConfigureAwait(false);
@@ -56,12 +59,12 @@ public sealed class FinancialProjectionBaseline(IPostgresEventTransaction transa
     public Task ReplayAsync(FinancialProjectionBaselineEvent source,CancellationToken token=default)
     {
         ArgumentNullException.ThrowIfNull(source);
-        if(source.SchemaVersion is not(1 or 2) || source.EventId<=source.SourceCut || source.Id==Guid.Empty ||
-            !source.Tables.Select(x=>x.Name).SequenceEqual(Scope(source.SchemaVersion==2), StringComparer.Ordinal) || source.Tables.Any(x=>!string.Equals(Hash(x.RowsJson),x.Sha256,StringComparison.Ordinal)))
+        if(source.SchemaVersion is not(1 or 2 or 3 or 4) || source.EventId<=source.SourceCut || source.Id==Guid.Empty ||
+            !source.Tables.Select(x=>x.Name).SequenceEqual(Scope(source.SchemaVersion), StringComparer.Ordinal) || source.Tables.Any(x=>!string.Equals(Hash(x.RowsJson),x.Sha256,StringComparison.Ordinal)))
             throw new InvalidDataException("Committed complete financial baseline and matching hashes required.");
         return transactions.ExecuteOnceAsync(async(db,ct)=>
         {
-            await (LockAsync(db,Scope(source.SchemaVersion==2),ct)).ConfigureAwait(false);
+            await (LockAsync(db,Scope(source.SchemaVersion),ct)).ConfigureAwait(false);
             if(!(await (FinancialOperationalEventPersistence.ClaimAsync(db,source,0,ct)).ConfigureAwait(false))) return false;
             if(Convert.ToInt32(await (db.ScalarAsync("SELECT version FROM portfolio_financial.schema_version WHERE singleton;",[],ct)).ConfigureAwait(false),System.Globalization.CultureInfo.InvariantCulture)!=source.FinancialSchemaVersion)
                 throw new InvalidDataException("Financial baseline schema differs from target.");

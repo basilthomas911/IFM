@@ -7,6 +7,43 @@ namespace TomasAI.IFM.Domain.Portfolio.Workflow;
 /// <summary>Fail-closed lifecycle for planned composition identities. It has no broker or live-position capability.</summary>
 public sealed class PortfolioFundCompositionAggregate
 {
+    /// <summary>Registers a source-verified automatic instruction using its original Portfolio allocation.</summary>
+    public FundCompositionReservationResult RegisterStrategyOrder(
+        TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition.PortfolioExecutionOrderInstruction order,
+        Guid workflowId, string underlyingContractId, string hash, DateTime now, string principal)
+    {
+        if (order.PortfolioApprovalId == Guid.Empty || workflowId == Guid.Empty || order.Id.OrderId <= 0 || order.Components.Length != 1 ||
+            order.SetupTrade is not { } setup || setup.OrderId != order.Id.OrderId || setup.TradeId != order.Components[0].ReservedTradeId ||
+            _orders.ContainsKey(order.Id.OrderId))
+            throw new InvalidOperationException("Complete, uniquely allocated strategy opening instruction required.");
+        var component = order.Components[0];
+          var tradeType = component.StrategyKind switch
+          {
+              Shared.OrderComposition.PortfolioExecutionStrategyKind.FuturesOutright => nameof(TradeType.FuturesOutright),
+              Shared.OrderComposition.PortfolioExecutionStrategyKind.IronCondor => component.SignedNetDebitLimit < 0
+                  ? nameof(TradeType.ShortIronCondor) : nameof(TradeType.LongIronCondor),
+              Shared.OrderComposition.PortfolioExecutionStrategyKind.VerticalSpread => component.Legs[0].PutCall == 1
+                  ? component.SignedNetDebitLimit < 0 ? nameof(TradeType.CallCreditSpread) : nameof(TradeType.CallDebitSpread)
+                  : component.SignedNetDebitLimit < 0 ? nameof(TradeType.PutCreditSpread) : nameof(TradeType.PutDebitSpread),
+              _ => throw new InvalidOperationException("Unsupported strategy opening family.")
+          };
+        var reservation = new FundCompositionReservationResult
+        {
+            Order = new() { PortfolioId = order.Id.PortfolioId, FundId = order.Id.FundId, OrderId = order.Id.OrderId,
+                WorkflowId = workflowId, Status = nameof(FundCompositionState.Draft), CreatedOnUtc = now, CreatedBy = principal,
+                AggregateVersion = 1, ExpiresAtUtc = order.ValidUntilUtc, IdempotencyKey = order.PortfolioApprovalId,
+                CanonicalRequestHash = hash, Origin = CompositionOrigin.StrategyWorkflow, OperatorReference = "Strategy workflow opening" },
+            Trades = [new() { PortfolioId = order.Id.PortfolioId, FundId = order.Id.FundId, OrderId = order.Id.OrderId,
+                TradeId = component.ReservedTradeId, LegOrdinal = 1, AggregateVersion = 1, PrimaryTrade = true,
+                TradeType = tradeType, TradeFamily = tradeType, TradeState = nameof(TradeState.NewTrade),
+                TradeAction = "Opening", RequestedTradeDate = order.ValueDate, CreatedOnUtc = now, CreatedBy = principal,
+                InstructionReference = "Strategy:" + workflowId, TradeReference = "Opening " + tradeType,
+                  BaseContractId = underlyingContractId }],
+            AggregateVersion = 1, CommittedOnUtc = now, Disposition = ReservationDisposition.Committed, CanonicalRequestSha256 = hash
+        };
+        ApplyReservation(reservation);
+        return reservation;
+    }
     readonly Dictionary<Guid, FundCompositionReservationResult> _reservations = [];
     readonly Dictionary<int, FundOrderProjectionReadModel> _orders = [];
     readonly Dictionary<int, FundOrderTradeProjectionReadModel[]> _trades = [];

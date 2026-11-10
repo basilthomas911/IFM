@@ -9,8 +9,11 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events
 
 /// <summary>Records one authoritative complete Strategy Workflow state snapshot.</summary>
 [MessagePackObject(AllowPrivate = true)]
-public sealed record WorkflowStrategyStateUpdatedEvent : IEvent<IntrinsicTimeStrategyWorkflowEntityId>, TomasAI.IFM.Domain.Portfolio.Shared.Financial.ICapacityExecutionAcceptedEvent, TomasAI.IFM.Domain.Portfolio.Shared.Financial.IRiskWorkflowTerminalEvent
+public sealed record WorkflowStrategyStateUpdatedEvent : IEvent<IntrinsicTimeStrategyWorkflowEntityId>, TomasAI.IFM.Domain.Portfolio.Shared.Financial.ICapacityExecutionAcceptedEvent, TomasAI.IFM.Domain.Portfolio.Shared.Financial.IRiskWorkflowTerminalEvent, IRequireDurableProjection
 {
+    /// <summary>New emulator-authorized terminal decisions must retain their opening delivery through restart.</summary>
+    [IgnoreMember] public bool RequiresDurableProjection => State.OpeningExecutionRoute is not null && State.Status == WorkflowStrategyMachineStatus.Completed && State.Outcome == StrategyWorkflowOutcome.Completed && State.CurrentStage == StrategyWorkflowStage.RiskManagement;
+    [IgnoreMember] public DurableProjectionRequirement RequiredProjection => new("IntrinsicTimeStrategyWorkflowCommandActor", "IntrinsicTimeStrategyWorkflowEventProjector", TomasAI.IFM.Shared.EventProjector.EventProjectorStageType.ApplyProjection);
     /// <summary>Logical Strategy Workflow event source.</summary>
     [IgnoreMember] public const string Actor = "IntrinsicTimeStrategyWorkflow";
     /// <summary>Stable snapshot notification verb.</summary>

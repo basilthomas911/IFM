@@ -95,6 +95,26 @@ impl TradeController {
             self.data.context = Some(context);
             return Ok("New order editor opened".into());
         }
+        // Add Trade is a new intent, not a retry of an uncertain write. Read its
+        // current order and trades before inferring opening versus closing.
+        if matches!(action, "prepare-trade" | "create-trade") {
+            let original = self.data.order.ok_or("Select an order before adding a trade")?;
+            self.data.load_orders(backend, registry, deadline).await?;
+            if self.data.order != Some(original) {
+                return Err("The selected order is no longer available; reload before adding a trade".into());
+            }
+            let rows = self.data.trades.iter()
+                .map(|wire| model(registry, "FundOrderTradeProjectionReadModel", wire))
+                .collect::<Result<Vec<_>, _>>()?;
+            let scope = (original, rows.first().and_then(|row| row["TradeId"].as_i64()));
+            if action == "create-trade" && self.prepared_trade_scope != Some(scope) {
+                return Err("The opening trade changed while Add Trade was open; reopen the dialog and review it before submitting".into());
+            }
+            if !rows.is_empty() && (rows.len() != 1 || rows[0]["PrimaryTrade"] != true
+                || !matches!(rows[0]["TradeState"].as_str(), Some("TradeToOpen" | "Open"))) {
+                return Err("This order already has an opening trade. Select and place that trade before adding a close; remove an inactive rejected or draft trade before replacing it.".into());
+            }
+        }
         let order = selected(
             registry,
             "FundOrderProjectionReadModel",
@@ -149,6 +169,8 @@ impl TradeController {
                 .map(FundOrderTradeProjectionReadModel::from_backend)
                 .collect::<Result<Vec<_>, _>>()?
                 .into_iter().find(|trade| trade.primary_trade == Some(true));
+            self.prepared_trade_scope = Some((self.data.order.ok_or("Select an order")?,
+                primary.as_ref().and_then(|trade| trade.trade_id).map(i64::from)));
             if let Some(primary) = primary
                 && let Ok(scope) = crate::services::order_close::primary_scope(&primary)
             {
@@ -229,6 +251,7 @@ impl TradeController {
                         self.prepared_trade.ok_or("Open Add Trade first")?,
                         self.data.trades.is_empty(),
                         trade_type,
+                        primary.as_ref().and_then(|row| row["TradeAction"].as_str()),
                         &contract,
                         effective,
                         maturity,
@@ -307,11 +330,9 @@ impl TradeController {
             success_message.unwrap_or_else(|| format!("Manual Portfolio order {order} created."));
         self.data.load_orders(backend, registry, deadline).await?;
         if matches!(action, "create-order" | "create-trade" | "remove-trade") {
-            let selected = if action == "create-order" {
-                self.data.order
-            } else {
-                Some(order.into())
-            };
+            // Continue on the newly created order, rather than leaving Add
+            // Trade pointed at the previously selected opening trade.
+            let selected = Some(order.into());
             if let Some(selected) = selected {
                 self.data
                     .select_order(backend, registry, selected, deadline)

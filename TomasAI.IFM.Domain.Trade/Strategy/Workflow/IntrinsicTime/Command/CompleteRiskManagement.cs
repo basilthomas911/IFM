@@ -166,7 +166,7 @@ public static class CompleteRiskManagement
                 SourceEventId = command.SourceEventId,
                 ContinuationRuleSetId = "IntrinsicTimeStrategyWorkflow.v2",
                 ContinuationRuleSetVersion = 2,
-                ContinuationReasonCodes = noTrade ? ["RM.PORTFOLIO.NO_TRADE_ORDERS"] : ["RM.PORTFOLIO.TRADE_ORDERS_DISPATCHED"]
+                ContinuationReasonCodes = noTrade ? ["RM.PORTFOLIO.NO_TRADE_ORDERS"] : ["RM.PORTFOLIO.TRADE_ORDERS_AUTHORIZED"]
             }
         };
         AppendSnapshot(state, command, current.Status, updated, now);

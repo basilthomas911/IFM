@@ -83,5 +83,7 @@ public sealed record IntrinsicTimeStrategyWorkflowView
     [Key(37)] public ParameterApplicationProvenance? RegimeDiscoveryParameterApplication { get; init; }
     /// <summary>Atomic Portfolio decision that owns all accepted Fund, Order and reserved Trade identities.</summary>
     [Key(38)] public PortfolioRiskDecision? PortfolioRiskDecision { get; init; }
+    /// <summary>Explicit server-frozen Development emulator permission; absent on historical workflows.</summary>
+    [Key(39)] public Execution.StrategyOpeningExecutionRoute? OpeningExecutionRoute { get; init; }
 
 }

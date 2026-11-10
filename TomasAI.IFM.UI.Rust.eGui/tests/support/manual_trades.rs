@@ -2,6 +2,82 @@ use super::*;
 use ifm_ui_egui::{backend::schema::Registry, state::trades::TradeController};
 use serde_json::{Value as Json, json};
 
+/// Creating an order selects its empty trade collection before adding the opening.
+#[tokio::test]
+#[ignore = "Requires isolated C# compatibility responder"]
+async fn trade_manual_create_then_add_opening_targets_the_new_order_for_each_family() {
+    let backend = backend().await;
+    let registry = Registry::compiled().unwrap();
+    for kind in ["ShortIronCondor", "CallDebitSpread", "FuturesOutright"] {
+        mode(&backend, "ResetCommands").await;
+        let mut state = TradeController::default();
+        let mut result = act(&mut state, &backend, &registry, 0, "load", json!({}), None).await;
+        assert_eq!(state.data.order, Some(123));
+        result = act(&mut state, &backend, &registry, result.generation, "prepare-order", json!({}), None).await;
+        result = act(&mut state, &backend, &registry, result.generation, "create-order", json!({"reference":kind}), None).await;
+        assert_eq!(result.outcomes[0].state, "Completed", "{}", result.status);
+        assert_eq!(state.data.order, Some(701));
+        assert!(state.data.trades.is_empty());
+        result = act(&mut state, &backend, &registry, result.generation, "prepare-trade", json!({}), Some("701")).await;
+        assert_eq!(result.outcomes[0].state, "Completed", "{}", result.status);
+        result = act(&mut state, &backend, &registry, result.generation, "create-trade",
+            json!({"tradeType":kind,"baseContract":"ESZ6","effectiveDate":"2026-10-26","tradeReference":"Buy saved trade — edited reference"}), Some("701")).await;
+        assert_eq!(result.outcomes[0].state, "Completed", "{}", result.status);
+        assert_eq!(state.data.order, Some(701));
+        assert_eq!(state.data.trades.len(), 1);
+        let row = registry.project("TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundOrderTradeProjectionReadModel", &state.data.trades[0]).unwrap();
+        assert_eq!(row["OrderId"], 701);
+        assert_eq!(row["TradeType"], kind);
+        assert_eq!(row["PrimaryTrade"], true);
+        assert_eq!(row["TradeState"], "NewTrade");
+        assert_eq!(count(&backend).await, 2);
+    }
+    mode(&backend, "Disabled").await;
+}
+
+/// A stale empty UI cache cannot turn an existing opening draft into another opening.
+#[tokio::test]
+#[ignore = "Requires isolated C# compatibility responder"]
+async fn trade_workspace_add_trade_refreshes_hidden_opening_before_allocating_or_writing() {
+    let backend = backend().await;
+    let registry = Registry::compiled().unwrap();
+    mode(&backend, "ResetCommands").await;
+    mode(&backend, "Normal").await;
+    let mut state = TradeController::default();
+    let loaded = act(&mut state, &backend, &registry, 0, "load", json!({}), None).await;
+    assert_eq!(loaded.result.context["canAddTrade"], "False");
+    assert_eq!(state.data.trades.len(), 1);
+    state.data.trades.clear(); // Reproduce the former default-selected-order cache.
+    let result = act(&mut state, &backend, &registry, loaded.generation,
+        "prepare-trade", json!({}), Some("123")).await;
+    assert_eq!(result.outcomes[0].state, "Failed");
+    assert!(result.outcomes[0].message.contains("already has an opening trade"));
+    assert_eq!(state.data.trades.len(), 1);
+    assert_eq!(count(&backend).await, 0);
+    mode(&backend, "Disabled").await;
+}
+
+/// A dialog prepared for an empty order cannot silently become a closing trade.
+#[tokio::test]
+#[ignore = "Requires isolated C# compatibility responder"]
+async fn trade_workspace_add_trade_rejects_changed_opening_after_preparation() {
+    let backend = backend().await;
+    let registry = Registry::compiled().unwrap();
+    mode(&backend, "ResetEmptyCommands").await;
+    let mut state = TradeController::default();
+    let loaded = act(&mut state, &backend, &registry, 0, "load", json!({}), None).await;
+    let prepared = act(&mut state, &backend, &registry, loaded.generation,
+        "prepare-trade", json!({}), Some("123")).await;
+    assert_eq!(prepared.outcomes[0].state, "Completed");
+    mode(&backend, "Normal").await; // Another client has supplied an opening.
+    let result = act(&mut state, &backend, &registry, prepared.generation, "create-trade",
+        json!({"tradeType":"ShortIronCondor","baseContract":"ESZ6","effectiveDate":"2026-10-26","tradeReference":"Opening"}), Some("123")).await;
+    assert_eq!(result.outcomes[0].state, "Failed");
+    assert!(result.outcomes[0].message.contains("opening trade changed"));
+    assert_eq!(count(&backend).await, 0);
+    mode(&backend, "Disabled").await;
+}
+
 
 /// Provides backend for the manual trades implementation.
 async fn backend() -> Backend {
@@ -120,9 +196,12 @@ async fn trade_manual_commands_use_backend_ids_versions_and_projection_receipts(
     assert_eq!(count(&backend).await, 1);
     assert_eq!(
         state.data.order,
-        Some(123),
-        "Preserve the existing selected order after creation, matching the current hybrid"
+        Some(701),
+        "Select the newly created empty order for its first opening trade"
     );
+    assert!(state.data.trades.is_empty());
+    // This scenario specifically tests a close against the earlier opening.
+    p = act(&mut state, &backend, &registry, p.generation, "order", json!({}), Some("123")).await;
     p = act(
         &mut state,
         &backend,

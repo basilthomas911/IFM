@@ -8,6 +8,22 @@ use ifm_ui_egui::{
 };
 use serde::Serialize;
 
+
+/// Server-owned workflow lineage can be appended without changing existing order fields.
+#[test]
+fn appended_strategy_workflow_identity_preserves_trade_order_decoding() {
+    let mut fields = vec![rmpv::Value::Nil; 30];
+    fields[0] = 1u16.into();
+    fields[2] = 7i32.into();
+    fields[6] = "StrategyWorkflow".into();
+    let previous = TradeOrderDefinition::from_backend(&rmpv::Value::Array(fields.clone())).unwrap();
+    fields.push("01a1c348-260f-728e-9d02-d2c5061908ef".into());
+    let current = TradeOrderDefinition::from_backend(&rmpv::Value::Array(fields)).unwrap();
+    assert_eq!(current, previous);
+    assert_eq!(current.revision, Some(7));
+    assert_eq!(current.origin.as_deref(), Some("StrategyWorkflow"));
+}
+
 /// Overshoot modes preserve the numeric backend contract and expose their names in typed and schema views.
 #[test]
 fn iti_overshoot_modes_decode_and_display_without_changing_legacy_values() {

@@ -132,10 +132,6 @@ impl TradeData {
             next.orders.clear();
             next.trades.clear();
         }
-        if let Some(order) = next.order {
-            next.select_order(backend, registry, order, deadline)
-                .await?;
-        }
         *self = next;
         Ok(())
     }
@@ -308,10 +304,17 @@ impl TradeData {
             .find(|(_, id, _)| Some(*id) == self.order)
             .or(keyed.first())
             .map(|(_, id, _)| *id);
-        self.orders = keyed.into_iter().map(|(_, _, row)| row).collect();
-        self.order = selected;
-        self.trade = None;
-        self.trades.clear();
+        // An implicitly selected order must have the same complete trade selection
+        // as an explicitly clicked order. Publish both only after the read succeeds.
+        let mut next = self.clone();
+        next.orders = keyed.into_iter().map(|(_, _, row)| row).collect();
+        next.order = selected;
+        next.trade = None;
+        next.trades.clear();
+        if let Some(order) = selected {
+            next.select_order(backend, registry, order, deadline).await?;
+        }
+        *self = next;
         Ok(())
     }
 

@@ -24,7 +24,7 @@ public static class PortfolioOrderCompositionMapper
             throw new InvalidOperationException("RM.PORTFOLIO.PREMATURE_OWNERSHIP");
         var strategy = StrategyKind(view.CompositionExecution?.CompositionBinding.BuilderCode);
         var componentId = StableId(candidate.CandidateId, "component");
-        var legs = candidate.Legs.Select((leg, ordinal) => new TradeLegDefinition { TradeLegId = StableId(candidate.CandidateId, $"leg/{ordinal}"), ContractId = leg.InstrumentId, ContractKey = leg.InstrumentId, AssetFamily = string.Equals(leg.InstrumentClass, "Futures", StringComparison.Ordinal) ? TradeAssetFamily.Futures : TradeAssetFamily.FuturesOption, SignedQuantity = checked((string.Equals(leg.Side, "Buy", StringComparison.Ordinal) ? 1 : -1) * leg.Ratio * candidate.UnitQuantity), Expiry = leg.ExpirationUtc == default ? null : DateOnly.FromDateTime(leg.ExpirationUtc), Strike = leg.Strike, PutCall = ((leg.Right is true) switch
+        var legs = candidate.Legs.Select((leg, ordinal) => new TradeLegDefinition { TradeLegId = StableId(candidate.CandidateId, $"leg/{ordinal}"), ContractId = leg.InstrumentId, ContractKey = leg.InstrumentId, CashMultiplier = leg.Multiplier, AssetFamily = string.Equals(leg.InstrumentClass, "Futures", StringComparison.Ordinal) ? TradeAssetFamily.Futures : TradeAssetFamily.FuturesOption, SignedQuantity = checked((string.Equals(leg.Side, "Buy", StringComparison.Ordinal) ? 1 : -1) * leg.Ratio * candidate.UnitQuantity), Expiry = leg.ExpirationUtc == default ? null : DateOnly.FromDateTime(leg.ExpirationUtc), Strike = leg.Strike, PutCall = ((leg.Right is true) switch
         {
             true => (byte)1,
             _ => leg.Right is false ? (byte)2 : null
@@ -49,7 +49,11 @@ public static class PortfolioOrderCompositionMapper
                 ComponentId = componentId,
                 StrategyKind = strategy,
                 Legs = legs,
-                PermitBalancedPartialAcceptance = false
+                PermitBalancedPartialAcceptance = false,
+                SignedNetDebitLimit = candidate.ExecutionEnvelope.ProposedSignedDebit,
+                MinimumSignedNetDebitLimit = Math.Min(candidate.ExecutionEnvelope.ProposedSignedDebit, candidate.ExecutionEnvelope.WorstSignedDebit),
+                MaximumSignedNetDebitLimit = Math.Max(candidate.ExecutionEnvelope.ProposedSignedDebit, candidate.ExecutionEnvelope.WorstSignedDebit),
+                TickIncrement = candidate.ExecutionEnvelope.Tick
             }.ToPortfolioComponent()],
             RequiredCapital = requiredCapital,
             EvidenceHash = candidate.CandidateHash,
@@ -65,7 +69,12 @@ public static class PortfolioOrderCompositionMapper
             Vega = candidate.Greeks.Vega,
             PositionType = PortfolioExecutionPositionType.Opening,
             DecisionEvidence = candidate.DecisionEvidence,
-            VolatilityEvidence = result.DecisionContext.VolatilityEvidence
+            VolatilityEvidence = result.DecisionContext.VolatilityEvidence,
+            BrokerAccountAlias = view.OpeningExecutionRoute?.AccountAlias ?? string.Empty,
+            BrokerEnvironment = view.OpeningExecutionRoute is { } route ? (PortfolioBrokerEnvironment)route.Environment : PortfolioBrokerEnvironment.Unknown,
+            MicroExecutionProfileId = view.OpeningExecutionRoute?.PolicyId ?? string.Empty,
+            MicroExecutionProfileVersion = view.OpeningExecutionRoute is null ? 0 : 1,
+            MicroExecutionProfileHash = view.OpeningExecutionRoute?.PolicyHash ?? string.Empty
         };
         var operationId = StableId(view.WorkflowId.Value, $"portfolio-order-composition/{view.WorkflowRevision}");
         var entityId = new FinancialExecutionId(portfolioId, operationId);

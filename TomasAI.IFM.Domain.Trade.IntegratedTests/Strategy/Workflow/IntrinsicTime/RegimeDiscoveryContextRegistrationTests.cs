@@ -21,6 +21,7 @@ public sealed class RegimeDiscoveryContextRegistrationTests
         using var container = new Container();
         // Resolve just this actor graph; unrelated host registrations require live infrastructure.
         container.Options.EnableAutoVerification = false;
+        container.RegisterInstance<TimeProvider>(TimeProvider.System);
         typeof(global::TomasAI.IFM.Application.Actor.IntegrationTests.Startup)
             .GetMethod("RegisterGenericTypes", BindingFlags.Static | BindingFlags.NonPublic)!
             .Invoke(null, [container, new ConfigurationManager(), NullLogger.Instance]);

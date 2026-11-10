@@ -16,6 +16,8 @@ public sealed class IntrinsicTimeStrategyWorkflowOptions : TomasAI.IFM.Domain.Tr
 {
     /// <summary>Gets or sets whether live ITI triggers may start workflow executions.</summary>
     public bool Enabled { get; set; }
+    /// <summary>Opt-in Development emulator opening. Existing accepted executions remain recoverable when disabled.</summary>
+    public bool ExecuteDevelopmentOpenings { get; set; }
     /// <summary>Market profile shared across strategy families, resolved for the triggering timeframe.</summary>
     public string MarketConditionAssessmentProfileId { get; set; } = "ES.Standard";
     /// <summary>

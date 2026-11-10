@@ -64,6 +64,8 @@ public sealed class PortfolioFundCommandActor(
 
             [RecordFundTradeSubmissionCommand.Verb] = static message => message.AsCommand<RecordFundTradeSubmissionCommand>()!,
             [RecordFundTradeOpeningCommand.Verb] = static message => message.AsCommand<RecordFundTradeOpeningCommand>()!,
+            [RegisterStrategyFundOrderCommand.Verb] = static message => message.AsCommand<RegisterStrategyFundOrderCommand>()!,
+            [ReleaseExpiredStrategyFundOrderCommand.Verb] = static message => message.AsCommand<ReleaseExpiredStrategyFundOrderCommand>()!,
             [RecordFundTradeClosingCommand.Verb] = static message => message.AsCommand<RecordFundTradeClosingCommand>()!,
             [ReleaseFundTradeSubmissionCommand.Verb] = static message => message.AsCommand<ReleaseFundTradeSubmissionCommand>()!,
             [DeleteManualFundOrderCommand.Verb] = static message => message.AsCommand<DeleteManualFundOrderCommand>()!,
@@ -169,6 +171,16 @@ public sealed class PortfolioFundCommandActor(
                 return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName)
                     .ValidateEntityId(typed.EntityId, typed.CommandName).ValidateFundCommand(typed);
             },
+            [typeof(RegisterStrategyFundOrderCommand)] = static command =>
+            {
+                var typed = (RegisterStrategyFundOrderCommand)command;
+                return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName).ValidateEntityId(typed.EntityId, typed.CommandName);
+            },
+            [typeof(ReleaseExpiredStrategyFundOrderCommand)] = static command =>
+            {
+                var typed = (ReleaseExpiredStrategyFundOrderCommand)command;
+                return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName).ValidateEntityId(typed.EntityId, typed.CommandName);
+            },
             [typeof(RecordFundTradeClosingCommand)] = static command =>
             {
                 var typed = (RecordFundTradeClosingCommand)command;
@@ -256,6 +268,10 @@ public sealed class PortfolioFundCommandActor(
                 ((RecordFundTradeSubmissionCommand)command).Execute(state.Aggregate, now, principal),
             [typeof(RecordFundTradeOpeningCommand)] = static (command, state, now, principal) =>
                 ((RecordFundTradeOpeningCommand)command).Execute(state.Aggregate, now, principal),
+            [typeof(RegisterStrategyFundOrderCommand)] = static (command, state, now, principal) =>
+                ((RegisterStrategyFundOrderCommand)command).Execute(state.Aggregate, now, principal),
+            [typeof(ReleaseExpiredStrategyFundOrderCommand)] = static (command, state, now, principal) =>
+                ((ReleaseExpiredStrategyFundOrderCommand)command).Execute(state.Aggregate, now, principal),
             [typeof(RecordFundTradeClosingCommand)] = static (command, state, now, principal) =>
                 ((RecordFundTradeClosingCommand)command).Execute(state.Aggregate, now, principal),
             [typeof(ReleaseFundTradeSubmissionCommand)] = static (command, state, now, principal) =>
@@ -279,11 +295,16 @@ public sealed class PortfolioFundCommandActor(
     protected override ICommand ParseMessage(ICommandActorContext<PortfolioFundCommandActor> context, IActorMessage message) =>
         ParseMappedCommand(context, message, _parseMap);
 
-    protected override ValueTask OnValidateAsync(ICommandActorContext<PortfolioFundCommandActor> context, ActorThreadId threadId, ICommand command)
+    protected override async ValueTask OnValidateAsync(ICommandActorContext<PortfolioFundCommandActor> context, ActorThreadId threadId, ICommand command)
     {
         ArgumentNullException.ThrowIfNull(context);
         ValidateMappedCommand(command, _validationMap);
-        return ValueTask.CompletedTask;
+        if (command is RegisterStrategyFundOrderCommand registration &&
+            !await context.Container.Resolve<TomasAI.IFM.Domain.Portfolio.Fund.Command.StrategyFundOrderRegistrationProof>().VerifyAsync(registration).ConfigureAwait(false))
+            throw new InvalidOperationException("STRATEGY_FUND_ORDER.AUTHORIZATION_SOURCE_MISMATCH");
+        if (command is ReleaseExpiredStrategyFundOrderCommand expiry &&
+            !await context.Container.Resolve<TomasAI.IFM.Domain.Portfolio.Fund.Command.StrategyFundOrderRegistrationProof>().VerifyExpiryAsync(expiry).ConfigureAwait(false))
+            throw new InvalidOperationException("STRATEGY_FUND_EXPIRY.RELEASE_SOURCE_MISMATCH");
     }
 
     protected override async ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext<PortfolioFundCommandActor> context, ActorThreadId threadId, ICommand command)
@@ -423,7 +444,7 @@ public sealed class PortfolioFundCommandActor(
             ExpireFundOrderCompositionCommand.Verb => PortfolioOperation.ReserveComposition,
         RecordFundOrderComposedCommand.Verb => PortfolioOperation.RecordCompositionResult,
         SynchronizeFundRiskOutcomeCommand.Verb or RecordFundOrderRiskOutcomeCommand.Verb or AuthorizeFundOrderRiskCommand.Verb => PortfolioOperation.RecordRiskResult,
-        RecordFundTradeSubmissionCommand.Verb or RecordFundTradeOpeningCommand.Verb or RecordFundTradeClosingCommand.Verb or ReleaseFundTradeSubmissionCommand.Verb => PortfolioOperation.RecordCompositionResult,
+        RecordFundTradeSubmissionCommand.Verb or RecordFundTradeOpeningCommand.Verb or RecordFundTradeClosingCommand.Verb or ReleaseFundTradeSubmissionCommand.Verb or RegisterStrategyFundOrderCommand.Verb or ReleaseExpiredStrategyFundOrderCommand.Verb => PortfolioOperation.RecordCompositionResult,
         _ => PortfolioOperation.AdministerFund,
     };
 

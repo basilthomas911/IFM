@@ -268,7 +268,7 @@ public static class RegimeDiscoveryScenarioCatalog
         VolatilityScore = 0.347917m,
         FusionScore = null,
         Conviction = null,
-        RequiredReasonCodes = [RegimeDiscoveryReasonCodes.OptionalDataMissing]
+        RequiredReasonCodes = [RegimeDiscoveryReasonCodes.OptionalDataInactive]
     };
 
     public static IReadOnlyList<RegimeDiscoveryScenario> StructureScenarios { get; } =

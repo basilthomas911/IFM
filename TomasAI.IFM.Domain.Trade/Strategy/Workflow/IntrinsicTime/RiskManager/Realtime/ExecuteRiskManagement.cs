@@ -1,4 +1,4 @@
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using System.Text;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Commands;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events;
@@ -177,8 +177,8 @@ public static class ExecuteRiskManagement
         try
         {
             PortfolioOrderCompositionMapper.ValidateCompletion(view, request, completed);
-            foreach (var order in completed.Receipt.TradeOrders.OrderBy(value => value.Id.FundId))
-                await DispatchTradeOrderAsync(order.ToTradeOrder(), completed.Id, context).ConfigureAwait(false);
+            // The accepted Portfolio decision is committed by CompleteRiskManagement first.
+            // Its durable projector admits opening execution; no broker effect precedes that commit.
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or OverflowException)
         {
@@ -200,30 +200,6 @@ public static class ExecuteRiskManagement
             PortfolioDecision = PortfolioOrderCompositionMapper.ToDecision(completed.Receipt)
         };
         await context.SendAsync<CompleteRiskManagementCommand, IntrinsicTimeStrategyWorkflowEntityId>(command, command.EntityId).ConfigureAwait(false);
-    }
-
-    static async ValueTask DispatchTradeOrderAsync(TradeOrderDefinition order, Guid portfolioEventId, IIntrinsicTimeStrategyWorkflowRealtimeContext context)
-    {
-        var seed = PortfolioOrderCompositionMapper.StableId(portfolioEventId, order.Id.Format());
-        await RequireAsync(new CreateTradeOrderCommand { CommandId = PortfolioOrderCompositionMapper.StableId(seed, "create"), Subject = Subject(CreateTradeOrderCommand.Verb, order.Id), EntityId = order.Id, Order = order }).ConfigureAwait(false);
-        await RequireAsync(new ApproveTradeOrderCommand { CommandId = PortfolioOrderCompositionMapper.StableId(seed, "approve"), Subject = Subject(ApproveTradeOrderCommand.Verb, order.Id), EntityId = order.Id }).ConfigureAwait(false);
-        await RequireAsync(new ReadyTradeOrderCommand { CommandId = PortfolioOrderCompositionMapper.StableId(seed, "ready"), Subject = Subject(ReadyTradeOrderCommand.Verb, order.Id), EntityId = order.Id }).ConfigureAwait(false);
-        var executionAttemptId = PortfolioOrderCompositionMapper.StableId(seed, "execution-attempt");
-        await RequireAsync(new BindTradeOrderExecutionCommand { CommandId = PortfolioOrderCompositionMapper.StableId(seed, "bind"), Subject = Subject(BindTradeOrderExecutionCommand.Verb, order.Id), EntityId = order.Id, ExecutionAttemptId = executionAttemptId, ExecutionChannel = ExecutionChannel.Broker, EffectiveAtUtc = context.TimeProvider.GetUtcNow().UtcDateTime }).ConfigureAwait(false);
-        return;
-        ActorSubject Subject(string verb, TradeOrderId id) => new(ActorType.Command, TradeOrderActorNames.Command, verb, id.Format());
-        async ValueTask RequireAsync<TCommand>(TCommand command)
-            where TCommand : class, ICommand<TradeOrderId>
-        {
-            try
-            {
-                await context.SendAsync<TCommand, TradeOrderId>(command, command.EntityId).ConfigureAwait(false);
-            }
-            catch (CommandException ex)
-            {
-                throw new InvalidOperationException($"RM.TRADE_ORDER.COMMAND_FAILED;Command={command.CommandName};ErrorCode={ex.ErrorCode};ErrorMessage={ex.Message}", ex);
-            }
-        }
     }
 
     static async ValueTask FailAsync(IntrinsicTimeStrategyWorkflowView view, IIntrinsicTimeStrategyWorkflowRealtimeContext context, string reasonCode, string details, DateTime failedAtUtc)

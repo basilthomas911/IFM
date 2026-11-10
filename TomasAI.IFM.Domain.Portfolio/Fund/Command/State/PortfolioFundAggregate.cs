@@ -309,6 +309,17 @@ public sealed class PortfolioFundAggregate
     internal IPortfolioFundChange ComputeRecordFundTradeSubmission(Guid commandId, FundTradeExecutionEvidence evidence, DateTime nowUtc, string principal) =>
         ComputeManualCompositionChange(commandId, nowUtc, principal, () => CreateCompositionComputation().RecordFundTradeSubmission(evidence));
 
+    /// <summary>Prepares lifecycle rows for already allocated automatic-opening identities.</summary>
+    internal IPortfolioFundChange ComputeRegisterStrategyOrder(Guid commandId,
+        TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition.PortfolioExecutionOrderInstruction order, Guid workflowId,
+        string underlyingContractId, string hash, DateTime now, string principal)
+    {
+        RequireCurrent(Revision);
+        ValidateCommand(commandId, now, principal);
+        var reservation = CreateCompositionComputation().RegisterStrategyOrder(order, workflowId, underlyingContractId, hash, now, principal);
+        return new TomasAI.IFM.Domain.Portfolio.Fund.Command.Model.FundCompositionReservedCompute(Guid.NewGuid(), commandId, Revision + 1, now, principal, reservation);
+    }
+
     /// <summary>Computes RecordFundTradeOpening from backend execution evidence without changing authoritative state.</summary>
     internal IPortfolioFundChange ComputeRecordFundTradeOpening(Guid commandId, FundTradeExecutionEvidence evidence, DateTime nowUtc, string principal) =>
         ComputeManualCompositionChange(commandId, nowUtc, principal, () => CreateCompositionComputation().RecordFundTradeOpening(evidence));

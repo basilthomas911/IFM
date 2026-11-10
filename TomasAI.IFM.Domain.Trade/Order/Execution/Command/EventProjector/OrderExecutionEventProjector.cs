@@ -37,7 +37,27 @@ public sealed class OrderExecutionEventProjector : ConventionalEventProjector<Or
 
     async Task ProjectAsync(OrderExecutionChangedEvent changed)
     {
-        context.Logger.LogInformation("OrderSubmission ExecutionEvent OrderId={OrderId} ExecutionId={ExecutionId} SourceEventId={SourceEventId} Status={Status} FilledQuantity={FilledQuantity} FillCount={FillCount}", changed.OrderExecutionDefinition.TradeOrderId.Format(), changed.EntityId.Format(), changed.Id, changed.OrderExecutionDefinition.Status, changed.OrderExecutionDefinition.CumulativeFilledQuantity, changed.OrderExecutionDefinition.Fills.Length);
+        try
+        {
+            await ProjectCoreAsync(changed).ConfigureAwait(false);
+            if (changed.OrderExecutionDefinition.Order.StrategyWorkflowId is not null)
+            {
+                var store = context.Container.Resolve<Strategy.Workflow.IntrinsicTime.Execution.Projection.StrategyExecutionHandoffReadStore>();
+                if (await store.ReadAsync(changed.EntityId).ConfigureAwait(false) is { } opening)
+                    await context.Container.Resolve<Strategy.Workflow.IntrinsicTime.Execution.StrategyExecutionHandoffProcessor>()
+                        .StepAsync(opening).ConfigureAwait(false);
+            }
+        }
+        catch (Exception error)
+        {
+            context.Logger.LogError(error, "Order execution projection remains pending for {ExecutionId}; source command {CommandId}.", changed.EntityId.Format(), changed.CommandId);
+            throw;
+        }
+    }
+
+    async Task ProjectCoreAsync(OrderExecutionChangedEvent changed)
+    {
+        context.Logger.LogInformation("OrderSubmission ExecutionEvent OrderId={OrderId} ExecutionId={ExecutionId} SourceEventId={SourceEventId} Status={Status} FilledQuantity={FilledQuantity} FillCount={FillCount} WorkflowId={WorkflowId}", changed.OrderExecutionDefinition.TradeOrderId.Format(), changed.EntityId.Format(), changed.Id, changed.OrderExecutionDefinition.Status, changed.OrderExecutionDefinition.CumulativeFilledQuantity, changed.OrderExecutionDefinition.Fills.Length, changed.OrderExecutionDefinition.Order.StrategyWorkflowId);
         if (!string.Equals(context.DbFactory.TradeDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
             await context.DbFactory.TradeDb.UpsertOrderExecutionAsync(changed.OrderExecutionDefinition).ConfigureAwait(false);
         if (changed.OrderExecutionDefinition.Status == OrderExecutionStatus.Pending && changed.OrderExecutionDefinition.Channel == ExecutionChannel.Broker)
@@ -48,6 +68,8 @@ public sealed class OrderExecutionEventProjector : ConventionalEventProjector<Or
 
         if (changed.OrderExecutionDefinition.Status is OrderExecutionStatus.Cancelled or OrderExecutionStatus.Rejected && changed.OrderExecutionDefinition.Fills.Length == 0)
         {
+            if (changed.OrderExecutionDefinition.Order.StrategyWorkflowId is not null)
+                Ensure(await context.PortfolioAccounting.PostConfirmedExecutionAsync(changed.OrderExecutionDefinition, changed.CommandId, EvidenceTime(changed)).ConfigureAwait(false));
             await ReleaseTradeOrderAsync(changed).ConfigureAwait(false);
             await FundExecutionLifecycle.ReleasedAsync(context.ActorService, changed.OrderExecutionDefinition).ConfigureAwait(false);
             return;
@@ -55,8 +77,10 @@ public sealed class OrderExecutionEventProjector : ConventionalEventProjector<Or
 
         if (changed.OrderExecutionDefinition.Status == OrderExecutionStatus.PartiallyFilled)
         {
+            if (changed.OrderExecutionDefinition.Order.StrategyWorkflowId is not null && changed.OrderExecutionDefinition.CumulativeFilledQuantity > 0)
+                Ensure(await context.PortfolioAccounting.PostConfirmedExecutionAsync(changed.OrderExecutionDefinition, changed.CommandId, EvidenceTime(changed)).ConfigureAwait(false));
             await FundExecutionLifecycle.ProgressAsync(context.ActorService, changed.OrderExecutionDefinition,
-                changed.Id == Guid.Empty ? changed.CommandId : changed.Id, changed.ReceivedOn).ConfigureAwait(false);
+                changed.Id == Guid.Empty ? changed.CommandId : changed.Id, EvidenceTime(changed)).ConfigureAwait(false);
             return;
         }
         if (changed.OrderExecutionDefinition.Status is not (OrderExecutionStatus.Filled or OrderExecutionStatus.Cancelled) || changed.OrderExecutionDefinition.Fills.Length == 0)
@@ -70,7 +94,8 @@ public sealed class OrderExecutionEventProjector : ConventionalEventProjector<Or
         if (confirmedAt == default)
             throw new InvalidOperationException("ORDER_EXECUTION.COMPLETION_TIME_MISSING");
         var confirmedAtUtc = confirmedAt.Kind == DateTimeKind.Utc ? confirmedAt : DateTime.SpecifyKind(confirmedAt, DateTimeKind.Utc);
-        Ensure(await context.PortfolioAccounting.PostConfirmedExecutionAsync(changed.OrderExecutionDefinition, changed.Id == Guid.Empty ? changed.CommandId : changed.Id, confirmedAtUtc).ConfigureAwait(false));
+        Ensure(await context.PortfolioAccounting.PostConfirmedExecutionAsync(changed.OrderExecutionDefinition,
+            changed.OrderExecutionDefinition.Order.StrategyWorkflowId is not null ? changed.CommandId : changed.Id == Guid.Empty ? changed.CommandId : changed.Id, confirmedAtUtc).ConfigureAwait(false));
         foreach (var trade in changed.CreatedTrades)
         {
             await EstablishAsync(trade).ConfigureAwait(false);
@@ -230,6 +255,15 @@ public sealed class OrderExecutionEventProjector : ConventionalEventProjector<Or
         }
 
         throw new InvalidOperationException($"ORDER_EXECUTION.CLOSE_STRATEGY_UNSUPPORTED;{close.StrategyKind}");
+    }
+
+    static DateTime EvidenceTime(OrderExecutionChangedEvent source)
+    {
+        var execution = source.OrderExecutionDefinition;
+        var value = source.ReceivedOn != default ? source.ReceivedOn : execution.CompletedAtUtc ??
+            (execution.Fills.Length > 0 ? execution.Fills.Max(fill => fill.FilledAtUtc) : execution.StartedAtUtc);
+        if (value == default) throw new InvalidOperationException("ORDER_EXECUTION.EVIDENCE_TIME_MISSING");
+        return value.Kind == DateTimeKind.Utc ? value : DateTime.SpecifyKind(value, DateTimeKind.Utc);
     }
 
     static void Ensure(ServiceResult<Guid> result)

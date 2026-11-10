@@ -55,6 +55,16 @@ async fn trade_workspace_reads_keep_atomic_scope_and_current_fund_mandates() {
     assert_eq!(state.through.unwrap().to_string(), "2026-10-31");
     assert_eq!(state.orders.len(), 1);
     assert_eq!(state.trades.len(), 1);
+    // Changing Fund (and refreshing its orders) implicitly selects the first
+    // order. Its existing opening trade must not disappear from Add Trade's view.
+    state.select_fund(&backend, &registry, 2,
+        tokio::time::Instant::now() + Duration::from_secs(10)).await.unwrap();
+    assert_eq!((state.order, state.trade), (Some(123), Some(456)));
+    assert_eq!(state.trades.len(), 1);
+    state.load_orders(&backend, &registry,
+        tokio::time::Instant::now() + Duration::from_secs(10)).await.unwrap();
+    assert_eq!((state.order, state.trade), (Some(123), Some(456)));
+    assert_eq!(state.trades.len(), 1);
     let original = state.clone();
     for failure in [
         "RejectOrders",
@@ -176,6 +186,9 @@ async fn trade_workspace_publication_matches_hybrid_and_fences_stale_choices() {
     // Its absent value is equivalent to the native empty label before Add Trade.
     let mut managed_context = managed.context.clone();
     managed_context.entry("preparedTradeLabel".into()).or_default();
+    // The managed fixture enabled Add Trade even though its sole primary is
+    // still NewTrade. The native editor now waits until that opening is placed.
+    managed_context.insert("canAddTrade".into(), "False".into());
     assert_eq!(context, managed_context);
     assert_eq!(first.result.rows.len(), managed.rows.len());
     for (native, source) in first.result.rows.iter().zip(&managed.rows) {

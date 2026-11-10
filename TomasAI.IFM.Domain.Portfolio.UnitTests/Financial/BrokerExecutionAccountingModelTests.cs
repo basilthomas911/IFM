@@ -8,6 +8,36 @@ namespace TomasAI.IFM.Domain.Portfolio.UnitTests.Financial;
 public sealed class BrokerExecutionAccountingModelTests
 {
     [Fact]
+    public void Later_commission_does_not_change_the_automatic_fill_settlement_identity()
+    {
+        var fixture = Fixture(TradeOrderPositionType.Opening, 1, 100m, 0m);
+        var input = fixture.Input with { Order = fixture.Input.Order with { StrategyWorkflowId = Guid.NewGuid() } };
+        var initial = BrokerExecutionAccountingModel.Create(input);
+        var updated = BrokerExecutionAccountingModel.Create(input with { Fills = [input.Fills[0] with { Commission = 2.50m }] });
+        var settlement = initial.Items.Single(item => item.TransactionKind == LedgerTransactionKind.TradeSettlement);
+        var repeated = updated.Items.Single(item => item.TransactionKind == LedgerTransactionKind.TradeSettlement);
+        repeated.Source.Should().Be(settlement.Source);
+        updated.Items.Single(item => item.TransactionKind == LedgerTransactionKind.Commission).Source.SourceContentHash
+            .Should().NotBe(settlement.Source.SourceContentHash);
+    }
+
+    [Fact]
+    public void Automatic_futures_opening_retains_the_verified_manual_emulator_cash_economics()
+    {
+        var fixture = Fixture(TradeOrderPositionType.Opening, 1, 6000m, 2.50m);
+        var component = fixture.Input.Order.Components.Single();
+        var input = fixture.Input with { Order = fixture.Input.Order with
+        {
+            StrategyWorkflowId = Guid.NewGuid(), Components = [component with
+            { Legs = component.Legs.Select(leg => leg with { AssetFamily = TradeAssetFamily.Futures }).ToArray() }]
+        } };
+        var batch = BrokerExecutionAccountingModel.Create(input);
+        batch.Items.Should().HaveCount(2);
+        batch.Items.Single(item => item.TransactionKind == LedgerTransactionKind.TradeSettlement).Amount.Should().Be(300000m);
+        batch.Items.Single(item => item.TransactionKind == LedgerTransactionKind.Commission).Amount.Should().Be(2.50m);
+    }
+
+    [Fact]
     public void Historical_multiplier_delta_links_original_journals_without_reposting_fills_or_commissions()
     {
         var configuration = Fixture(TradeOrderPositionType.Opening, -1, 12.45m, .65m).Input.Configuration;

@@ -12,4 +12,7 @@ public sealed record LedgerPostingBatchRequest
     [Key(1)] public LedgerPostingRequest[] Items { get; init; } = [];
     [Key(2)] public string BatchSourceReference { get; init; } = string.Empty;
     [Key(3)] public string ManifestHash { get; init; } = string.Empty;
+    /// <summary>Optional actual opening execution capacity settlement, verified from its committed Trade event.</summary>
+    [Key(4)] [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public ExecutionCapacityAdjustment? ExecutionCapacity { get; init; }
 }

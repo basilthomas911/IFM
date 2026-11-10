@@ -11,4 +11,7 @@ public sealed record LedgerProjectionFacts
     [Key(2)] public string ExecutionId { get; init; } = string.Empty;
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public financial model contract.")]
     [Key(3)] public AcceptedLedgerPosting[] Items { get; init; } = [];
+    /// <summary>Actual capacity settlement committed in the same transaction as the postings.</summary>
+    [Key(4)] [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public AcceptedExecutionCapacityFacts? ExecutionCapacity { get; init; }
 }

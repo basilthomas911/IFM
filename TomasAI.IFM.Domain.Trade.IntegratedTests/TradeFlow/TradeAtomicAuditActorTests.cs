@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Configuration;
 using SimpleInjector;
 using TomasAI.IFM.Domain.Supervisor.Shared.ServiceApi;
 using TomasAI.IFM.Application.Storage;
@@ -18,10 +19,30 @@ public sealed partial class TradeBrokerEmulatorHostTests
 {
     static void ConfigureAuditHost(IWebHostBuilder builder)
     {
+        var scenario = Guid.NewGuid().ToString("N");
         builder.UseSetting("IFM_TEST_ACTOR_DOMAIN", "TomasAI.IFM.Domain.Trade,TomasAI.IFM.Domain.BrokerAccount,TomasAI.IFM.Domain.Portfolio")
             .UseSetting("IFM_TEST_NATS_URL", DomainActorIntegrationInfrastructureFixture.NatsUrl)
+            .ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["TradeBroker:Emulator:AccountAlias"] = $"IFM-AUDIT-{scenario}",
+                ["TradeBroker:Emulator:StartingCash"] = "1000000",
+                ["TradeBroker:Emulator:LedgerPath"] = Path.Combine(Path.GetTempPath(), "IFM-BrokerAudit", scenario, "ledger.json")
+            }))
             .ConfigureServices(services =>
             {
+                // Minimal-host registrations capture configuration before this factory callback.
+                // Replace the actual ledger dependencies, rather than only a late config value.
+                var container = (Container)services.Single(value => value.ServiceType == typeof(Container)).ImplementationInstance!;
+                var allowOverrides = container.Options.AllowOverridingRegistrations;
+                try
+                {
+                    container.Options.AllowOverridingRegistrations = true;
+                    container.RegisterInstance(TomasAI.IFM.Framework.TradeBroker.InteractiveBrokers.Emulator.Engine.EmulatorScenario.Development($"IFM-AUDIT-{scenario}"));
+                    container.RegisterInstance<TomasAI.IFM.Framework.TradeBroker.InteractiveBrokers.Emulator.Engine.IEmulatorLedgerStore>(
+                        new TomasAI.IFM.Framework.TradeBroker.InteractiveBrokers.Emulator.Engine.FileEmulatorLedgerStore(
+                            Path.Combine(Path.GetTempPath(), "IFM-BrokerAudit", scenario, "ledger.json")));
+                }
+                finally { container.Options.AllowOverridingRegistrations = allowOverrides; }
                 // The feed watchdog is outside this broker/persistence test scope.
                 // Its full-host shutdown currently races service-provider disposal.
                 TomasAI.IFM.IntegrationTesting.HostedServiceOverrides.Suppress<TomasAI.IFM.Application.MarketData.Databento.Resiliency.DatabentoMarketDataWatchdogService>(services);
@@ -33,6 +54,7 @@ public sealed partial class TradeBrokerEmulatorHostTests
     [InlineData(true)]
     public async Task Hosted_trade_creation_commits_once_rejects_conflicts_and_does_not_acknowledge_orphans(bool option)
     {
+        await using var sharedActors = await TomasAI.IFM.Domain.Trade.IntegratedTests.Strategy.Workflow.IntrinsicTime.SharedOpeningActorIsolation.EnterAsync();
         await using var host = sourceFactory.WithWebHostBuilder(ConfigureAuditHost);
         using var client = host.CreateClient();
         var lifecycle = host.Services.GetRequiredService<ISupervisorManagedActorLifecycle>();

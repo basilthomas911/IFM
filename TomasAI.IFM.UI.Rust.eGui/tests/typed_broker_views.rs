@@ -39,7 +39,14 @@ fn reconcile_targets_the_existing_broker_order_without_mutation_fields() {
 #[test]
 fn typed_broker_records_keep_all_managed_fields_and_computed_identity_getters() {
     for row in rows() {
-        let value: Value = wire::decode(row.data.as_ref().unwrap()).unwrap();
+        let mut value: Value = wire::decode(row.data.as_ref().unwrap()).unwrap();
+        // Workflow lineage was appended to the server's order contract. Manual
+        // broker records have no lineage; the display model omits that null field.
+        if let Some(order) = value.get_mut("order").and_then(Value::as_object_mut) {
+            if order.get("strategyWorkflowId").is_some_and(Value::is_null) {
+                order.remove("strategyWorkflowId");
+            }
+        }
         let check = |actual: Value| assert_eq!(actual, value, "{}", row.id);
         match row.fields.get("kind").map(String::as_str) {
             Some("broker-order") => check(

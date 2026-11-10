@@ -24,7 +24,7 @@ public sealed class LedgerFinancialProjection(IPostgresEventTransaction transact
             LedgerPostingBatchCompletedEvent batch => (batch.ProjectionFacts, batch.Receipt.FinancialRevision, batch.Receipt.Items),
             _ => throw new InvalidOperationException("Unsupported ledger event.")
         };
-        if (facts is not { Version: 1 } || facts.Items.Length == 0)
+        if (facts is not { Version: 1 } || facts.Items.Length == 0 && facts.ExecutionCapacity is null)
             throw new InvalidDataException($"Event {completed.Id} predates complete ledger facts; an explicit baseline is required.");
         if (completed.EventId <= 0 || completed.Id == Guid.Empty || revision <= 0)
             throw new InvalidDataException("Ledger reconstruction requires a committed source event.");
@@ -40,6 +40,8 @@ public sealed class LedgerFinancialProjection(IPostgresEventTransaction transact
                 await (ApplyPostingAsync(db, completed.PortfolioId, completed.OperationId, revision, completed.CommittedAtUtc, item, ct)).ConfigureAwait(false);
                 await (ApplyEffectsAsync(db, completed.PortfolioId, item, ct)).ConfigureAwait(false);
             }
+            if (facts.ExecutionCapacity is { } capacity)
+                await ExecutionCapacitySettlement.ApplyAsync(db, completed.PortfolioId, revision, capacity, ct).ConfigureAwait(false);
             await (db.ExecuteAsync(PortfolioDbSql.Financial.PortfolioDbFinancialSupport.Insert06,
                 [completed.PortfolioId, completed.OperationId, facts.ActorName, completed.InputHash, completed.EventId, revision], ct)).ConfigureAwait(false);
             await (db.ExecuteAsync(PortfolioDbSql.Financial.PortfolioDbFinancialSupport.Update01, [completed.PortfolioId, revision], ct)).ConfigureAwait(false);

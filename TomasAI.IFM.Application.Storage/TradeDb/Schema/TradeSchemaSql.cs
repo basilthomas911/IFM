@@ -11,7 +11,7 @@ public static class TradeSchemaSql
             PRIMARY KEY (value_date, trade_id, contract_id)
         );
         """;
-    public const string Create = LiveFeedRecoveryCreate + """
+    public const string Create = LiveFeedRecoveryCreate + StrategyExecutionHandoffSql.Create + """
 
         CREATE TABLE IF NOT EXISTS trade.broker_account_read_model (
         account_alias text, revision bigint, account_definition bytea, PRIMARY KEY (account_alias, revision)

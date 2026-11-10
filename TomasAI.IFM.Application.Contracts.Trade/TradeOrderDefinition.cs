@@ -45,4 +45,7 @@ public sealed record TradeOrderDefinition
     /// <summary>Source setup identity; absent on legacy and fully automated orders.</summary>
     [Key(29)] [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public TomasAI.IFM.Domain.Portfolio.Shared.Contracts.FundTradeSetupReference? SetupTrade { get; init; }
+    /// <summary>Committed automatic-opening lineage; absent from manual and historical orders.</summary>
+    [Key(30)] [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public Guid? StrategyWorkflowId { get; init; }
 }

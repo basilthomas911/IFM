@@ -59968,6 +59968,170 @@
     "verb": "RecordFundTradeSubmission"
   },
   {
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.Commands.RegisterStrategyFundOrderCommand",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "CommandId",
+        "index": 0,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "Subject",
+        "index": 1,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "PostEvents",
+        "index": 2,
+        "mapKey": null,
+        "type": "System.Boolean"
+      },
+      {
+        "name": "EntityId",
+        "index": 3,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Portfolio.Shared.Identities.PortfolioFundId"
+      },
+      {
+        "name": "Order",
+        "index": 4,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition.PortfolioExecutionOrderInstruction"
+      },
+      {
+        "name": "WorkflowId",
+        "index": 5,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "SourceCommandId",
+        "index": 6,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "SourceEventVersion",
+        "index": 7,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "CorrelationId",
+        "index": 8,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "RequestedOnUtc",
+        "index": 9,
+        "mapKey": null,
+        "type": "System.DateTime"
+      },
+      {
+        "name": "Access",
+        "index": 10,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Portfolio.Shared.Common.PortfolioAccessContext"
+      },
+      {
+        "name": "UnderlyingContractId",
+        "index": 11,
+        "mapKey": null,
+        "type": "System.String"
+      }
+    ],
+    "actor": "PortfolioFundCommand",
+    "verb": "RegisterStrategyFundOrder"
+  },
+  {
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.Commands.ReleaseExpiredStrategyFundOrderCommand",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "CommandId",
+        "index": 0,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "Subject",
+        "index": 1,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "PostEvents",
+        "index": 2,
+        "mapKey": null,
+        "type": "System.Boolean"
+      },
+      {
+        "name": "EntityId",
+        "index": 3,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Portfolio.Shared.Identities.PortfolioFundId"
+      },
+      {
+        "name": "OrderId",
+        "index": 4,
+        "mapKey": null,
+        "type": "System.Int32"
+      },
+      {
+        "name": "ExpectedVersion",
+        "index": 5,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "SourceCommandId",
+        "index": 6,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "FinancialOperationId",
+        "index": 7,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "CorrelationId",
+        "index": 8,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "RequestedOnUtc",
+        "index": 9,
+        "mapKey": null,
+        "type": "System.DateTime"
+      },
+      {
+        "name": "Access",
+        "index": 10,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Portfolio.Shared.Common.PortfolioAccessContext"
+      }
+    ],
+    "actor": "PortfolioFundCommand",
+    "verb": "ReleaseExpiredStrategyFundOrder"
+  },
+  {
     "type": "TomasAI.IFM.Domain.Portfolio.Shared.Commands.ReleaseFundTradeSubmissionCommand",
     "isEnum": false,
     "errorId": 34000,
@@ -62783,6 +62947,37 @@
         "index": 6,
         "mapKey": null,
         "type": "System.Decimal"
+      }
+    ],
+    "actor": null,
+    "verb": null
+  },
+  {
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.Financial.AcceptedExecutionCapacityFacts",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "Outcome",
+        "index": 0,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Portfolio.Shared.Financial.ExecutionCapacityAdjustment"
+      },
+      {
+        "name": "SourceEventVersion",
+        "index": 1,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "UsageDeltas",
+        "index": 2,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Portfolio.Shared.Financial.AcceptedCapacityUsage[]"
       }
     ],
     "actor": null,
@@ -66101,6 +66296,73 @@
         "index": 16,
         "mapKey": null,
         "type": "TomasAI.IFM.Domain.Portfolio.Shared.Financial.SubmitEmulatorOrderCommand"
+      }
+    ],
+    "actor": null,
+    "verb": null
+  },
+  {
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.Financial.ExecutionCapacityAdjustment",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "OrderId",
+        "index": 0,
+        "mapKey": null,
+        "type": "System.Int32"
+      },
+      {
+        "name": "FundId",
+        "index": 1,
+        "mapKey": null,
+        "type": "System.Int32"
+      },
+      {
+        "name": "ExecutionId",
+        "index": 2,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "SourceCommandId",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "ExecutionHash",
+        "index": 4,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "ApprovedUnits",
+        "index": 5,
+        "mapKey": null,
+        "type": "System.Int32"
+      },
+      {
+        "name": "FilledUnits",
+        "index": 6,
+        "mapKey": null,
+        "type": "System.Int32"
+      },
+      {
+        "name": "CancelledUnits",
+        "index": 7,
+        "mapKey": null,
+        "type": "System.Int32"
+      },
+      {
+        "name": "UnsubmittedExpiry",
+        "index": 8,
+        "mapKey": null,
+        "type": "System.Boolean"
       }
     ],
     "actor": null,
@@ -70160,6 +70422,12 @@
         "index": 3,
         "mapKey": null,
         "type": "System.String"
+      },
+      {
+        "name": "ExecutionCapacity",
+        "index": 4,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Portfolio.Shared.Financial.ExecutionCapacityAdjustment"
       }
     ],
     "actor": null,
@@ -70797,6 +71065,12 @@
         "index": 3,
         "mapKey": null,
         "type": "TomasAI.IFM.Domain.Portfolio.Shared.Financial.AcceptedLedgerPosting[]"
+      },
+      {
+        "name": "ExecutionCapacity",
+        "index": 4,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Portfolio.Shared.Financial.AcceptedExecutionCapacityFacts"
       }
     ],
     "actor": null,
@@ -155749,6 +156023,425 @@
     "verb": "StateUpdated"
   },
   {
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Execution.AdvanceStrategyExecutionHandoffCommand",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "CommandId",
+        "index": 0,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "Subject",
+        "index": 1,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "PostEvents",
+        "index": 2,
+        "mapKey": null,
+        "type": "System.Boolean"
+      },
+      {
+        "name": "EntityId",
+        "index": 3,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Trade.Shared.OrderExecutionId"
+      },
+      {
+        "name": "ExpectedRevision",
+        "index": 4,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "Evidence",
+        "index": 5,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Execution.StrategyExecutionHandoffDefinition"
+      }
+    ],
+    "actor": null,
+    "verb": "Advance"
+  },
+  {
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Execution.BeginStrategyExecutionHandoffCommand",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "CommandId",
+        "index": 0,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "Subject",
+        "index": 1,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "PostEvents",
+        "index": 2,
+        "mapKey": null,
+        "type": "System.Boolean"
+      },
+      {
+        "name": "EntityId",
+        "index": 3,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Trade.Shared.OrderExecutionId"
+      },
+      {
+        "name": "Intent",
+        "index": 4,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Execution.StrategyExecutionHandoffDefinition"
+      }
+    ],
+    "actor": "StrategyExecutionHandoffCommand",
+    "verb": "Begin"
+  },
+  {
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Execution.StrategyExecutionHandoffDefinition",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "Id",
+        "index": 0,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Trade.Shared.OrderExecutionId"
+      },
+      {
+        "name": "Authorization",
+        "index": 1,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Execution.StrategyOpeningAuthorization"
+      },
+      {
+        "name": "Order",
+        "index": 2,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Trade.Shared.TradeOrderDefinition"
+      },
+      {
+        "name": "IntentHash",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "Revision",
+        "index": 4,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "Phase",
+        "index": 5,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Execution.StrategyExecutionHandoffPhase"
+      },
+      {
+        "name": "ConsumptionRequest",
+        "index": 6,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Portfolio.Shared.Financial.ConsumeCapacityReservationCommand"
+      },
+      {
+        "name": "Consumption",
+        "index": 7,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Portfolio.Shared.Financial.CapacityConsumptionCompletedEvent"
+      },
+      {
+        "name": "Execution",
+        "index": 8,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Trade.Shared.OrderExecutionDefinition"
+      },
+      {
+        "name": "ReconciliationReason",
+        "index": 9,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "UpdatedAtUtc",
+        "index": 10,
+        "mapKey": null,
+        "type": "System.DateTime"
+      },
+      {
+        "name": "FinancialReceipt",
+        "index": 11,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Portfolio.Shared.Financial.LedgerPostingBatchCompletedEvent"
+      },
+      {
+        "name": "FundEvidence",
+        "index": 12,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundOrderProjectionReadModel"
+      },
+      {
+        "name": "ExecutionRequestedAtUtc",
+        "index": 13,
+        "mapKey": null,
+        "type": "System.Nullable\u00601[System.DateTime]"
+      }
+    ],
+    "actor": null,
+    "verb": null
+  },
+  {
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Execution.StrategyExecutionHandoffPhase",
+    "isEnum": true,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": [
+      {
+        "name": "Accepted",
+        "value": 0
+      },
+      {
+        "name": "FinancialAdmitted",
+        "value": 1
+      },
+      {
+        "name": "OrderCreated",
+        "value": 2
+      },
+      {
+        "name": "OrderApproved",
+        "value": 3
+      },
+      {
+        "name": "OrderReady",
+        "value": 4
+      },
+      {
+        "name": "ExecutionLinked",
+        "value": 5
+      },
+      {
+        "name": "Opened",
+        "value": 6
+      },
+      {
+        "name": "Rejected",
+        "value": 7
+      },
+      {
+        "name": "Cancelled",
+        "value": 8
+      },
+      {
+        "name": "Expired",
+        "value": 9
+      }
+    ],
+    "members": [],
+    "actor": null,
+    "verb": null
+  },
+  {
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Execution.StrategyExecutionHandoffStateSnapshottedEvent",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "Subject",
+        "index": 0,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "Id",
+        "index": 1,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "EntityId",
+        "index": 2,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Trade.Shared.OrderExecutionId"
+      },
+      {
+        "name": "EventId",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "CommandId",
+        "index": 4,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "AggregateId",
+        "index": 5,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "EventSource",
+        "index": 6,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "ReceivedOn",
+        "index": 7,
+        "mapKey": null,
+        "type": "System.DateTime"
+      },
+      {
+        "name": "Definition",
+        "index": 8,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Execution.StrategyExecutionHandoffDefinition"
+      }
+    ],
+    "actor": null,
+    "verb": null
+  },
+  {
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Execution.StrategyOpeningAuthorization",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "Id",
+        "index": 0,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "CommandId",
+        "index": 1,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "EventId",
+        "index": 2,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "WorkflowId",
+        "index": 3,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Trade.Shared.StrategyWorkflowId"
+      },
+      {
+        "name": "WorkflowRevision",
+        "index": 4,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "CorrelationId",
+        "index": 5,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "UpdatedAtUtc",
+        "index": 6,
+        "mapKey": null,
+        "type": "System.DateTime"
+      },
+      {
+        "name": "StateHash",
+        "index": 7,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "Route",
+        "index": 8,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Execution.StrategyOpeningExecutionRoute"
+      },
+      {
+        "name": "UnderlyingContractId",
+        "index": 9,
+        "mapKey": null,
+        "type": "System.String"
+      }
+    ],
+    "actor": null,
+    "verb": null
+  },
+  {
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Execution.StrategyOpeningExecutionRoute",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "AccountAlias",
+        "index": 0,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "Environment",
+        "index": 1,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Trade.Shared.BrokerEnvironment"
+      },
+      {
+        "name": "PolicyId",
+        "index": 2,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "PolicyHash",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.String"
+      }
+    ],
+    "actor": null,
+    "verb": null
+  },
+  {
     "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model.CompositionContractSelection",
     "isEnum": false,
     "errorId": null,
@@ -156257,6 +156950,12 @@
         "index": 38,
         "mapKey": null,
         "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RiskManagement.PortfolioRiskDecision"
+      },
+      {
+        "name": "OpeningExecutionRoute",
+        "index": 39,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Execution.StrategyOpeningExecutionRoute"
       }
     ],
     "actor": null,
@@ -185439,6 +186138,12 @@
         "index": 29,
         "mapKey": null,
         "type": "TomasAI.IFM.Domain.Portfolio.Shared.Contracts.FundTradeSetupReference"
+      },
+      {
+        "name": "StrategyWorkflowId",
+        "index": 30,
+        "mapKey": null,
+        "type": "System.Nullable\u00601[System.Guid]"
       }
     ],
     "actor": null,

@@ -139,6 +139,8 @@ public static partial class CoreServiceRegistration
         services.AddSingleton(provider => new IntrinsicTimeStrategyWorkflowOptions
         {
             Enabled = provider.GetRequiredService<IConfiguration>().GetValue("AppSettings:IntrinsicTimeStrategyWorkflow:Enabled", false),
+            ExecuteDevelopmentOpenings = hostEnvironment?.IsDevelopment() == true && provider.GetRequiredService<IConfiguration>()
+                .GetValue("AppSettings:IntrinsicTimeStrategyWorkflow:ExecuteDevelopmentOpenings", false),
             MarketConditionAssessmentProfileId = provider.GetRequiredService<IConfiguration>().GetValue("AppSettings:IntrinsicTimeStrategyWorkflow:MarketConditionAssessmentProfileId", "ES.Standard")!,
             ProvisionDevelopmentMarketConditionAssessmentDefaults = provider.GetRequiredService<IConfiguration>().GetValue(
             "AppSettings:IntrinsicTimeStrategyWorkflow:ProvisionDevelopmentMarketConditionAssessmentDefaults", false),
@@ -147,6 +149,13 @@ public static partial class CoreServiceRegistration
         });
         services.AddSingleton<TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.IIntrinsicTimeWorkflowStartPolicy>(
         provider => provider.GetRequiredService<IntrinsicTimeStrategyWorkflowOptions>());
+        services.AddHostedService<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Execution.StrategyExecutionHandoffRecoveryService>();
+        services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Execution.Projection.StrategyExecutionHandoffReadStore>();
+        services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Execution.StrategyExecutionHandoffProcessor>();
+        services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Execution.StrategyOpeningEvidenceVerifier>();
+        services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Fund.Command.StrategyFundOrderRegistrationProof>();
+        services.AddSingleton<TomasAI.IFM.Domain.Portfolio.GeneralLedger.IPortfolioTradeAccountingApi>(
+            _ => siContainer.GetInstance<TomasAI.IFM.Domain.Portfolio.GeneralLedger.IPortfolioTradeAccountingApi>());
         var developmentPortfolio = config.GetSection(DevelopmentTradingPortfolioOptions.SectionName)
         .Get<DevelopmentTradingPortfolioOptions>() ?? new DevelopmentTradingPortfolioOptions();
         services.AddSingleton(developmentPortfolio.Validate());

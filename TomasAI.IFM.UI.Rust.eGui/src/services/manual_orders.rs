@@ -183,6 +183,7 @@ pub fn add(
     trade: i32,
     primary_trade: bool,
     trade_type: &str,
+    opening_action: Option<&str>,
     contract: &Json,
     effective: chrono::NaiveDate,
     maturity: Option<chrono::NaiveDate>,
@@ -221,7 +222,13 @@ pub fn add(
         .as_str()
         .filter(|v| !v.is_empty())
         .ok_or("Missing contract symbol")?;
-    let action = if matches!(
+    let action = if trade_type == "FuturesOutright" && !primary_trade {
+        match opening_action {
+            Some("Buy") => "Sell",
+            Some("Sell") => "Buy",
+            _ => return Err("The opening futures trade has no Buy/Sell action; reload it before adding a close".into()),
+        }
+    } else if matches!(
         trade_type,
         "ShortIronCondor" | "PutCreditSpread" | "CallCreditSpread"
     ) {

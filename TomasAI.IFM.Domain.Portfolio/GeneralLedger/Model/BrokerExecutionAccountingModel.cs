@@ -46,7 +46,9 @@ public static class BrokerExecutionAccountingModel
                 signedSettlement, settlementRule, source, movement, "Confirmed emulator trade settlement"));
             if (fill.Commission > 0)
                 items.Add(Request(configuration, order, fill, LedgerTransactionKind.Commission,
-                    Money(fill.Commission), commissionRule, source with { FillId = $"{fill.ExternalExecutionId}:commission" },
+                    Money(fill.Commission), commissionRule, source with { FillId = $"{fill.ExternalExecutionId}:commission",
+                        SourceContentHash = order.StrategyWorkflowId is null ? source.SourceContentHash :
+                            Hash(source.SourceContentHash, fill.Commission.ToString(System.Globalization.CultureInfo.InvariantCulture)) },
                     movement with { SourceReference = $"{input.MovementReference}:commission:{fill.ExternalExecutionId}" },
                     "Confirmed emulator commission"));
 
@@ -130,7 +132,9 @@ public static class BrokerExecutionAccountingModel
         SourceEntityId = new OrderExecutionId(order.Id, fill.ExecutionAttemptId).Format(),
         SourceEventId = fill.ExecutionFillId,
         SourceSequence = 1,
-        SourceContentHash = Hash(fill.ExternalExecutionId, fill.ContractId, fill.SignedQuantity.ToString(System.Globalization.CultureInfo.InvariantCulture), fill.Price.ToString(System.Globalization.CultureInfo.InvariantCulture), fill.Commission.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+        SourceContentHash = order.StrategyWorkflowId is null
+            ? Hash(fill.ExternalExecutionId, fill.ContractId, fill.SignedQuantity.ToString(System.Globalization.CultureInfo.InvariantCulture), fill.Price.ToString(System.Globalization.CultureInfo.InvariantCulture), fill.Commission.ToString(System.Globalization.CultureInfo.InvariantCulture))
+            : Hash(fill.ExternalExecutionId, fill.ContractId, fill.SignedQuantity.ToString(System.Globalization.CultureInfo.InvariantCulture), fill.Price.ToString(System.Globalization.CultureInfo.InvariantCulture)),
         OccurredAtUtc = fill.FilledAtUtc,
         OrderId = order.Id.OrderId,
         TradeId = order.Components.Single(x => x.ComponentId == fill.ComponentId).ReservedTradeId,

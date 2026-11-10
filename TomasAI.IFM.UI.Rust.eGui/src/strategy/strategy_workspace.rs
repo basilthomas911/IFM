@@ -13,6 +13,9 @@ use crate::{Catalog, DetailsView, Snapshot, strings};
 use eframe::egui;
 use serde::Deserialize;
 
+/// Other ITI events use the same magenta in every timeframe's legend and plot.
+const OTHER_ITI_EVENT_COLOR: egui::Color32 = egui::Color32::from_rgb(255, 0, 255);
+
 /// Overshoot colors shared by the plotted events and bottom legend.
 const OVERSHOOT_EXTENDED_COLOR: egui::Color32 = egui::Color32::GREEN;
 const OVERSHOOT_REVERSAL_COLOR: egui::Color32 = egui::Color32::RED;
@@ -220,7 +223,7 @@ impl StrategyWorkspace {
                                     (
                                         "Other ITI Event",
                                         "circle",
-                                        egui::Color32::from_rgb(0, 0, 128),
+                                        OTHER_ITI_EVENT_COLOR,
                                     ),
                                     ("Direction Up", "up", egui::Color32::from_rgb(50, 205, 50)),
                                     ("Direction Down", "down", egui::Color32::RED),
@@ -399,7 +402,7 @@ impl StrategyWorkspace {
                             (
                                 strings::OTHER_EVENT,
                                 &self.other,
-                                egui::Color32::from_rgb(0, 0, 128),
+                                OTHER_ITI_EVENT_COLOR,
                             ),
                         ] {
                             if key != strings::OTHER_EVENT {

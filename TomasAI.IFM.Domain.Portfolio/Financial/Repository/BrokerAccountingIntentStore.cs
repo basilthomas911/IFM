@@ -12,6 +12,19 @@ namespace TomasAI.IFM.Domain.Portfolio.Financial.Repository;
 /// <summary>Immutable first-writer-wins accounting requests, retained for execution replay.</summary>
 public sealed class BrokerAccountingIntentStore(IPostgresEventTransaction transactions)
 {
+    /// <summary>Returns committed posting purposes so cumulative broker evidence posts only newly confirmed fills.</summary>
+    public Task<IReadOnlyDictionary<(string Id, string Purpose), string>> PostedSourcesAsync(int bookId,
+        IEnumerable<LedgerPostingRequest> requests, CancellationToken token = default)
+    {
+        var values = requests.ToArray();
+        if (values.Length == 0) return Task.FromResult<IReadOnlyDictionary<(string, string), string>>(new Dictionary<(string, string), string>());
+        return transactions.ExecuteOnceAsync<IReadOnlyDictionary<(string, string), string>>(async (db, ct) =>
+            (await db.QueryAsync(ExecutionCapacitySql.PostedSources,
+                [bookId, "IBKR-Emulator", values.Select(value => value.Source.SourceEventId.ToString("N")).Distinct().ToArray()],
+                row => (Id: row.GetString(0), Purpose: row.GetString(1), Hash: row.GetString(2)), ct).ConfigureAwait(false))
+                .ToDictionary(value => (value.Id, value.Purpose), value => value.Hash), token);
+    }
+
     public Task<PostFundTransactionsCommand?> ReadAsync(int portfolioId, Guid operationId, string evidenceHash,
         CancellationToken token = default) => transactions.ExecuteAsync(
             (db, ct) => ReadAsync(db, portfolioId, operationId, evidenceHash, ct), token);
