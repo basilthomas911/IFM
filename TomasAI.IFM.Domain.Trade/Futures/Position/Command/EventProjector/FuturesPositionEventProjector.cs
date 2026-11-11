@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Persistence;
 using System.Collections.Immutable;
 using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.EventProjector.Contracts;
@@ -29,6 +30,6 @@ public sealed class FuturesPositionEventProjector : ConventionalEventProjector<F
     Task ProjectTradePlanAsync(FuturesTradePlanUpdatedEvent updated, CancellationToken cancellationToken) =>
         string.Equals(context.DbFactory.TradePlanDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal)
             ? Task.CompletedTask // Required rows already committed with the source event.
-            : context.DbFactory.TradePlanDb.DbWriter.ProjectMaterialAsync(updated.Plan, cancellationToken);
+            : TradePlanProjectionWriter.TryWriteDisposableAsync(context.DbFactory.TradePlanDb.DbWriter, updated.Plan, context.Logger, cancellationToken);
     static IFuturesPositionCommandContext Typed(ICommandActorContext<FuturesTradePositionCommandActor> context) => context as IFuturesPositionCommandContext ?? throw new ArgumentException("Typed Futures position context required.", nameof(context));
 }

@@ -43,9 +43,7 @@ internal static class ConfigurationCatalogPersistence
             var rows = new List<ParameterValueMapping.Row>();
             foreach (var table in ParameterValueMapping.Descendants(root))
             {
-                var batch = await tx.QueryAsync(ConfigurationDbSql.TypedParameters.Read(table), [id, version], reader => new ParameterValueMapping.Row(table,
-                    reader.GetString(0), reader.IsDBNull(1) ? null : reader.GetString(1), reader.GetInt32(2),
-                    Enumerable.Range(0, table.Columns.Count).Select(i => reader.IsDBNull(i + 3) ? null : reader.GetValue(i + 3)).ToArray()), token)
+                var batch = await tx.QueryAsync(ConfigurationDbSql.TypedParameters.Read(table), [id, version], reader => ConfigurationDbContext.MapToParameterProjectionRow(reader, table), token)
             .ConfigureAwait(false);
                 rows.AddRange(batch);
             }
@@ -59,7 +57,7 @@ internal static class ConfigurationCatalogPersistence
     {
         await tx.ExecuteAsync(ConfigurationDbSql.TypedParameters.Lock, [kind + ":" + entity.ToString("D")], token)
             .ConfigureAwait(false);
-        var receipts = await tx.QueryAsync(ConfigurationDbSql.TypedCatalog.Receipt, [operation], r => (Request: r.GetString(0), Fact: r.GetString(1)), token)
+        var receipts = await tx.QueryAsync(ConfigurationDbSql.TypedCatalog.Receipt, [operation], MapToDuplicateRow1, token)
             .ConfigureAwait(false);
         if (receipts.Count != 0)
         {
@@ -112,8 +110,7 @@ internal static class ConfigurationCatalogPersistence
                 var legacy = new LegacyParameterReference(source.Kind, source.SetId, source.Version, value.Reference.SetId, value.Reference.Version, source.PayloadSha256, source.Codec);
                 await tx.ExecuteAsync(ConfigurationDbSql.InsertLegacyParameterReference, context.BindProjection(legacy), token)
             .ConfigureAwait(false);
-                var same = await tx.ScalarAsync(ConfigurationDbSql.IsLegacyParameterReferenceEquivalent,
-                    [source.Kind, source.SetId, source.Version, value.Reference.SetId, source.PayloadSha256, source.Codec], token)
+                var same = await tx.ScalarAsync(ConfigurationDbSql.IsLegacyParameterReferenceEquivalent, [source.Kind, source.SetId, source.Version, value.Reference.SetId, source.PayloadSha256, source.Codec], token)
             .ConfigureAwait(false);
                 if (same is not true) throw new InvalidDataException("PARAM.LEGACY_MAPPING_CONFLICT");
             }
@@ -176,4 +173,7 @@ internal static class ConfigurationCatalogPersistence
             .ConfigureAwait(false);
         }
     }
+
+    /// <summary>Maps the selected database columns in their query ordinal order.</summary>
+    private static (string Request, string Fact) MapToDuplicateRow1(global::System.Data.Common.DbDataReader r) => (Request: r.GetString(0), Fact: r.GetString(1));
 }

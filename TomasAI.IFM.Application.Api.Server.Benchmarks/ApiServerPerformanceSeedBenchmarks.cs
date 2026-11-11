@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using BenchmarkDotNet.Attributes;
 using TomasAI.IFM.Application.Api.Server.Benchmarks.Baselines;
 using TomasAI.IFM.Application.Api.Server.Core.Startup.Application;

@@ -1,4 +1,5 @@
 using TomasAI.IFM.Domain.Reference.Repository;
+using TomasAI.IFM.Domain.Reference.Repository;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
@@ -80,9 +81,10 @@ public sealed class Stage2DefinitionRuntimeTests
             var publication = new InstrumentDefinitionSnapshot(snapshot, new DateTime(2026, 9, 19, 0, 0, 0, DateTimeKind.Utc),
                 3, ["GLBX.MDP3"]);
             Assert.Null(await reference.GetInstrumentDefinitionSnapshotAsync(token));
-            await reference.PublishInstrumentDefinitionSnapshotAsync(publication, token);
-            await reference.PublishInstrumentDefinitionSnapshotAsync(publication, token);
-            await Assert.ThrowsAsync<InvalidOperationException>(() => reference.PublishInstrumentDefinitionSnapshotAsync(
+            var publisher = InstrumentDefinitionCatalogPublisher.For(reference);
+            await publisher.PublishAsync(publication, token);
+            await publisher.PublishAsync(publication, token);
+            await Assert.ThrowsAsync<InvalidOperationException>(() => publisher.PublishAsync(
                 publication with { RecordCount = 4 }, token));
             var db = new Db(settings["ReferenceDbConnection"], logger);
             var eventCount = await db.Use("Stage2.PublicationEvents", """

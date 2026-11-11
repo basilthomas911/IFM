@@ -1,4 +1,6 @@
+using TomasAI.IFM.Domain.MarketData.Shared.QueryParameters;
 // Application qualification policy adapted from the current Host; native provider only.
+using TomasAI.IFM.Domain.MarketData.Securities.Persistence;
 using TomasAI.IFM.Shared.MarketData.Definitions;
 using TomasAI.IFM.Shared.Diagnostics;
 using System.Collections.Immutable;
@@ -100,7 +102,7 @@ public sealed class QualifiedIndividualOptionFeeds(QualifiedCompositionDiscovery
             var securities = databases.SecuritiesDb;
             using (var step = new OptionFeedTrace("option.subscription.reference", logger, contract.ContractId))
             {
-                if (await securities.GetReferenceVersionAsync(contract.ContractId, contract.MappingVersion!, cancellationToken)
+                if (await securities.GetReferenceVersionAsync(new ExactReferenceVersion(contract.ContractId, contract.MappingVersion!), cancellationToken)
                     .ConfigureAwait(false) is null)
                 {
                     var pending = await securities.StageReferenceVersionAsync(contract, cancellationToken).ConfigureAwait(false);

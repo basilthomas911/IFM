@@ -24,6 +24,8 @@ public sealed class PostgresPositionalParameterCatalogTests
             ["AggregateFindParameters"] = "ReadAggregateEventByCommand",
             ["AggregateWindowParameters"] = "ReadAggregateCheckpointWindow",
             ["ConcernWindowParameters"] = "ReadConcernCheckpointWindow",
+            ["MaintenanceSourceStream"] = "HasCommittedMaintenanceStream",
+            ["MaintenanceSourceStreams"] = "ReadMaintenanceSourceEvents",
             ["RetryEventProjectorExecution"] = "TryRetryEventProjectorExecution",
             ["SkipEventProjectorExecution"] = "TrySkipEventProjectorExecution"
         };

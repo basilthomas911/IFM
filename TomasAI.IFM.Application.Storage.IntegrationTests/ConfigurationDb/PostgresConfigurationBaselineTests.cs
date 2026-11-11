@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.Strategy.StrategyCatalog;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
@@ -6,7 +7,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Npgsql;
 using TomasAI.IFM.Application.Storage.ConfigurationDb;
-using TomasAI.IFM.Application.Storage.ConfigurationDb.Rebuild;
+using TomasAI.IFM.Application.EventSourcing.Persistence;
 using TomasAI.IFM.Application.Storage.ConfigurationDb.Schema;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.EventSourceDb.Schema;
@@ -43,7 +44,7 @@ public sealed class PostgresConfigurationBaselineTests(PostgresTradePlanFixture 
         foreach(var d in new[]{published,retired})
         {
             var digest=await context.InsertStrategyCatalogDraftAsync(d,0,"baseline-test");
-            await context.PublishStrategyCatalogAsync(d.Key,digest,now,"baseline-test");
+            await new StrategyCatalogQualification().PublishAsync(context, d.Key, digest, now, "baseline-test");
         }
         var retiredRow=await context.GetStrategyCatalogAsync(retired.Key);
         await context.RetireStrategyCatalogAsync(retired.Key,retiredRow!.ContentHash,now.AddMinutes(1),"baseline-test");

@@ -84,6 +84,46 @@ public sealed class InstrumentDefinitionRefreshTests
     }
 
     [Fact]
+    public async Task Cme_and_cfe_publish_together_and_a_failed_second_dataset_keeps_previous_catalog()
+    {
+        var provider = Substitute.For<IInstrumentDefinitionProvider>();
+        provider.ReadLatestAsync("GLBX.MDP3", Arg.Any<CancellationToken>()).Returns(Stream([Definition(1,"ESZ6","ES","F")]));
+        var vx = ExactInstrumentDefinition.Parse("XCBF.PITCH", Definition(2,"VX/X6","VX","F",exchange:"XCBF",publisher:105).Json);
+        var ux = ExactInstrumentDefinition.Parse("XCBF.PITCH", Definition(3,"UX3C/X6 C2000","UX","C",underlying:2,exchange:"XCBF",publisher:105).Json);
+        provider.ReadLatestAsync("XCBF.PITCH", Arg.Any<CancellationToken>()).Returns(Stream([vx,ux]));
+        var store = Substitute.For<IInstrumentDefinitionStore>();
+        using var refresh = new InstrumentDefinitionRefresh(provider,store,Options() with {TradeStrategySymbolDatasets=["GLBX.MDP3","XCBF.PITCH"]},TimeProvider.System);
+        var result = await refresh.RefreshAsync();
+        Assert.Equal(new[]{"GLBX.MDP3","XCBF.PITCH"},result.Datasets);
+        await store.Received(1).PublishAsync(Arg.Any<InstrumentDefinitionSnapshot>(),Arg.Is<IReadOnlyCollection<TradeStrategyProduct>>(p=>p.Any(x=>x.Symbol=="ES") && p.Any(x=>x.Symbol=="VX" && x.Exchange=="XCBF" && x.Family==TradeStrategyFamilyType.FuturesOption)),Arg.Any<CancellationToken>());
+        store.ClearReceivedCalls();
+        provider.ReadLatestAsync("XCBF.PITCH", Arg.Any<CancellationToken>()).Returns(Stream([]));
+        await Assert.ThrowsAsync<InvalidOperationException>(()=>refresh.RefreshAsync());
+        await store.DidNotReceive().PublishAsync(Arg.Any<InstrumentDefinitionSnapshot>(),Arg.Any<IReadOnlyCollection<TradeStrategyProduct>>(),Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Bulk_ingest_preserves_all_records_and_never_publishes_after_batch_failure()
+    {
+        var provider = Substitute.For<IInstrumentDefinitionProvider>();
+        var rows = Enumerable.Range(1,129).Select(i=>Definition((uint)i,$"ES{i}","ES","F")).ToArray();
+        provider.ReadLatestAsync("GLBX.MDP3",Arg.Any<CancellationToken>()).Returns(Stream(rows));
+        var store = Substitute.For<IInstrumentDefinitionStore,IInstrumentDefinitionBatchStore>();
+        var bulk = (IInstrumentDefinitionBatchStore)store;
+        List<(long First,ExactInstrumentDefinition[] Rows)> received=[];
+        bulk.InsertBatchAsync(Arg.Any<Guid>(),Arg.Any<long>(),Arg.Any<IReadOnlyList<ExactInstrumentDefinition>>(),Arg.Any<CancellationToken>())
+            .Returns(call=>{received.Add((call.Arg<long>(),call.Arg<IReadOnlyList<ExactInstrumentDefinition>>().ToArray()));return Task.CompletedTask;});
+        await Refresh(provider,store).RefreshAsync();
+        Assert.Equal(new long[]{0,128},received.Select(x=>x.First));
+        Assert.Equal(rows.Select(x=>x.Json),received.SelectMany(x=>x.Rows).Select(x=>x.Json));
+        await store.DidNotReceive().InsertAsync(Arg.Any<Guid>(),Arg.Any<long>(),Arg.Any<ExactInstrumentDefinition>(),Arg.Any<CancellationToken>());
+        store.ClearReceivedCalls();
+        bulk.InsertBatchAsync(Arg.Any<Guid>(),Arg.Any<long>(),Arg.Any<IReadOnlyList<ExactInstrumentDefinition>>(),Arg.Any<CancellationToken>()).Returns(Task.FromException(new IOException("batch failed")));
+        await Assert.ThrowsAsync<IOException>(()=>Refresh(provider,store).RefreshAsync());
+        await store.DidNotReceive().PublishAsync(Arg.Any<InstrumentDefinitionSnapshot>(),Arg.Any<IReadOnlyCollection<TradeStrategyProduct>>(),Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task Failed_write_does_not_publish_a_partial_snapshot()
     {
         var provider = Substitute.For<IInstrumentDefinitionProvider>();

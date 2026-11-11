@@ -45,7 +45,7 @@ public class SecuritiesFixture : IDisposable
     void SetDbFactory()
     {
         var dbConn = new DbConnectionSettings()
-          .Add("SecuritiesDbConnection", "Contact Points=localhost;Port=9042;Default Keyspace=securities_test_db", "System.Data.ScyllaDb");
+          .Add("SecuritiesDbConnection", "Host=127.0.0.1;Port=1;Database=unused_unit_test;Timeout=1", "System.Data.Postgres");
 
         var diContainer = new Dictionary<Type, IObjectRepository>();
         var dbResolver = new DbContextResolver(repoType => diContainer[repoType]);

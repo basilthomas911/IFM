@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using System;
@@ -14,9 +15,8 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.MarketDataDb;
 public sealed class MarketDataProjectionBatchValidationTests
 {
     [Fact]
-    public async Task TickBatch_DuplicateCanonicalKey_IsRejectedBeforeDatabaseAccess()
+    public void TickBatch_DuplicateCanonicalKey_IsRejectedBeforeDatabaseAccess()
     {
-        var (context, dbFactory) = CreateContext();
         var row = SampleData.FuturesTickData;
         var conflictingProjectionRow = row with
         {
@@ -24,13 +24,10 @@ public sealed class MarketDataProjectionBatchValidationTests
             Price = row.Price + 1m
         };
 
-        var raw = new TomasAI.IFM.Application.Storage.TradeTickQuoteDb.TradeTickQuoteDbContext(
-            new DbConnectionSettings().Add("TradeTickQuoteDbConnection", "Contact Points=127.0.0.1;Port=1;Default Keyspace=ifm_validation_only", "System.Data.ScyllaDb"), Substitute.For<ILogger<DbProvider>>());
-        var error = await Assert.ThrowsAsync<ArgumentException>(() =>
-            raw.InsertFuturesTickDataAsync(new[] { row, conflictingProjectionRow }));
+        var error = Assert.Throws<ArgumentException>(() =>
+            RawTickRequestQualification.RequireDistinctFuturesRows(new[] { row, conflictingProjectionRow }));
 
         Assert.Equal("values", error.ParamName);
-        _ = dbFactory.DidNotReceive().MarketDataDb;
     }
 
     [Fact]
@@ -38,7 +35,7 @@ public sealed class MarketDataProjectionBatchValidationTests
     {
         var row = SampleData.FuturesTickData;
 
-        MarketDataDbContextExtensions.EnsureDistinctFuturesTickWrites(new[]
+        RawTickRequestQualification.RequireDistinctFuturesRows(new[]
         {
             row,
             row with { TickId = row.TickId + 1 },
@@ -55,7 +52,7 @@ public sealed class MarketDataProjectionBatchValidationTests
         var conflictingProjectionRow = row with { ClosePrice = row.ClosePrice + 1m };
 
         var error = await Assert.ThrowsAsync<ArgumentException>(() =>
-            context.InsertFuturesEodDataAsync(new[] { row, conflictingProjectionRow }));
+            context.InsertFuturesEodDataAsync(new FuturesEodBatch(new[] { row, conflictingProjectionRow })));
 
         Assert.Equal("rows", error.ParamName);
         _ = dbFactory.DidNotReceive().MarketDataDb;
@@ -66,7 +63,7 @@ public sealed class MarketDataProjectionBatchValidationTests
     {
         var row = SampleData.FuturesEodData;
 
-        MarketDataDbContextExtensions.EnsureDistinctFuturesEodWrites(new[]
+        _ = new FuturesEodBatch(new[]
         {
             row,
             row with { Symbol = row.Symbol + "-other" },
@@ -77,8 +74,9 @@ public sealed class MarketDataProjectionBatchValidationTests
 
     static (MarketDataDbContext Context, IDbContextFactory DbFactory) CreateContext()
     {
-        var connectionSettings = Substitute.For<IDbConnectionSettings>();
-        connectionSettings[Arg.Any<string>()].Returns((IDbConnectionSetting)null!);
+        var connectionSettings = new DbConnectionSettings().Add(
+            MarketDataDbContext.MarketDataDbConnection,
+            "Host=127.0.0.1;Port=1;Database=validation_only;Timeout=1", "System.Data.Postgres");
         var dbFactory = Substitute.For<IDbContextFactory>();
         var context = new MarketDataDbContext(
             connectionSettings,

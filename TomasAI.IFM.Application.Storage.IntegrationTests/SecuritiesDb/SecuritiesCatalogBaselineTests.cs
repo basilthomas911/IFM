@@ -1,3 +1,8 @@
+using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Domain.MarketData.Shared.Commands;
+using TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command;
+using TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command.State;
+using TomasAI.IFM.Domain.MarketData.Securities.Persistence;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
@@ -45,11 +50,11 @@ public sealed class SecuritiesCatalogBaselineTests(PostgresTradePlanFixture fixt
         var addId = Guid.NewGuid();
         await transactions.ExecuteOnceAsync(async (db, ct) =>
         {
-            await db.AppendAsync(legacy, addId, new FuturesOptionContractAddedEvent
+            await db.AppendAsync(new EnlistedEventAppend(legacy, addId, new FuturesOptionContractAddedEvent
             {
                 Id = addId, CommandId = addId, Contract = historical, EntityId = new(historical.ContractId, 2026),
                 Subject = new(ActorType.Event, FuturesOptionContractAddedEvent.Actor, FuturesOptionContractAddedEvent.Verb, "historical")
-            }, 0, ct);
+            }, 0), ct);
             await database.ProjectOptionContractAsync(db, historical, token: ct);
             await database.ProjectOptionContractAsync(db, projectionOnly, token: ct);
             await database.ProjectFuturesContractAsync(db, future, token: ct);
@@ -58,7 +63,7 @@ public sealed class SecuritiesCatalogBaselineTests(PostgresTradePlanFixture fixt
 
         var now = DateTime.UtcNow;
         await database.EnsureFuturesContractRolloverRowsAsync(["ES", "VX"], now, nameof(SecuritiesCatalogBaselineTests), token);
-        var migration = new SecuritiesCatalogBaseline(transactions);
+        var migration = new SecuritiesCatalogBaseline(transactions, database);
         await Assert.ThrowsAsync<InvalidDataException>(() =>
             migration.CaptureAsync(writersDrained: true, token, expectedMissing: (0, 1)));
         Assert.Equal((1, 1), await migration.CaptureAsync(writersDrained: true, token, expectedMissing: (1, 1)));
@@ -76,20 +81,49 @@ public sealed class SecuritiesCatalogBaselineTests(PostgresTradePlanFixture fixt
                 EntityId = new(projectionOnly.ContractId, 2026),
                 Subject = new(ActorType.Event, FuturesOptionContractRemovedEvent.Actor, FuturesOptionContractRemovedEvent.Verb, projectionOnly.ContractId)
             };
-            await db.AppendAsync(SecuritiesCatalogStreams.Options, removeId, removed, 1, ct);
+            await db.AppendAsync(new EnlistedEventAppend(SecuritiesCatalogStreams.Options, removeId, removed, 1), ct);
             await SecuritiesCatalogProjection.ApplyAsync(database, db, removed, ct);
             return true;
         }, token);
         var imported = future with { ContractId = "ES20270618", LastTradeDate = expiry.AddMonths(6), LocalSymbol = "ESM7", Rollover = false };
-        await database.InsertFuturesContractAsync(imported);
-        await database.InsertFuturesContractAsync(imported);
+        // Retain the historical import event shape as replay evidence; new native imports use the catalog actor.
+        var importId = Guid.NewGuid();
+        await transactions.ExecuteOnceAsync(async (db, ct) =>
+        {
+            var fact = new FuturesContractDefinitionImportedEvent
+            {
+                Id = importId, CommandId = importId, Contract = imported,
+                AggregateId = SecuritiesCatalogStreams.Futures,
+                Subject = new(ActorType.Event, FuturesContractAddedEvent.Actor, "DefinitionImported", imported.ContractId)
+            };
+            await db.AppendAsync(new EnlistedEventAppend(SecuritiesCatalogStreams.Futures, importId, fact, 1), ct);
+            await SecuritiesCatalogProjection.ApplyAsync(database, db, fact, ct);
+            return true;
+        }, token);
         var newExpiry = expiry.AddMonths(3);
         var replacement = future with { ContractId = "ES20270318", LastTradeDate = newExpiry, LocalSymbol = "ESH7" };
-        await database.ReplaceFuturesRolloverSetAsync(new FuturesContractRolloverReadModel
+        var revision = await database.ReadCatalogRevisionAsync(SecuritiesCatalogStreams.Futures, token);
+        var rollover = new ReplaceFuturesRolloverSetCommand
         {
-            Symbol = "ES", ContractId = replacement.ContractId, NextRolloverDate = newExpiry,
-            CreatedOn = now, CreatedBy = "test", UpdatedOn = now, UpdatedBy = "test"
-        }, [replacement], token);
+            CommandId = Guid.NewGuid(), EntityId = replacement.Id, ExpectedCatalogRevision = revision,
+            Subject = new(ActorType.Command, AddFuturesContractCommand.Actor, ReplaceFuturesRolloverSetCommand.Verb, replacement.Id.Format()),
+            Rollover = new FuturesContractRolloverReadModel
+            {
+                Symbol = "ES", ContractId = replacement.ContractId, NextRolloverDate = newExpiry,
+                CreatedOn = now, CreatedBy = "test", UpdatedOn = now, UpdatedBy = "test"
+            },
+            ChangedContracts = [future with { Rollover = false, OnTheRun = false }, replacement]
+        };
+        var state = new FuturesContractCommandState();
+        state.RestoreCommittedStreamVersion(revision);
+        Assert.True(rollover.Execute(state).Success);
+        var replaced = Assert.IsType<FuturesContractRolloverSetReplacedEvent>(Assert.Single(state.Events));
+        await transactions.ExecuteOnceAsync(async (db, ct) =>
+        {
+            await db.AppendAsync(new EnlistedEventAppend(rollover.StreamId, rollover.CommandId, replaced, revision), ct);
+            await SecuritiesCatalogProjection.ApplyAsync(database, db, replaced, ct);
+            return true;
+        }, token);
 
         await transactions.ExecuteOnceAsync((db, ct) => db.ExecuteAsync("""
             DELETE FROM securities.futures_contract_by_symbol;

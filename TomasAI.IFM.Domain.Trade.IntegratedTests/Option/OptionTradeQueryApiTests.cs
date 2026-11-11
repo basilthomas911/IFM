@@ -261,6 +261,7 @@ public class OptionTradeQueryApiTests(TomasAI.IFM.IntegrationTesting.KestrelWebA
 
         var spreadData = new OptionTradeSpreadsDataModel
         {
+            SequenceId = 1,
             OrderId = optionTrade.OrderId,
             TradeId = optionTrade.TradeId,
             ValueDate = valueDate,

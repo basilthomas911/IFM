@@ -78,7 +78,7 @@ internal static class CommandAuditPostgres
     static async Task<bool?> MatchesStoredRetryAsync(NpgsqlConnection connection, NpgsqlTransaction transaction,
         CommandAuditEnvelope candidate, CancellationToken token)
     {
-        var read = new NpgsqlCommand("SELECT commandpayload,commandpayloadformat,commandpayloadversion,commandpayloadsha256 FROM command_log WHERE commandid=$1", connection, transaction) { CommandTimeout = PostgresQueryTimeout.Default.CommandTimeoutSeconds };
+        var read = new NpgsqlCommand(EventSourceDbSql.CommandAuditPostgres_MatchesStoredRetryAsync_1, connection, transaction) { CommandTimeout = PostgresQueryTimeout.Default.CommandTimeoutSeconds };
         await using var readDisposal = read.ConfigureAwait(false);
         PostgresValueBinding.AddParameter(read, candidate.CommandId);
         var reader = await read.ExecuteReaderAsync(token)

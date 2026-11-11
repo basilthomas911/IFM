@@ -104,8 +104,8 @@ public sealed class StoredSessionBarTests(EventSourceActorSnapshotRangeFixture f
         Assert.Empty(await restarted.GetQualifiedIndicatorSeedBarsAsync(contract, bar.TimeFrame, date.AddDays(-1), [end], "source-a", default));
         Assert.Empty(await restarted.GetQualifiedIndicatorSeedBarsAsync(contract, TimeFrameType.FifteenMinutes, date, [end], "source-a", default));
 
-        await Assert.ThrowsAsync<ArgumentException>(() =>
-            restarted.StoreQualifiedIndicatorSeedBarsAsync("source-c", [bar, next with { IsComplete = false }], default));
+        Assert.Throws<ArgumentException>(() =>
+            IndicatorSeedRequestQualification.RequireBatch("source-c", [bar, next with { IsComplete = false }]));
         Assert.Empty(await restarted.GetQualifiedIndicatorSeedBarsAsync(contract, bar.TimeFrame, date, [end], "source-c", default));
 
         var official = changed with

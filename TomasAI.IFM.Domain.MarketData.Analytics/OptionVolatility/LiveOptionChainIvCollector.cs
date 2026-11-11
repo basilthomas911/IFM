@@ -4,7 +4,6 @@ using System.Text;
 using System.Threading.Channels;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 
@@ -15,6 +14,7 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.OptionVolatility;
 public sealed class LiveOptionChainIvCollector(IOptionVolatilityRepository database, IHostEnvironment environment,
     ILogger<LiveOptionChainIvCollector> logger, TimeProvider? timeProvider = null) : BackgroundService, IOptionChainIvCollector
 {
+    readonly OptionVolatilityService volatility = new(database);
     readonly TimeProvider businessClock = timeProvider ?? TimeProvider.System;
     const string Method = "expiry-atm-call-put-midpoint-v1";
     const string Policy = "prior-252-weekdays-minimum-20-v1";
@@ -28,7 +28,7 @@ public sealed class LiveOptionChainIvCollector(IOptionVolatilityRepository datab
         new($"{chain.UnderlyingContractId}:expiry:{chain.ExpiryDate:yyyyMMdd}", Method);
     VolatilityStorageScope Scope(EvaluatedOptionChainReadModel chain) => new(environment.EnvironmentName, Series(chain), Policy);
     public Task<LatestVolatilityResult> GetLatestAsync(EvaluatedOptionChainReadModel chain, CancellationToken token) =>
-        database.GetLatestAsync(new(Scope(chain), businessClock.GetUtcNow(), TimeSpan.FromMinutes(6)), token);
+        volatility.GetLatestAsync(new(Scope(chain), businessClock.GetUtcNow(), TimeSpan.FromMinutes(6)), token);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -69,7 +69,7 @@ public sealed class LiveOptionChainIvCollector(IOptionVolatilityRepository datab
             byte[]? paging = null;
             do
             {
-                var page = await database.GetObservationHistoryAsync(new(scope, VolatilityCalendarBucket.From(month),
+                var page = await volatility.GetObservationHistoryAsync(new(scope, VolatilityCalendarBucket.From(month),
                     month < dates.Min() ? dates.Min() : month, month.AddMonths(1).AddDays(-1) > date ? date : month.AddMonths(1).AddDays(-1), "Daily", VolatilityHistoricalMode.Restated, null, 100, paging), token).ConfigureAwait(false);
                 sources.AddRange(page.Items); paging = page.PagingState;
             } while (paging is { Length: > 0 });
@@ -101,7 +101,7 @@ public sealed class LiveOptionChainIvCollector(IOptionVolatilityRepository datab
             sources.Select(x => x.ObservationId).Order(StringComparer.Ordinal).ToImmutableArray(), digest, Method,
             observation.ObservedAtUtc, now, now, now);
         // Source rows, snapshot/history and latest pointer commit together in the existing PostgreSQL publication transaction.
-        await database.PublishAsync(new(environment.EnvironmentName, new(snapshot, 1, null,
+        await volatility.PublishAsync(new(environment.EnvironmentName, new(snapshot, 1, null,
             Math.Max(now.UtcTicks, (latest?.PublicationSequence ?? 0) + 1)), sources.ToImmutableArray()), token).ConfigureAwait(false);
         logger.LogInformation("Published IV observation {ObservationId} for {ContractId} expiry {Expiry}: IV {IV}, rank {Rank}, status {Status}, history {Count}",
             id, chain.UnderlyingContractId, chain.ExpiryDate, iv, result.IvRank, result.RankStatus, result.ValidHistoricalObservationCount);

@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -31,6 +32,7 @@ public static class GetLastFuturesTickData
         {
             ArgumentNullException.ThrowIfNull(dbFactory);
             ArgumentNullException.ThrowIfNull(q);
+            RawTickRequestQualification.RequireScope(q.ContractId, q.ValueDate);
             return await (dbFactory.MarketDataDb.GetLastFuturesTickDataAsync(q.ContractId, q.ValueDate)).ConfigureAwait(false);
         }
     }

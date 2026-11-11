@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.Recovery;
 using TomasAI.IFM.Shared.Identity;
 using System;
 using System.Collections.Generic;
@@ -32,6 +33,7 @@ public sealed class MarketDataServicePostgresFixture : IAsyncLifetime
 {
     IsolatedIntegrationInfrastructure? _infrastructure;
     const string ConnectionVariable = "IFM_POSTGRES_EVENTSOURCE_TEST_CONNECTION";
+    public IMarketDataServiceStore Watchdog { get; private set; } = null!;
     public MarketDataServiceDbContext Store { get; private set; } = null!;
     public IReadOnlyDictionary<string, FuturesContractV3ReadModel> Sources { get; private set; } = null!;
     CleanupRepository _cleanup = null!;
@@ -65,12 +67,9 @@ public sealed class MarketDataServicePostgresFixture : IAsyncLifetime
             Contract("VX20261021", "VX", new(2026, 10, 21)),
             Contract("VX20261118", "VX", new(2026, 11, 18))
         }.ToDictionary(value => value.ContractId, StringComparer.Ordinal);
-        var securities = Substitute.For<ISecuritiesDbContext>();
-        securities.GetFuturesContractAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(call => Task.FromResult(Sources.GetValueOrDefault(call.Arg<string>())));
-        var factory = Substitute.For<IDbContextFactory>();
-        factory.SecuritiesDb.Returns(securities);
-        Store = new MarketDataServiceDbContext(settings, factory, new TestSequenceIds(), logger);
+        var ids = new TestSequenceIds();
+        Store = new MarketDataServiceDbContext(settings, logger);
+        Watchdog = new DatabentoMarketDataServiceStore(Store, Store, ids);
     }
 
     public async Task DisposeAsync()
@@ -116,6 +115,25 @@ public sealed class MarketDataServicePostgresFixture : IAsyncLifetime
 public sealed class MarketDataServicePostgresIntegrationTests(MarketDataServicePostgresFixture fixture)
 {
     [Fact]
+    public async Task Recovery_log_preserves_order_and_rejects_conflicting_evidence_without_overwriting()
+    {
+        var operation = Guid.NewGuid();
+        var date = new DateOnly(2026, 11, 10);
+        var now = DateTime.UtcNow;
+        var first = new RecoveryLogRow(Guid.NewGuid(), operation, 1, date, "Options", "GLBX.MDP3", "Started",
+            new DateTimeOffset(now), now, new string('a', 64), "{\"step\":1}", 1);
+        var last = first with { RecordId = Guid.NewGuid(), Sequence = 2, Payload = "{\"step\":2}", SourceEventId = 2 };
+        await fixture.Store.DbWriter.AppendRecoveryLogAsync(last);
+        await fixture.Store.DbWriter.AppendRecoveryLogAsync(first);
+        await fixture.Store.DbWriter.AppendRecoveryLogAsync(first);
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            fixture.Store.DbWriter.AppendRecoveryLogAsync(first with { Digest = new string('b', 64), Payload = "{\"step\":3}" }));
+        Assert.Equal(new[] { first.Payload, last.Payload }, await fixture.Store.DbReader.ReadRecoveryLogAsync(date, "GLBX.MDP3", operation, 2));
+        Assert.Equal(first.Payload, Assert.Single(await fixture.Store.DbReader.ReadRecoveryLogAsync(date, null, operation, 1)));
+        Assert.Empty(await fixture.Store.DbReader.ReadRecoveryLogAsync(date, "XCBF.PITCH", operation, 10));
+    }
+
+    [Fact]
     public async Task Assignment_crud_and_vx_pair_use_optimistic_atomic_storage()
     {
         var es = Assignment(DatabentoContractRole.EsQuarterly, fixture.Sources["ES20261218"]);
@@ -151,10 +169,14 @@ public sealed class MarketDataServicePostgresIntegrationTests(MarketDataServiceP
     [Fact]
     public async Task Watchdog_history_crud_persists_json_and_orders_by_observation_time()
     {
-        var first = await fixture.Store.AppendObservationAsync(Observation(DateTime.UtcNow.AddMinutes(-1), DatabentoMajorStatus.Down));
-        var second = await fixture.Store.AppendObservationAsync(Observation(DateTime.UtcNow, DatabentoMajorStatus.Up));
+        var input = Observation(DateTime.UtcNow.AddMinutes(-1), DatabentoMajorStatus.Down);
+        var first = await fixture.Watchdog.AppendObservationAsync(input);
+        var retry = await fixture.Watchdog.AppendObservationAsync(input);
+        var second = await fixture.Watchdog.AppendObservationAsync(Observation(DateTime.UtcNow, DatabentoMajorStatus.Up));
 
-        second.WatchdogStatusLogId.Should().BeGreaterThan(first.WatchdogStatusLogId);
+        retry.WatchdogStatusLogId.Should().Be(first.WatchdogStatusLogId);
+        retry.RowVersion.Should().Be(first.RowVersion);
+        second.WatchdogStatusLogId.Should().Be(first.WatchdogStatusLogId + 1);
         (await fixture.Store.ListObservationsAsync()).Select(value => value.ObservationId)
             .Should().Equal(second.ObservationId, first.ObservationId);
         (await fixture.Store.ListObservationsAsync(status: DatabentoMajorStatus.Down)).Should().ContainSingle();

@@ -1,3 +1,15 @@
+using System.Threading;
+using TomasAI.IFM.Application.Storage.EventSourceDb;
+using TomasAI.IFM.Application.Storage.EventSourceDb.Schema;
+using TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command;
+using TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command.State;
+using TomasAI.IFM.Domain.MarketData.Securities.Persistence;
+using TomasAI.IFM.Domain.MarketData.Shared.Commands;
+using TomasAI.IFM.Domain.MarketData.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
+using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Shared.EventSourcing;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
@@ -35,10 +47,13 @@ public class SecuritiesDatabaseFixture : IDisposable
 {
     readonly TomasAI.IFM.IntegrationTesting.IsolatedIntegrationInfrastructure infrastructure = new("storage-securities", includeCql: false);
 
+    readonly SemaphoreSlim rolloverMailbox = new(1, 1);
+
     public SecuritiesDatabaseFixture()
     {
         infrastructure.StartAsync().GetAwaiter().GetResult();
         var dbConn = new DbConnectionSettings()
+                         .Add(EventSourceActorDbContext.EventSourceActorDbConnection, infrastructure.PostgresConnectionString, "System.Data.Postgres")
                          .Add("SecuritiesDbConnection", infrastructure.PostgresConnectionString + ";Search Path=securities,public", "System.Data.Postgres");
 
         var diContainer = new Dictionary<Type, SecuritiesDbContext>();
@@ -56,13 +71,55 @@ public class SecuritiesDatabaseFixture : IDisposable
         DbFactory = dbFactory;
         diContainer.Add(typeof(IObjectRepository<SecuritiesDbContext>), new SecuritiesDbContext(dbConn, DbFactory, logger));
         Db = DbFactory.SecuritiesDb as SecuritiesDbContext;
+        new EventSourceSchemaDb(dbConn, logger).CreateAllAsync().GetAwaiter().GetResult();
+        var transactions = new PostgresEventTransaction(dbConn);
+        var producer = Substitute.For<IActorProducer>();
+        producer.RequestAsync<ReplaceFuturesRolloverSetCommand, FuturesContractId, GuidResult>(
+            Arg.Any<ActorSubject>(), Arg.Any<ReplaceFuturesRolloverSetCommand>(),
+            Arg.Any<FuturesContractId>(), Arg.Any<CancellationToken>())
+            .Returns(call => ExecuteRolloverAsync(transactions, call.Arg<ReplaceFuturesRolloverSetCommand>(), call.Arg<CancellationToken>()));
+        RolloverStore = new ActorFuturesRolloverStore(Db, producer);
+
     }
+
+
+    // Substitute transport only. Exercise the real command handler and atomic PostgreSQL projection.
+    async ValueTask<ServiceResult<GuidResult>> ExecuteRolloverAsync(
+        PostgresEventTransaction transactions, ReplaceFuturesRolloverSetCommand command, CancellationToken token)
+    {
+        await rolloverMailbox.WaitAsync(token);
+        try
+        {
+            var revision = await Db.ReadCatalogRevisionAsync(command.StreamId, token);
+            var state = new FuturesContractCommandState();
+            state.RestoreCommittedStreamVersion(revision);
+            var result = command.Execute(state);
+            if (!result.Success) return result;
+            var fact = Assert.IsType<FuturesContractRolloverSetReplacedEvent>(Assert.Single(state.Events));
+            return await transactions.ExecuteOnceAsync<ServiceResult<GuidResult>>(async (db, ct) =>
+            {
+                await db.AppendAsync(new EnlistedEventAppend(command.StreamId, command.CommandId, fact, revision), ct);
+                await SecuritiesCatalogProjection.ApplyAsync(Db, db, fact, ct);
+                return result;
+            }, token);
+        }
+        finally
+        {
+            rolloverMailbox.Release();
+        }
+    }
+
+    public IFuturesContractRolloverStore RolloverStore { get; }
 
     public SecuritiesDbContext Db { get; }
 
     public IDbContextFactory DbFactory { get; }
 
-    public void Dispose() => infrastructure.DisposeAsync().AsTask().GetAwaiter().GetResult();
+    public void Dispose()
+    {
+        rolloverMailbox.Dispose();
+        infrastructure.DisposeAsync().AsTask().GetAwaiter().GetResult();
+    }
 
 }
 
@@ -70,80 +127,6 @@ public class SecuritiesDatabaseFixture : IDisposable
 public class SecuritiesDbTests(SecuritiesDatabaseFixture testFixture) : IClassFixture<SecuritiesDatabaseFixture>
 {
     readonly SecuritiesDatabaseFixture _testFixture = testFixture;
-
-    readonly record struct ProjectionCompletionState(Guid Generation, bool Completed);
-
-    static async Task<ProjectionCompletionState?> ReadProjectionStateAsync(
-        IObjectRepository db,
-        string projectionName)
-    {
-        var states = await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetSecuritiesProjectionStateV3)}", SecuritiesDbCql.GetSecuritiesProjectionStateV3)
-            .SetParameters(new GetSecuritiesProjectionStateV3(projectionName))
-            .ExecuteQueryAsync(static row => new ProjectionCompletionState(row.GetGuid(0), row.GetBool(1)));
-        return states.Count == 1 ? states.First() : null;
-    }
-
-    static async Task<ProjectionCompletionState?> ReadSymbolProjectionStateAsync(
-        IObjectRepository db,
-        string projectionName,
-        string symbol)
-    {
-        var states = await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetSecuritiesSymbolProjectionStateV3)}", SecuritiesDbCql.GetSecuritiesSymbolProjectionStateV3)
-            .SetParameters(new GetSecuritiesSymbolProjectionStateV3(projectionName, symbol))
-            .ExecuteQueryAsync(static row => new ProjectionCompletionState(row.GetGuid(0), row.GetBool(1)));
-        return states.Count == 1 ? states.First() : null;
-    }
-
-    static async Task DeleteProjectionStateAsync(
-        IObjectRepository db,
-        string projectionName,
-        string? symbol = null)
-    {
-        if (symbol is not null)
-        {
-            await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteSecuritiesSymbolProjectionStateV3)}", SecuritiesDbCql.DeleteSecuritiesSymbolProjectionStateV3)
-                .SetParameters(new DeleteSecuritiesSymbolProjectionStateV3(projectionName, symbol))
-                .ExecuteCommandAsync();
-            return;
-        }
-
-        await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteSecuritiesProjectionStateV3)}", SecuritiesDbCql.DeleteSecuritiesProjectionStateV3)
-            .SetParameters(new DeleteSecuritiesProjectionStateV3(projectionName))
-            .ExecuteCommandAsync();
-    }
-
-    static async Task ResetProjectionOperationsAsync(IObjectRepository db, string projectionName)
-    {
-        var operationIds = await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetSecuritiesProjectionOperationsV3)}", SecuritiesDbCql.GetSecuritiesProjectionOperationsV3)
-            .SetParameters(new GetSecuritiesProjectionOperationsV3(projectionName))
-            .ExecuteQueryAsync(static row => row.GetGuid(0));
-        foreach (var operationId in operationIds)
-        {
-            var scopes = await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.GetSecuritiesProjectionOperationScopesV3)}", SecuritiesDbCql.GetSecuritiesProjectionOperationScopesV3)
-                .SetParameters(new GetSecuritiesProjectionOperationScopesV3(projectionName, operationId))
-                .ExecuteQueryAsync(static row => (Type: row.GetString(0), Key: row.GetString(1)));
-            await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.RemoveSecuritiesProjectionOperationV3)}", SecuritiesDbCql.RemoveSecuritiesProjectionOperationV3)
-                .SetParameters(new RemoveSecuritiesProjectionOperationV3(operationId, projectionName))
-                .ExecuteCommandAsync();
-            foreach (var symbol in scopes
-                .Where(static scope => scope.Type == "symbol")
-                .Select(static scope => scope.Key))
-            {
-                await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.RemoveSecuritiesSymbolProjectionOperationV3)}", SecuritiesDbCql.RemoveSecuritiesSymbolProjectionOperationV3)
-                    .SetParameters(new RemoveSecuritiesSymbolProjectionOperationV3(
-                        operationId,
-                        projectionName,
-                        symbol))
-                    .ExecuteCommandAsync();
-            }
-            await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteSecuritiesProjectionOperationScopesV3)}", SecuritiesDbCql.DeleteSecuritiesProjectionOperationScopesV3)
-                .SetParameters(new DeleteSecuritiesProjectionOperationScopesV3(projectionName, operationId))
-                .ExecuteCommandAsync();
-            await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteSecuritiesProjectionOperationV3)}", SecuritiesDbCql.DeleteSecuritiesProjectionOperationV3)
-                .SetParameters(new DeleteSecuritiesProjectionOperationV3(projectionName, operationId))
-                .ExecuteCommandAsync();
-        }
-    }
 
     static InsertFuturesContract ToInsertParameters(FuturesContractV3ReadModel contract)
         => new(
@@ -612,118 +595,16 @@ public class SecuritiesDbTests(SecuritiesDatabaseFixture testFixture) : IClassFi
             .Should().NotContain(contract => contract.ContractId == updated.ContractId);
     }
 
-    [Fact]
-    public void MutationJournalCleanup_RetainsAmbiguousPostSubmissionOperations()
-    {
-        true.CanRemoveProjectionMutationJournalAfterFailure()
-            .Should().BeFalse();
-        false.CanRemoveProjectionMutationJournalAfterFailure()
-            .Should().BeTrue();
-        false.CanRemoveProjectionMutationJournalAfterFailure(
-                activationResponseConfirmed: false)
-            .Should().BeFalse("an activation/set-add timeout can apply after its caller observes failure");
-    }
 
-    [Fact]
-    public void SecuritiesCql_DoesNotUseAllowFiltering()
-    {
-        var statements = typeof(SecuritiesDbCql)
-            .GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)
-            .Where(field => field.FieldType == typeof(string))
-            .Select(field => (string)field.GetRawConstantValue()!);
 
-        statements.Should().NotContain(statement =>
-            statement.Contains("ALLOW FILTERING", StringComparison.OrdinalIgnoreCase));
-    }
 
-    [Fact]
-    public void ProjectionCompletionSchema_UsesFreshGenerationAwareV3Tables()
-    {
-        SecuritiesSchemaCql.CreateSecuritiesProjectionStateV3Table
-            .Should().Contain("securities_projection_state")
-            .And.Contain("generation uuid")
-            .And.Contain("completed boolean")
-            .And.Contain("activeOperations set<uuid>");
-        SecuritiesSchemaCql.CreateSecuritiesSymbolProjectionStateV3Table
-            .Should().Contain("securities_symbol_projection_state")
-            .And.Contain("generation uuid")
-            .And.Contain("completed boolean")
-            .And.Contain("activeOperations set<uuid>")
-            .And.Contain("PRIMARY KEY ((projectionName, symbol))");
-    }
 
-    [Fact]
-    public void SymbolProjectionReadFence_RequiresStableIdleGlobalAndSymbolGenerations()
-    {
-        var globalGeneration = Guid.NewGuid();
-        var symbolGeneration = Guid.NewGuid();
-        var context = (SecuritiesDbContext)RuntimeHelpers.GetUninitializedObject(typeof(SecuritiesDbContext));
-
-        context.IsSymbolProjectionReadFenceCurrent(
-                globalGeneration,
-                globalGeneration,
-                currentGlobalIsComplete: false,
-                currentGlobalHasNoActiveOperations: true,
-                symbolGeneration,
-                symbolGeneration,
-                currentSymbolIsComplete: true,
-                currentSymbolHasNoActiveOperations: true)
-            .Should().BeTrue("an idle incomplete global state permits lazy per-symbol readiness");
-
-        context.IsSymbolProjectionReadFenceCurrent(
-                globalGeneration,
-                globalGeneration,
-                currentGlobalIsComplete: false,
-                currentGlobalHasNoActiveOperations: false,
-                symbolGeneration,
-                symbolGeneration,
-                currentSymbolIsComplete: true,
-                currentSymbolHasNoActiveOperations: true)
-            .Should().BeFalse("an active global backfill fences every per-symbol stamp");
-
-        context.IsSymbolProjectionReadFenceCurrent(
-                globalGeneration,
-                Guid.NewGuid(),
-                currentGlobalIsComplete: false,
-                currentGlobalHasNoActiveOperations: true,
-                symbolGeneration,
-                symbolGeneration,
-                currentSymbolIsComplete: true,
-                currentSymbolHasNoActiveOperations: true)
-            .Should().BeFalse("a global generation change invalidates a captured per-symbol stamp");
-    }
-
-    [Fact]
-    public void ProjectionOperationJournal_IsTimestampedScopedAndNeverExpiresAutomatically()
-    {
-        SecuritiesSchemaCql.CreateSecuritiesProjectionOperationV3Table
-            .Should().Contain("securities_projection_operation")
-            .And.Contain("startedOn timestamp")
-            .And.Contain("stateMayBeActive boolean")
-            .And.Contain("PRIMARY KEY ((projectionName), operationId)")
-            .And.NotContain("TTL");
-        SecuritiesSchemaCql.CreateSecuritiesProjectionOperationScopeV3Table
-            .Should().Contain("securities_projection_operation_scope")
-            .And.Contain("PRIMARY KEY ((projectionName, operationId), scopeType, scopeKey)")
-            .And.NotContain("TTL");
-        SecuritiesDbCql.InsertSecuritiesProjectionOperationV3
-            .Should().Contain("stateMayBeActive)")
-            .And.Contain("false)");
-        SecuritiesDbCql.SetSecuritiesProjectionOperationStateMayBeActiveV3
-            .Should().Contain("IF stateMayBeActive = :expectedStateMayBeActive");
-        SecuritiesDbCql.RemoveSecuritiesProjectionOperationV3
-            .Should().Contain("DELETE activeOperations[:operationId]")
-            .And.NotContain("IF EXISTS");
-        SecuritiesDbCql.RemoveSecuritiesSymbolProjectionOperationV3
-            .Should().Contain("DELETE activeOperations[:operationId]")
-            .And.NotContain("IF EXISTS");
-    }
 
     [Fact]
     public void BackfillApi_AppendsOptionalUtcCutoffAfterCancellationToken()
     {
-        var parameters = typeof(ISecuritiesDbWriteContext)
-            .GetMethod(nameof(ISecuritiesDbWriteContext.BackfillSymbolProjectionsAsync))!
+        var parameters = typeof(SecuritiesSymbolProjectionMaintenance)
+            .GetMethod(nameof(SecuritiesSymbolProjectionMaintenance.BackfillSymbolProjectionsAsync))!
             .GetParameters();
 
         parameters.Select(parameter => parameter.Name).Should().Equal(
@@ -735,73 +616,7 @@ public class SecuritiesDbTests(SecuritiesDatabaseFixture testFixture) : IClassFi
         parameters[2].DefaultValue.Should().BeNull();
     }
 
-    [Fact]
-    public void ProjectionOperationJournalBindValues_FollowCqlMarkerOrder()
-    {
-        const string projectionName = "futures_contract_by_symbol";
-        const string symbol = "ES";
-        var operationId = Guid.Parse("7a5733ab-374c-412f-bde8-75618ba91db6");
-        var startedOn = new DateTime(2026, 8, 3, 14, 30, 0, DateTimeKind.Utc);
-        var activeOperations = new HashSet<Guid> { operationId };
 
-        AssertValues(
-            new InsertSecuritiesProjectionOperationV3(projectionName, operationId, startedOn),
-            projectionName, operationId, startedOn);
-        AssertValues(
-            new SetSecuritiesProjectionOperationStateMayBeActiveV3(
-                true, projectionName, operationId, false),
-            true, projectionName, operationId, false);
-        AssertValues(
-            new InsertSecuritiesProjectionOperationScopeV3(
-                projectionName, operationId, "symbol", symbol),
-            projectionName, operationId, "symbol", symbol);
-        AssertValues(
-            new GetSecuritiesProjectionOperationScopesV3(projectionName, operationId),
-            projectionName, operationId);
-        AssertValues(
-            new RemoveSecuritiesProjectionOperationV3(operationId, projectionName),
-            operationId, projectionName);
-        AssertValues(
-            new RemoveSecuritiesSymbolProjectionOperationV3(
-                operationId, projectionName, symbol),
-            operationId, projectionName, symbol);
-    }
 
-    [Fact]
-    public void ProjectionCompletionCql_InvalidatesBeforeMutationAndCompletesConditionally()
-    {
-        SecuritiesDbCql.GetSecuritiesProjectionStateV3
-            .Should().Contain("activeOperations");
-        SecuritiesDbCql.GetSecuritiesSymbolProjectionStateV3
-            .Should().Contain("activeOperations");
-        SecuritiesDbCql.BeginSecuritiesProjectionOperationV3
-            .Should().Contain("completed = false")
-            .And.Contain("activeOperations = activeOperations + :activeOperations");
-        SecuritiesDbCql.InvalidateSecuritiesProjectionStateV3
-            .Should().Contain("completed = false")
-            .And.NotContain("completed = true");
-        SecuritiesDbCql.BeginSecuritiesSymbolProjectionOperationV3
-            .Should().Contain("completed = false")
-            .And.Contain("activeOperations = activeOperations + :activeOperations");
-        SecuritiesDbCql.CompleteSecuritiesProjectionOperationV3
-            .Should().Contain("IF generation = :generation")
-            .And.Contain("activeOperations = :expectedActiveOperations");
-        SecuritiesDbCql.CompleteSecuritiesSymbolProjectionOperationV3
-            .Should().Contain("IF generation = :generation")
-            .And.Contain("activeOperations = :expectedActiveOperations");
-    }
 
-    [Fact]
-    public void ProjectionRepairCql_CanResetAWholeSymbolPartition()
-    {
-        SecuritiesDbCql.DeleteFuturesContractBySymbolV3Partition
-            .Should().Contain("WHERE symbol = :symbol")
-            .And.NotContain("contractId");
-        SecuritiesDbCql.DeleteFuturesOptionContractBySymbolV2Partition
-            .Should().Contain("WHERE symbol = :symbol")
-            .And.NotContain("contractId");
-    }
-
-    static void AssertValues(IBindValue bindValue, params object?[] expected)
-        => ((object?[])bindValue.Bind()).Should().Equal(expected);
 }

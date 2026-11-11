@@ -14,6 +14,8 @@ public static class GetOrderExecution
         {
             ArgumentNullException.ThrowIfNull(tradeDb);
             ArgumentNullException.ThrowIfNull(query);
+            if (!query.TradeOrderId.IsValid || query.ExecutionAttemptId == Guid.Empty)
+                throw new ArgumentException("Valid order and execution attempt identities are required.", nameof(query));
             return tradeDb.GetOrderExecutionAsync(query.TradeOrderId, query.ExecutionAttemptId, cancellationToken);
         }
     }

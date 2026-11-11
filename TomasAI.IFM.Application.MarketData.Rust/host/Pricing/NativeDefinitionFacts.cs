@@ -1,3 +1,5 @@
+using TomasAI.IFM.Domain.MarketData.Shared.QueryParameters;
+using TomasAI.IFM.Domain.MarketData.Securities.Persistence;
 using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -9,7 +11,7 @@ namespace TomasAI.IFM.Application.MarketData.Rust.Host;
 /// <summary>Passive immutable definition snapshots. Only compact copied bytes
 /// are retained: at most two snapshots and 64 MiB retained (plus one bounded capture), never native resources.
 /// Native consumers select contracts before requesting full reviewed models.</summary>
-public sealed class NativeDefinitionFacts(IDbContextFactory databases,TimeProvider? retentionTime=null)
+public sealed class NativeDefinitionFacts(IDbContextFactory databases,TimeProvider? retentionTime=null, SecuritiesOptionDefinitionReader? definitionReader=null)
 {
     const int MaximumRows=100000,MaximumBytes=64*1024*1024,PageRows=256;
     readonly TimeProvider retention=retentionTime??TimeProvider.System;
@@ -32,7 +34,7 @@ public sealed class NativeDefinitionFacts(IDbContextFactory databases,TimeProvid
             ||string.IsNullOrWhiteSpace(root)||root.Length>60
             ||string.IsNullOrWhiteSpace(underlying)||underlying.Length>1024)
             throw new InvalidDataException("Invalid selected published option identity.");
-        var rows=await databases.SecuritiesDb.GetCachedOptionContractDefinitionsAsync(root,underlying,expiry,null,token).ConfigureAwait(false);
+        var rows=await ReadPartitionAsync(root, underlying, expiry, null, token).ConfigureAwait(false);
         var exact=rows.Where(row=>string.Equals(row.Definition.ContractId,contract,StringComparison.Ordinal)
             &&string.Equals(row.Definition.MappingVersion,version,StringComparison.Ordinal)).ToArray();
         if(exact.Length!=1)throw new InvalidDataException("Selected published option version is missing or ambiguous.");
@@ -104,14 +106,16 @@ public sealed class NativeDefinitionFacts(IDbContextFactory databases,TimeProvid
     {
         if (underlying is not null)
         {
-            var exact = await databases.SecuritiesDb.GetCachedOptionContractDefinitionsAsync(root, underlying, first, roots, token)
+            var exact = await ReadPartitionAsync(root, underlying, first, roots, token)
                 .ConfigureAwait(false);
             foreach (var row in exact)
                 yield return row;
             yield break;
         }
 
-        await foreach (var row in databases.SecuritiesDb.ReadPublishedOptionDefinitionsAsync(root, first, last, 2048, roots, token)
+        var published = definitionReader?.ReadPublishedOptionDefinitionsAsync(root, first, last, 2048, roots, token)
+            ?? databases.SecuritiesDb.ReadPublishedOptionDefinitionsAsync(new OptionDefinitionExpiryRange(root, first, last, 2048), roots, token);
+        await foreach (var row in published
             .ConfigureAwait(false))
             yield return row;
     }
@@ -123,5 +127,11 @@ public sealed class NativeDefinitionFacts(IDbContextFactory databases,TimeProvid
         }
         return output.ToArray();
     }
+
+
+    Task<IReadOnlyList<CachedOptionContractDefinitionReadModel>> ReadPartitionAsync(
+        string root, string underlying, DateOnly expiry, IReadOnlyCollection<string>? roots, CancellationToken token)
+        => definitionReader?.GetOptionDefinitionsAsync(root, underlying, expiry, roots, token)
+            ?? databases.SecuritiesDb.GetCachedOptionContractDefinitionsAsync(new OptionDefinitionPartition(root, underlying, expiry), roots, token);
 
 }

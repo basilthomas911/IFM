@@ -33,26 +33,26 @@ public static class AcceptedMarketSignalProjection
             FuturesBarDataDeletedEvent accepted => MarketDataDbContextExtensions.DeleteAcceptedFuturesBarAsync(transaction,accepted,token),
             FuturesTradeSessionBarPublishedEvent accepted => ProjectSessionBarAsync(transaction,accepted.Bar,token),
             FuturesClosingPriceInsertedEvent accepted => MarketDataDbContextExtensions.PersistAcceptedClosingPriceAsync(transaction,accepted,token),
-            MarketOutlookSnapshotInsertedEvent accepted => MarketDataDbContextExtensions.PersistAcceptedMarketOutlookAsync(transaction,accepted,source.EventId,token),
-            FuturesAdxSignalGeneratedEvent accepted => MarketDataDbContextExtensions.PersistAcceptedFuturesAdxSignalAsync(transaction,accepted.FuturesAdxSignal,token),
-            FuturesAdxDailySignalGeneratedEvent accepted => MarketDataDbContextExtensions.PersistAcceptedFuturesAdxSignalAsync(transaction,accepted.FuturesAdxSignal,token),
-            FuturesAtrSignalGeneratedEvent accepted => MarketDataDbContextExtensions.PersistAcceptedFuturesAtrSignalAsync(transaction,accepted.FuturesAtrSignal,token),
-            FuturesAtrDailySignalGeneratedEvent accepted => MarketDataDbContextExtensions.PersistAcceptedFuturesAtrSignalAsync(transaction,accepted.FuturesAtrSignal,token),
-            FuturesMacdSignalGeneratedEvent accepted => MarketDataDbContextExtensions.PersistAcceptedFuturesMacdSignalAsync(transaction,accepted.FuturesMacdSignal,token),
-            FuturesMacdDailySignalGeneratedEvent accepted => MarketDataDbContextExtensions.PersistAcceptedFuturesMacdSignalAsync(transaction,accepted.FuturesMacdSignal,token),
-            FuturesRsiSignalGeneratedEvent accepted => MarketDataDbContextExtensions.PersistAcceptedFuturesRsiSignalAsync(transaction,accepted.FuturesRsiSignal,token),
-            FuturesRsiDailySignalGeneratedEvent accepted => MarketDataDbContextExtensions.PersistAcceptedFuturesRsiSignalAsync(transaction,accepted.FuturesRsiSignal,token),
-            FuturesTdiSignalGeneratedEvent accepted => MarketDataDbContextExtensions.PersistAcceptedFuturesTdiSignalAsync(transaction,accepted.FuturesTdiSignal,token),
-            FuturesEmaSignalGeneratedEvent accepted => MarketDataDbContextExtensions.PersistAcceptedFuturesEmaSignalAsync(transaction,accepted.FuturesEmaSignal,token),
-            FuturesBbSignalGeneratedEvent accepted => MarketDataDbContextExtensions.PersistAcceptedFuturesBbSignalAsync(transaction,accepted.FuturesBbSignal,token),
-            FuturesVwapSignalUpdatedEvent accepted => MarketDataDbContextExtensions.PersistAcceptedFuturesVwapSignalAsync(transaction,accepted.FuturesVwapSignal,token),
+            MarketOutlookSnapshotInsertedEvent accepted => MarketDataDbContextExtensions.PersistAcceptedMarketOutlookAsync(transaction,accepted,RequireEventId(source.EventId),token),
+            FuturesAdxSignalGeneratedEvent accepted => MarketDataDbContextExtensions.PersistAcceptedFuturesAdxSignalAsync(transaction,RequirePayload(accepted.FuturesAdxSignal),token),
+            FuturesAdxDailySignalGeneratedEvent accepted => MarketDataDbContextExtensions.PersistAcceptedFuturesAdxSignalAsync(transaction,RequirePayload(accepted.FuturesAdxSignal),token),
+            FuturesAtrSignalGeneratedEvent accepted => MarketDataDbContextExtensions.PersistAcceptedFuturesAtrSignalAsync(transaction,RequirePayload(accepted.FuturesAtrSignal),token),
+            FuturesAtrDailySignalGeneratedEvent accepted => MarketDataDbContextExtensions.PersistAcceptedFuturesAtrSignalAsync(transaction,RequirePayload(accepted.FuturesAtrSignal),token),
+            FuturesMacdSignalGeneratedEvent accepted => MarketDataDbContextExtensions.PersistAcceptedFuturesMacdSignalAsync(transaction,RequirePayload(accepted.FuturesMacdSignal),token),
+            FuturesMacdDailySignalGeneratedEvent accepted => MarketDataDbContextExtensions.PersistAcceptedFuturesMacdSignalAsync(transaction,RequirePayload(accepted.FuturesMacdSignal),token),
+            FuturesRsiSignalGeneratedEvent accepted => MarketDataDbContextExtensions.PersistAcceptedFuturesRsiSignalAsync(transaction,RequirePayload(accepted.FuturesRsiSignal),token),
+            FuturesRsiDailySignalGeneratedEvent accepted => MarketDataDbContextExtensions.PersistAcceptedFuturesRsiSignalAsync(transaction,RequirePayload(accepted.FuturesRsiSignal),token),
+            FuturesTdiSignalGeneratedEvent accepted => MarketDataDbContextExtensions.PersistAcceptedFuturesTdiSignalAsync(transaction,RequirePayload(accepted.FuturesTdiSignal),token),
+            FuturesEmaSignalGeneratedEvent accepted => MarketDataDbContextExtensions.PersistAcceptedFuturesEmaSignalAsync(transaction,RequirePayload(accepted.FuturesEmaSignal),token),
+            FuturesBbSignalGeneratedEvent accepted => MarketDataDbContextExtensions.PersistAcceptedFuturesBbSignalAsync(transaction,RequirePayload(accepted.FuturesBbSignal),token),
+            FuturesVwapSignalUpdatedEvent accepted => MarketDataDbContextExtensions.PersistAcceptedFuturesVwapSignalAsync(transaction,RequirePayload(accepted.FuturesVwapSignal),token),
             FuturesVxTermStructureSignalUpdatedEvent { FuturesVxTermStructureSignal: not null } accepted => MarketDataDbContextExtensions.PersistAcceptedFuturesVxTermStructureSignalAsync(transaction,accepted.FuturesVxTermStructureSignal,token),
             // A single/stale curve leg advances replayable checkpoint state without producing a paired signal.
             FuturesVxTermStructureSignalUpdatedEvent => Task.CompletedTask,
-            FuturesTradeSignalUpdatedEvent accepted => MarketDataDbContextExtensions.PersistAcceptedFuturesTradeSignalAsync(transaction,accepted.FuturesTradeSignal,source.EventId,token),
-            FuturesItiSignalGeneratedEvent accepted => MarketDataDbContextExtensions.PersistAcceptedFuturesItiSignalAsync(transaction,accepted.FuturesItiSignal,source.EventId,token),
-            FuturesItiSignalHoldTradeSetEvent accepted => MarketDataDbContextExtensions.PersistAcceptedFuturesItiSignalAsync(transaction,accepted.FuturesItiSignal,source.EventId,token),
-            FuturesItiSignalHoldTradeClearedEvent accepted => MarketDataDbContextExtensions.PersistAcceptedFuturesItiSignalAsync(transaction,accepted.FuturesItiSignal,source.EventId,token),
+            FuturesTradeSignalUpdatedEvent accepted => MarketDataDbContextExtensions.PersistAcceptedFuturesTradeSignalAsync(transaction,RequirePayload(accepted.FuturesTradeSignal),RequireEventId(source.EventId),token),
+            FuturesItiSignalGeneratedEvent accepted => MarketDataDbContextExtensions.PersistAcceptedFuturesItiSignalAsync(transaction,RequirePayload(accepted.FuturesItiSignal),RequireEventId(source.EventId),token),
+            FuturesItiSignalHoldTradeSetEvent accepted => MarketDataDbContextExtensions.PersistAcceptedFuturesItiSignalAsync(transaction,RequirePayload(accepted.FuturesItiSignal),RequireEventId(source.EventId),token),
+            FuturesItiSignalHoldTradeClearedEvent accepted => MarketDataDbContextExtensions.PersistAcceptedFuturesItiSignalAsync(transaction,RequirePayload(accepted.FuturesItiSignal),RequireEventId(source.EventId),token),
             _ => null
         };
         if (projection is null) return false;
@@ -71,8 +71,21 @@ public static class AcceptedMarketSignalProjection
         ArgumentNullException.ThrowIfNull(transaction);
         ArgumentNullException.ThrowIfNull(source);
         return global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(source, source with { AcceptedSnapshot = await MarketDataDbContextExtensions.ResolveSnapshotAsync(
-            transaction,source.VixFuturesTickData,source.SessionStatistics,token)
+            transaction, new VixTickObservation(source.VixFuturesTickData, source.SessionStatistics), token)
             .ConfigureAwait(false) });
+    }
+
+    static T RequirePayload<T>(T payload, [System.Runtime.CompilerServices.CallerArgumentExpression(nameof(payload))] string? parameterName = null)
+        where T : class
+    {
+        ArgumentNullException.ThrowIfNull(payload, parameterName);
+        return payload;
+    }
+
+    static long RequireEventId(long eventId)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(eventId);
+        return eventId;
     }
 
     static async Task ProjectSessionBarAsync(IEnlistedPostgresTransaction transaction, FuturesTradeSessionBarReadModel bar, CancellationToken token)

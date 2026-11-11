@@ -31,6 +31,7 @@ fn frame(sequence: usize, generation: u8) -> Frame {
         sequence: sequence as i64,
         kind: 7,
         payload: vec![0x92, 0xc0, 0xc3],
+        origin_ticks: None,
     }
 }
 

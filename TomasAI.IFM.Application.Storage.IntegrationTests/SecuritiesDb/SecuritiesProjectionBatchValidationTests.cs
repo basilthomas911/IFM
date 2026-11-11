@@ -3,8 +3,8 @@ using NSubstitute;
 using System;
 using System.Threading.Tasks;
 using TomasAI.IFM.Application.Storage.SecuritiesDb;
+using TomasAI.IFM.Domain.MarketData.Securities.Persistence;
 using TomasAI.IFM.Framework.Storage;
-using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Shared.Storage;
 using Xunit;
 
@@ -24,7 +24,7 @@ public sealed class SecuritiesProjectionBatchValidationTests
         };
 
         var error = await Assert.ThrowsAsync<ArgumentException>(() =>
-            context.InsertFuturesContractsAsync(new[] { row, conflictingProjectionRow }));
+            context.DbWriter.InsertQualifiedFuturesContractsAsync(new[] { row, conflictingProjectionRow }));
 
         Assert.Equal("contracts", error.ParamName);
     }
@@ -42,15 +42,16 @@ public sealed class SecuritiesProjectionBatchValidationTests
         };
 
         var error = await Assert.ThrowsAsync<ArgumentException>(() =>
-            context.InsertFuturesOptionContractsAsync(new[] { row, conflictingProjectionRow }));
+            context.DbWriter.InsertQualifiedOptionContractsAsync(new[] { row, conflictingProjectionRow }));
 
         Assert.Equal("contracts", error.ParamName);
     }
 
     static SecuritiesDbContext CreateContext()
     {
-        var connectionSettings = Substitute.For<IDbConnectionSettings>();
-        connectionSettings[Arg.Any<string>()].Returns((IDbConnectionSetting)null!);
+        // A supported provider with an unreachable endpoint proves validation happens before I/O.
+        var connectionSettings = new DbConnectionSettings().Add(SecuritiesDbContext.SecuritiesDbConnection,
+            "Host=127.0.0.1;Port=1;Database=ifm_securities_argument_boundary;Timeout=1;Command Timeout=1", "System.Data.Postgres");
         return new(
             connectionSettings,
             Substitute.For<IDbContextFactory>(),

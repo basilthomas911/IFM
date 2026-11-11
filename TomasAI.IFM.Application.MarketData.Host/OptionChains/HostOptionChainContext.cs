@@ -1,4 +1,5 @@
-﻿using TomasAI.IFM.Application.MarketData.Contracts;
+﻿using TomasAI.IFM.Domain.MarketData.Securities.Persistence;
+using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Application.MarketData.Pricing;
 using TomasAI.IFM.Application.Storage;
@@ -6,8 +7,9 @@ using TomasAI.IFM.Shared.MarketData.Contracts;
 namespace TomasAI.IFM.Application.MarketData.Host.OptionChains;
 internal sealed class HostOptionChainContext(IDbContextFactory databases, IMarketDataApi api,
     QualifiedCompositionDiscovery discovery, ICompositionMarketDataApi market, DatasetWorkerAdmissionRegistry admissions,
-    TreasuryPublicationPolicy publication, TreasuryRateConversionPolicy conversion, ILogger<HostOptionChainContext> logger)
+    TreasuryPublicationPolicy publication, TreasuryRateConversionPolicy conversion, ILogger<HostOptionChainContext> logger, SecuritiesOptionDefinitionReader definitions)
 {
+    internal SecuritiesOptionDefinitionReader Definitions => definitions;
     public IDbContextFactory DbFactory => databases;
     public IMarketDataApi MarketDataApi => api;
     public QualifiedCompositionDiscovery CompositionDiscovery => discovery;

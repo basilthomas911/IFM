@@ -28,7 +28,7 @@ public class FuturesItiSignalQueryApiTests(TomasAI.IFM.IntegrationTesting.Kestre
             contractId: contractId,
             valueDate: valueDate,
             timePeriod: timePeriod,
-            sequenceId: 0,
+            sequenceId: 1,
             intrinsicTime: DateTime.SpecifyKind(SampleData.Timestamp, DateTimeKind.Utc),
             intrinsicTimeGroupId: 0,
             intrinsicTimeLength: 0,

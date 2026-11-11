@@ -1,4 +1,5 @@
 using TomasAI.IFM.Application.Storage.EventSourceDb;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 
 namespace TomasAI.IFM.Application.Storage.SecuritiesDb;
 
@@ -11,11 +12,7 @@ public sealed class PostgresSecuritiesReferenceStore
     public async Task InsertBundleAsync(IEnlistedPostgresTransaction db, string id, string payload, CancellationToken token = default)
     {
         ArgumentNullException.ThrowIfNull(db);
-        var saved = await (db.ScalarAsync("""
-            INSERT INTO securities.option_pricing_reference_bundle(bundle_id,payload) VALUES($1,$2)
-            ON CONFLICT(bundle_id) DO UPDATE SET payload=EXCLUDED.payload
-            WHERE securities.option_pricing_reference_bundle.payload=EXCLUDED.payload RETURNING bundle_id;
-            """, [id,payload], token))
+        var saved = await (db.ScalarAsync(SecuritiesDbSql.PostgresReferenceStore_InsertBundleAsync_1, [id, payload], token))
             .ConfigureAwait(false);
         if(saved is null) throw new InvalidOperationException("Pricing bundle identifier contains different content.");
     }
@@ -26,29 +23,32 @@ public sealed class PostgresSecuritiesReferenceStore
     public async Task ClaimIdentityAsync(IEnlistedPostgresTransaction db, string key, string binding, CancellationToken token = default)
     {
         ArgumentNullException.ThrowIfNull(db);
-        var saved = await (db.ScalarAsync("""
-            INSERT INTO securities.securities_reference_identity(identity_key,binding) VALUES($1,$2)
-            ON CONFLICT(identity_key) DO UPDATE SET binding=EXCLUDED.binding
-            WHERE securities.securities_reference_identity.binding=EXCLUDED.binding RETURNING identity_key;
-            """, [key,binding], token))
+        var saved = await (db.ScalarAsync(SecuritiesDbSql.PostgresReferenceStore_ClaimIdentityAsync_1, [key, binding], token))
             .ConfigureAwait(false);
-        if(saved is null) throw new InvalidOperationException("Provider/IFM identity collision. Existing contract identities cannot be overwritten.");
+        if(saved is null) throw new InvalidOperationException($"Provider/IFM identity collision. Existing contract identities cannot be overwritten. IdentityKey={key}");
     }
 
     /// <summary>Atomically claims both identities and stages one immutable mapping version without publishing it.</summary>
     public async Task StageAsync(IEnlistedPostgresTransaction db, string contractId, string providerKey, string identity,
-        string version, string digest, byte[] payload, CancellationToken token = default)
+        string version, string digest, byte[] payload, CancellationToken token = default, FuturesOptionContractReadModel? option = null)
     {
         ArgumentNullException.ThrowIfNull(db);
+        if (option is not null)
+        {
+            var legacyKey = OptionReferenceIdentity.LegacyProviderKey(option);
+            var legacy = await db.ScalarAsync(SecuritiesDbSql.PostgresReferenceStore_StageAsync_1, [legacyKey], token)
+            .ConfigureAwait(false);
+            if (legacy is string binding)
+            {
+                var existing = OptionReferenceIdentity.ExistingProviderBinding(option, new Dictionary<string, string> { [legacyKey] = binding });
+                if (existing is not null && existing != identity)
+                    throw new InvalidOperationException($"Provider/IFM identity collision. Existing contract identities cannot be overwritten. IdentityKey={legacyKey}");
+            }
+        }
         foreach(var key in new[]{"ifm:"+contractId,providerKey}.Order(StringComparer.Ordinal))
             await (ClaimIdentityAsync(db,key,identity,token))
             .ConfigureAwait(false);
-        var saved = await (db.ScalarAsync("""
-            INSERT INTO securities.securities_reference_version(contract_id,version,digest,payload,published)
-            VALUES($1,$2,$3,$4,false) ON CONFLICT(contract_id,version) DO UPDATE SET digest=EXCLUDED.digest
-            WHERE securities.securities_reference_version.digest=EXCLUDED.digest
-              AND securities.securities_reference_version.payload=EXCLUDED.payload RETURNING version;
-            """, [contractId,version,digest,payload], token))
+        var saved = await (db.ScalarAsync(SecuritiesDbSql.PostgresReferenceStore_StageAsync_2, [contractId, version, digest, payload], token))
             .ConfigureAwait(false);
         if(saved is null) throw new InvalidOperationException("Mapping version already contains different content. Publish a new reviewed version.");
     }
@@ -59,10 +59,7 @@ public sealed class PostgresSecuritiesReferenceStore
     public async Task PublishAsync(IEnlistedPostgresTransaction db, string contractId, string version, string digest, CancellationToken token = default)
     {
         ArgumentNullException.ThrowIfNull(db);
-        var saved = await (db.ScalarAsync("""
-            UPDATE securities.securities_reference_version SET published=true
-            WHERE contract_id=$1 AND version=$2 AND digest=$3 RETURNING version;
-            """, [contractId,version,digest], token))
+        var saved = await (db.ScalarAsync(SecuritiesDbSql.PostgresReferenceStore_PublishAsync_1, [contractId, version, digest], token))
             .ConfigureAwait(false);
         if(saved is null) throw new InvalidOperationException("Reference publication did not complete.");
     }
@@ -76,21 +73,12 @@ public sealed class PostgresSecuritiesReferenceStore
         CancellationToken token=default)
     {
         ArgumentNullException.ThrowIfNull(db);
-        ArgumentNullException.ThrowIfNull(rows);
-        await (db.ExecuteAsync("SELECT pg_advisory_xact_lock(hashtextextended($1,0));",["securities.option-definitions:"+symbol],token))
+        await (db.ExecuteAsync(SecuritiesDbSql.PostgresReferenceStore_PublishDefinitionsAsync_1,["securities.option-definitions:"+symbol],token))
             .ConfigureAwait(false);
         foreach(var row in rows)
-            await (db.ExecuteAsync("""
-                INSERT INTO securities.option_contract_expiry_calendar
-                (symbol,generation,expiryDate,providerRoot,contractId,underlyingContractId,optionFamily,definitionPayload,refreshedAtUtc)
-                VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9);
-                """,[symbol,generation,row.Expiry,row.Root,row.ContractId,row.UnderlyingId,row.Family,row.Payload,refreshedAtUtc],token))
+            await (db.ExecuteAsync(SecuritiesDbSql.PostgresReferenceStore_PublishDefinitionsAsync_2,[symbol,generation,row.Expiry,row.Root,row.ContractId,row.UnderlyingId,row.Family,row.Payload,refreshedAtUtc],token))
             .ConfigureAwait(false);
-        await (db.ExecuteAsync("""
-            INSERT INTO securities.option_contract_expiry_calendar_state(symbol,generation,coverageFrom,coverageThrough,refreshedAtUtc)
-            VALUES($1,$2,$3,$4,$5) ON CONFLICT(symbol) DO UPDATE SET generation=EXCLUDED.generation,
-            coverageFrom=EXCLUDED.coverageFrom,coverageThrough=EXCLUDED.coverageThrough,refreshedAtUtc=EXCLUDED.refreshedAtUtc;
-            """,[symbol,generation,coverageFrom,coverageThrough,refreshedAtUtc],token))
+        await (db.ExecuteAsync(SecuritiesDbSql.PostgresReferenceStore_PublishDefinitionsAsync_3,[symbol,generation,coverageFrom,coverageThrough,refreshedAtUtc],token))
             .ConfigureAwait(false);
     }
 

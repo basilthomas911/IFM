@@ -19,6 +19,7 @@ public static class GetMarketConditionHistory
         {
             ArgumentNullException.ThrowIfNull(query);
             ArgumentNullException.ThrowIfNull(services);
+            MarketConditionHistorySelection.RequireFund(query.FundId, query.InstrumentRoot, query.PageSize);
             var values = await services.DbFactory.TradeDb.GetMarketConditionHistoryAsync(query.FundId, query.InstrumentRoot, query.TargetHorizon, query.BeforeUtc, query.PageSize, cancellationToken).ConfigureAwait(false);
             return new ServiceResult<ICollection<MarketConditionReadModel>>(values);
         }

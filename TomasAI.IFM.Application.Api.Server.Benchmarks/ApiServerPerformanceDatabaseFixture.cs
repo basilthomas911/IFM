@@ -111,7 +111,7 @@ internal sealed class ApiServerPerformanceDatabaseFixture : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         if (Interlocked.Exchange(ref disposed, 1) != 0) return;
-        if (Events is not null) await Events.DisposeAsync();
+        if (Events is not null) await ((IAsyncDisposable)Events).DisposeAsync();
         await infrastructure.DisposeAsync();
     }
 }

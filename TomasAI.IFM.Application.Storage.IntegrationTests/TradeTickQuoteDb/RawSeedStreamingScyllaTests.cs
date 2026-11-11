@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using Microsoft.Extensions.Logging.Abstractions;
 using TomasAI.IFM.Application.Storage.TradeTickQuoteDb;
 using TomasAI.IFM.Application.Storage.TradeTickQuoteDb.Schema;

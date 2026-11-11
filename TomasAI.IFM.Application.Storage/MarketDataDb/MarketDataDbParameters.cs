@@ -2107,26 +2107,6 @@ internal readonly record struct InsertRateOfReturn(string symbol, DateOnly value
 
 
 
-internal sealed class InsertTickQuoteData(
-    object?[] values,
-    TickQuoteScyllaBindValue? encoded = null)
-    : IBindValue, TomasAI.IFM.Framework.Storage.ScyllaDb.IScyllaOwnedBindValues
-{
-    private object?[]? _values = values ?? throw new ArgumentNullException(nameof(values));
-
-    /// <summary>Returns this one-time Scylla binding owner to the repository context.</summary>
-    public object Bind() => this;
-
-    /// <summary>Retains the encoded quote array until the Scylla driver finishes.</summary>
-    public IDisposable? BindLifetime { get; } = encoded;
-
-    /// <summary>Transfers the fresh quote insert values to one prepared-statement bind.</summary>
-    public object?[] TakeValues()
-        => Interlocked.Exchange(ref _values, null)
-            ?? throw new InvalidOperationException("Tick quote parameters have already been bound.");
-}
-
-
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct InsertTickTradeData(object?[] Values) : IBindValue
 {
@@ -2603,7 +2583,7 @@ internal readonly record struct HistoricalDataLoadHashParameter(string Hash) : I
     }
 
     [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
-internal readonly record struct SaveHistoricalDataLoadParameter(HistoricalDataLoaderState State) : IBindValue
+internal readonly record struct SaveHistoricalDataLoadParameter(HistoricalDataLoaderState State, string DiagnosticsJson) : IBindValue
     {
         public object Bind() => Values(
             Uuid(State.DataLoadAttemptId),
@@ -2617,7 +2597,8 @@ internal readonly record struct SaveHistoricalDataLoadParameter(HistoricalDataLo
             Text(State.ErrorMessage),
             TimestampTz(State.UpdatedAtUtc.UtcDateTime),
             Text(State.Manifest is null ? string.Empty : JsonSerializer.Serialize(State.Manifest)),
-            Text(State.Audit is null ? string.Empty : JsonSerializer.Serialize(State.Audit)));
+            Text(State.Audit is null ? string.Empty : JsonSerializer.Serialize(State.Audit)),
+            Text(DiagnosticsJson));
     }
 
 
@@ -2639,3 +2620,25 @@ internal readonly record struct IndicatorSeedCoverageBatch(string SourceVersion,
             Bars.Select(bar => bar.IntervalEndUtc.UtcDateTime).ToArray(),
             Bars.Select(bar => MessagePackBinarySerializer.Shared.Serialize(bar)!).ToArray() };
     }
+
+internal readonly record struct MarketDataBaselineStream(string Stream) : IBindValue
+{
+    public object Bind() => TomasAI.IFM.Shared.Storage.BindValues.Values(Stream);
+}
+
+internal readonly record struct HistoricalAnalyticsProgressParameter(Guid AttemptId, string Payload) : IBindValue
+{
+    public object Bind() => new object[] { AttemptId, Payload };
+}
+
+internal readonly record struct OptionEvidenceInsertBatchParameters(string[] Contracts, DateOnly[] ValueDates,
+    string[] Identities, string[] Digests, byte[][] Payloads) : IBindValue
+{
+    public object Bind() => Values(Contracts, ValueDates, Identities, Digests, Payloads);
+}
+
+internal readonly record struct OptionEvidenceBatchSelectionParameters(string[] Contracts, DateOnly[] ValueDates,
+    string[] Identities) : IBindValue
+{
+    public object Bind() => Values(Contracts, ValueDates, Identities);
+}

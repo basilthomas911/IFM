@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Shared.QueryParameters;
 using TomasAI.IFM.Domain.MarketData.Feed.Pricing;
 using System;
 using System.Collections.Generic;
@@ -58,7 +59,7 @@ public sealed class DatabentoOptionQuoteBackfill
         factory.MarketDataDb.Returns(db);
         factory.SecuritiesDb.Returns(securities);
         var definitions = await securities.GetCachedOptionContractDefinitionsAsync(
-            Required("IFM_BACKFILL_SYMBOL"), underlying, expiry, Required("IFM_BACKFILL_ROOTS").Split(','), CancellationToken.None);
+            new OptionDefinitionPartition(Required("IFM_BACKFILL_SYMBOL"), underlying, expiry), Required("IFM_BACKFILL_ROOTS").Split(','), CancellationToken.None);
         var centre = decimal.Parse(Required("IFM_BACKFILL_UNDERLYING_PRICE"), CultureInfo.InvariantCulture);
         var requiredContracts = Required("IFM_BACKFILL_CONTRACT_IDS").Split(',').ToHashSet(StringComparer.Ordinal);
         Assert.InRange(requiredContracts.Count, 1, 4);

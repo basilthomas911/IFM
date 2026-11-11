@@ -1,3 +1,5 @@
+using TomasAI.IFM.Domain.MarketData.Shared.QueryParameters;
+using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Shared.MarketData.Definitions;
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
@@ -53,13 +55,13 @@ static class QualifiedEvaluatedOptionChain
                     return;
                 }
 
-                if (await securities.GetReferenceVersionAsync(definition.ContractId, definition.MappingVersion, cancellationToken).ConfigureAwait(false)is not null)
+                if (await securities.GetReferenceVersionAsync(new ExactReferenceVersion(definition.ContractId, definition.MappingVersion), cancellationToken).ConfigureAwait(false)is not null)
                 {
                     PublishedReferences.TryAdd(referenceKey, 0);
                     return;
                 }
 
-                var pending = await securities.StageReferenceVersionAsync(definition, cancellationToken).ConfigureAwait(false);
+                var pending = await securities.StageReferenceVersionAsync(PreparedReferenceVersion.Prepare(definition), cancellationToken).ConfigureAwait(false);
                 await securities.CommitReferenceVersionAsync(pending, cancellationToken).ConfigureAwait(false);
                 PublishedReferences.TryAdd(referenceKey, 0);
             })).ConfigureAwait(false);

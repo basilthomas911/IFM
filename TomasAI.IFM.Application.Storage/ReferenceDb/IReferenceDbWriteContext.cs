@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Shared.MarketData.Definitions;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Framework.MarketData.DataBento;
@@ -17,7 +18,6 @@ public interface IReferenceDbWriteContext
     /// <param name = "staleOperationCutoffUtc">The optional stale-operation cutoff.</param>
     /// <returns>The backfill result.</returns>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1068", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
-    Task<ReferenceProjectionBackfillResult> BackfillQueryProjectionsV2Async(int batchSize = 256, CancellationToken cancellationToken = default, DateTime? staleOperationCutoffUtc = null);
     /// <summary>Reconciles Reference query projections with canonical storage.</summary>
     /// <param name = "cancellationToken">The cancellation token.</param>
     /// <returns>The reconciliation result.</returns>
@@ -70,17 +70,61 @@ public interface IReferenceDbWriteContext
     /// <returns>A task representing the command.</returns>
     Task InsertTradeStrategyFamilyAsync(TradeStrategyFamilyReadModel family, CancellationToken cancellationToken = default);
     /// <summary>Persists an exact instrument definition in the supplied snapshot bucket.</summary>
+    /// <param name="snapshot">The snapshot supplied by the caller.</param>
+    /// <param name="index">The index supplied by the caller.</param>
+    /// <param name="row">The row supplied by the caller.</param>
+    /// <param name="cancellationToken">Cancels the database operation.</param>
+    /// <returns>Completion of the database operation.</returns>
     Task InsertInstrumentDefinitionAsync(Guid snapshot, long index, ExactInstrumentDefinition row, CancellationToken cancellationToken);
+    /// <summary>Persists up to 128 exact definitions in one bounded PostgreSQL statement.</summary>
+    /// <param name="snapshot">The snapshot supplied by the caller.</param>
+    /// <param name="firstIndex">The first index supplied by the caller.</param>
+    /// <param name="rows">The rows supplied by the caller.</param>
+    /// <param name="cancellationToken">Cancels the database operation.</param>
+    /// <returns>Completion of the database operation.</returns>
+    Task InsertInstrumentDefinitionsAsync(Guid snapshot, long firstIndex, IReadOnlyList<ExactInstrumentDefinition> rows, CancellationToken cancellationToken);
     /// <summary>Persists the binary instrument selection index entry.</summary>
+    /// <param name="value">The accepted value supplied by the caller.</param>
+    /// <param name="cancellationToken">Cancels the database operation.</param>
+    /// <returns>Completion of the database operation.</returns>
     Task InsertInstrumentDefinitionSelectionAsync(InstrumentDefinitionSelection value, CancellationToken cancellationToken);
     /// <summary>Stores a stable product identity in a definition snapshot.</summary>
+    /// <param name="snapshot">The snapshot supplied by the caller.</param>
+    /// <param name="family">The family supplied by the caller.</param>
+    /// <param name="symbol">The root symbol used to select the projection rows.</param>
+    /// <param name="cancellationToken">Cancels the database operation.</param>
+    /// <returns>Completion of the database operation.</returns>
     Task InsertInstrumentDefinitionProductAsync(Guid snapshot, TradeStrategyFamilyType family, TradeStrategySymbolReadModel symbol, CancellationToken cancellationToken = default);
-    /// <summary>Persists selection completion and the current snapshot pointer after publication facts are supplied.</summary>
-    Task PublishInstrumentDefinitionSnapshotAsync(InstrumentDefinitionSnapshot snapshot, CancellationToken cancellationToken = default);
+    /// <summary>Serializes modifications to the caller-selected catalog stream inside the transaction.</summary>
+    /// <param name="transaction">The caller-owned PostgreSQL transaction.</param>
+    /// <param name="stream">The catalog stream used as the advisory lock key.</param>
+    /// <param name="token">Cancels lock acquisition.</param>
+    /// <returns>Completion after the transaction owns the lock.</returns>
+    Task LockInstrumentCatalogAsync(IEnlistedPostgresTransaction transaction, string stream, CancellationToken token);
+
+    /// <summary>Marks the supplied selection complete and writes its exact publication pointer.</summary>
+    /// <param name="transaction">The caller-owned PostgreSQL transaction.</param>
+    /// <param name="snapshot">The accepted snapshot selected by the owner.</param>
+    /// <param name="token">Cancels the writes.</param>
+    /// <returns>Completion after both projection writes.</returns>
+    Task WriteInstrumentCatalogPointerAsync(IEnlistedPostgresTransaction transaction, InstrumentDefinitionSnapshot snapshot, CancellationToken token);
     /// <summary>Inserts a supplied product identity without replacing an existing natural key.</summary>
+    /// <param name="product">The product supplied by the caller.</param>
+    /// <param name="id">The id supplied by the caller.</param>
+    /// <param name="cancellationToken">Cancels the database operation.</param>
+    /// <returns>Completion of the database operation.</returns>
     Task InsertTradeStrategyProductAsync(TradeStrategyProduct product, int id, CancellationToken cancellationToken = default);
     /// <summary>Initializes a supplied catalog document if no catalog exists.</summary>
+    /// <param name="revision">The revision supplied by the caller.</param>
+    /// <param name="payload">The payload supplied by the caller.</param>
+    /// <param name="cancellationToken">Cancels the database operation.</param>
+    /// <returns>Completion of the database operation.</returns>
     Task InitializeTradeStrategyFamilyCatalogAsync(long revision, string payload, CancellationToken cancellationToken = default);
     /// <summary>Conditionally replaces a catalog document at the supplied expected revision.</summary>
+    /// <param name="revision">The revision supplied by the caller.</param>
+    /// <param name="payload">The payload supplied by the caller.</param>
+    /// <param name="expectedRevision">The expected revision supplied by the caller.</param>
+    /// <param name="cancellationToken">Cancels the database operation.</param>
+    /// <returns>Completion of the database operation.</returns>
     Task UpdateTradeStrategyFamilyCatalogAsync(long revision, string payload, long expectedRevision, CancellationToken cancellationToken = default);
 }

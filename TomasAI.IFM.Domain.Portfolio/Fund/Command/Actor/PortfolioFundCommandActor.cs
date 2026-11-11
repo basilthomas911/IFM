@@ -54,6 +54,7 @@ public sealed class PortfolioFundCommandActor(
             [SynchronizeFundRiskOutcomeCommand.Verb] = static message => message.AsCommand<SynchronizeFundRiskOutcomeCommand>()!,
             [AuthorizeFundOrderRiskCommand.Verb] = static message => message.AsCommand<AuthorizeFundOrderRiskCommand>()!,
             [CreateFundMandateCommand.Verb] = static message => message.AsCommand<CreateFundMandateCommand>()!,
+            [ConfigureFundBaseContractsCommand.Verb] = static message => message.AsCommand<ConfigureFundBaseContractsCommand>()!,
             [AddFundMandateVersionCommand.Verb] = static message => message.AsCommand<AddFundMandateVersionCommand>()!,
             [ChangeFundOperatingStateCommand.Verb] = static message => message.AsCommand<ChangeFundOperatingStateCommand>()!,
             [AssignTradeTemplateCommand.Verb] = static message => message.AsCommand<AssignTradeTemplateCommand>()!,
@@ -98,6 +99,14 @@ public sealed class PortfolioFundCommandActor(
             [typeof(CreateFundMandateCommand)] = static command =>
             {
                 var typed = (CreateFundMandateCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed.EntityId, typed.CommandName)
+                    .ValidateFundCommand(typed);
+            },
+            [typeof(ConfigureFundBaseContractsCommand)] = static command =>
+            {
+                var typed = (ConfigureFundBaseContractsCommand)command;
                 return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
                     .ValidateEntityId(typed.EntityId, typed.CommandName)
@@ -250,6 +259,8 @@ public sealed class PortfolioFundCommandActor(
                 ((AuthorizeFundOrderRiskCommand)command).Execute(state.Aggregate, now, principal),
             [typeof(CreateFundMandateCommand)] = static (command, state, now, principal) =>
                 ((CreateFundMandateCommand)command).Execute(state.Aggregate, now, principal),
+            [typeof(ConfigureFundBaseContractsCommand)] = static (command, state, now, principal) =>
+                ((ConfigureFundBaseContractsCommand)command).Execute(state.Aggregate, now, principal),
             [typeof(AddFundMandateVersionCommand)] = static (command, state, now, principal) =>
                 ((AddFundMandateVersionCommand)command).Execute(state.Aggregate, now, principal),
             [typeof(ChangeFundOperatingStateCommand)] = static (command, state, now, principal) =>
@@ -343,6 +354,11 @@ public sealed class PortfolioFundCommandActor(
                 (committed is not FundCompositionStateChangedEvent authorized || authorized.Order.RiskAuthorization != authorization.Authorization ||
                  authorized.Order.OrderId != authorization.OrderId.OrderId || authorized.Order.AggregateVersion != authorization.ExpectedVersion + 1))
                 return new ServiceFailed<GuidResult>(PortfolioErrorCodes.IdempotencyConflict, "Authorization CommandId was used for different input.");
+            if (command is ConfigureFundBaseContractsCommand config &&
+                (committed is not FundBaseContractsConfiguredEvent configured ||
+                TomasAI.IFM.Domain.Portfolio.Workflow.PortfolioCanonicalHash.Compute(config.Mandate) !=
+                TomasAI.IFM.Domain.Portfolio.Workflow.PortfolioCanonicalHash.Compute(configured.Mandate)))
+                return new ServiceFailed<GuidResult>(PortfolioErrorCodes.IdempotencyConflict,"Base Contracts CommandId was used for different settings.");
             if (command is CreateFundMandateCommand create && committed is FundMandateCreatedEvent prior &&
                 !string.Equals(PortfolioCanonicalHash.Compute(create.Mandate.DefensiveCopy()), PortfolioCanonicalHash.Compute(prior.Mandate.DefensiveCopy()), StringComparison.Ordinal))
                 return new ServiceFailed<GuidResult>(PortfolioErrorCodes.IdempotencyConflict, "IdempotencyKeyConflict: the key was already committed for a different Fund mandate payload.");
@@ -398,6 +414,7 @@ public sealed class PortfolioFundCommandActor(
         (ValidatePortfolioReferenceCommand? Input, Guid? Receipt) prepared = command switch
         {
             CreateFundMandateCommand create => (global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(request, request with { Mandate = create.Mandate }), create.ReferencePreparationId),
+            ConfigureFundBaseContractsCommand change => (global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(request, request with { Mandate = change.Mandate }), change.ReferencePreparationId),
             AddFundMandateVersionCommand change => (global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(request, request with { Mandate = change.Mandate }), change.ReferencePreparationId),
             AssignTradeTemplateCommand assign => (global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(request, request with { Assignment = assign.Assignment }), assign.ReferencePreparationId),
             ChangeFundOperatingStateCommand change when change.ActivationPreparation is not null || change.ReferencePreparationId is not null

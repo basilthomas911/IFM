@@ -21,6 +21,22 @@ public sealed class PortfolioDbContext(IDbConnectionSettings settings, ILogger<D
 {
     internal readonly IPostgresEventTransaction? _transactions = transactions;
 
+    /// <inheritdoc/>
+    public Task<IReadOnlyList<FinancialWorkflowSourceRow>> ReadFinancialWorkflowSourcesAsync(long afterStreamId, string? exactStream = null, CancellationToken cancellationToken = default) =>
+        this.RequiredTransactions.ExecuteAsync((transaction, token) =>
+            transaction.QueryAsync(PortfolioDbSql.Financial.FinancialWorkflowRecoveryJournal.With01, [afterStreamId, exactStream], MapToFinancialWorkflowSource, token), cancellationToken);
+
+    internal static (string Hash, TomasAI.IFM.Shared.EventSourcing.ViewModels.EventLogReadModel Event) MapToFinancialOperation(System.Data.Common.DbDataReader reader) =>
+        (reader.GetString(0), new TomasAI.IFM.Shared.EventSourcing.ViewModels.EventLogReadModel(
+            reader.GetInt64(1), reader.GetString(2), reader.GetString(3), reader.GetInt64(4), reader.GetFieldValue<byte[]>(5),
+            reader.GetGuid(6), reader.GetString(7), reader.GetInt64(8)));
+
+    internal static FinancialWorkflowSourceRow MapToFinancialWorkflowSource(System.Data.Common.DbDataReader r) =>
+        new(r.GetInt64(0), r.IsDBNull(1) ? null :
+            new TomasAI.IFM.Shared.EventSourcing.ViewModels.EventLogReadModel(
+                r.GetInt64(0), r.GetString(1), r.GetString(2), r.GetInt64(3), r.GetFieldValue<byte[]>(4),
+                r.GetGuid(5), r.GetString(6), r.GetInt64(7)));
+
     /// <summary>Gets the Portfolio database connection-setting name.</summary>
     public const string PortfolioDbConnection = "PortfolioDbConnection";
 
@@ -48,7 +64,7 @@ public sealed class PortfolioDbContext(IDbConnectionSettings settings, ILogger<D
         {
             var value = await db
                 .ScalarAsync(PortfolioDbSql.Financial.ReadBook, [portfolioId], cancellation)
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
             return value is string json ? json.DecodeFinancialValue<FinancialBookConfiguration>() : null;
         }, ct);
 
@@ -63,11 +79,8 @@ public sealed class PortfolioDbContext(IDbConnectionSettings settings, ILogger<D
         return this.RequiredTransactions.ExecuteAsync(async (db, cancellation) =>
         {
             var value = await db
-                .ScalarAsync(
-                    PortfolioDbSql.Financial.ReadActiveBookByExecutionAccount,
-                    [environment, executionAccountReference],
-                    cancellation)
-                .ConfigureAwait(false);
+                .ScalarAsync(PortfolioDbSql.Financial.ReadActiveBookByExecutionAccount, [environment, executionAccountReference], cancellation)
+            .ConfigureAwait(false);
             return value is string json ? json.DecodeFinancialValue<FinancialBookConfiguration>() : null;
         }, ct);
     }
@@ -218,11 +231,15 @@ public sealed class PortfolioDbContext(IDbConnectionSettings settings, ILogger<D
     {
         return this.RequiredTransactions.ExecuteAsync(async (db, token) =>
         {
-            await db.WriteFundProjectionAsync(row, token)
+            await db.UpsertPreparedFundProjectionAsync(row, token)
             .ConfigureAwait(false);
             return true;
         }, ct);
     }
+    internal static FundMandateReadModel MapToLockedFundProjection(System.Data.Common.DbDataReader reader)
+        => JsonSerializer.Deserialize<FundMandateReadModel>(reader.GetString(0))
+            ?? throw new InvalidDataException("Persisted Fund projection payload is empty.");
+
     /// <inheritdoc />
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]

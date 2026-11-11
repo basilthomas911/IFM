@@ -19,6 +19,7 @@ public static class GetLatestMarketCondition
         {
             ArgumentNullException.ThrowIfNull(query);
             ArgumentNullException.ThrowIfNull(services);
+            MarketConditionHistorySelection.RequireFund(query.FundId, query.InstrumentRoot, 1);
             var values = await services.DbFactory.TradeDb.GetMarketConditionHistoryAsync(query.FundId, query.InstrumentRoot, query.TargetHorizon, DateTime.MaxValue, 1, cancellationToken).ConfigureAwait(false);
             var value = values.FirstOrDefault() ?? throw new KeyNotFoundException($"Latest Market Condition result for fund {query.FundId}/{query.InstrumentRoot}/{query.TargetHorizon} was not found.");
             return new ServiceResult<MarketConditionReadModel>(value);

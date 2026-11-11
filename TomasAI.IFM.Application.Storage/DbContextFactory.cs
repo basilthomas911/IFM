@@ -1,3 +1,4 @@
+using ISequenceIdDbContext = TomasAI.IFM.Shared.Identity.ISequenceIdDbContext;
 using TomasAI.IFM.Application.Storage.ScheduledTaskDb;
 using TomasAI.IFM.Application.Storage.ScheduledTaskDb.Schema;
 using TomasAI.IFM.Application.Storage.TradeTickQuoteDb;
@@ -39,7 +40,8 @@ public class DbContextFactory(IDbContextResolver dbContextResolver) : IDbContext
     // DbContext properties
     public IEventSourceActorDbContext ActorEventSourceDb =>
         (_dbContextResolver.Resolve<EventSourceActorDbContext>() as IEventSourceActorDbContext)!;
-    public IObjectRepository<SequenceIdDbContext> SequenceIdDb => _dbContextResolver.Resolve<SequenceIdDbContext>();
+    /// <summary>Gets typed sequence reads and allocations from the existing repository instance.</summary>
+    public SequenceIdDb.ISequenceIdDbContext SequenceIdDb => (SequenceIdDb.ISequenceIdDbContext)_dbContextResolver.Resolve<SequenceIdDbContext>();
     public ITradeTickQuoteDbContext TradeTickQuoteDb =>
         (_dbContextResolver.Resolve<TradeTickQuoteDbContext>() as ITradeTickQuoteDbContext)!;
     public TradeTickQuoteSchemaDb TradeTickQuoteSchema =>

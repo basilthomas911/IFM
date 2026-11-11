@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.EventSourcing.Persistence.Command;
 using FluentAssertions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;

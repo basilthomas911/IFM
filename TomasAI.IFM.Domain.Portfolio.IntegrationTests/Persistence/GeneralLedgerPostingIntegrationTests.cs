@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.EventSourcing;
 using FluentAssertions;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Domain.Portfolio.Financial.Repository;
@@ -115,7 +116,7 @@ public sealed class GeneralLedgerPostingIntegrationTests(PortfolioEventStoreFixt
             foreach (var stream in new[] { $"Portfolio.{id}", $"PortfolioFinancialPolicy.{id}.{id + 2}" }.Concat(book.Funds.Select(x => $"PortfolioFund.{id}.{x.FundId}")))
             {
                 var command = Guid.NewGuid();
-                await db.AppendAsync(stream, command, new PortfolioCreatedEvent(Guid.NewGuid(), command, 1, DateTime.UtcNow, "integration", new()), 0, ct);
+                await db.AppendAsync(new EnlistedEventAppend(stream, command, new PortfolioCreatedEvent(Guid.NewGuid(), command, 1, DateTime.UtcNow, "integration", new()), 0), ct);
             }
             return true;
         });

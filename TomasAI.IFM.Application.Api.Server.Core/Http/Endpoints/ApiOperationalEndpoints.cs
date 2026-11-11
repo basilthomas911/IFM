@@ -40,8 +40,8 @@ public static class ApiOperationalEndpoints
         {
             if (valueDate==default || limit is <1 or >4096 || dataset?.Length>64)
                 return Results.BadRequest(new { Error="A ValueDate, optional dataset/operation and limit 1..4096 are required." });
-            var records=await TomasAI.IFM.Application.Storage.MarketDataServiceDb.Recovery.MarketDataRecoveryLog.QueryAsync(
-                databases.MarketDataServiceDb.Database.ConnectionString,valueDate,dataset,operationId,limit??256,token).ConfigureAwait(false);
+            var records=await databases.MarketDataServiceDb.DbReader.ReadRecoveryLogAsync(
+                valueDate,dataset,operationId,limit??256,token).ConfigureAwait(false);
             return Results.Ok(records.Select(record=>System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(record)));
         });
         app.MapGet("/api/market-data/operations-health",

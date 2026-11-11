@@ -125,7 +125,7 @@ public sealed class ConfigurationStrategyCatalogTests
         rows.Should().HaveCount(importLegacy ? 23 : 22); rows.Values.Should().OnlyContain(x => x.Status == CatalogLifecycleStatus.Draft);
         rows.Values.Where(x => x.Definition.Key.Kind == StrategyCatalogKind.Family).Select(x => x.Definition.Name)
             .Should().BeEquivalentTo(new[] { "Futures", "Vertical Spreads", "Iron Condor" });
-        await db.DidNotReceive().PublishStrategyCatalogAsync(Arg.Any<CatalogKey>(), Arg.Any<string>(), Arg.Any<DateTime>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await db.DidNotReceive().PublishPreparedStrategyCatalogAsync(Arg.Any<StrategyCatalogPublicationProof>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
         if (!importLegacy)
         {
             await factory.ReferenceDb.DidNotReceive().GetTradeStrategyFamiliesAsync(Arg.Any<CancellationToken>());
@@ -135,6 +135,6 @@ public sealed class ConfigurationStrategyCatalogTests
         var imported = rows.Values.Single(x => x.Definition.Key.Kind == StrategyCatalogKind.Deployment).Definition;
         imported.Products.Should().ContainSingle().Which.Should().Be(new CatalogProduct(101, legacy.Symbol, "XCME", legacy.Currency));
         imported.LegacyFamilies.Should().Equal(new CatalogLegacyFamily(5901, 1));
-        await db.DidNotReceive().PublishStrategyCatalogAsync(Arg.Any<CatalogKey>(), Arg.Any<string>(), Arg.Any<DateTime>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await db.DidNotReceive().PublishPreparedStrategyCatalogAsync(Arg.Any<StrategyCatalogPublicationProof>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 }

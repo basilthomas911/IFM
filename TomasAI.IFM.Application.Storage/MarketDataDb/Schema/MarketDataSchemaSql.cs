@@ -5,6 +5,9 @@ namespace TomasAI.IFM.Application.Storage.MarketDataDb.Schema;
 /// <summary>Native derived-market-data tables. Raw Databento trades and quotes belong to TradeTickQuoteDb.</summary>
 public static class MarketDataSchemaSql
 {
+    /// <summary>Creates the namespace needed by independent additive preflight steps.</summary>
+    internal const string EnsureNamespace = "CREATE SCHEMA IF NOT EXISTS market_data;";
+
     /// <summary>Returns every PostgreSQL schema object in dependency order.</summary>
     /// <returns>The complete table, index and additive schema catalog.</returns>
     public static SchemaObjectDefinition[] GetDefinitions() =>
@@ -12,7 +15,7 @@ public static class MarketDataSchemaSql
         new("historical_data_loader", CreateHistoricalDataLoader,
             "DROP TABLE IF EXISTS historical_data_load_manifest; DROP TABLE IF EXISTS historical_data_load_checkpoint;"),
         new("historical_analytics_attempt_projection", CreateHistoricalAnalyticsAttemptProjection,
-            "DROP TABLE IF EXISTS historical_analytics_attempt_projection;"),
+            "DROP TABLE IF EXISTS historical_analytics_attempt_progress; DROP TABLE IF EXISTS historical_analytics_attempt_projection;"),
         new("market_data", Create, "DROP SCHEMA IF EXISTS market_data CASCADE;"),
         new("indicator_seed_coverage", IndicatorSeedCoverageCreate, "DROP TABLE IF EXISTS market_data.indicator_seed_coverage;"),
         new("strategy_option_chain_parameter_version", OptionChainVersionCreate,
@@ -25,6 +28,10 @@ public static class MarketDataSchemaSql
         CREATE TABLE IF NOT EXISTS historical_analytics_attempt_projection (
             attempt_id uuid PRIMARY KEY,
             event_id bigint NOT NULL,
+            payload text NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS historical_analytics_attempt_progress (
+            attempt_id uuid PRIMARY KEY,
             payload text NOT NULL
         );
         """;

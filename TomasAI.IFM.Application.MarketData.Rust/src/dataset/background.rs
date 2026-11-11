@@ -657,7 +657,7 @@ impl Configuration {
             }
         }
         if selected.len() > 2048 {
-            return Err("Native selected background option capacity exceeded".into());
+            return Err(format!("Native selected background option capacity exceeded: selected={}; maximum=2048", selected.len()));
         }
         let retained = self
             .reference_cache
@@ -1080,6 +1080,7 @@ impl Configuration {
                 // Unrelated health traffic must not renew a maintenance sleep.
                 let mut maintenance_at=tokio::time::Instant::now()+period;
                 let mut pending_coverage = None;
+                let mut capacity_retry_at = None;
                 loop {
                     let event=tokio::select!{biased;
                         ()=stopping.cancelled()=>return Ok(()),
@@ -1089,6 +1090,9 @@ impl Configuration {
                         result=quote_changes.changed()=>{result.map_err(|_|"Background quote observation ended")?;3},
                     };
                     let maintenance=event==0;
+                    // A rejected optional proposal cannot churn the live feed or
+                    // replan once per quote. Explicit committed handoffs still run.
+                    if event!=1 && capacity_retry_at.is_some_and(|at|tokio::time::Instant::now()<at){continue;}
                     if event==3 {
                         // Coalesce market ticks; metadata IO and replanning never
                         // run once per quote or hold the provider writer.
@@ -1162,7 +1166,7 @@ impl Configuration {
                     }.await;
                     if stopping.is_cancelled(){return Ok(());}
                     match attempt {
-                        Ok(true)=>{state.send_modify(|_|{});},
+                        Ok(true)=>{capacity_retry_at=None;state.send_modify(|_|{});},
                         Ok(false)=>{
                             let mut status=replacement_status(replacement,pending);
                             if let Some(error)=&mut status.error {
@@ -1172,6 +1176,16 @@ impl Configuration {
                             state.send_replace(status);return Ok(());
                         },
                         Err(error)=>{
+                            // The accepted recipe may still be waiting for quiet
+                            // pricing/publication evidence. Its own readiness and
+                            // failures remain authoritative; optional expansion
+                            // must not destroy it before that evidence arrives.
+                            if retain_active_on_capacity(&error,active.is_some(),pending.is_some()) {
+                                report_capacity_rejection(&config.setup_diagnostics,&error,&clock)?;
+                                capacity_retry_at=Some(tokio::time::Instant::now()+period);
+                                maintenance_at=tokio::time::Instant::now()+period;
+                                continue;
+                            }
                             *config.refresh_incident.lock().map_err(|_|"Native background refresh status interrupted")?=Some(deadline);
                             state.send_replace(RefreshStatus{error:Some(error),deadline:Some(deadline),replacement:None});return Ok(());
                         }
@@ -1184,6 +1198,47 @@ impl Configuration {
             }
         }).map_err(|_|"Native background refresh task admission failed")?;
         Ok(Refresh { stop, changes })
+    }
+}
+
+/// Only optional expansion may retain a qualified active recipe; initialization,
+/// committed handoffs and identity/reference failures remain strict failures.
+fn retain_active_on_capacity(error: &str, active: bool, committed_pending: bool) -> bool {
+    active && !committed_pending
+        && error.starts_with("Native selected background option capacity exceeded")
+}
+
+/// Reports rejected background work without falsely declaring that the live
+/// transport or its accepted subscriptions have failed.
+fn report_capacity_rejection(diagnostics: &SetupDiagnostics, error: &str, clock: &Clock) -> Result<(), String> {
+    let binding = diagnostics.lock().map_err(|_| "Native setup diagnostics interrupted")?.clone();
+    if let Some((sink, worker, generation, revision)) = binding
+        && let Some(sink) = sink.upgrade()
+    {
+        sink.retain(super::live::Diagnostic {
+            worker, lane: Lane::OptionsGlbx, attempt: revision,
+            observed: clock.utc_ticks().map_err(|_| "Native setup clock unavailable")?, replaced: 0,
+            event: super::transport::Event::System { code: u8::MAX, message: format!(
+                "Background coverage proposal rejected; keeping current qualified subscriptions; {}; generation={}",
+                error, crate::messaging::wire::guid(generation)) },
+        })?;
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod capacity_rejection_tests {
+    use super::retain_active_on_capacity;
+
+    #[test]
+    fn oversized_optional_expansion_retains_live_subscriptions_only() {
+        let error="Native selected background option capacity exceeded: selected=2300; maximum=2048";
+        assert!(retain_active_on_capacity(error,true,false));
+        assert!(!retain_active_on_capacity(error,false,false));
+        assert!(!retain_active_on_capacity(error,true,true));
+        assert!(!retain_active_on_capacity("Provider/IFM identity collision",true,false));
+        assert!(!retain_active_on_capacity("Conflicting immutable reference recipes for a shared option",true,false));
+        assert!(!retain_active_on_capacity("Native reference bootstrap original deadline expired",true,false));
     }
 }
 

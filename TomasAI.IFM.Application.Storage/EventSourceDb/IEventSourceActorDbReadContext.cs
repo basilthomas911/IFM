@@ -12,16 +12,38 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb;
 public interface IEventSourceActorDbReadContext
 {
     /// <summary>Reads the committed source head, newest qualified checkpoint and replay tail in one statement.</summary>
+    /// <param name="stream">The exact event stream name.</param>
+    /// <param name="sidecar">The sidecar supplied by the caller.</param>
+    /// <param name="cancellationToken">Cancels the database operation.</param>
+    /// <param name="through">The inclusive upper revision bound for the read.</param>
+    /// <param name="maximumCheckpointRevision">The maximum checkpoint revision supplied by the caller.</param>
+    /// <param name="replayAfter">The replay after supplied by the caller.</param>
+    /// <returns>The selected rows in the query's defined order.</returns>
     Task<AggregateCheckpointWindow> ReadAggregateCheckpointWindowAsync(string stream, string sidecar,
         CancellationToken cancellationToken, long through = long.MaxValue, long maximumCheckpointRevision = long.MaxValue, long replayAfter = -1);
     /// <summary>Finds creation evidence or a bounded command outcome without replaying the whole stream.</summary>
+    /// <param name="stream">The exact event stream name.</param>
+    /// <param name="commandId">The originating command identity.</param>
+    /// <param name="cancellationToken">Cancels the database operation.</param>
+    /// <returns>The database result for the requested operation.</returns>
     Task<IReadOnlyList<EventStreamReadModel>> FindAggregateEventsAsync(string stream, Guid? commandId, CancellationToken cancellationToken);
     /// <summary>Reads a concern and legacy prefix at one committed PostgreSQL statement boundary.</summary>
+    /// <param name="concernStream">The concern stream supplied by the caller.</param>
+    /// <param name="legacyStream">The legacy stream supplied by the caller.</param>
+    /// <param name="checkpointType">The checkpoint type supplied by the caller.</param>
+    /// <param name="useCheckpoint">The use checkpoint supplied by the caller.</param>
+    /// <param name="reduce">The reduce supplied by the caller.</param>
+    /// <param name="cancellationToken">Cancels the database operation.</param>
+    /// <returns>Completion of the database operation.</returns>
     Task ReadConcernCheckpointWindowAsync(string concernStream, string legacyStream, Type checkpointType,
         bool useCheckpoint, Action<IEnumerable<ConcernCheckpointRow>> reduce, CancellationToken cancellationToken);
 
     /// <summary>Restores independently replacing state components from their latest source snapshots at one committed head.</summary>
     /// <remarks>The owning repository must declare every retained state component; delta events are not eligible snapshots.</remarks>
+    /// <param name="eventStreamId">The numeric identity of the resolved event stream.</param>
+    /// <param name="reducerAction">The reducer action supplied by the caller.</param>
+    /// <param name="cancellationToken">Cancels the database operation.</param>
+    /// <returns>Completion of the database operation.</returns>
     ValueTask MapReduceActorEventStreamFromLatestSnapshotsAsync<TState, TFirst, TSecond>(
         long eventStreamId, Action<IEnumerable<EventStreamReadModel>> reducerAction,
         CancellationToken cancellationToken = default)
@@ -30,6 +52,10 @@ public interface IEventSourceActorDbReadContext
         where TSecond : IEvent;
 
     /// <summary>Restores creation and the committed head for a reducer with no retained business fields.</summary>
+    /// <param name="eventStreamId">The numeric identity of the resolved event stream.</param>
+    /// <param name="reducerAction">The reducer action supplied by the caller.</param>
+    /// <param name="cancellationToken">Cancels the database operation.</param>
+    /// <returns>Completion of the database operation.</returns>
     ValueTask MapReduceStatelessActorEventStreamFromCreationAsync<TState>(
         long eventStreamId, Action<IEnumerable<EventStreamReadModel>> reducerAction,
         CancellationToken cancellationToken = default)
@@ -40,6 +66,7 @@ public interface IEventSourceActorDbReadContext
     /// <param name="eventStreamId">The persisted stream identity.</param>
     /// <param name="reducerAction">The reducer receiving ordered source facts.</param>
     /// <param name="cancellationToken">Cancels the source read.</param>
+    /// <returns>Completion of the database operation.</returns>
     ValueTask MapReduceActorEventStreamFromCreationAsync<TState>(
         long eventStreamId,
         Action<IEnumerable<EventStreamReadModel>> reducerAction,
@@ -47,12 +74,21 @@ public interface IEventSourceActorDbReadContext
         where TState : IActorState<TState>;
 
     /// <summary>Reads creation and the newest complete checkpoint across the declared event types, followed by its tail.</summary>
+    /// <param name="eventStreamId">The numeric identity of the resolved event stream.</param>
+    /// <param name="checkpointTypes">The checkpoint types supplied by the caller.</param>
+    /// <param name="reducerAction">The reducer action supplied by the caller.</param>
+    /// <param name="cancellationToken">Cancels the database operation.</param>
+    /// <returns>Completion of the database operation.</returns>
     ValueTask MapReduceActorEventStreamFromCreationWithCheckpointsAsync<TState>(
         long eventStreamId, IReadOnlyList<Type> checkpointTypes,
         Action<IEnumerable<EventStreamReadModel>> reducerAction, CancellationToken cancellationToken = default)
         where TState : IActorState<TState>;
 
     /// <summary>Reads creation plus an explicitly declared complete checkpoint and its remaining tail.</summary>
+    /// <param name="eventStreamId">The numeric identity of the resolved event stream.</param>
+    /// <param name="reducerAction">The reducer action supplied by the caller.</param>
+    /// <param name="cancellationToken">Cancels the database operation.</param>
+    /// <returns>Completion of the database operation.</returns>
     ValueTask MapReduceActorEventStreamFromCreationWithCheckpointAsync<TState, TCheckpoint>(
         long eventStreamId, Action<IEnumerable<EventStreamReadModel>> reducerAction,
         CancellationToken cancellationToken = default)
@@ -69,6 +105,9 @@ public interface IEventSourceActorDbReadContext
     /// <returns>The typed result of the event-source operation.</returns>
     Task<long> GetCommittedStreamVersionAsync(long eventStreamId, CancellationToken cancellationToken = default);
     /// <summary>Reads the current stream head by name without a separate identity lookup or event payload read.</summary>
+    /// <param name="eventStream">The exact event stream name.</param>
+    /// <param name="cancellationToken">Cancels the database operation.</param>
+    /// <returns>The selected rows in the query's defined order.</returns>
     Task<long> GetCommittedStreamVersionAsync(string eventStream, CancellationToken cancellationToken = default);
     /// <summary>Get Command Log using the event-source persistence services.</summary>
     /// <param name="commandId">The originating command identifier.</param>
@@ -101,13 +140,11 @@ public interface IEventSourceActorDbReadContext
         long eventId,
         CancellationToken cancellationToken = default);
     /// <summary>Get Event Projector Execution State using the event-source persistence services.</summary>
-    /// <param name="eventId">The source event identifier.</param>
-    /// <param name="projectorName">The projector identity.</param>
+    /// <param name="identity">The caller-qualified projector and event identity.</param>
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
     /// <returns>The typed result of the event-source operation.</returns>
     Task<EventProjectorExecutionStateReadModel?> GetEventProjectorExecutionStateAsync(
-        long eventId,
-        string projectorName,
+        EventProjectorIdentity identity,
         CancellationToken cancellationToken = default);
     /// <summary>Get Event Projector Stream Checkpoint using the event-source persistence services.</summary>
     /// <param name="projectorName">The projector identity.</param>
@@ -119,13 +156,11 @@ public interface IEventSourceActorDbReadContext
         long eventStreamId,
         CancellationToken cancellationToken = default);
     /// <summary>Has Earlier Unresolved Event Projector Execution using the event-source persistence services.</summary>
-    /// <param name="eventId">The source event identifier.</param>
-    /// <param name="projectorName">The projector identity.</param>
+    /// <param name="identity">The caller-qualified projector and event identity.</param>
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
     /// <returns>The typed result of the event-source operation.</returns>
     Task<bool> HasEarlierUnresolvedEventProjectorExecutionAsync(
-        long eventId,
-        string projectorName,
+        EventProjectorIdentity identity,
         CancellationToken cancellationToken = default);
     /// <summary>Get Event Projector Operational State Page using the event-source persistence services.</summary>
     /// <param name="projectorName">The projector identity.</param>

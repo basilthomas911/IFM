@@ -40,9 +40,7 @@ internal sealed class EventProjectorExecutionEngine(
             throw new ArgumentOutOfRangeException(nameof(domainEvent), "A persisted event ID is required.");
 
         var existing = await _eventSource.GetEventProjectorExecutionStateAsync(
-            domainEvent.EventId,
-            _projectorName,
-            cancellationToken).ConfigureAwait(false);
+            new EventProjectorIdentity(domainEvent.EventId, _projectorName), cancellationToken).ConfigureAwait(false);
         if (existing is not null)
             return existing;
 
@@ -74,9 +72,7 @@ internal sealed class EventProjectorExecutionEngine(
             nowUtc);
         return await _eventSource.TryCreateEventProjectorExecutionStateAsync(initial, cancellationToken).ConfigureAwait(false)
             ?? await _eventSource.GetEventProjectorExecutionStateAsync(
-                domainEvent.EventId,
-                _projectorName,
-                cancellationToken).ConfigureAwait(false)
+                new EventProjectorIdentity(domainEvent.EventId, _projectorName), cancellationToken).ConfigureAwait(false)
             ?? throw new InvalidOperationException($"Unable to initialize projector state for event {domainEvent.EventId}.");
     }
 
@@ -97,11 +93,8 @@ internal sealed class EventProjectorExecutionEngine(
         var executionToken = Guid.NewGuid();
         var claimAtUtc = DateTime.UtcNow;
         state = await _eventSource.TryClaimEventProjectorExecutionAsync(
-            domainEvent.EventId,
-            _projectorName,
-            executionToken,
-            claimAtUtc,
-            _options.ClaimLeaseDuration,
+            new EventProjectorLease(domainEvent.EventId, _projectorName, executionToken,
+                claimAtUtc, _options.ClaimLeaseDuration),
             cancellationToken).ConfigureAwait(false);
         if (state is null)
             return await HandleClaimNotAcquiredAsync(
@@ -171,19 +164,14 @@ internal sealed class EventProjectorExecutionEngine(
         CancellationToken cancellationToken = default)
     {
         var state = await _eventSource.GetEventProjectorExecutionStateAsync(
-            domainEvent.EventId,
-            _projectorName,
-            cancellationToken).ConfigureAwait(false);
+            new EventProjectorIdentity(domainEvent.EventId, _projectorName), cancellationToken).ConfigureAwait(false);
         if (state is null || IsTerminal(state))
             return EventProjectorDeliveryResult.Completed;
 
         var executionToken = Guid.NewGuid();
         state = await _eventSource.TryClaimEventProjectorExecutionAsync(
-            domainEvent.EventId,
-            _projectorName,
-            executionToken,
-            DateTime.UtcNow,
-            _options.ClaimLeaseDuration,
+            new EventProjectorLease(domainEvent.EventId, _projectorName, executionToken,
+                DateTime.UtcNow, _options.ClaimLeaseDuration),
             cancellationToken).ConfigureAwait(false);
         if (state is null)
             return await HandleClaimNotAcquiredAsync(
@@ -208,9 +196,7 @@ internal sealed class EventProjectorExecutionEngine(
         CancellationToken cancellationToken = default)
     {
         var state = await _eventSource.GetEventProjectorExecutionStateAsync(
-            domainEvent.EventId,
-            _projectorName,
-            cancellationToken).ConfigureAwait(false);
+            new EventProjectorIdentity(domainEvent.EventId, _projectorName), cancellationToken).ConfigureAwait(false);
         if (state is null || IsTerminal(state))
             return EventProjectorDeliveryResult.Completed;
         if (state.RetryCount < _options.MaximumReplayAttempts)
@@ -218,11 +204,8 @@ internal sealed class EventProjectorExecutionEngine(
 
         var executionToken = Guid.NewGuid();
         state = await _eventSource.TryClaimEventProjectorExecutionAsync(
-            domainEvent.EventId,
-            _projectorName,
-            executionToken,
-            DateTime.UtcNow,
-            _options.ClaimLeaseDuration,
+            new EventProjectorLease(domainEvent.EventId, _projectorName, executionToken,
+                DateTime.UtcNow, _options.ClaimLeaseDuration),
             cancellationToken).ConfigureAwait(false);
         if (state is null)
             return await HandleClaimNotAcquiredAsync(
@@ -468,7 +451,7 @@ internal sealed class EventProjectorExecutionEngine(
         CancellationToken cancellationToken = default)
     {
         var nowUtc = DateTime.UtcNow;
-        return await _eventSource.TryTransitionEventProjectorExecutionAsync(
+        return await _eventSource.TransitionQualifiedExecutionAsync(
             new EventProjectorStateTransition(
                 state.EventId,
                 state.ProjectorName,
@@ -495,7 +478,7 @@ internal sealed class EventProjectorExecutionEngine(
         CancellationToken cancellationToken = default)
     {
         var nowUtc = DateTime.UtcNow;
-        var terminal = await _eventSource.TryTerminalizeEventProjectorExecutionAsync(
+        var terminal = await _eventSource.TerminalizeQualifiedExecutionAsync(
             new EventProjectorStateTransition(
                 state.EventId,
                 state.ProjectorName,
@@ -542,7 +525,7 @@ internal sealed class EventProjectorExecutionEngine(
         var message = EventProjectorOutboxSerializer.Serialize(
             publication,
             new EventProjectorEffectIdentity(_projectorName, state.EventId, effectKind));
-        var result = await _eventSource.TryTransitionEventProjectorExecutionWithOutboxAsync(
+        var result = await _eventSource.TransitionQualifiedExecutionWithOutboxAsync(
             transition, message, nowUtc, cancellationToken).ConfigureAwait(false) ?? throw LostFence(state);
         _signalOutbox();
         return result;
@@ -577,7 +560,7 @@ internal sealed class EventProjectorExecutionEngine(
         var message = EventProjectorOutboxSerializer.Serialize(
             publication,
             new EventProjectorEffectIdentity(_projectorName, state.EventId, effectKind));
-        var result = await _eventSource.TryTerminalizeEventProjectorExecutionWithOutboxAsync(
+        var result = await _eventSource.TerminalizeQualifiedExecutionWithOutboxAsync(
             transition, message, nowUtc, cancellationToken).ConfigureAwait(false) ?? throw LostFence(state);
         _signalOutbox();
         RecordTerminalOutcome(outcome, blockedReason);
@@ -597,7 +580,7 @@ internal sealed class EventProjectorExecutionEngine(
         var retryCount = state.RetryCount + 1;
         try
         {
-            _ = await _eventSource.TryReleaseEventProjectorExecutionAsync(
+            _ = await _eventSource.ReleaseQualifiedExecutionAsync(
                 new EventProjectorStateTransition(
                     state.EventId,
                     state.ProjectorName,
@@ -627,11 +610,11 @@ internal sealed class EventProjectorExecutionEngine(
         CancellationToken cancellationToken)
     {
         var current = await _eventSource.GetEventProjectorExecutionStateAsync(
-            eventId, _projectorName, cancellationToken).ConfigureAwait(false);
+            new EventProjectorIdentity(eventId, _projectorName), cancellationToken).ConfigureAwait(false);
         if (current is null || IsTerminal(current))
             return EventProjectorDeliveryResult.Completed;
         if (await _eventSource.HasEarlierUnresolvedEventProjectorExecutionAsync(
-                eventId, _projectorName, cancellationToken).ConfigureAwait(false))
+                new EventProjectorIdentity(eventId, _projectorName), cancellationToken).ConfigureAwait(false))
         {
             EventProjectorMetrics.RecordEvent(_projectorName, "blocked", "stream-order");
             return EventProjectorDeliveryResult.Deferred("stream-order");

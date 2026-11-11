@@ -68,7 +68,7 @@ public sealed class YieldCurveRatesImportedHandlerTests
         result.Should().BeTrue();
         await context.Container.Resolve<IPostgresEventTransaction>().Received(1).ExecuteAsync(
             Arg.Any<Func<EnlistedEventTransaction, CancellationToken, Task<bool>>>(), Arg.Any<CancellationToken>());
-        await db.DidNotReceiveWithAnyArgs().InsertYieldCurveRatesAsync(default!, default, default);
+        await db.DidNotReceiveWithAnyArgs().InsertYieldCurveRatesAsync(default!);
         completed.Should().NotBeNull();
         completed!.CommandId.Should().Be(request.CommandId);
         completed.YieldCurveRates.Should().ContainSingle();
@@ -90,7 +90,7 @@ public sealed class YieldCurveRatesImportedHandlerTests
 
         await context.Container.Resolve<IPostgresEventTransaction>().Received(1).ExecuteAsync(
             Arg.Any<Func<EnlistedEventTransaction, CancellationToken, Task<bool>>>(), Arg.Any<CancellationToken>());
-        await db.DidNotReceiveWithAnyArgs().InsertYieldCurveRatesAsync(default!, default, default);
+        await db.DidNotReceiveWithAnyArgs().InsertYieldCurveRatesAsync(default!);
         await context.Received(1).SendAsync<YieldCurveRatesImportedCompleteEvent, YieldCurveRateEntityId>(
             Arg.Is<YieldCurveRatesImportedCompleteEvent>(value => value.YieldCurveRates.Length == 0));
     }
@@ -109,7 +109,7 @@ public sealed class YieldCurveRatesImportedHandlerTests
             context, api, dbFactory, NullLogger<YieldCurveRateEventActor>.Instance);
 
         result.Should().BeTrue();
-        await db.DidNotReceiveWithAnyArgs().InsertYieldCurveRatesAsync(default!, default, default);
+        await db.DidNotReceiveWithAnyArgs().InsertYieldCurveRatesAsync(default!);
         await context.Received(1).SendAsync<YieldCurveRatesImportedFailEvent, YieldCurveRateEntityId>(
             Arg.Is<YieldCurveRatesImportedFailEvent>(value =>
                 value.CommandId == request.CommandId
@@ -141,7 +141,7 @@ public sealed class YieldCurveRatesImportedHandlerTests
             context, api, dbFactory, NullLogger<YieldCurveRateEventActor>.Instance);
 
         result.Should().BeTrue();
-        await db.DidNotReceiveWithAnyArgs().InsertYieldCurveRatesAsync(default!, default, default);
+        await db.DidNotReceiveWithAnyArgs().InsertYieldCurveRatesAsync(default!);
         await context.Received(1).SendAsync<YieldCurveRatesImportedFailEvent, YieldCurveRateEntityId>(
             Arg.Any<YieldCurveRatesImportedFailEvent>());
     }
@@ -157,10 +157,7 @@ public sealed class YieldCurveRatesImportedHandlerTests
         api.ReadTreasuryCurvesAsync(Arg.Any<DateOnly>(), Arg.Any<DateOnly>(), Arg.Any<CancellationToken>())
             .Returns(async call => (await treasury.GetRangeAsync(call.ArgAt<DateOnly>(0), call.ArgAt<DateOnly>(1), call.ArgAt<CancellationToken>(2))).ToArray());
         dbFactory.MarketDataDb.Returns(db);
-        db.InsertYieldCurveRatesAsync(
-                Arg.Any<YieldCurveRateReadModel[]>(),
-                Arg.Any<ImportDuplicatePolicy>(),
-                Arg.Any<Guid>())
+        db.InsertYieldCurveRatesAsync(Arg.Any<MarketDataImportBatch<YieldCurveRateReadModel>>())
             .Returns(Task.CompletedTask);
         PostgresImportBoundary.Configure(dbFactory, context);
         return (api, treasury, dbFactory, db, context);

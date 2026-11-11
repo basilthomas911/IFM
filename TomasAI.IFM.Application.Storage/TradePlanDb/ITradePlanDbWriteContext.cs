@@ -16,7 +16,7 @@ public interface ITradePlanDbWriteContext
     /// <returns>A task representing persistence of the plan and activity rows.</returns>
     Task ProjectMaterialAsync(IEnlistedPostgresTransaction transaction, StrategyTradePlanSnapshot plan, CancellationToken cancellationToken = default);
 
-    /// <summary>Attempts a standalone material snapshot and activity write once; failures are logged and dropped without replay or retry.</summary>
+    /// <summary>Persists a prepared standalone snapshot and activity row in one attempt; failures propagate to the caller.</summary>
     /// <param name="plan">The material-plan snapshot to project.</param>
     /// <param name="cancellationToken">The token used to cancel the asynchronous command.</param>
     /// <returns>A task representing the asynchronous projection operation.</returns>

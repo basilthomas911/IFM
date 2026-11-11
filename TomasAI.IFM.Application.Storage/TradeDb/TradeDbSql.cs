@@ -1921,6 +1921,8 @@ internal static string PipelineHistory(bool composition, bool continued) {
             var limit = !continued ? "$4" : "$7";
             return $"SELECT {at},workflow_id,invocation_id,event_id,target_horizon,outcome,reason_code,result_id,{hash} FROM {table} WHERE portfolio_id=$1 AND fund_id=$2 AND value_date=$3{continuation} ORDER BY {at} DESC,workflow_id DESC,invocation_id DESC LIMIT {limit};";
 
+
+
 }
 internal static string WorkflowUpsert(string table, string columnList, string keyList, int valueCount, string? revision) {
             var columns = columnList.Split(',');
@@ -1934,4 +1936,49 @@ internal static string WorkflowUpsert(string table, string columnList, string ke
 }
 internal static string RiskHistory(bool continued)=>"SELECT payload,evaluated_at_utc,invocation_id FROM trade.risk_management_history WHERE portfolio_id=$1 AND fund_id=$2 AND value_date=$3"+(continued?" AND (evaluated_at_utc<$4 OR (evaluated_at_utc=$4 AND invocation_id>$5)) ORDER BY evaluated_at_utc DESC,invocation_id ASC LIMIT $6;":" ORDER BY evaluated_at_utc DESC,invocation_id ASC LIMIT $4;");
 
+
+    internal static class StrategyHandoff
+    {
+        public const string Upsert = """
+            INSERT INTO trade.strategy_execution_handoff(handoff_id,workflow_id,revision,phase,updated_at,payload)
+            VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(handoff_id) DO UPDATE SET
+                revision=EXCLUDED.revision,phase=EXCLUDED.phase,updated_at=EXCLUDED.updated_at,payload=EXCLUDED.payload
+            WHERE strategy_execution_handoff.revision < EXCLUDED.revision;
+            """;
+        public const string Read = "SELECT payload FROM trade.strategy_execution_handoff WHERE handoff_id=$1;";
+        public const string ReadWorkflow = "SELECT payload FROM trade.strategy_execution_handoff WHERE workflow_id=$1 ORDER BY handoff_id;";
+        public const string Pending = "SELECT payload FROM trade.strategy_execution_handoff WHERE phase<6 AND handoff_id>$1 ORDER BY handoff_id LIMIT 32;";
+        public const string Authorization = """
+            SELECT e.eventstreamid,n.eventname,n.eventtypename,e.eventversion,e.eventpayload,e.commandid,e.eventtimestamp::text,e.streamversion
+            FROM event_log e JOIN event_name_id n ON n.eventnameid=e.eventnameid
+            WHERE e.eventversion=$1 AND e.commandid=$2;
+            """;
+    }
+    /// <summary>Parameter-bound persistence statement.</summary>
+    internal const string TradeDbContext_ProjectPositionHistoryAsync_1 = """
+            UPDATE trade.strategy_position_history SET phase='EndOfDay',payload=$4,projection_sequence=$5
+            WHERE positionid=$1 AND asofutc=$2 AND positionsequence=$3
+                AND phase='MarkToMarket' AND projection_sequence=$6 RETURNING positionid;
+            """;
+
+    /// <summary>Parameter-bound persistence statement.</summary>
+    internal const string TradeDbContextExtensions_TradeFlowProjectOrderLifecycleAsync_1 = "SELECT payload FROM trade.trade_order WHERE portfolioid=$1 AND fundid=$2 AND orderid=$3 AND revision=$4 FOR UPDATE;";
+
+    /// <summary>Parameter-bound persistence statement.</summary>
+    internal const string TradeDbContextExtensions_TradeFlowProjectOrderLifecycleAsync_2 = "UPDATE trade.trade_order SET status=$5,payload=$6,updatedatutc=$7 WHERE portfolioid=$1 AND fundid=$2 AND orderid=$3 AND revision=$4;";
+
+    /// <summary>Parameter-bound persistence statement.</summary>
+    internal const string TradeFeedRecoveryStore_ReadAsync_1 = "SELECT trade_id, array_agg(contract_id ORDER BY contract_id), max(updated_at) FROM trade.live_feed_recovery WHERE value_date=$1 GROUP BY trade_id ORDER BY trade_id";
+
+    /// <summary>Parameter-bound persistence statement.</summary>
+    internal const string TradeFeedRecoveryStore_SaveAsync_1 = "SELECT pg_advisory_xact_lock(hashtextextended($1,0))";
+
+    /// <summary>Parameter-bound persistence statement.</summary>
+    internal const string TradeFeedRecoveryStore_SaveAsync_2 = "DELETE FROM trade.live_feed_recovery WHERE trade_id=$1 AND value_date=$2";
+
+    /// <summary>Parameter-bound persistence statement.</summary>
+    internal const string TradeFeedRecoveryStore_SaveAsync_3 = "INSERT INTO trade.live_feed_recovery (trade_id,value_date,contract_id,updated_at) SELECT $1,$2,unnest($3::text[]),$4";
+
+    /// <summary>Parameter-bound persistence statement.</summary>
+    internal const string TradeFeedRecoveryStore_CloseAsync_1 = "DELETE FROM trade.live_feed_recovery WHERE value_date <= $1";
 }

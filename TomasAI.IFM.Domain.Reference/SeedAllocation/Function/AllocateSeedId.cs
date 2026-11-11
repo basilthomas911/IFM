@@ -1,5 +1,5 @@
-using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.Reference.Shared.SeedAllocation;
+using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Validation;
@@ -17,9 +17,10 @@ public static class AllocateSeedId
                 ? [new ValidationError("Invalid seed allocation identity or seed type.")]
                 : [];
 
-        public async ValueTask<SeedAllocationCompletedEvent> ExecuteAsync(IDbContextFactory databases, CancellationToken token)
+        public async ValueTask<SeedAllocationCompletedEvent> ExecuteAsync(ISequenceIdGenerator sequences, CancellationToken token)
         {
-            var value = await databases.ReferenceDb.GetNextSeedIdAsync(request.SeedType, token).ConfigureAwait(false);
+            var sequence = SequenceNameExtensions.ParseSequenceName(request.SeedType);
+            var value = checked((int)await sequences.GetSequenceIdAsync(sequence, token).ConfigureAwait(false));
             return new()
             {
                 Subject = new(ActorType.Event, "SeedAllocationEvent", "Allocated", request.EntityId.Format()),

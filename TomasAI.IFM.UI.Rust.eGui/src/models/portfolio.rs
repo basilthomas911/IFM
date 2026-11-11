@@ -97,6 +97,8 @@ pub(crate) struct Document {
     pub(crate) policy: Option<Dialog>,
     /// Selected Funds subtab content, rendered inside administration rather than as a modal.
     pub(crate) fund_view: Option<Dialog>,
+    /// Fund-specific current/forward contracts, grouped in the Base Contracts tree.
+    pub(crate) base_contracts: Vec<BaseContractNode>,
 }
 
 /// Scalar editor conversion; already typed text never passes through a JSON value.
@@ -225,4 +227,17 @@ mod tests {
         }
         assert!(checked >= 20, "Only checked {checked} managed sessions");
     }
+}
+
+
+/// A Databento-qualified contract leaf in the Fund tree.
+#[derive(Default, Clone, Deserialize, serde::Serialize)]
+#[serde(default, rename_all = "camelCase")]
+pub(crate) struct BaseContractNode {
+    /// Saved product symbol owning this contract.
+    pub(crate) symbol: String,
+    /// Stable contract identity used when adding a trade.
+    pub(crate) contract_id: String,
+    /// Full provider/catalog description shown beneath the contract.
+    pub(crate) description: String,
 }

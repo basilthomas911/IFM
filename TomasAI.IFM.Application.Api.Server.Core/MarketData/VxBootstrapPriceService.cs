@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.MarketData.Databento.Workers;
@@ -46,6 +47,7 @@ public sealed class VxBootstrapPriceService(DatasetWorkerCurrentValues cache, Da
     {
         try
         {
+            RawTickRequestQualification.RequireScope(vx.DomainContractId, date);
             var rows = await storage.TradeTickQuoteDb.GetLatestRawFuturesTradesAsync(vx.DomainContractId, date, token).ConfigureAwait(false);
             foreach (var row in rows.OrderByDescending(row => row.EventNanoseconds))
             {

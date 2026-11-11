@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Persistence;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Projection;
 using System;
@@ -37,7 +38,7 @@ public sealed class PostgresBackupAtomicTests(PostgresTradePlanFixture fixture)
         var stream = "backup-atomic-" + id;
         Func<Task> save = async () => await fixture.Transactions.ExecuteOnceAsync(async (transaction, token) =>
         {
-            await transaction.AppendAsync(stream, source.CommandId, source, 0, token);
+            await transaction.AppendAsync(new EnlistedEventAppend(stream, source.CommandId, source, 0), token);
             await db.ApplyDatabaseBackupSnapshotAsync(transaction, "PostgresBackupAtomicTest", DatabaseBackupProjectionFactory.Create(source), token);
             await DatabaseBackupExecutionIntentRepository.EnqueueAsync(db, transaction, source, token);
             if (failBeforeCommit) throw new InvalidOperationException("Injected after backup rows and outbox before commit.");

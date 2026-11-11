@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.EventSourcing.Persistence.Command;
 ﻿using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -69,7 +70,7 @@ public sealed class CommandAuditCoordinator : ICommandAuditLogger
                     cancellationToken).ConfigureAwait(false);
             else
             {
-                var envelope = CommandAuditEnvelope.Create(command, codec);
+                var envelope = CommandAuditPreparation.Create(command, codec);
                 accepted = await duplicates.Value.TryAcceptAsync(command.CommandId, envelope.RetrySha256,
                     token => database.TryInsertCommandAuditAsync(envelope, token).AsTask(), cancellationToken).ConfigureAwait(false);
             }

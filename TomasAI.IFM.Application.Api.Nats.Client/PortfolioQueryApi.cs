@@ -25,6 +25,10 @@ public sealed class PortfolioQueryApi(IActorProducer actorProducer) : NatsClient
     public Task<ServiceResult<FundMandateReadModel>> GetFundAsync(int portfolioId, int fundId, long? version = null, CancellationToken cancellationToken = default) =>
         Send<GetFundQuery, FundMandateReadModel>(GetFundQuery.Verb, $"{portfolioId}.{fundId}", new(portfolioId, fundId, version), cancellationToken);
 
+    /// <summary>Reads saved Fund defaults and Databento-qualified current/forward contracts.</summary>
+    public Task<ServiceResult<FundBaseContractsReadModel>> GetFundBaseContractsAsync(int portfolioId, int fundId, long? version = null, CancellationToken cancellationToken = default) =>
+        Send<GetFundBaseContractsQuery, FundBaseContractsReadModel>(GetFundBaseContractsQuery.Verb, $"{portfolioId}.{fundId}", new(portfolioId, fundId, version), cancellationToken);
+
     public Task<ServiceResult<PortfolioAggregateRevision>> GetFundRevisionAsync(int portfolioId, int fundId, CancellationToken cancellationToken = default) =>
         Send<GetFundRevisionQuery, PortfolioAggregateRevision>(GetFundRevisionQuery.Verb, $"{portfolioId}.{fundId}", new(portfolioId, fundId), cancellationToken);
 
@@ -77,6 +81,7 @@ public sealed class PortfolioQueryApi(IActorProducer actorProducer) : NatsClient
     {
         var actor = queryMessage switch
         {
+            GetFundBaseContractsQuery => PortfolioQueryRoutes.Fund,
             GetFundQuery => PortfolioQueryRoutes.Fund,
             GetFundRevisionQuery => PortfolioQueryRoutes.Fund,
             GetFundsQuery => PortfolioQueryRoutes.Fund,
@@ -106,6 +111,7 @@ public sealed class PortfolioQueryApi(IActorProducer actorProducer) : NatsClient
             GetPortfolioQuery value => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(value, value with { Subject = subject, EntityId = entityId, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = access }),
             GetPortfolioRevisionQuery value => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(value, value with { Subject = subject, EntityId = entityId, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = access }),
             GetPortfoliosQuery value => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(value, value with { Subject = subject, EntityId = entityId, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = access }),
+            GetFundBaseContractsQuery value => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(value, value with { Subject = subject, EntityId = entityId, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = access }),
             GetFundQuery value => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(value, value with { Subject = subject, EntityId = entityId, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = access }),
             GetFundRevisionQuery value => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(value, value with { Subject = subject, EntityId = entityId, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = access }),
             GetFundsQuery value => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(value, value with { Subject = subject, EntityId = entityId, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = access }),
@@ -130,6 +136,7 @@ public sealed class PortfolioQueryApi(IActorProducer actorProducer) : NatsClient
             GetPortfolioQuery value => (object)await RequestAsync<GetPortfolioQuery, PortfolioReadModel>(subject, value, cancellationToken).ConfigureAwait(false),
             GetPortfolioRevisionQuery value => (object)await RequestAsync<GetPortfolioRevisionQuery, PortfolioAggregateRevision>(subject, value, cancellationToken).ConfigureAwait(false),
             GetPortfoliosQuery value => (object)await RequestAsync<GetPortfoliosQuery, PortfolioPage<PortfolioReadModel>>(subject, value, cancellationToken).ConfigureAwait(false),
+            GetFundBaseContractsQuery value => (object)await RequestAsync<GetFundBaseContractsQuery, FundBaseContractsReadModel>(subject, value, cancellationToken).ConfigureAwait(false),
             GetFundQuery value => (object)await RequestAsync<GetFundQuery, FundMandateReadModel>(subject, value, cancellationToken).ConfigureAwait(false),
             GetFundRevisionQuery value => (object)await RequestAsync<GetFundRevisionQuery, PortfolioAggregateRevision>(subject, value, cancellationToken).ConfigureAwait(false),
             GetFundsQuery value => (object)await RequestAsync<GetFundsQuery, PortfolioPage<FundMandateReadModel>>(subject, value, cancellationToken).ConfigureAwait(false),

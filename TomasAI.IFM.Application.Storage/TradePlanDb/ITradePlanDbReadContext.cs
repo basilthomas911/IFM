@@ -13,13 +13,33 @@ namespace TomasAI.IFM.Application.Storage.TradePlanDb;
 public interface ITradePlanDbReadContext
 {
     /// <summary>Reads the final forward observation at or before each sealed value date's EOD boundary.</summary>
+    /// <param name="positionId">The position id supplied by the caller.</param>
+    /// <param name="dayEndsUtc">The day ends utc supplied by the caller.</param>
+    /// <param name="cancellationToken">Cancels the database operation.</param>
+    /// <returns>The selected row, or null when no matching published row exists.</returns>
     Task<IReadOnlyDictionary<DateOnly, decimal?>> GetDailyForwardSpreadsAsync(StrategyPositionId positionId,
         IReadOnlyDictionary<DateOnly, DateTime> dayEndsUtc, CancellationToken cancellationToken = default);
 
+    /// <summary>Reads chart range from the committed projection.</summary>
+    /// <param name="positionId">The position id supplied by the caller.</param>
+    /// <param name="firstValueDate">The first value date supplied by the caller.</param>
+    /// <param name="lastValueDate">The last value date supplied by the caller.</param>
+    /// <param name="startUtc">The start utc supplied by the caller.</param>
+    /// <param name="endUtc">The end utc supplied by the caller.</param>
+    /// <param name="cancellationToken">Cancels the database operation.</param>
+    /// <returns>The selected rows in the query's defined order.</returns>
     Task<StrategyTradePlanChartSeries> GetChartRangeAsync(StrategyPositionId positionId, DateOnly firstValueDate, DateOnly lastValueDate, DateTime startUtc, DateTime endUtc, CancellationToken cancellationToken = default);
 
     /// <summary>Reads only the requested offset window, anchored to a revision for stable scrolling.</summary>
-    Task<StrategyTradePlanHistoryPage> GetOffsetHistoryAsync(StrategyPositionId positionId, TradeStrategyKind strategy, DateOnly valueDate, int offset, int pageSize, long? maximumRevision = null, CancellationToken cancellationToken = default);
+    /// <param name="positionId">The position id supplied by the caller.</param>
+    /// <param name="strategy">The strategy supplied by the caller.</param>
+    /// <param name="valueDate">The value date supplied by the caller.</param>
+    /// <param name="offset">The zero-based offset within the fixed revision selection.</param>
+    /// <param name="pageSize">The maximum size of the requested page.</param>
+    /// <param name="maximumRevision">The inclusive upper revision bound for the read.</param>
+    /// <param name="cancellationToken">Cancels the database operation.</param>
+    /// <returns>The database result for the requested operation.</returns>
+    Task<ITradePlanOffsetReadSession> OpenOffsetHistoryAsync(StrategyPositionId positionId, TradeStrategyKind strategy, DateOnly valueDate, int offset, int pageSize, long? maximumRevision = null, CancellationToken cancellationToken = default);
 
     /// <summary>Gets the current material Trade Plan for a strategy position.</summary>
     /// <param name="positionId">The strategy-position identity.</param>

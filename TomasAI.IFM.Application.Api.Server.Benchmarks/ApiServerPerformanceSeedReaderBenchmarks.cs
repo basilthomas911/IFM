@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using System.Reflection;
 using BenchmarkDotNet.Attributes;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -127,6 +128,7 @@ public class ApiServerPerformanceSeedReaderBenchmarks
                 var rows = Filter(arguments!).ToArray(); RowsDelivered += rows.Length;
                 return Task.FromResult<IReadOnlyList<BootstrapTradeRow>>(rows);
             }
+            if (method?.Name == "get_SupportsRawFuturesTradeStreaming") return this is IStreamingContext;
             if (method?.Name == nameof(IStreamingRawFuturesTradeReader.StreamRawFuturesTradeWindowAsync))
             {
                 StreamedReads++;

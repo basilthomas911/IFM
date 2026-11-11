@@ -15,6 +15,7 @@ public static class GetEconomicCalendarPage
         {
             ArgumentNullException.ThrowIfNull(dbFactory);
             ArgumentNullException.ThrowIfNull(query);
+            ArgumentNullException.ThrowIfNull(query.Request);
             query.Request.Validate();
             return await dbFactory.MarketDataDb
                 .GetEconomicCalendarPageAsync(query.Request, cancellationToken)

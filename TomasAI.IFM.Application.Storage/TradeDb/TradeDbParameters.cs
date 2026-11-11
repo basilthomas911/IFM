@@ -1324,3 +1324,23 @@ internal readonly record struct UpdateOptionTrade(int orderId, int tradeId, Date
     public object Bind() => new object?[] { orderId, tradeId, tradeDate, maturityDate, tradeType, tradeState, tradeStrategy,
         tradeAction, underlyingContractId, underlyingAssetType, isPrimaryTrade, isHedgeTrade, updatedOn, updatedBy };
 }
+
+internal readonly record struct StrategyHandoffAuthorizationSelection(long EventId, Guid CommandId) : IBindValue
+{
+    public object Bind() => TomasAI.IFM.Shared.Storage.BindValues.Values(EventId, CommandId);
+}
+
+internal readonly record struct StrategyHandoffWrite(string Id, Guid WorkflowId, long Revision, int Phase, DateTime UpdatedAtUtc, byte[] Payload) : IBindValue
+{
+    public object Bind() => TomasAI.IFM.Shared.Storage.BindValues.Values(Id, WorkflowId, Revision, Phase, UpdatedAtUtc, Payload);
+}
+
+internal readonly record struct StrategyHandoffCursor(string Id) : IBindValue
+{
+    public object Bind() => TomasAI.IFM.Shared.Storage.BindValues.Values(Id);
+}
+
+internal readonly record struct StrategyHandoffWorkflowSelection(Guid WorkflowId) : IBindValue
+{
+    public object Bind() => TomasAI.IFM.Shared.Storage.BindValues.Values(WorkflowId);
+}

@@ -21,6 +21,7 @@ internal static class FuturesOptionContractDbContext
 
         internal async ValueTask<string[]> GetFuturesOptionContractIdsAsync(string[] contractIds, CancellationToken cancellationToken = default)
         {
+            ArgumentNullException.ThrowIfNull(contractIds);
             if (contractIds.Length == 0)
                 return [];
             var contracts = await (dbFactory.SecuritiesDb.GetFuturesOptionContractsByIdsAsync(contractIds, cancellationToken)).ConfigureAwait(false);

@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Shared.Storage;
@@ -101,22 +102,13 @@ internal static class FuturesEodDataDbContext
                 NormalCurveTable: await (dbFactory.GetNormalCurveTableAsync()).ConfigureAwait(false));
 
         /// <summary>
-        /// Inserts a futures EOD data record into the database.
-        /// </summary>
-        ///
-        /// <param name="e">The futures EOD data read model to persist.</param>
-        internal async ValueTask InsertFuturesEodDataAsync(
-        FuturesEodDataV2ReadModel e)
-            => await (dbFactory.MarketDataDb.InsertFuturesEodDataAsync(e)).ConfigureAwait(false);
-
-        /// <summary>
         /// Inserts a VIX futures EOD data record into the database.
         /// </summary>
         ///
         /// <param name="e">The VIX futures tick data read model to persist.</param>
         internal async ValueTask InsertVixFuturesEodDataAsync(
         FuturesTickDataV2ReadModel e)
-            => await (dbFactory.MarketDataDb.InsertVixFuturesEodDataAsync(e)).ConfigureAwait(false);
+            => await (dbFactory.MarketDataDb.InsertVixFuturesEodDataAsync(new VixTickObservation(e))).ConfigureAwait(false);
     }
 
     static FuturesEodDataV2ReadModel MapToFuturesEodData<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord

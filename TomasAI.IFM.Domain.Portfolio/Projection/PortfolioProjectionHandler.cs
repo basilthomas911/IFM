@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.PortfolioDb;
 using TomasAI.IFM.Domain.Portfolio.Shared.Events;
 using TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events;
@@ -10,7 +11,7 @@ using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
 namespace TomasAI.IFM.Domain.Portfolio.Projection;
 
 /// <summary>Deterministic committed-event projection mapping used by durable projector descriptors and rebuild.</summary>
-public sealed class PortfolioProjectionHandler(IPortfolioEventStore events, IPortfolioDbWriteContext projections)
+public sealed class PortfolioProjectionHandler(IPortfolioEventStore events, IPortfolioDbWriteContext projections, IPostgresEventTransaction? transactions = null)
 {
     public async Task ApplyAsync(IPortfolioDomainEvent domainEvent, CancellationToken cancellationToken = default)
     {
@@ -64,9 +65,15 @@ public sealed class PortfolioProjectionHandler(IPortfolioEventStore events, IPor
         var aggregate = new TomasAI.IFM.Domain.Portfolio.Command.State.PortfolioFundAggregate();
         aggregate.Replay((await events.LoadFundHistoryAsync(fundId,cancellationToken).ConfigureAwait(false)).Where(x=>x.Revision<=domainEvent.Revision));
         var current = aggregate.Current ?? throw new InvalidOperationException("Committed Fund history did not rebuild a mandate.");
-        await projections.UpsertFundAsync(
-            PortfolioProjection<FundMandateReadModel>.Create(current, aggregate.Revision, domainEvent.EventId, domainEvent.ReceivedOn),
-            cancellationToken).ConfigureAwait(false);
+        var row = PortfolioProjection<FundMandateReadModel>.Create(current, aggregate.Revision, domainEvent.EventId, domainEvent.ReceivedOn);
+        if (transactions is not null)
+            await transactions.ExecuteAsync(async (transaction, token) =>
+            {
+                await transaction.WriteFundProjectionAsync(row, token).ConfigureAwait(false);
+                return true;
+            }, cancellationToken).ConfigureAwait(false);
+        else
+            await projections.UpsertFundAsync(row, cancellationToken).ConfigureAwait(false);
         if (domainEvent is FundTradeTemplateAssignedEvent assigned)
             await projections.UpsertAssignmentAsync(
                 PortfolioProjection<FundTradeTemplateAssignmentReadModel>.Create(assigned.Assignment, aggregate.Revision, domainEvent.EventId, domainEvent.ReceivedOn),

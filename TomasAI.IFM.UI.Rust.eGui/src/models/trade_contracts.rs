@@ -21039,6 +21039,124 @@ impl Cells for FundAllocationReadModel {
 }
 
 /// Typed backend contract for
+/// `TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundBaseContractRule`; preserves its pinned wire
+/// layout.
+#[derive(Clone, Debug, Default, PartialEq, Deserialize)]
+pub struct FundBaseContractRule {
+    /// C# BaseAsset, wire slot 0.
+    #[serde(default, rename = "baseAsset", alias = "BaseAsset")]
+    pub base_asset: Option<String>,
+    /// C# Symbol, wire slot 1.
+    #[serde(default, rename = "symbol", alias = "Symbol")]
+    pub symbol: Option<String>,
+    /// C# ForwardCycles, wire slot 2.
+    #[serde(default, rename = "forwardCycles", alias = "ForwardCycles")]
+    pub forward_cycles: Option<i32>,
+}
+impl FromBackend for FundBaseContractRule {
+    const KIND: &'static str =
+        "TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundBaseContractRule";
+
+
+    /// Reads the pinned backend representation and validates its scalar values.
+    fn from_backend(value: &Value) -> Result<Self, String> {
+        let fields = value
+            .as_array()
+            .ok_or("Expected positional contract record")?;
+        Ok(Self {
+            base_asset: FromBackend::from_backend(fields.get(0).unwrap_or(&Value::Nil))
+                .map_err(|error| format!("FundBaseContractRule.BaseAsset: {error}"))?,
+            symbol: FromBackend::from_backend(fields.get(1).unwrap_or(&Value::Nil))
+                .map_err(|error| format!("FundBaseContractRule.Symbol: {error}"))?,
+            forward_cycles: FromBackend::from_backend(fields.get(2).unwrap_or(&Value::Nil))
+                .map_err(|error| format!("FundBaseContractRule.ForwardCycles: {error}"))?,
+        })
+    }
+}
+impl PresentationRecord for FundBaseContractRule {
+    /// Writes the presentation fields, applying the requested history omission policy.
+    fn serialize_presentation<S: serde::Serializer>(
+        &self,
+        serializer: S,
+        mode: PresentationMode,
+    ) -> Result<S::Ok, S::Error> {
+        let child_mode = if mode == PresentationMode::History {
+            PresentationMode::Monitor
+        } else {
+            mode
+        };
+        let mut map = serializer.serialize_map(None)?;
+        map.serialize_entry(
+            "baseAsset",
+            &FieldValue {
+                value: &self.base_asset,
+                mode: child_mode,
+            },
+        )?;
+        map.serialize_entry(
+            "symbol",
+            &FieldValue {
+                value: &self.symbol,
+                mode: child_mode,
+            },
+        )?;
+        map.serialize_entry(
+            "forwardCycles",
+            &FieldValue {
+                value: &self.forward_cycles,
+                mode: child_mode,
+            },
+        )?;
+        self.serialize_extras(&mut map)?;
+        map.end()
+    }
+}
+impl Serialize for FundBaseContractRule {
+    /// Serializes this value through the supplied serializer.
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.serialize_presentation(serializer, PresentationMode::Native)
+    }
+}
+impl PresentationValue for FundBaseContractRule {
+    /// Serializes this value using the requested presentation mode.
+    fn serialize_value<S: serde::Serializer>(
+        &self,
+        serializer: S,
+        mode: PresentationMode,
+    ) -> Result<S::Ok, S::Error> {
+        self.serialize_presentation(serializer, mode)
+    }
+}
+impl PresentationExtras for FundBaseContractRule {
+    /// Appends the computed presentation fields without changing backend values.
+    fn serialize_extras<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
+        let _ = map;
+        Ok(())
+    }
+}
+impl BackendRecord for FundBaseContractRule {
+    /// Writes the backend representation using the declared wire layout.
+    fn serialize_backend<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut map = serializer.serialize_map(None)?;
+        map.serialize_entry("BaseAsset", &BackendDocument(&self.base_asset))?;
+        map.serialize_entry("Symbol", &BackendDocument(&self.symbol))?;
+        map.serialize_entry("ForwardCycles", &BackendDocument(&self.forward_cycles))?;
+        map.end()
+    }
+}
+impl Cells for FundBaseContractRule {
+    /// Resolves a named display cell; unsupported columns remain missing.
+    fn cell(&self, column: &str) -> Cell<'_> {
+        match column {
+            "baseAsset" | "BaseAsset" => self.base_asset.scalar_cell(),
+            "symbol" | "Symbol" => self.symbol.scalar_cell(),
+            "forwardCycles" | "ForwardCycles" => self.forward_cycles.scalar_cell(),
+            _ => Cell::Missing,
+        }
+    }
+}
+
+/// Typed backend contract for
 /// `TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundMandateReadModel`; preserves its pinned wire
 /// layout.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
@@ -21121,6 +21239,9 @@ pub struct FundMandateReadModel {
         alias = "PermittedTradeStrategyFamilies"
     )]
     pub permitted_trade_strategy_families: Option<Vec<TradeStrategyFamilyReference>>,
+    /// C# BaseContracts, wire slot 22.
+    #[serde(default, rename = "baseContracts", alias = "BaseContracts")]
+    pub base_contracts: Option<Vec<FundBaseContractRule>>,
 }
 impl FromBackend for FundMandateReadModel {
     const KIND: &'static str =
@@ -21189,6 +21310,8 @@ impl FromBackend for FundMandateReadModel {
             .map_err(|error| {
                 format!("FundMandateReadModel.PermittedTradeStrategyFamilies: {error}")
             })?,
+            base_contracts: FromBackend::from_backend(fields.get(22).unwrap_or(&Value::Nil))
+                .map_err(|error| format!("FundMandateReadModel.BaseContracts: {error}"))?,
         })
     }
 }
@@ -21359,6 +21482,13 @@ impl PresentationRecord for FundMandateReadModel {
                 mode: child_mode,
             },
         )?;
+        map.serialize_entry(
+            "baseContracts",
+            &FieldValue {
+                value: &self.base_contracts,
+                mode: child_mode,
+            },
+        )?;
         self.serialize_extras(&mut map)?;
         map.end()
     }
@@ -21445,6 +21575,7 @@ impl BackendRecord for FundMandateReadModel {
             "PermittedTradeStrategyFamilies",
             &BackendDocument(&self.permitted_trade_strategy_families),
         )?;
+        map.serialize_entry("BaseContracts", &BackendDocument(&self.base_contracts))?;
         map.end()
     }
 }
@@ -44231,6 +44362,9 @@ pub struct TradeOrderDefinition {
     /// C# SetupTrade, wire slot 29.
     #[serde(default, rename = "setupTrade", alias = "SetupTrade")]
     pub setup_trade: Option<FundTradeSetupReference>,
+    /// C# StrategyWorkflowId, wire slot 30.
+    #[serde(default, rename = "strategyWorkflowId", alias = "StrategyWorkflowId")]
+    pub strategy_workflow_id: Option<String>,
 }
 impl FromBackend for TradeOrderDefinition {
     const KIND: &'static str = "TomasAI.IFM.Domain.Trade.Shared.TradeOrderDefinition";
@@ -44322,6 +44456,8 @@ impl FromBackend for TradeOrderDefinition {
                 .map_err(|error| format!("TradeOrderDefinition.DecisionEvidence: {error}"))?,
             setup_trade: FromBackend::from_backend(fields.get(29).unwrap_or(&Value::Nil))
                 .map_err(|error| format!("TradeOrderDefinition.SetupTrade: {error}"))?,
+            strategy_workflow_id: FromBackend::from_backend(fields.get(30).unwrap_or(&Value::Nil))
+                .map_err(|error| format!("TradeOrderDefinition.StrategyWorkflowId: {error}"))?,
         })
     }
 }
@@ -44548,6 +44684,13 @@ impl PresentationRecord for TradeOrderDefinition {
                 mode: child_mode,
             },
         )?;
+        map.serialize_entry(
+            "strategyWorkflowId",
+            &FieldValue {
+                value: &self.strategy_workflow_id,
+                mode: child_mode,
+            },
+        )?;
         self.serialize_extras(&mut map)?;
         map.end()
     }
@@ -44648,6 +44791,10 @@ impl BackendRecord for TradeOrderDefinition {
             &BackendDocument(&self.decision_evidence),
         )?;
         map.serialize_entry("SetupTrade", &BackendDocument(&self.setup_trade))?;
+        map.serialize_entry(
+            "StrategyWorkflowId",
+            &BackendDocument(&self.strategy_workflow_id),
+        )?;
         map.end()
     }
 }
@@ -44695,6 +44842,7 @@ impl Cells for TradeOrderDefinition {
             "brokerAlgorithm" | "BrokerAlgorithm" => self.broker_algorithm.scalar_cell(),
             "timeInForce" | "TimeInForce" => self.time_in_force.scalar_cell(),
             "algorithmPace" | "AlgorithmPace" => self.algorithm_pace.scalar_cell(),
+            "strategyWorkflowId" | "StrategyWorkflowId" => self.strategy_workflow_id.scalar_cell(),
             _ => Cell::Missing,
         }
     }
@@ -52331,6 +52479,24 @@ pub const CONTRACT_FIELDS: &[(&str, &str, usize, &str)] = &[
         "System.Int32",
     ),
     (
+        "TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundBaseContractRule",
+        "BaseAsset",
+        0,
+        "System.String",
+    ),
+    (
+        "TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundBaseContractRule",
+        "Symbol",
+        1,
+        "System.String",
+    ),
+    (
+        "TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundBaseContractRule",
+        "ForwardCycles",
+        2,
+        "System.Int32",
+    ),
+    (
         "TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundMandateReadModel",
         "PortfolioId",
         0,
@@ -52461,6 +52627,12 @@ pub const CONTRACT_FIELDS: &[(&str, &str, usize, &str)] = &[
         "PermittedTradeStrategyFamilies",
         21,
         "TomasAI.IFM.Domain.Reference.Shared.ViewModels.TradeStrategyFamilyReference[]",
+    ),
+    (
+        "TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundMandateReadModel",
+        "BaseContracts",
+        22,
+        "TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundBaseContractRule[]",
     ),
     (
         "TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundOrderProjectionReadModel",
@@ -57549,6 +57721,12 @@ pub const CONTRACT_FIELDS: &[(&str, &str, usize, &str)] = &[
         "SetupTrade",
         29,
         "TomasAI.IFM.Domain.Portfolio.Shared.Contracts.FundTradeSetupReference",
+    ),
+    (
+        "TomasAI.IFM.Domain.Trade.Shared.TradeOrderDefinition",
+        "StrategyWorkflowId",
+        30,
+        "System.Nullable`1[System.Guid]",
     ),
     (
         "TomasAI.IFM.Domain.Trade.Shared.TradeOrderId",

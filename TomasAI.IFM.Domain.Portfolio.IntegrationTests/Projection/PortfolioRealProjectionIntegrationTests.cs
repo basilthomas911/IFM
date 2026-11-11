@@ -23,6 +23,64 @@ public sealed class PortfolioRealProjectionIntegrationTests(
     : IClassFixture<PortfolioEventStoreFixture>, IClassFixture<PortfolioDbFixture>
 {
     [Fact]
+    public async Task PostgreSQL_latest_Fund_snapshot_and_rebuilt_projections_preserve_all_saved_base_contract_defaults()
+    {
+        var value = Random.Shared.Next(100000, 1000000000);
+        var id = new PortfolioFundId(value,value+1);
+        var now = new DateTime(2026,11,10,10,0,0,DateTimeKind.Utc);
+        var mandate = new FundMandateReadModel { PortfolioId=value,FundId=value+1,FundCode=$"F{value}",Name="Base contract defaults",
+            FundMandateVersion=1,SchemaVersion=4,TradingYear=2026,OperatingState=FundOperatingState.Draft,
+            EffectiveFromUtc=now,DecisionHorizon="Monthly",Objective="Snapshot verification",UnderlyingUniverse=["ES","VX"],
+            EligibleAssetTypes=["Futures"],CreatedOnUtc=now,CreatedBy="integration",
+            BaseContracts=[new(){Symbol="ES",ForwardCycles=0}] };
+        var store = new PortfolioEventStore(eventSource.EventSourceDb);
+        var aggregate = new PortfolioFundAggregate();
+        var created = aggregate.Create(Guid.NewGuid(),mandate,now,"integration");
+        await store.AppendFundWithStateAsync(id,created,0,aggregate);
+        for (var version=2;version<=3;version++)
+        {
+            var updated = aggregate.ConfigureBaseContracts(Guid.NewGuid(),version-1,mandate with { FundMandateVersion=1,
+                BaseContracts=[new(){Symbol="ES",ForwardCycles=version},new(){Symbol="VX",ForwardCycles=1}] },now.AddSeconds(version),"integration");
+            await store.AppendFundWithStateAsync(id,updated,version-1,aggregate);
+            await store.SaveFundSnapshotAsync(id,aggregate,now.AddSeconds(version),"integration");
+        }
+        var restored = await store.LoadFundAsync(id);
+        restored.Revision.Should().Be(3);
+        restored.Current!.FundMandateVersion.Should().Be(1);
+        restored.Current!.BaseContracts.Should().BeEquivalentTo(aggregate.Current!.BaseContracts);
+        restored.Current.BaseContracts[0].ForwardCycles.Should().Be(3);
+        var window = await eventSource.EventSourceDb.ReadAggregateCheckpointWindowAsync(PortfolioEventStore.FundStream(id),PortfolioEventStore.FundSnapshotStream(id),CancellationToken.None);
+        window.Rows.Should().ContainSingle().Which.Kind.Should().Be(TomasAI.IFM.Shared.EventSourcing.ViewModels.AggregateCheckpointRowKind.IndexedCheckpoint);
+        (await projections.Db.GetFundAsync(id.FundId)).Should().BeNull();
+        var projector = new PortfolioProjectionHandler(store,projections.Db);
+        var history = await store.LoadFundHistoryAsync(id);
+        foreach (var entry in history) await projector.ApplyAsync(entry);
+        foreach (var entry in history) await projector.ApplyAsync(entry);
+        var projected = await projections.Db.GetFundAsync(id.FundId);
+        projected.Should().BeEquivalentTo(restored.Current);
+        var payload = await GeneralLedgerPostingIntegrationTests.Transactions().ExecuteAsync((db,ct) => db.ScalarAsync(
+            "SELECT base_contracts::text FROM portfolio.fund_by_portfolio WHERE portfolio_id=$1 AND fund_id=$2 AND fund_mandate_version=1",
+            [value,value+1],ct));
+        var stored = System.Text.Json.JsonSerializer.Deserialize<FundBaseContractRule[]>((string)payload!);
+        stored.Should().BeEquivalentTo(restored.Current.BaseContracts);
+        // Exercise the production accepted-facts/fence path, then replay its tail after the latest snapshot.
+        var owner=GeneralLedgerPostingIntegrationTests.Transactions();
+        await new TomasAI.IFM.Domain.Portfolio.Financial.Repository.PortfolioFinancialSchema(owner).InitializeAsync();
+        var fenced=new PortfolioEventStore(eventSource.EventSourceDb,
+            new TomasAI.IFM.Domain.Portfolio.Financial.Repository.PortfolioAuthorityFence(owner));
+        var next=aggregate.ConfigureBaseContracts(Guid.NewGuid(),3,mandate with {
+            BaseContracts=[new(){Symbol="ES",ForwardCycles=4},new(){Symbol="VX",ForwardCycles=1}] },now.AddSeconds(4),"integration");
+        PortfolioAcceptedProjection.Capture(next,aggregate);
+        await fenced.AppendFundWithStateAsync(id,next,3,aggregate);
+        (await projections.Db.GetFundAsync(id.FundId))!.BaseContracts[0].ForwardCycles.Should().Be(4);
+        var afterRestart=await fenced.LoadFundAsync(id);
+        afterRestart.Revision.Should().Be(4);
+        afterRestart.Current!.FundMandateVersion.Should().Be(1);
+        afterRestart.Current.BaseContracts.Should().BeEquivalentTo(aggregate.Current!.BaseContracts);
+
+    }
+
+    [Fact]
     [Trait("Gate", "PF-09")]
     [Trait("Category", "Portfolio")]
     public async Task PostgreSQL_history_rebuilds_into_empty_projection_and_duplicate_delivery_is_idempotent()

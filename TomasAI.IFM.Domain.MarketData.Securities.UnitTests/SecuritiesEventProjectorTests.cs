@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Shared.Events;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
@@ -39,7 +40,12 @@ public sealed class SecuritiesEventProjectorTests
             new FuturesOptionContractEventProjector(optionContext)
         ];
 
-        projectors.SelectMany(projector => projector.ProjectionDescriptors).Should().HaveCount(7);
+        var descriptors = projectors.SelectMany(projector => projector.ProjectionDescriptors).ToArray();
+        descriptors.Should().HaveCount(8);
+        var rollover = descriptors.Single(descriptor => descriptor.SourceEventType == typeof(FuturesContractRolloverSetReplacedEvent));
+        rollover.RebuildReadModelAsync.Should().NotBeNull();
+        rollover.PublishTerminalEvent.Should().BeFalse();
+        rollover.PublishProcessingEvent.Should().BeFalse();
         projectors.SelectMany(projector => projector.ProjectionDescriptors)
             .Should().OnlyContain(descriptor => descriptor.UseDurableReplay);
         foreach (var projector in projectors)

@@ -823,4 +823,41 @@ public static class PortfolioDbSql
             """;
         public const string InsertAcceptedClose = "INSERT INTO portfolio.accepted_position_close(operation_id,target_position_id,target_order_id,target_trade_id,close_order_id,accepted_at_utc) VALUES($1,$2,$3,$4,$5,$6);";
     }
+    internal const string LockFundProjection = "SELECT pg_advisory_xact_lock(1701,$1)";
+    internal const string ReadLockedFundProjection =
+        "SELECT payload_json::text FROM portfolio.fund_by_portfolio WHERE portfolio_id=$1 AND fund_id=$2 FOR UPDATE";
+    internal const string DisableFundProjection = """
+        UPDATE portfolio.fund_by_portfolio SET operating_state='Disabled',schema_version=$4,aggregate_version=$5,
+        source_event_id=$6,updated_on_utc=$7,payload_json=$8,payload_hash=$9
+        WHERE portfolio_id=$1 AND fund_id=$2 AND fund_mandate_version=$3 AND source_event_id<=$6
+        """;
+
+    /// <summary>Parameter-bound persistence statement.</summary>
+    internal const string ExecutionCapacitySql_Statement_1 = "SELECT payload FROM portfolio_financial.accepted_execution_capacity WHERE order_id=$1 FOR UPDATE;";
+
+    /// <summary>Parameter-bound persistence statement.</summary>
+    internal const string ExecutionCapacitySql_Statement_2 = """
+        INSERT INTO portfolio_financial.accepted_execution_capacity(order_id,portfolio_id,fund_id,execution_id,source_event_version,financial_revision,payload)
+        VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(order_id) DO UPDATE SET
+        source_event_version=EXCLUDED.source_event_version,financial_revision=EXCLUDED.financial_revision,payload=EXCLUDED.payload
+        WHERE accepted_execution_capacity.source_event_version < EXCLUDED.source_event_version;
+        """;
+
+    /// <summary>Parameter-bound persistence statement.</summary>
+    internal const string ExecutionCapacitySql_Statement_3 = """
+        SELECT e.eventstreamid,n.eventname,n.eventtypename,e.eventversion,e.eventpayload,e.commandid,e.eventtimestamp::text,e.streamversion
+        FROM event_log e JOIN event_name_id n ON n.eventnameid=e.eventnameid WHERE e.commandid=$1 ORDER BY e.eventversion LIMIT 65;
+        """;
+
+    /// <summary>Parameter-bound persistence statement.</summary>
+    internal const string ExecutionCapacitySql_Statement_4 = "SELECT definition_hash FROM portfolio.accepted_trade_order WHERE order_id=$1 AND portfolio_id=$2 AND fund_id=$3 AND operation_id=$4;";
+
+    /// <summary>Parameter-bound persistence statement.</summary>
+    internal const string ExecutionCapacitySql_Statement_5 = "SELECT scope_kind,scope_key,measure,unit,amount,method_version FROM portfolio.accepted_trade_order_capacity WHERE order_id=$1 AND portfolio_id=$2 AND fund_id=$3;";
+
+    /// <summary>Parameter-bound persistence statement.</summary>
+    internal const string ExecutionCapacitySql_Statement_6 = """
+        SELECT source_event_key,posting_purpose,source_content_hash FROM portfolio_financial.financial_source_receipt
+        WHERE book_id=$1 AND source_system=$2 AND source_event_key=ANY($3);
+        """;
 }

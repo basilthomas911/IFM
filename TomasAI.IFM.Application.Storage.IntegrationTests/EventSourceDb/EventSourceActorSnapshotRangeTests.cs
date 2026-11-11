@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.EventSourcing.Persistence.Command;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -110,7 +111,7 @@ public sealed class EventLogDualAppenderIntegrationTests(EventSourceActorSnapsho
 
         saved.Should().ContainSingle();
         var marker = await binary.GetEventProjectorExecutionStateAsync(
-            @event.EventId, @event.RequiredProjection.ProjectorName, CancellationToken.None);
+            new EventProjectorIdentity(@event.EventId, @event.RequiredProjection.ProjectorName), CancellationToken.None);
         marker.Should().NotBeNull();
         marker!.Stage.Should().Be(EventProjectorStageType.ApplyProjection);
     }
@@ -131,7 +132,7 @@ public sealed class EventLogDualAppenderIntegrationTests(EventSourceActorSnapsho
 
         saved.Should().ContainSingle();
         var marker = await binary.GetEventProjectorExecutionStateAsync(
-            @event.EventId, @event.RequiredProjection.ProjectorName, CancellationToken.None);
+            new EventProjectorIdentity(@event.EventId, @event.RequiredProjection.ProjectorName), CancellationToken.None);
         marker.Should().BeNull();
     }
 
@@ -237,8 +238,8 @@ public sealed class EventLogDualAppenderIntegrationTests(EventSourceActorSnapsho
         {
             var writes = new[]
             {
-                context.SaveCommandEventsAtomicallyAsync(first, new DomainEventCollection([NewSignal()]), 0),
-                context.SaveCommandEventsAtomicallyAsync(second, new DomainEventCollection([NewSignal()]), 1)
+                AtomicCommandEventCommit.CommitAsync(context, first, new DomainEventCollection([NewSignal()]), 0),
+                AtomicCommandEventCommit.CommitAsync(context, second, new DomainEventCollection([NewSignal()]), 1)
             };
             var saved = await Task.WhenAll(writes);
             saved.SelectMany(static value => value).Select(static value => value.EventId)
@@ -250,7 +251,7 @@ public sealed class EventLogDualAppenderIntegrationTests(EventSourceActorSnapsho
             (await context.GetCommandLogAsync(first.CommandId))!.CommandPayload.Should().NotBeEmpty();
             (await context.GetCommandLogAsync(second.CommandId))!.CommandPayload.Should().NotBeEmpty();
 
-            var duplicate = async () => await context.SaveCommandEventsAtomicallyAsync(
+            var duplicate = async () => await AtomicCommandEventCommit.CommitAsync(context,
                 first, new DomainEventCollection([NewSignal()]), 2);
             await duplicate.Should().ThrowAsync<CommandAuditDuplicateException>();
             (await context.LoadActorEventStreamAsync<DualAppenderState>(streamId)).Should().HaveCount(2);
@@ -289,7 +290,7 @@ public sealed class EventLogDualAppenderIntegrationTests(EventSourceActorSnapsho
         try
         {
             var writes = commands.Select((command, index) =>
-                context.SaveCommandEventsAtomicallyAsync(
+                AtomicCommandEventCommit.CommitAsync(context,
                     command, new DomainEventCollection([NewSignal()]), index)).ToArray();
             await Task.WhenAll(writes);
 
@@ -329,9 +330,9 @@ public sealed class EventLogDualAppenderIntegrationTests(EventSourceActorSnapsho
         var streamId = 0L;
         try
         {
-            var first = context.SaveCommandEventsAtomicallyAsync(
+            var first = AtomicCommandEventCommit.CommitAsync(context,
                 command, new DomainEventCollection([NewSignal()]), 0);
-            var duplicate = context.SaveCommandEventsAtomicallyAsync(
+            var duplicate = AtomicCommandEventCommit.CommitAsync(context,
                 command, new DomainEventCollection([NewSignal()]), 0);
 
             (await first).Should().ContainSingle();
@@ -629,7 +630,7 @@ public class EventSourceActorSnapshotRangeTests(EventSourceActorSnapshotRangeFix
         loaded.Plan.Should().BeEquivalentTo(latest.Plan);
         // No target write was attempted: the source snapshot remains independently loadable.
         var marker = await fixture.ActorEventDb.GetEventProjectorExecutionStateAsync(
-            latest.EventId, latest.RequiredProjection.ProjectorName);
+            new EventProjectorIdentity(latest.EventId, latest.RequiredProjection.ProjectorName));
         marker.Should().BeNull();
     }
 
@@ -881,11 +882,8 @@ public class EventSourceActorSnapshotRangeTests(EventSourceActorSnapshotRangeFix
         creates.Where(state => state is not null).Should().ContainSingle();
         var claimAttempts = Enumerable.Range(0, 16)
             .Select(_ => fixture.ActorEventDb.TryClaimEventProjectorExecutionAsync(
-                persisted.EventId,
-                projectorName,
-                Guid.NewGuid(),
-                nowUtc,
-                TimeSpan.FromMinutes(2)))
+                new EventProjectorLease(persisted.EventId, projectorName, Guid.NewGuid(),
+                    nowUtc, TimeSpan.FromMinutes(2))))
             .ToArray();
         var claims = await Task.WhenAll(claimAttempts);
         claims.Where(state => state is not null).Should().ContainSingle();
@@ -909,12 +907,8 @@ public class EventSourceActorSnapshotRangeTests(EventSourceActorSnapshotRangeFix
         staleTransition.Should().BeNull();
 
         var renewed = await fixture.ActorEventDb.TryRenewEventProjectorExecutionAsync(
-            persisted.EventId,
-            projectorName,
-            claimed.ExecutionToken.Value,
-            transitioned.Revision,
-            nowUtc.AddSeconds(1),
-            TimeSpan.FromMinutes(2));
+            new EventProjectorLease(persisted.EventId, projectorName, claimed.ExecutionToken.Value,
+                nowUtc.AddSeconds(1), TimeSpan.FromMinutes(2), transitioned.Revision));
         renewed.Should().NotBeNull();
         renewed!.Revision.Should().Be(3);
 
@@ -936,12 +930,8 @@ public class EventSourceActorSnapshotRangeTests(EventSourceActorSnapshotRangeFix
         terminal.ExecutionToken.Should().BeNull();
         terminal.LeaseExpiresAtUtc.Should().BeNull();
         (await fixture.ActorEventDb.TryRenewEventProjectorExecutionAsync(
-            persisted.EventId,
-            projectorName,
-            claimed.ExecutionToken.Value,
-            renewed.Revision,
-            nowUtc.AddSeconds(3),
-            TimeSpan.FromMinutes(2))).Should().BeNull();
+            new EventProjectorLease(persisted.EventId, projectorName, claimed.ExecutionToken.Value,
+                nowUtc.AddSeconds(3), TimeSpan.FromMinutes(2), renewed.Revision))).Should().BeNull();
     }
 
     [Fact]
@@ -961,18 +951,12 @@ public class EventSourceActorSnapshotRangeTests(EventSourceActorSnapshotRangeFix
 
         var firstToken = Guid.NewGuid();
         var firstOwner = await fixture.ActorEventDb.TryClaimEventProjectorExecutionAsync(
-            persisted.EventId,
-            projectorName,
-            firstToken,
-            nowUtc,
-            TimeSpan.FromSeconds(10));
+            new EventProjectorLease(persisted.EventId, projectorName, firstToken,
+                nowUtc, TimeSpan.FromSeconds(10)));
         var secondToken = Guid.NewGuid();
         var secondOwner = await fixture.ActorEventDb.TryClaimEventProjectorExecutionAsync(
-            persisted.EventId,
-            projectorName,
-            secondToken,
-            nowUtc.AddSeconds(11),
-            TimeSpan.FromMinutes(2));
+            new EventProjectorLease(persisted.EventId, projectorName, secondToken,
+                nowUtc.AddSeconds(11), TimeSpan.FromMinutes(2)));
 
         firstOwner.Should().NotBeNull();
         secondOwner.Should().NotBeNull();
@@ -1017,14 +1001,16 @@ public class EventSourceActorSnapshotRangeTests(EventSourceActorSnapshotRangeFix
         initialSnapshot.OutboxPendingCount.Should().Be(0);
 
         (await fixture.ActorEventDb.TryClaimEventProjectorExecutionAsync(
-            saved[1].EventId, projectorName, Guid.NewGuid(), nowUtc, TimeSpan.FromMinutes(2)))
+            new EventProjectorLease(saved[1].EventId, projectorName, Guid.NewGuid(),
+                nowUtc, TimeSpan.FromMinutes(2))))
             .Should().BeNull();
         (await fixture.ActorEventDb.HasEarlierUnresolvedEventProjectorExecutionAsync(
-            saved[1].EventId, projectorName)).Should().BeTrue();
+            new EventProjectorIdentity(saved[1].EventId, projectorName))).Should().BeTrue();
 
         var firstToken = Guid.NewGuid();
         var first = await fixture.ActorEventDb.TryClaimEventProjectorExecutionAsync(
-            saved[0].EventId, projectorName, firstToken, nowUtc, TimeSpan.FromMinutes(2));
+            new EventProjectorLease(saved[0].EventId, projectorName, firstToken,
+                nowUtc, TimeSpan.FromMinutes(2)));
         first.Should().NotBeNull();
         (await fixture.ActorEventDb.TryTerminalizeEventProjectorExecutionAsync(
             new EventProjectorStateTransition(
@@ -1039,9 +1025,10 @@ public class EventSourceActorSnapshotRangeTests(EventSourceActorSnapshotRangeFix
             nowUtc.AddSeconds(1))).Should().NotBeNull();
 
         (await fixture.ActorEventDb.HasEarlierUnresolvedEventProjectorExecutionAsync(
-            saved[1].EventId, projectorName)).Should().BeFalse();
+            new EventProjectorIdentity(saved[1].EventId, projectorName))).Should().BeFalse();
         (await fixture.ActorEventDb.TryClaimEventProjectorExecutionAsync(
-            saved[1].EventId, projectorName, Guid.NewGuid(), nowUtc.AddSeconds(1), TimeSpan.FromMinutes(2)))
+            new EventProjectorLease(saved[1].EventId, projectorName, Guid.NewGuid(),
+                nowUtc.AddSeconds(1), TimeSpan.FromMinutes(2))))
             .Should().NotBeNull();
     }
 
@@ -1066,7 +1053,8 @@ public class EventSourceActorSnapshotRangeTests(EventSourceActorSnapshotRangeFix
 
         var firstToken = Guid.NewGuid();
         var first = await fixture.ActorEventDb.TryClaimEventProjectorExecutionAsync(
-            saved[0].EventId, projectorName, firstToken, nowUtc, TimeSpan.FromMinutes(2));
+            new EventProjectorLease(saved[0].EventId, projectorName, firstToken,
+                nowUtc, TimeSpan.FromMinutes(2)));
         first = await fixture.ActorEventDb.TryTransitionEventProjectorExecutionAsync(
             new EventProjectorStateTransition(
                 first!.EventId,
@@ -1094,21 +1082,15 @@ public class EventSourceActorSnapshotRangeTests(EventSourceActorSnapshotRangeFix
             .LastAppliedStreamVersion.Should().Be(1);
 
         (await fixture.ActorEventDb.HasEarlierUnresolvedEventProjectorExecutionAsync(
-            saved[1].EventId, projectorName)).Should().BeTrue();
+            new EventProjectorIdentity(saved[1].EventId, projectorName))).Should().BeTrue();
         (await fixture.ActorEventDb.TryClaimEventProjectorExecutionAsync(
-            saved[1].EventId,
-            projectorName,
-            Guid.NewGuid(),
-            nowUtc.AddSeconds(3),
-            TimeSpan.FromMinutes(2))).Should().BeNull();
+            new EventProjectorLease(saved[1].EventId, projectorName, Guid.NewGuid(),
+                nowUtc.AddSeconds(3), TimeSpan.FromMinutes(2)))).Should().BeNull();
 
         var resumedToken = Guid.NewGuid();
         first = await fixture.ActorEventDb.TryClaimEventProjectorExecutionAsync(
-            saved[0].EventId,
-            projectorName,
-            resumedToken,
-            nowUtc.AddMinutes(3),
-            TimeSpan.FromMinutes(2));
+            new EventProjectorLease(saved[0].EventId, projectorName, resumedToken,
+                nowUtc.AddMinutes(3), TimeSpan.FromMinutes(2)));
         first.Should().NotBeNull();
         first!.Stage.Should().Be(EventProjectorStageType.PublishCompletedEvent);
         first.Outcome.Should().Be(EventProjectorOutcomeType.Processing);
@@ -1126,11 +1108,8 @@ public class EventSourceActorSnapshotRangeTests(EventSourceActorSnapshotRangeFix
             nowUtc.AddMinutes(3).AddSeconds(1));
         first.Should().NotBeNull();
         (await fixture.ActorEventDb.TryClaimEventProjectorExecutionAsync(
-            saved[1].EventId,
-            projectorName,
-            Guid.NewGuid(),
-            nowUtc.AddMinutes(3).AddSeconds(2),
-            TimeSpan.FromMinutes(2))).Should().NotBeNull();
+            new EventProjectorLease(saved[1].EventId, projectorName, Guid.NewGuid(),
+                nowUtc.AddMinutes(3).AddSeconds(2), TimeSpan.FromMinutes(2)))).Should().NotBeNull();
     }
 
     [Fact]
@@ -1150,11 +1129,8 @@ public class EventSourceActorSnapshotRangeTests(EventSourceActorSnapshotRangeFix
 
         var firstToken = Guid.NewGuid();
         var firstOwner = await fixture.ActorEventDb.TryClaimEventProjectorExecutionAsync(
-            persisted.EventId,
-            projectorName,
-            firstToken,
-            nowUtc,
-            TimeSpan.FromMinutes(2));
+            new EventProjectorLease(persisted.EventId, projectorName, firstToken,
+                nowUtc, TimeSpan.FromMinutes(2)));
         firstOwner.Should().NotBeNull();
         var retryAtUtc = nowUtc.AddSeconds(30);
         var released = await fixture.ActorEventDb.TryReleaseEventProjectorExecutionAsync(
@@ -1182,11 +1158,8 @@ public class EventSourceActorSnapshotRangeTests(EventSourceActorSnapshotRangeFix
 
         var secondToken = Guid.NewGuid();
         var secondOwner = await fixture.ActorEventDb.TryClaimEventProjectorExecutionAsync(
-            persisted.EventId,
-            projectorName,
-            secondToken,
-            nowUtc.AddSeconds(2),
-            TimeSpan.FromMinutes(2));
+            new EventProjectorLease(persisted.EventId, projectorName, secondToken,
+                nowUtc.AddSeconds(2), TimeSpan.FromMinutes(2)));
         secondOwner.Should().NotBeNull();
         secondOwner!.ExecutionToken.Should().Be(secondToken);
         secondOwner.Revision.Should().Be(released.Revision + 1);
@@ -1209,11 +1182,8 @@ public class EventSourceActorSnapshotRangeTests(EventSourceActorSnapshotRangeFix
             NewExecutionState(persisted.EventId, streamId, projectorName, nowUtc))).Should().NotBeNull();
         var ownerToken = Guid.NewGuid();
         var owner = await fixture.ActorEventDb.TryClaimEventProjectorExecutionAsync(
-            persisted.EventId,
-            projectorName,
-            ownerToken,
-            nowUtc,
-            TimeSpan.FromMinutes(2));
+            new EventProjectorLease(persisted.EventId, projectorName, ownerToken,
+                nowUtc, TimeSpan.FromMinutes(2)));
         owner.Should().NotBeNull();
         var identity = new EventProjectorEffectIdentity(
             projectorName,
@@ -1278,7 +1248,8 @@ public class EventSourceActorSnapshotRangeTests(EventSourceActorSnapshotRangeFix
             NewExecutionState(persisted.EventId, streamId, projectorName, nowUtc));
         var token = Guid.NewGuid();
         state = await fixture.ActorEventDb.TryClaimEventProjectorExecutionAsync(
-            persisted.EventId, projectorName, token, nowUtc, TimeSpan.FromMinutes(2));
+            new EventProjectorLease(persisted.EventId, projectorName, token,
+                nowUtc, TimeSpan.FromMinutes(2)));
         state = await fixture.ActorEventDb.TryTransitionEventProjectorExecutionAsync(
             new EventProjectorStateTransition(
                 persisted.EventId,
@@ -1338,7 +1309,8 @@ public class EventSourceActorSnapshotRangeTests(EventSourceActorSnapshotRangeFix
             NewExecutionState(persisted.EventId, streamId, projectorName, nowUtc))).Should().NotBeNull();
         var token = Guid.NewGuid();
         var claimed = await fixture.ActorEventDb.TryClaimEventProjectorExecutionAsync(
-            persisted.EventId, projectorName, token, nowUtc, TimeSpan.FromMinutes(2));
+            new EventProjectorLease(persisted.EventId, projectorName, token,
+                nowUtc, TimeSpan.FromMinutes(2)));
         var failed = await fixture.ActorEventDb.TryTerminalizeEventProjectorExecutionAsync(
             new EventProjectorStateTransition(
                 persisted.EventId, projectorName, token, claimed!.Revision, claimed.Stage,
@@ -1408,8 +1380,7 @@ public class EventSourceActorSnapshotRangeTests(EventSourceActorSnapshotRangeFix
             updatedTimestamp: nowUtc));
 
         var execution = await fixture.ActorEventDb.GetEventProjectorExecutionStateAsync(
-            persisted.EventId,
-            projectorName);
+            new EventProjectorIdentity(persisted.EventId, projectorName));
         execution.Should().NotBeNull();
         execution!.EventStreamId.Should().Be(streamId);
         execution.SourceEventName.Should().Be(nameof(FuturesRsiSignalGeneratedEvent));
@@ -1563,7 +1534,8 @@ public class EventSourceActorSnapshotRangeTests(EventSourceActorSnapshotRangeFix
 
         var token = Guid.NewGuid();
         newer = await fixture.ActorEventDb.TryClaimEventProjectorExecutionAsync(
-            newer.EventId, projectorName, token, nowUtc, TimeSpan.FromMinutes(2));
+            new EventProjectorLease(newer.EventId, projectorName, token,
+                nowUtc, TimeSpan.FromMinutes(2)));
         newer = await fixture.ActorEventDb.TryTransitionEventProjectorExecutionAsync(
             new EventProjectorStateTransition(
                 newer!.EventId, projectorName, token, newer.Revision, newer.Stage,
@@ -1607,7 +1579,8 @@ public class EventSourceActorSnapshotRangeTests(EventSourceActorSnapshotRangeFix
             NewExecutionState(persisted.EventId, streamId, projectorName, nowUtc));
         var token = Guid.NewGuid();
         state = await fixture.ActorEventDb.TryClaimEventProjectorExecutionAsync(
-            persisted.EventId, projectorName, token, nowUtc, TimeSpan.FromMinutes(2));
+            new EventProjectorLease(persisted.EventId, projectorName, token,
+                nowUtc, TimeSpan.FromMinutes(2)));
         state = await fixture.ActorEventDb.TryTransitionEventProjectorExecutionAsync(
             new EventProjectorStateTransition(
                 persisted.EventId,
@@ -1666,7 +1639,8 @@ public class EventSourceActorSnapshotRangeTests(EventSourceActorSnapshotRangeFix
             NewExecutionState(saved[1].EventId, streamId, projectorName, nowUtc.AddSeconds(2)));
         var token = Guid.NewGuid();
         newer = await fixture.ActorEventDb.TryClaimEventProjectorExecutionAsync(
-            newer!.EventId, projectorName, token, nowUtc.AddSeconds(2), TimeSpan.FromMinutes(2));
+            new EventProjectorLease(newer!.EventId, projectorName, token,
+                nowUtc.AddSeconds(2), TimeSpan.FromMinutes(2)));
         newer = await fixture.ActorEventDb.TryTransitionEventProjectorExecutionAsync(
             new EventProjectorStateTransition(
                 newer!.EventId, projectorName, token, newer.Revision, newer.Stage,
@@ -1687,7 +1661,8 @@ public class EventSourceActorSnapshotRangeTests(EventSourceActorSnapshotRangeFix
         retriedOlder!.Outcome.Should().Be(EventProjectorOutcomeType.Retrying);
 
         var reconciled = await fixture.ActorEventDb.TryClaimEventProjectorExecutionAsync(
-            older.EventId, projectorName, Guid.NewGuid(), nowUtc.AddSeconds(6), TimeSpan.FromMinutes(2));
+            new EventProjectorLease(older.EventId, projectorName, Guid.NewGuid(),
+                nowUtc.AddSeconds(6), TimeSpan.FromMinutes(2)));
         reconciled.Should().NotBeNull();
         reconciled!.Stage.Should().Be(EventProjectorStageType.Completed);
         reconciled.Outcome.Should().Be(EventProjectorOutcomeType.Superseded);

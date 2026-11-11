@@ -12,27 +12,12 @@ public static class MarketDataImportStreamFence
         var versions = new Dictionary<string, long>(StringComparer.Ordinal);
         foreach (var stream in streams.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal))
         {
-            await transaction.ExecuteAsync("""
-                INSERT INTO event_stream_id (eventstream) VALUES ($1)
-                ON CONFLICT (eventstream) DO NOTHING;
-                """, [stream], token)
+            await transaction.ExecuteAsync(MarketDataDbSql.MarketDataImportStreamFence_LockAsync_1, [stream], token)
             .ConfigureAwait(false);
-            var head = await transaction.QueryAsync("""
-                SELECT eventstreamid, currentversion FROM event_stream_id
-                WHERE eventstream = $1 FOR UPDATE;
-                """, [stream], row => (Id: row.GetInt64(0), Version: row.GetInt64(1)), token)
+            var head = await transaction.QueryAsync(MarketDataDbSql.MarketDataImportStreamFence_LockAsync_2, [stream], MapToLockRow1, token)
             .ConfigureAwait(false);
             var (id, version) = head.Single();
-            var pending = await transaction.ScalarAsync("""
-                SELECT EXISTS (
-                    SELECT 1 FROM event_log source
-                    JOIN event_projector_state projection ON projection.eventid = source.eventversion
-                    WHERE source.eventstreamid = $1 AND projection.projectorname = $2
-                      AND (projection.stage IS DISTINCT FROM 'Completed'
-                        OR projection.outcome IS NULL
-                        OR projection.outcome NOT IN ('Completed', 'AlreadyCompleted', 'Superseded'))
-                );
-                """, [id, projector], token)
+            var pending = await transaction.ScalarAsync(MarketDataDbSql.MarketDataImportStreamFence_LockAsync_3, [id, projector], token)
             .ConfigureAwait(false);
             if (pending is true)
                 throw new InvalidOperationException($"MarketData import requires completed CRUD projection for stream {stream}.");
@@ -40,4 +25,7 @@ public static class MarketDataImportStreamFence
         }
         return versions;
     }
+
+    /// <summary>Maps the selected database columns in their query ordinal order.</summary>
+    private static (long Id, long Version) MapToLockRow1(global::System.Data.Common.DbDataReader row) => (Id: row.GetInt64(0), Version: row.GetInt64(1));
 }

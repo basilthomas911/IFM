@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.DownloadLog.Query;
 using TomasAI.IFM.Domain.MarketData.Shared.DownloadLog;
 
 namespace TomasAI.IFM.Domain.MarketData.IntegrationTests;

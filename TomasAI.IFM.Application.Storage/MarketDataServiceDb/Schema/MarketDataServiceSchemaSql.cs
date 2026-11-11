@@ -162,4 +162,12 @@ public static class MarketDataServiceSchemaSql
           FOREIGN KEY(scope,dataset) REFERENCES market_data_service.stage4_intent_current(scope,dataset)
         );
         """;
+    internal const string DropSchema = "DROP SCHEMA IF EXISTS market_data_service CASCADE;";
+    internal const string DropAssignments = "DROP TABLE IF EXISTS market_data_service.futures_rollover_contract_assignment;";
+    internal const string DropRecoveryLog = "DROP TABLE IF EXISTS market_data_service.marketdata_recovery_log;";
+    internal const string DropWatchdogLog = "DROP TABLE IF EXISTS market_data_service.watchdog_status_log;";
+    internal const string DropDurableSubscriptions = "DROP TABLE IF EXISTS market_data_service.stage4_intent_outbox, market_data_service.stage4_authority_watermark, market_data_service.stage4_lease_identity, market_data_service.stage4_intent_operation, market_data_service.stage4_intent_current;";
+    internal const string DropCompositionRoutePlan = "DROP TABLE IF EXISTS market_data_service.composition_route_plan;";
+    internal const string DropDatasetIncidents = "DROP TABLE IF EXISTS market_data_service.dataset_incident_transition; DROP TABLE IF EXISTS market_data_service.dataset_incident_current;";
+
 }

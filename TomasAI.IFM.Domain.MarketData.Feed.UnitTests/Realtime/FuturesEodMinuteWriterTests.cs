@@ -11,6 +11,8 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Framework.SequenceId;
+using TomasAI.IFM.Shared.Identity;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.UnitTests.Realtime;
 
@@ -108,16 +110,14 @@ public sealed class FuturesEodMinuteWriterTests
         var (projector, context, storage) = Create();
         var calls = 0;
         BufferedFuturesEodRow? first = null;
-        storage.PrepareRealtimeFuturesEodBatchAsync(Arg.Any<IReadOnlyList<BufferedFuturesEodRow>>())
-            .Returns(call => { foreach (var row in call.Arg<IReadOnlyList<BufferedFuturesEodRow>>()) row.HistorySequenceId ??= 42; return Task.CompletedTask; });
         storage.PersistRealtimeFuturesEodBatchAsync(Arg.Any<IReadOnlyList<BufferedFuturesEodRow>>())
             .Returns(call =>
             {
                 var row = call.Arg<IReadOnlyList<BufferedFuturesEodRow>>().Single();
+                row.HistorySequenceId.Should().Be(42);
                 if (++calls == 1)
                 {
                     first = row;
-                    row.HistorySequenceId = 42;
                     return Task.FromException(new TimeoutException("test storage failure"));
                 }
                 row.Snapshot.Should().Be(first!.Snapshot);
@@ -234,13 +234,15 @@ public sealed class FuturesEodMinuteWriterTests
     {
         var factory = Substitute.For<IDbContextFactory>();
         var storage = Substitute.For<IMarketDataDbContext>();
+        var sequences = Substitute.For<ISequenceIdGenerator>();
+        sequences.GetSequenceIdAsync(SequenceName.FuturesIntraDay_SequenceId).Returns(42L);
         factory.MarketDataDb.Returns(storage);
         var context = Substitute.For<IEventActorContext>();
         context.ActorId.Returns(new ActorMailboxId(ActorType.Realtime, FuturesEodDataRealtimeActor.ActorName));
         var config = Substitute.For<IConfiguration>();
         config["MarketData:FuturesEodMinuteBatchWriter"].Returns("true");
         config["MarketData:FuturesEodHistorySpoolPath"].Returns(Path.Combine(Path.GetTempPath(), "ifm-eod-tests", Guid.NewGuid().ToString("N")));
-        return (new(factory, NullLogger<FuturesEodDataRealtimeProjector>.Instance, config), context, storage);
+        return (new(factory, sequences, NullLogger<FuturesEodDataRealtimeProjector>.Instance, config), context, storage);
     }
 
     static FuturesEodDataV2ReadModel Row() => new()

@@ -13,28 +13,18 @@ internal static class SystemAdminDbContextExtensions
     static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     extension(SystemAdminDbContext context)
     {
-        /// <summary>Validates a required query before context parameter binding.</summary>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Validation belongs to the DbContext binding receiver contract.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Validation belongs to the DbContext binding receiver contract.")]
-        internal void ValidateRequiredArgument<T>([System.Diagnostics.CodeAnalysis.NotNull] T value, [System.Runtime.CompilerServices.CallerArgumentExpression("value")] string? argumentName = null)
-        {
-            if (value is null)
-                throw new ArgumentNullException(argumentName);
-        }
-
         /// <summary>Atomically applies accepted backup rows and technical projection receipts.</summary>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         internal async ValueTask<EventProjectionApplyOutcome> ApplyDatabaseBackupSnapshotCoreAsync(string projectorName, DatabaseBackupProjectionSnapshot snapshot, CancellationToken cancellationToken)
         {
-            ArgumentException.ThrowIfNullOrWhiteSpace(projectorName);
-            ArgumentNullException.ThrowIfNull(snapshot);
             var hash = snapshot.EventHash;
             var transaction = context.BeginTransaction();
             try
             {
+        var preparedParameters1 = new ProjectionKey(projectorName, snapshot.EventId);
                 var existing = await context.Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.GetProjectionReceiptForUpdate)}", SystemAdminDbSql.GetProjectionReceiptForUpdate)
-            .SetParameters(new ProjectionKey(projectorName, snapshot.EventId))
-            .ExecuteSingleAsync(static row => row.GetString(0), cancellationToken)
+            .SetParameters(preparedParameters1)
+            .ExecuteSingleAsync(SystemAdminDbContext.MapToProjectionReceipt, cancellationToken)
             .ConfigureAwait(false);
                 if (existing is not null)
                 {
@@ -47,12 +37,14 @@ internal static class SystemAdminDbContextExtensions
                 await context.ApplyRowsAsync(snapshot, cancellationToken)
             .ConfigureAwait(false);
                 var now = DateTime.UtcNow;
+        var preparedParameters2 = new InsertProjectionReceiptParameter(projectorName, snapshot.EventId, hash, snapshot.Source.SourceEventId, now);
                 await context.Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.InsertProjectionReceipt)}", SystemAdminDbSql.InsertProjectionReceipt)
-            .SetParameters(new InsertProjectionReceiptParameter(projectorName, snapshot.EventId, hash, snapshot.Source.SourceEventId, now))
+            .SetParameters(preparedParameters2)
             .ExecuteCommandAsync(cancellationToken)
             .ConfigureAwait(false);
+        var preparedParameters3 = new UpsertProjectionCheckpointParameter(projectorName, snapshot.EventId, now);
                 await context.Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.UpsertProjectionCheckpoint)}", SystemAdminDbSql.UpsertProjectionCheckpoint)
-            .SetParameters(new UpsertProjectionCheckpointParameter(projectorName, snapshot.EventId, now))
+            .SetParameters(preparedParameters3)
             .ExecuteCommandAsync(cancellationToken)
             .ConfigureAwait(false);
                 transaction?.Commit();
@@ -69,10 +61,10 @@ internal static class SystemAdminDbContextExtensions
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         internal async ValueTask<DatabaseBackupProjectionCheckpointReadModel?> GetDatabaseBackupProjectionCheckpointCoreAsync(string projectorName, CancellationToken cancellationToken)
         {
-            ArgumentException.ThrowIfNullOrWhiteSpace(projectorName);
+        var preparedParameters4 = new ProjectorKey(projectorName);
             return await context.Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.GetProjectionCheckpoint)}", SystemAdminDbSql.GetProjectionCheckpoint)
-            .SetParameters(new ProjectorKey(projectorName))
-            .ExecuteSingleAsync(static row => new DatabaseBackupProjectionCheckpointReadModel(row.GetString(0), row.GetLong(1), row.GetLong(2), row.GetDateTime(3).ToUtcOffset()), cancellationToken)
+            .SetParameters(preparedParameters4)
+            .ExecuteSingleAsync(SystemAdminDbContext.MapToProjectionCheckpoint, cancellationToken)
             .ConfigureAwait(false);
         }
 
@@ -80,19 +72,20 @@ internal static class SystemAdminDbContextExtensions
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         internal async ValueTask ClearDatabaseBackupProjectionsCoreAsync(string projectorName, CancellationToken cancellationToken)
         {
-            ArgumentException.ThrowIfNullOrWhiteSpace(projectorName);
             var transaction = context.BeginTransaction();
             try
             {
                 await context.Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.ClearProjections)}", SystemAdminDbSql.ClearProjections)
             .ExecuteCommandAsync(cancellationToken)
             .ConfigureAwait(false);
+        var preparedParameters5 = new ProjectorKey(projectorName);
                 await context.Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.ClearProjectionReceipts)}", SystemAdminDbSql.ClearProjectionReceipts)
-            .SetParameters(new ProjectorKey(projectorName))
+            .SetParameters(preparedParameters5)
             .ExecuteCommandAsync(cancellationToken)
             .ConfigureAwait(false);
+        var preparedParameters6 = new ProjectorKey(projectorName);
                 await context.Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.ClearProjectionCheckpoint)}", SystemAdminDbSql.ClearProjectionCheckpoint)
-            .SetParameters(new ProjectorKey(projectorName))
+            .SetParameters(preparedParameters6)
             .ExecuteCommandAsync(cancellationToken)
             .ConfigureAwait(false);
                 transaction?.Commit();
@@ -203,8 +196,6 @@ internal static class SystemAdminDbContextExtensions
         internal async Task<EventProjectionApplyOutcome> ProjectBackupSnapshotAsync(string projectorName, DatabaseBackupProjectionSnapshot snapshot, CancellationToken token)
         {
             ArgumentNullException.ThrowIfNull(transaction);
-            ArgumentException.ThrowIfNullOrWhiteSpace(projectorName);
-            ArgumentNullException.ThrowIfNull(snapshot);
             var hash = snapshot.EventHash;
             var existing = await transaction.ScalarAsync(SystemAdminDbSql.GetProjectionReceiptForUpdate, transaction.BindBackupParameters(new ProjectionKey(projectorName, snapshot.EventId)), token)
             .ConfigureAwait(false) as string;

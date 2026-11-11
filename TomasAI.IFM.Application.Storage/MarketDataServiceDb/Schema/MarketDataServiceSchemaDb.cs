@@ -12,18 +12,18 @@ public sealed class MarketDataServiceSchemaDb(IDbConnectionSettings settings, IL
 {
     static readonly SchemaObjectDefinition[] Objects =
     [
-        new("market_data_service", MarketDataServiceSchemaSql.CreateSchema, "DROP SCHEMA IF EXISTS market_data_service CASCADE;"),
+        new("market_data_service", MarketDataServiceSchemaSql.CreateSchema, MarketDataServiceSchemaSql.DropSchema),
         new("futures_rollover_contract_assignment", MarketDataServiceSchemaSql.CreateAssignments,
-            "DROP TABLE IF EXISTS market_data_service.futures_rollover_contract_assignment;"),
-        new("marketdata_recovery_log", MarketDataServiceSchemaSql.CreateRecoveryLog, "DROP TABLE IF EXISTS market_data_service.marketdata_recovery_log;"),
+            MarketDataServiceSchemaSql.DropAssignments),
+        new("marketdata_recovery_log", MarketDataServiceSchemaSql.CreateRecoveryLog, MarketDataServiceSchemaSql.DropRecoveryLog),
         new("watchdog_status_log", MarketDataServiceSchemaSql.CreateWatchdogLog,
-            "DROP TABLE IF EXISTS market_data_service.watchdog_status_log;"),
+            MarketDataServiceSchemaSql.DropWatchdogLog),
         new("stage4_subscription_intent", MarketDataServiceSchemaSql.CreateDurableSubscriptions,
-            "DROP TABLE IF EXISTS market_data_service.stage4_intent_outbox, market_data_service.stage4_authority_watermark, market_data_service.stage4_lease_identity, market_data_service.stage4_intent_operation, market_data_service.stage4_intent_current;"),
+            MarketDataServiceSchemaSql.DropDurableSubscriptions),
         new("composition_route_plan", MarketDataServiceSchemaSql.CreateCompositionRoutePlan,
-            "DROP TABLE IF EXISTS market_data_service.composition_route_plan;"),
+            MarketDataServiceSchemaSql.DropCompositionRoutePlan),
         new("dataset_incident", MarketDataServiceSchemaSql.CreateDatasetIncidents,
-            "DROP TABLE IF EXISTS market_data_service.dataset_incident_transition; DROP TABLE IF EXISTS market_data_service.dataset_incident_current;")
+            MarketDataServiceSchemaSql.DropDatasetIncidents)
     ];
     protected override IReadOnlyList<SchemaObjectDefinition> Definitions => Objects;
 }

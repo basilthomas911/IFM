@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Securities.Persistence;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.SecuritiesDb;

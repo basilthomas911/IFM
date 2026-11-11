@@ -1,4 +1,5 @@
 using FluentAssertions;
+using NSubstitute;
 using TomasAI.IFM.Domain.MarketData.Analytics.OptionVolatility;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility;
 
@@ -99,6 +100,20 @@ public sealed class InMemoryOptionVolatilityRepositoryTests
             .FreshnessStatus.Should().Be(VolatilityFreshnessStatus.Stale);
     }
 
+    [Theory]
+    [InlineData(30, VolatilityFreshnessStatus.Accepted)]
+    [InlineData(61, VolatilityFreshnessStatus.Stale)]
+    public async Task Latest_volatility_excludes_market_closure_from_age(int secondsAfterOpen, VolatilityFreshnessStatus expected)
+    {
+        var repository = new InMemoryOptionVolatilityRepository();
+        var close = DateTimeOffset.Parse("2026-11-10T22:00:00Z");
+        var publication = OptionVolatilityTestData.Publication("session-close", 1, available: close.AddSeconds(-1));
+        await repository.PublishAsync(publication);
+        var result = await repository.GetLatestAsync(LatestRequest(close.AddHours(1).AddSeconds(secondsAfterOpen)));
+        result.FreshnessStatus.Should().Be(expected);
+        result.Metric.Should().Be(publication.Metric);
+    }
+
     [Fact]
     public async Task History_PagesWithinBoundAndUsesOpaqueContinuation()
     {
@@ -163,7 +178,7 @@ public sealed class InMemoryOptionVolatilityRepositoryTests
         repository.SimulateCacheLoss();
         (await repository.GetLatestAsync(LatestRequest())).FreshnessStatus
             .Should().Be(VolatilityFreshnessStatus.Unavailable);
-        var rebuilt = await repository.RebuildLatestCacheAsync([OptionVolatilityTestData.Scope]);
+        var rebuilt = await repository.ReadLatestVolatilityPointersAsync([OptionVolatilityTestData.Scope]);
 
         rebuilt.Should().ContainKey(OptionVolatilityTestData.Scope);
         (await repository.GetLatestAsync(LatestRequest())).Metric.Should().Be(publication.Metric);
@@ -206,6 +221,22 @@ public sealed class InMemoryOptionVolatilityRepositoryTests
 
         foreach (var request in new[] { crossBucket, zeroPage, oversizedPage, missingKnownAt, unexpectedKnownAt })
             await repository.Invoking(x => x.GetMetricHistoryAsync(request)).Should().ThrowAsync<ArgumentException>();
+    }
+
+    [Fact]
+    public async Task ServiceRejectsInvalidRequestsBeforeCallingPersistence()
+    {
+        var repository = Substitute.For<IOptionVolatilityRepository>();
+        var service = new OptionVolatilityService(repository);
+        var source = OptionVolatilityTestData.Publication("snapshot-1", 1);
+        var invalid = source with { SourceObservations = [] };
+
+        await Assert.ThrowsAsync<ArgumentException>(() => service.PublishAsync(invalid));
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            service.GetMetricHistoryAsync(OptionVolatilityTestData.History(pageSize: 0)));
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            service.GetLatestAsync(new(OptionVolatilityTestData.Scope, OptionVolatilityTestData.Now, TimeSpan.Zero)));
+        Assert.Empty(repository.ReceivedCalls());
     }
 
     static LatestVolatilityRequest LatestRequest(DateTimeOffset? requested = null) =>

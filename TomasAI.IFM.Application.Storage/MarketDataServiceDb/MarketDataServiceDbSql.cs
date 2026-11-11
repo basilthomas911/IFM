@@ -139,4 +139,20 @@ internal static class MarketDataServiceDbSql
         FROM market_data_service.dataset_incident_current
         WHERE is_open=true ORDER BY dataset;
         """;
+    internal const string InsertRecoveryLog = """
+        INSERT INTO market_data_service.marketdata_recovery_log
+          (record_id,operation_id,sequence,value_date,role,dataset,kind,occurred_at_utc,received_at_utc,payload_digest,payload,source_event_id)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+        ON CONFLICT (record_id) DO UPDATE SET record_id=EXCLUDED.record_id
+        WHERE marketdata_recovery_log.payload_digest=EXCLUDED.payload_digest
+          AND marketdata_recovery_log.payload=EXCLUDED.payload
+        RETURNING record_id;
+        """;
+    internal const string ReadRecoveryLog = """
+        SELECT payload FROM market_data_service.marketdata_recovery_log
+        WHERE value_date=$1 AND ($2::text IS NULL OR dataset=$2)
+          AND ($3::uuid IS NULL OR operation_id=$3)
+        ORDER BY operation_id,sequence LIMIT $4;
+        """;
+
 }

@@ -32,7 +32,7 @@ public sealed class FuturesEodDataEventProjector(
             .WithReadModelRebuild((source,token) => RebuildAsync(actorContext,source,token)),
         Describe<VixFuturesEodDataInsertedEvent, VixFuturesEodDataInsertedCompleteEvent, VixFuturesEodDataInsertedFailEvent, FuturesEodDataId>(
             e => string.Equals(actorContext.DbFactory.MarketDataDb.ProviderName,"System.Data.Postgres",StringComparison.Ordinal)
-                ? Task.CompletedTask : actorContext.DbFactory.MarketDataDb.InsertVixFuturesEodDataAsync(e.VixFuturesTickData,e.SessionStatistics))
+                ? Task.CompletedTask : actorContext.DbFactory.MarketDataDb.InsertVixFuturesEodDataAsync(new VixTickObservation(e.VixFuturesTickData,e.SessionStatistics)))
             .WithReadModelRebuild((source,token) => RebuildAsync(actorContext,source,token))
     ];
     public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors => _descriptors;

@@ -115,6 +115,9 @@ internal sealed partial class PortfolioResponder {
        new(new(){CommandId=request.CommandId,Value=allocation},null)),options);
   }catch(Exception error){return MessagePackSerializer.Serialize(new ServiceFailed<GuidResult>(34014,error.Message),options);}
  }
+ internal static FundBaseContractsReadModel BaseContracts(FundMandateReadModel fund)=>new(){PortfolioId=fund.PortfolioId,FundId=fund.FundId,FundMandateVersion=fund.FundMandateVersion,ValueDate=new(2026,10,26),DefinitionSnapshotId=Guid.Parse("721dd687-7a5a-4fa6-a404-01545cbab900"),Defaults=fund.BaseContracts,
+    Symbols=[new(){Id=1,Symbol="ES",Description="E-mini S&P 500",Currency="USD",Exchange="CME"},new(){Id=2,Symbol="VX",Description="CBOE volatility futures",Currency="USD",Exchange="CFE"}],
+    Contracts=[new(){ContractId="ESZ6",Symbol="ES",Description="Provider fixture",LocalSymbol="ESZ6",SecurityType="FUT",Currency="USD",Exchange="CME",Multiplier="50",TickSize=0.25m,LastTradeDate=new(2026,12,18),OnTheRun=true,Rollover=true,Dataset="GLBX.MDP3",InstrumentId=1122,DefinitionDigest=new('a',64),RawDefinitionReference="fixture/future"}]};
  public byte[] Handle(string subject,byte[] bytes){
   var options=MessagePackBinarySerializer.Options;var pieces=subject.Split('.');
   byte[] Result<T>(T value)=>MessagePackSerializer.Serialize(new ServiceResult<T>{Success=true,ErrorMessage="",Value=value},options);
@@ -131,6 +134,7 @@ internal sealed partial class PortfolioResponder {
     case "GetPortfolios":var selectedParent=HasAdminState?adminParent:parent;return Result(new PortfolioPage<PortfolioReadModel>{Items=Get("State") is int state&&state!=(int)selectedParent.OperatingState?[]:[selectedParent],PageSize=100});
     case "GetPortfolio":return Result(HasAdminState?adminParent:parent);
     case "GetFunds":return Result(new PortfolioPage<FundMandateReadModel>{Items=HasFundState?FundRows():HasAdminState&&adminParent.PortfolioId!=1?[]:[Mode=="WrongFund"?PortfolioFixtures.Fund with{PortfolioId=999}:PortfolioFixtures.Fund],PageSize=100});
+    case "GetFundBaseContracts":return Result(BaseContracts(HasFundState?FundRows().Last(p=>p.FundId==(int)Get("FundId")!):PortfolioFixtures.Fund));
     case "GetFund":return Result(HasFundState?FundRows().Last(p=>p.FundId==(int)Get("FundId")!):PortfolioFixtures.Fund);
     case "GetPortfolioRevision":return Result(new PortfolioAggregateRevision{PortfolioId=HasAdminState?adminParent.PortfolioId:1,Revision=HasAdminState?adminRevision:parentRevision,SourceEventId=30});
     case "GetFundRevision":return Result(new PortfolioAggregateRevision{PortfolioId=1,FundId=(int)Get("FundId")!,Revision=HasFundState?fundRevision:4,SourceEventId=40});

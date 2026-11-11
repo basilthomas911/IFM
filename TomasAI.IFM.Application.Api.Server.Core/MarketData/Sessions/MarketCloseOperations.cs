@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Run.Query;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Api.Nats.Client;

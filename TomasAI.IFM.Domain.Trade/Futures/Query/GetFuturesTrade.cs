@@ -24,6 +24,8 @@ public static class GetFuturesTrade
         {
             ArgumentNullException.ThrowIfNull(context);
             ArgumentNullException.ThrowIfNull(query);
+            if (!query.TradeId.IsValid)
+                throw new ArgumentException("Valid trade identity is required.", nameof(query));
             var trade = await context.DbFactory.TradeDb.GetEstablishedTradeAsync(query.TradeId, cancellationToken).ConfigureAwait(false);
             if (trade?.AssetFamily != TradeAssetFamily.Futures)
                 trade = null;

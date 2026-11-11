@@ -1,4 +1,6 @@
+using TomasAI.IFM.Domain.MarketData.Shared.QueryParameters;
 // Application qualification policy adapted from the current Host; native provider only.
+using TomasAI.IFM.Domain.MarketData.Securities.Persistence;
 using TomasAI.IFM.Shared.MarketData.Definitions;
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
@@ -162,7 +164,7 @@ context.Logger.LogDebug("Option-chain acquisition diagnostic.");
 
     static async Task<FuturesOptionContractReadModel[]> LoadDefinitionsAsync(GetEvaluatedOptionChainQuery query, HostOptionChainContext context, CancellationToken token)
     {
-        var cached = await (context.DbFactory.SecuritiesDb.GetCachedOptionContractDefinitionsAsync(query.UnderlyingSymbol, query.UnderlyingContractId, query.ExpiryDate, query.ProviderRoots, token)).ConfigureAwait(false);
+        var cached = await (context.Definitions.GetOptionDefinitionsAsync(query.UnderlyingSymbol, query.UnderlyingContractId, query.ExpiryDate, query.ProviderRoots, token)).ConfigureAwait(false);
         return cached.Select(row => row.Definition).DistinctBy(x => x.ContractId).ToArray();
     }
 
@@ -187,7 +189,7 @@ context.Logger.LogDebug("Option-chain acquisition diagnostic.");
                     return;
                 }
 
-                if (await securities.GetReferenceVersionAsync(definition.ContractId, definition.MappingVersion, cancellationToken).ConfigureAwait(false)is not null)
+                if (await securities.GetReferenceVersionAsync(new ExactReferenceVersion(definition.ContractId, definition.MappingVersion), cancellationToken).ConfigureAwait(false)is not null)
                 {
                     PublishedReferences.TryAdd(referenceKey, 0);
                     return;

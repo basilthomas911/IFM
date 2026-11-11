@@ -42,7 +42,7 @@ public sealed class Stage4DurableIntentPostgresFixture : IAsyncLifetime
     private string? _previousAspnet;
     private bool _environmentChanged;
     private bool _schemaCreated;
-    public MarketDataServiceDbContext Store { get; private set; } = null!;
+    public IDurableSubscriptionIntentStore Store { get; private set; } = null!;
 
     public async Task InitializeAsync()
     {
@@ -94,18 +94,11 @@ public sealed class Stage4DurableIntentPostgresFixture : IAsyncLifetime
         return scope;
     }
 
-    public MarketDataServiceDbContext NewStore() => new(
-        _settings,
-        Substitute.For<IDbContextFactory>(),
-        Substitute.For<ISequenceIdDbContext>(),
-        _logger);
-    internal MarketDataServiceDbContext FaultingStore(Action<DurableStoreWriteStage> observer) => new(
-        _settings,
-        Substitute.For<IDbContextFactory>(),
-        Substitute.For<ISequenceIdDbContext>(),
-        _logger,
-        null,
-        observer);
+    public IDurableSubscriptionIntentStore NewStore()
+        => new DurableSubscriptionIntentStore(new MarketDataServiceDbContext(_settings, _logger));
+
+    internal IDurableSubscriptionIntentStore FaultingStore(Action<DurableStoreWriteStage> observer)
+        => new DurableSubscriptionIntentStore(new MarketDataServiceDbContext(_settings, _logger, null, observer));
 
     public Task<long> ReadWatermarkVersionAsync(string scope, string sourceId) => _repository!
         .Use("Stage4Fixture.ReadWatermark", """

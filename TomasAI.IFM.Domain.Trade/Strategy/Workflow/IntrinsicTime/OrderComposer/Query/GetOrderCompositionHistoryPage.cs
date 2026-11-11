@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Persistence;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Query.Actor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Query.Model;
@@ -16,6 +17,7 @@ public static class GetOrderCompositionHistoryPage
             ArgumentNullException.ThrowIfNull(query);
             ArgumentNullException.ThrowIfNull(services);
             await (OrderCompositionQueryModel.AuthorizeAsync(services, query.Access, query.PortfolioId, query.FundId, cancellationToken)).ConfigureAwait(false);
+            TradeHistorySelection.RequireValueDate(query.PortfolioId, query.FundId, query.ValueDate, query.PageSize, 100, "Invalid composition history scope.");
             var page = await (services.DbFactory.TradeDb.GetOrderCompositionHistoryAsync(query.PortfolioId, query.FundId, query.ValueDate, query.PageSize, OrderCompositionPaging.Decode(query.PortfolioId, query.FundId, query.ValueDate, query.PageSize, query.PagingState), cancellationToken)).ConfigureAwait(false);
             return new ServiceOk<OrderCompositionHistoryPage>(new(page.Items, OrderCompositionPaging.Encode(query.PortfolioId, query.FundId, query.ValueDate, query.PageSize, page.PagingState)));
         }

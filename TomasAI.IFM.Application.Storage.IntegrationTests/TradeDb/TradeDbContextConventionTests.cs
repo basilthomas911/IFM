@@ -3,6 +3,8 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using TomasAI.IFM.Application.Storage.TradeDb;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RiskManagement;
@@ -146,8 +148,33 @@ public sealed class TradeDbContextConventionTests
     public void Native_workflow_reads_bind_one_execution_parameter_set()
     {
         var context = File.ReadAllText(Path.Combine(GetFolder(), "TradeDbContext.cs"));
-        Assert.DoesNotContain(".SetParameters(Values(", context, StringComparison.Ordinal);
-        Assert.Equal(6, context.Split(".SetParameters(new TradeDbValues(Values(", StringSplitOptions.None).Length - 1);
+        string[] statements =
+        [
+            "NativeGetIntrinsicTimeStrategyWorkflow", "NativeGetActiveIntrinsicTimeStrategyWorkflow",
+            "NativeGetIntrinsicTimeStrategyWorkflowStartAttempts", "NativeGetIntrinsicTimeStrategyWorkflowTimeline",
+            "NativeGetIntrinsicTimeStrategyWorkflowsByEntity", "NativeGetIntrinsicTimeStrategyWorkflowsByStatusDay"
+        ];
+        var root = CSharpSyntaxTree.ParseText(context, new CSharpParseOptions(LanguageVersion.Preview)).GetRoot();
+        var calls = root.DescendantNodes().OfType<InvocationExpressionSyntax>().ToArray();
+        foreach (var statement in statements)
+        {
+            var use = Assert.Single(calls, call => call.Expression is MemberAccessExpressionSyntax method &&
+                method.Name.Identifier.ValueText == "Use" &&
+                call.ArgumentList.Arguments.Last().DescendantNodes().OfType<MemberAccessExpressionSyntax>()
+                    .Any(sql => sql.Name.Identifier.ValueText == statement));
+            var bind = Assert.IsType<InvocationExpressionSyntax>(use.Parent!.Parent);
+            var target = Assert.IsType<MemberAccessExpressionSyntax>(bind.Expression);
+            Assert.Equal("SetParameters", target.Name.Identifier.ValueText);
+            var argument = Assert.Single(bind.ArgumentList.Arguments).Expression;
+            if (argument is IdentifierNameSyntax reference)
+            {
+                var declaration = Assert.Single(use.Ancestors().OfType<MethodDeclarationSyntax>().First()
+                    .DescendantNodes().OfType<VariableDeclaratorSyntax>(),
+                    variable => variable.Identifier.ValueText == reference.Identifier.ValueText);
+                argument = declaration.Initializer!.Value;
+            }
+            Assert.Equal("TradeDbValues", Assert.IsType<ObjectCreationExpressionSyntax>(argument).Type.ToString());
+        }
     }
 
     private static bool SameSignature(MethodInfo contract, MethodInfo implementation)

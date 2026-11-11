@@ -23,6 +23,7 @@ use eframe::egui;
 use std::collections::BTreeMap;
 
 use crate::models::portfolio::{Dialog, Document, Field, Grid};
+mod base_contracts;
 impl Dialog {
     /// Transaction feedback uses the administration status line rather than a second line in the editor.
     fn has_inline_status(&self) -> bool {
@@ -140,6 +141,10 @@ impl PortfolioManager {
     /// Build a correlated user intent against the current publication generation and retain its request ID as pending. The caller must enqueue the returned payload.
     fn request(&mut self, action: Action, publication: &ContractPublication) -> String {
         let id = crate::lookup_editor::new_request_id();
+        // Cancellation discards this detached working copy immediately; no write acknowledgment is needed.
+        if action.0 == "portfolio-cancel" && self.document.dialogs.last().is_some_and(|d| d.key == "base-contracts") {
+            std::sync::Arc::make_mut(&mut self.document).dialogs.retain(|d| d.key != "base-contracts");
+        }
         self.pending = Some(id.clone());
         self.error.clear();
         serde_json::json!({"schema":1,"requestId":id,"view":"portfolio","intent":action.0,"expectedGeneration":publication.generation,"originalId":action.1,"fields":action.2}).to_string()
@@ -302,7 +307,7 @@ impl PortfolioManager {
                     "funds"
                 } else {
                     ui.horizontal(|ui| {
-                        for (i, title) in ["Fund", "Allocation", "Risk", "Assignments"]
+                        for (i, title) in ["Fund", "Allocation", "Risk", "Assignments", "Base Contracts"]
                             .iter()
                             .enumerate()
                         {
@@ -311,7 +316,7 @@ impl PortfolioManager {
                             }
                         }
                     });
-                    ["fund", "allocation", "envelope", "assignments"][self.details_tab]
+                    ["fund", "allocation", "envelope", "assignments", "base-contracts"][self.details_tab]
                 };
                 let line_height = ui.text_style_height(&egui::TextStyle::Body);
                 let spacing = ui.spacing().item_spacing.y;
@@ -388,7 +393,9 @@ impl PortfolioManager {
                     );
                     ui.scope_builder(egui::UiBuilder::new().max_rect(grid_rect), |ui| {
                         ui.set_clip_rect(grid_rect.intersect(ui.clip_rect()));
-                        if let Some(grid) = document.grids.iter().find(|g| g.key == key) {
+                        if key == "base-contracts" {
+                            self.base_contract_tree(ui, &document, grid_height);
+                        } else if let Some(grid) = document.grids.iter().find(|g| g.key == key) {
                             draw_grid(
                                 ui,
                                 grid,
@@ -418,6 +425,7 @@ impl PortfolioManager {
                                 ("Allocation...", "allocation"),
                                 ("Risk Envelope...", "envelope"),
                                 ("Trade Assignment...", "assignment"),
+                                ("Base Contracts...", "base-contracts"),
                             ] {
                                 let response = ui.add_enabled(
                                     document.enabled.get(label).copied().unwrap_or(false),
@@ -485,11 +493,11 @@ impl PortfolioManager {
                             }
                             ui.end_row();
                         });
-                    let status = document
-                        .context
-                        .get("status")
-                        .map(|message| message.replace(['\r', '\n'], " "))
-                        .unwrap_or_default();
+                    let status = if self.error.is_empty() {
+                        document.context.get("status").cloned().unwrap_or_default()
+                    } else {
+                        self.error.clone()
+                    }.replace(['\r', '\n'], " ");
                     let status_rect = egui::Rect::from_min_max(
                         egui::pos2(bounds.left(), bounds.bottom() - line_height),
                         bounds.max,
@@ -516,12 +524,15 @@ impl PortfolioManager {
             } else {
                 0.
             };
-            let dialog_height = if dialog.key == "ledger" {
+            let dialog_height = if dialog.key == "base-contracts" {
+                460_f32.min(size.y * 0.7)
+            } else if dialog.key == "ledger" {
                 470.
             } else {
                 dialog.height
             };
-            let size = egui::vec2(dialog.width - 16., dialog_height - 39. + status_height)
+            let dialog_width = if dialog.key == "base-contracts" { 660. } else { dialog.width };
+            let size = egui::vec2(dialog_width - 16., dialog_height - 39. + status_height)
                 .min((ctx.screen_rect().size() - egui::vec2(24., 64.)).max(egui::vec2(400., 250.)));
             let window = egui::Window::new(presentation::dialog_title(&dialog.title))
                 .id(egui::Id::new(("portfolio-dialog", &dialog.key)))
@@ -532,6 +543,7 @@ impl PortfolioManager {
                     match dialog.key.as_str() {
                         "financials" => egui::vec2(834., 461.),
                         "ledger" => egui::vec2(924., 611.),
+                        "base-contracts" => egui::vec2(640., 300.),
                         "setup" | "authority" => egui::vec2(764., 571.),
                         "risk-policy" => egui::vec2(984., 641.),
                         "risk-history" => egui::vec2(834., 511.),
@@ -541,9 +553,9 @@ impl PortfolioManager {
                     }
                     .min(size),
                 )
-                .resizable(!dialog.uses_compact_layout() && dialog.key != "ledger")
+                .resizable(!dialog.uses_compact_layout() && !matches!(dialog.key.as_str(), "ledger" | "base-contracts"))
                 .default_pos(ctx.screen_rect().center() - size / 2.);
-            let window = if dialog.uses_compact_layout() || dialog.key == "ledger" {
+            let window = if dialog.uses_compact_layout() || matches!(dialog.key.as_str(), "ledger" | "base-contracts") {
                 window.fixed_size(size)
             } else {
                 window
@@ -594,18 +606,7 @@ impl PortfolioManager {
                 }
             }
         }
-        if !self.error.is_empty() {
-            let mut show = true;
-            egui::Window::new(presentation::dialog_title("Portfolio Error"))
-                .id(egui::Id::new("portfolio-error"))
-                .open(&mut show)
-                .show(ctx, |ui| {
-                    ui.trading_label(&self.error);
-                });
-            if !show {
-                self.error.clear();
-            }
-        }
+        // The application owns the shared error dialog. Portfolio retains the reason inline only.
         if self.open && ready && !self.loaded {
             self.loaded = true;
             action = Some(Self::action("load"));
@@ -1112,6 +1113,23 @@ impl PortfolioManager {
     /// Collect the current dialog's local fields and strip its namespace prefix for the managed command payload.
     fn dialog_fields(&self, d: &Dialog) -> BTreeMap<String, String> {
         let prefix = format!("{}.", d.key);
+        // Catalog rows and the completion filter are local presentation data.
+        // Submit only the selected rules, keeping large Databento catalogs out of commands.
+        if d.key == "base-contracts" {
+            let mut fields = BTreeMap::from([(
+                "BaseAsset".into(),
+                self.fields.get("base-contracts.BaseAsset").cloned().unwrap_or_else(|| "Futures".into()),
+            )]);
+            for (key, value) in &self.fields {
+                if value != "true" { continue; }
+                let Some(symbol) = key.strip_prefix("base-contracts.selected.") else { continue; };
+                fields.insert(format!("selected.{symbol}"), value.clone());
+                if let Some(cycles) = self.fields.get(&format!("base-contracts.cycles.{symbol}")) {
+                    fields.insert(format!("cycles.{symbol}"), cycles.clone());
+                }
+            }
+            return fields;
+        }
         self.fields
             .iter()
             .filter_map(|(k, v)| k.strip_prefix(&prefix).map(|key| (key.into(), v.clone())))
@@ -1168,6 +1186,10 @@ impl PortfolioManager {
         ready: bool,
         action: &mut Option<Action>,
     ) {
+        if d.key == "base-contracts" {
+            self.base_contract_dialog(ui, d, ready, action);
+            return;
+        }
         let bounds = ui.available_rect_before_wrap();
         self.controls.insert(format!("dialog-{}", d.key), bounds);
         let toolbar = d.key == "risk-policy";

@@ -9,7 +9,6 @@ using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Application.Storage.MarketDataDb.Schema;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
-using TomasAI.IFM.Shared.Storage;
 using Xunit;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.MarketDataDb;
@@ -34,9 +33,14 @@ public sealed class OptionTradeEvidenceStorageTests
                 12.5m, 2, 99, 1789812345678900123, 1789812345678910456, Guid.NewGuid(), "fixture");
             var original = new OptionTradeEvidence(source, null, null, DateTimeOffset.UtcNow, null,
                 new("PricingContextUnavailable", "Context", source.ContractId, "Synthetic missing-rate fixture."));
-            await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => store.WriteAsync(original, token).AsTask()));
+            var writer = new QualifiedOptionTradeEvidenceWriter(store);
+            await Assert.ThrowsAsync<ArgumentException>(() => writer.WriteFirstBatchAsync(
+                [original, original with { PriceBasis = "Invalid" }], token).AsTask());
+            Assert.Null(await store.ReadAsync(new OptionTradeEvidenceLookup(source.ContractId, source.ValueDate, source.Identity), token));
+            await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => writer.WriteAsync(original, token).AsTask()));
             var restarted = MarketDataDbContextTestFactory.Create(settings["test"]);
-            var retained = await restarted.ReadAsync(source.ContractId, source.ValueDate, source.Identity, token);
+            var restartedWriter = new QualifiedOptionTradeEvidenceWriter(restarted);
+            var retained = await restarted.ReadAsync(new OptionTradeEvidenceLookup(source.ContractId, source.ValueDate, source.Identity), token);
             Assert.Equal(original, retained);
             var retry = original with
             {
@@ -44,11 +48,11 @@ public sealed class OptionTradeEvidenceStorageTests
                 CalculatedAtUtc = original.CalculatedAtUtc.AddMinutes(1),
                 Failure = original.Failure! with { Code = "DifferentRetryFailure" }
             };
-            await restarted.WriteAsync(retry, token);
-            Assert.Equal(original, await restarted.ReadAsync(source.ContractId, source.ValueDate, source.Identity, token));
-            await Assert.ThrowsAsync<InvalidOperationException>(() => restarted.WriteAsync(original with
+            await restartedWriter.WriteAsync(retry, token);
+            Assert.Equal(original, await restarted.ReadAsync(new OptionTradeEvidenceLookup(source.ContractId, source.ValueDate, source.Identity), token));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => restartedWriter.WriteAsync(original with
             { Source = source with { Price = 13 } }, token).AsTask());
-            Assert.Equal(original, await restarted.ReadAsync(source.ContractId, source.ValueDate, source.Identity, token));
+            Assert.Equal(original, await restarted.ReadAsync(new OptionTradeEvidenceLookup(source.ContractId, source.ValueDate, source.Identity), token));
             var count = await db.Use("TradeEvidence.Count", "SELECT count(*) FROM market_data.option_trade_evidence;")
                 .ExecuteQueryAsync(row => row.GetLong(0), token);
             Assert.Equal(1, Assert.Single(count));

@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Reference.Repository;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -23,15 +24,19 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.ReferenceDb;
 [Trait("Infrastructure","SelfContained")]
 public sealed class ReferenceDbTests(PostgresTradePlanFixture fixture)
 {
-    static ReferenceDbContext Context(string connection)
+    static ISequenceIdGenerator Sequences()
     {
-        var settings=new DbConnectionSettings().Add(ReferenceDbContext.ReferenceDbConnection,connection,"System.Data.Postgres");
         var sequence=Substitute.For<ISequenceIdGenerator>();
         long id=100;
         sequence.GetSequenceIdAsync(Arg.Any<SequenceName>(),Arg.Any<CancellationToken>()).Returns(_=>new ValueTask<long>(Interlocked.Increment(ref id)));
+        return sequence;
+    }
+    static ReferenceDbContext Context(string connection)
+    {
+        var settings=new DbConnectionSettings().Add(ReferenceDbContext.ReferenceDbConnection,connection,"System.Data.Postgres");
         var objects=new Dictionary<Type,object>();
         var factory=new DbContextFactory(new DbContextResolver(type=>objects[type]));
-        var context=new ReferenceDbContext(settings,factory,sequence,NullLogger<DbProvider>.Instance);
+        var context=new ReferenceDbContext(settings,factory,Sequences(),NullLogger<DbProvider>.Instance);
         objects.Add(typeof(IObjectRepository<ReferenceDbContext>),context);
         return context;
     }
@@ -68,10 +73,10 @@ public sealed class ReferenceDbTests(PostgresTradePlanFixture fixture)
     {
         await using var isolated=await Database();var db=Context(isolated.Connection);var source=Job("nightly");
         source.DaysOfWeek=new(0,true,false,true,false,true,false,false);
-        await db.InsertScheduledJobAsync(source);var id=await db.GetScheduledJobIdAsync(source.JobName);
+        await db.InsertLegacyScheduledJobAsync(source,Sequences());var id=await db.GetScheduledJobIdAsync(source.JobName);
         var row=Assert.Single(await Context(isolated.Connection).GetScheduledJobsAsync());
         Assert.Equal(id,row.JobId);Assert.True(row.DaysOfWeek!.Monday);Assert.False(row.DaysOfWeek.Tuesday);
-        await db.UpdateScheduledJobAsync(row with {JobName="renamed"});
+        await db.UpdateLegacyScheduledJobAsync(row with {JobName="renamed"});
         Assert.Equal(0,await db.GetScheduledJobIdAsync("nightly"));Assert.Equal(id,await db.GetScheduledJobIdAsync("renamed"));
         Assert.True((await db.ReconcileQueryProjectionsV2Async()).IsConsistent);
         Assert.Equal(0,(await db.BackfillQueryProjectionsV2Async()).ScheduledJobs);
@@ -82,10 +87,11 @@ public sealed class ReferenceDbTests(PostgresTradePlanFixture fixture)
     public async Task Exact_name_uniqueness_allows_case_variants_and_rename_collision_rolls_back()
     {
         await using var isolated=await Database();var db=Context(isolated.Connection);
-        await db.InsertScheduledJobAsync(Job("Daily"));await db.InsertScheduledJobAsync(Job("daily"));
-        await Assert.ThrowsAsync<PostgresException>(()=>db.InsertScheduledJobAsync(Job("Daily")));
+        var sequences=Sequences();
+        await db.InsertLegacyScheduledJobAsync(Job("Daily"),sequences);await db.InsertLegacyScheduledJobAsync(Job("daily"),sequences);
+        await Assert.ThrowsAsync<PostgresException>(()=>db.InsertLegacyScheduledJobAsync(Job("Daily"),sequences));
         var rows=(await db.GetScheduledJobsAsync()).ToArray();var first=rows.Single(x=>x.JobName=="Daily");
-        await Assert.ThrowsAsync<PostgresException>(()=>db.UpdateScheduledJobAsync(first with {JobName="daily"}));
+        await Assert.ThrowsAsync<PostgresException>(()=>db.UpdateLegacyScheduledJobAsync(first with {JobName="daily"}));
         Assert.Equal(first.JobId,await db.GetScheduledJobIdAsync("Daily"));
         Assert.Equal(2,(await db.GetScheduledJobsAsync()).Count);
     }

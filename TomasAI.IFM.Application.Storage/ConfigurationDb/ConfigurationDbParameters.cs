@@ -164,3 +164,8 @@ internal readonly record struct TextValue(string Value) : IBindValue
 {
     public object Bind() => Values(Text(Value));
 }
+
+internal readonly record struct CatalogSourceSelection(string Stream, Guid OperationId) : IBindValue
+{
+    public object Bind() => TomasAI.IFM.Shared.Storage.BindValues.Values(Stream, OperationId);
+}

@@ -1,3 +1,5 @@
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Execution;
+using TomasAI.IFM.Shared.EventSourcing.ViewModels;
 
 using TomasAI.IFM.Domain.Trade.Shared.Persistence;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
@@ -38,15 +40,6 @@ public static class TradeDbContextExtensions
 {
     extension(TradeDbContext context)
     {
-        /// <summary>Requires a bounded route query page between one and five hundred rows.</summary>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Validation belongs to the DbContext binding receiver contract.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Validation belongs to the DbContext binding receiver contract.")]
-        internal void ValidateRoutePageSize(int pageSize)
-        {
-            if (pageSize is < 1 or > 500)
-                throw new ArgumentOutOfRangeException(nameof(pageSize));
-        }
-
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Keep the C# 14 DbContext binding extension receiver contract.")]
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Keep the C# 14 DbContext binding extension receiver contract.")]
         /// <summary>
@@ -61,11 +54,12 @@ public static class TradeDbContextExtensions
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
         internal async Task InsertOptionLegAsyncCoreBinding(OptionTradeLegReadModel e)
         {
-            ArgumentNullException.ThrowIfNull(e);
             var db = context;
+        var preparedParameters1 = new DeleteOptionLegById(e.OrderId, e.TradeId, e.ContractId);
             List<object> queuedCommands = [db.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.DeleteOptionLegById)}", TradeDbSql.DeleteOptionLegById)
-            .SetParameters(new DeleteOptionLegById(e.OrderId, e.TradeId, e.ContractId))
-            .QueueCommand(), db.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.InsertOptionLeg)}", TradeDbSql.InsertOptionLeg)
+            .SetParameters(preparedParameters1)
+            .QueueCommand(),
+            db.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.InsertOptionLeg)}", TradeDbSql.InsertOptionLeg)
             .SetParameters(new InsertOptionLeg(e.OrderId, e.TradeId, e.ContractId, e.Quantity, e.StrikePrice, e.OptionLegType.ToStringFast(), e.OptionLegAction.ToStringFast(), context.BusinessClock.GetLocalNow().DateTime, e.CreatedBy, context.BusinessClock.GetLocalNow().DateTime, e.CreatedBy))
             .QueueCommand()];
             await (db.ExecuteQueuedCommandsAsync(queuedCommands))
@@ -77,7 +71,6 @@ public static class TradeDbContextExtensions
         /// <summary>Validates and persists the InsertOptionLegsAsync operation.</summary>
         internal async Task<long> InsertOptionLegsAsyncCoreBinding(IEnumerable<OptionTradeLegReadModel> optionLegs)
         {
-            ArgumentNullException.ThrowIfNull(optionLegs);
             var rowCount = 0L;
             await (context.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.InsertOptionLeg)}", TradeDbSql.InsertOptionLeg)
             .SetParameters(EnumerateOptionLegs().Select(e => new InsertOptionLeg(e.OrderId, e.TradeId, e.ContractId, e.Quantity, e.StrikePrice, e.OptionLegType.ToStringFast(), e.OptionLegAction.ToStringFast(), context.BusinessClock.GetLocalNow().DateTime, e.CreatedBy, context.BusinessClock.GetLocalNow().DateTime, e.CreatedBy)))
@@ -107,11 +100,12 @@ public static class TradeDbContextExtensions
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
         internal async Task InsertOptionLegDataAsyncCoreBinding(OptionTradeLegDataReadModel e)
         {
-            ArgumentNullException.ThrowIfNull(e);
             var db = context;
+        var preparedParameters3 = new DeleteOptionLegDataById(e.OrderId, e.TradeId, e.ValueDate, e.TradeType.ToStringFast(), e.DaysToExpiry, e.TradeStatus.ToStringFast(), e.OptionLegId);
             List<object> queuedCommands = [db.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.DeleteOptionLegDataById)}", TradeDbSql.DeleteOptionLegDataById)
-            .SetParameters(new DeleteOptionLegDataById(e.OrderId, e.TradeId, e.ValueDate, e.TradeType.ToStringFast(), e.DaysToExpiry, e.TradeStatus.ToStringFast(), e.OptionLegId))
-            .QueueCommand(), db.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.InsertOptionLegData)}", TradeDbSql.InsertOptionLegData)
+            .SetParameters(preparedParameters3)
+            .QueueCommand(),
+            db.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.InsertOptionLegData)}", TradeDbSql.InsertOptionLegData)
             .SetParameters(new InsertOptionLegData(e.OrderId, e.TradeId, e.TradeType.ToStringFast(), e.ValueDate, e.DaysToExpiry, e.TradeStatus.ToStringFast(), e.OptionLegId, e.BidPrice, e.AskPrice, e.ImpliedVolatility, e.Delta, e.Gamma, e.Theta, e.Vega, e.Rho, context.BusinessClock.GetLocalNow().DateTime, e.CreatedBy, context.BusinessClock.GetLocalNow().DateTime, e.CreatedBy))
             .QueueCommand()];
             await (db.ExecuteQueuedCommandsAsync(queuedCommands))
@@ -123,7 +117,6 @@ public static class TradeDbContextExtensions
         /// <summary>Validates and persists the InsertOptionLegDataAsync operation.</summary>
         internal async Task<long> InsertOptionLegDataAsyncCoreBinding(IEnumerable<OptionTradeLegDataReadModel> optionLegData)
         {
-            ArgumentNullException.ThrowIfNull(optionLegData);
             var rowCount = 0L;
             await (context.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.InsertOptionLegData)}", TradeDbSql.InsertOptionLegData)
             .SetParameters(EnumerateOptionLegData().Select(e => new InsertOptionLegData(e.OrderId, e.TradeId, e.TradeType.ToStringFast(), e.ValueDate, e.DaysToExpiry, e.TradeStatus.ToStringFast(), e.OptionLegId, e.BidPrice, e.AskPrice, e.ImpliedVolatility, e.Delta, e.Gamma, e.Theta, e.Vega, e.Rho, context.BusinessClock.GetLocalNow().DateTime, e.CreatedBy, context.BusinessClock.GetLocalNow().DateTime, e.CreatedBy)))
@@ -152,15 +145,15 @@ public static class TradeDbContextExtensions
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
         internal async Task InsertOptionTradeAsyncCoreBinding(OptionTradeReadModel e)
         {
-            ArgumentNullException.ThrowIfNull(e);
             // save base option trade...
             var queuedCommands = new List<object>();
             var db = context;
             var dbWriter = db as ITradeDbWriteContext;
             await (dbWriter!.DeleteOptionTradeAsync(e.OrderId, e.TradeId))
             .ConfigureAwait(false);
+        var preparedParameters9 = new InsertOptionTrade(e.TradeId, e.OrderId, e.TradeDate, e.MaturityDate, e.TradeType.ToStringFast(), e.TradeState.ToStringFast(), e.TradeStrategy ?? string.Empty, e.TradeAction.ToStringFast(), e.UnderlyingContractId, e.UnderlyingAssetType.ToStringFast(), e.IsPrimaryTrade, e.IsHedgeTrade, context.BusinessClock.GetLocalNow().DateTime, e.CreatedBy, context.BusinessClock.GetLocalNow().DateTime, e.CreatedBy);
             queuedCommands.Add(db.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.InsertOptionTrade)}", TradeDbSql.InsertOptionTrade)
-            .SetParameters(new InsertOptionTrade(e.TradeId, e.OrderId, e.TradeDate, e.MaturityDate, e.TradeType.ToStringFast(), e.TradeState.ToStringFast(), e.TradeStrategy ?? string.Empty, e.TradeAction.ToStringFast(), e.UnderlyingContractId, e.UnderlyingAssetType.ToStringFast(), e.IsPrimaryTrade, e.IsHedgeTrade, context.BusinessClock.GetLocalNow().DateTime, e.CreatedBy, context.BusinessClock.GetLocalNow().DateTime, e.CreatedBy))
+            .SetParameters(preparedParameters9)
             .QueueCommand());
             // save each option leg info...
             if (e.OptionLegs is not null)
@@ -176,8 +169,9 @@ public static class TradeDbContextExtensions
             {
                 foreach (var o in e.TradePositions)
                 {
+        var preparedParameters5 = new InsertTradePosition(e.OrderId, o.TradeId, o.TradeType.ToStringFast(), o.ValueDate, o.DaysToExpiry, o.TradeStatus.ToStringFast(), o.Commission, o.DeltaHedge, o.NetSpread, o.TradeValue, o.TradePnl, o.AssetPrice, o.OTMProbability, o.ForwardPrice, o.ForwardLossRatio, o.LossProbability, o.RiskFreeRate, context.BusinessClock.GetLocalNow().DateTime, e.CreatedBy, context.BusinessClock.GetLocalNow().DateTime, e.CreatedBy);
                     queuedCommands.Add(db.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.InsertTradePosition)}", TradeDbSql.InsertTradePosition)
-            .SetParameters(new InsertTradePosition(e.OrderId, o.TradeId, o.TradeType.ToStringFast(), o.ValueDate, o.DaysToExpiry, o.TradeStatus.ToStringFast(), o.Commission, o.DeltaHedge, o.NetSpread, o.TradeValue, o.TradePnl, o.AssetPrice, o.OTMProbability, o.ForwardPrice, o.ForwardLossRatio, o.LossProbability, o.RiskFreeRate, context.BusinessClock.GetLocalNow().DateTime, e.CreatedBy, context.BusinessClock.GetLocalNow().DateTime, e.CreatedBy))
+            .SetParameters(preparedParameters5)
             .QueueCommand());
                     // save option leg data within each trade position...
                     if (o.OptionLegData is not null)
@@ -193,12 +187,14 @@ public static class TradeDbContextExtensions
             // save trade limit...
             if (e.TradeLimit is not null)
             {
+        var preparedParameters6 = new InsertTradeLimit(e.TradeLimit.TradeId, e.TradeLimit.TradeType.ToStringFast(), e.TradeLimit.RiskMargin, e.TradeLimit.MaxProfit, e.TradeLimit.MaxLoss, e.TradeLimit.MaxReturn, e.TradeLimit.MaxLossLimit, e.TradeLimit.MinProfitLimit, e.TradeLimit.MaxProfitLimit, e.TradeLimit.MinProfitTarget, e.TradeLimit.DailyProfitTarget, context.BusinessClock.GetLocalNow().DateTime, e.CreatedBy, context.BusinessClock.GetLocalNow().DateTime, e.CreatedBy);
                 queuedCommands.Add(db.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.InsertTradeLimit)}", TradeDbSql.InsertTradeLimit)
-            .SetParameters(new InsertTradeLimit(e.TradeLimit.TradeId, e.TradeLimit.TradeType.ToStringFast(), e.TradeLimit.RiskMargin, e.TradeLimit.MaxProfit, e.TradeLimit.MaxLoss, e.TradeLimit.MaxReturn, e.TradeLimit.MaxLossLimit, e.TradeLimit.MinProfitLimit, e.TradeLimit.MaxProfitLimit, e.TradeLimit.MinProfitTarget, e.TradeLimit.DailyProfitTarget, context.BusinessClock.GetLocalNow().DateTime, e.CreatedBy, context.BusinessClock.GetLocalNow().DateTime, e.CreatedBy))
+            .SetParameters(preparedParameters6)
             .QueueCommand());
+        var preparedParameters7 = new InsertTradeTypeLimit(e.TradeLimit.TradeId, e.TradeLimit.TradeType.ToStringFast(), e.TradeLimit.MaxLossLimit, e.TradeLimit.MinProfitLimit, e.TradeLimit.MaxProfitLimit);
                 // save trade type limits...
                 queuedCommands.Add(db.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.InsertTradeTypeLimit)}", TradeDbSql.InsertTradeTypeLimit)
-            .SetParameters(new InsertTradeTypeLimit(e.TradeLimit.TradeId, e.TradeLimit.TradeType.ToStringFast(), e.TradeLimit.MaxLossLimit, e.TradeLimit.MinProfitLimit, e.TradeLimit.MaxProfitLimit))
+            .SetParameters(preparedParameters7)
             .QueueCommand());
             }
 
@@ -215,8 +211,9 @@ public static class TradeDbContextExtensions
             {
                 foreach (var tf in e.TradeFills)
                 {
+        var preparedParameters8 = new InsertTradeFill(tf.OrderId, tf.TradeId, tf.FillDate, tf.FillQuantity, tf.CreatedOn, tf.CreatedBy);
                     queuedCommands.Add(db.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.InsertTradeFill)}", TradeDbSql.InsertTradeFill)
-            .SetParameters(new InsertTradeFill(tf.OrderId, tf.TradeId, tf.FillDate, tf.FillQuantity, tf.CreatedOn, tf.CreatedBy))
+            .SetParameters(preparedParameters8)
             .QueueCommand());
                     if (tf.TradeFillData is not null)
                         foreach (var tfd in tf.TradeFillData)
@@ -235,7 +232,6 @@ public static class TradeDbContextExtensions
         /// <summary>Validates and persists the InsertOptionTradesAsync operation.</summary>
         internal async Task<long> InsertOptionTradesAsyncCoreBinding(IEnumerable<OptionTradeReadModel> optionTrades)
         {
-            ArgumentNullException.ThrowIfNull(optionTrades);
             var rowCount = 0L;
             await (context.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.InsertOptionTrade)}", TradeDbSql.InsertOptionTrade)
             .SetParameters(EnumerateOptionTrades().Select(e => new InsertOptionTrade(e.TradeId, e.OrderId, e.TradeDate, e.MaturityDate, e.TradeType.ToStringFast(), e.TradeState.ToStringFast(), e.TradeStrategy ?? string.Empty, e.TradeAction.ToStringFast(), e.UnderlyingContractId, e.UnderlyingAssetType.ToStringFast(), e.IsPrimaryTrade, e.IsHedgeTrade, context.BusinessClock.GetLocalNow().DateTime, e.CreatedBy, context.BusinessClock.GetLocalNow().DateTime, e.CreatedBy)))
@@ -264,18 +260,20 @@ public static class TradeDbContextExtensions
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
         internal async Task InsertTradePositionAsyncCoreBinding(TradePositionReadModel e)
         {
-            ArgumentNullException.ThrowIfNull(e);
             var db = context;
+        var preparedParameters10 = new DeleteTradePositionLowerCase(e.OrderId, e.TradeId);
             List<object> queuedCommands = [db.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.DeleteTradePosition)}", TradeDbSql.DeleteTradePosition)
-            .SetParameters(new DeleteTradePositionLowerCase(e.OrderId, e.TradeId))
-            .QueueCommand(), db.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.DeleteOptionLegData)}", TradeDbSql.DeleteOptionLegData)
+            .SetParameters(preparedParameters10)
+            .QueueCommand(),
+            db.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.DeleteOptionLegData)}", TradeDbSql.DeleteOptionLegData)
             .SetParameters(new DeleteOptionLegDataLowerCase(e.OrderId, e.TradeId))
             .QueueCommand()];
             await (db.ExecuteQueuedCommandsAsync(queuedCommands))
             .ConfigureAwait(false);
             queuedCommands.Clear();
+        var preparedParameters12 = new InsertTradePosition(e.OrderId, e.TradeId, e.TradeType.ToStringFast(), e.ValueDate, e.DaysToExpiry, e.TradeStatus.ToStringFast(), e.Commission, e.DeltaHedge, e.NetSpread, e.TradeValue, e.TradePnl, e.AssetPrice, e.OTMProbability, e.ForwardPrice, e.ForwardLossRatio, e.LossProbability, e.RiskFreeRate, e.CreatedOn, e.CreatedBy, e.UpdatedOn, e.UpdatedBy);
             queuedCommands.Add(db.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.InsertTradePosition)}", TradeDbSql.InsertTradePosition)
-            .SetParameters(new InsertTradePosition(e.OrderId, e.TradeId, e.TradeType.ToStringFast(), e.ValueDate, e.DaysToExpiry, e.TradeStatus.ToStringFast(), e.Commission, e.DeltaHedge, e.NetSpread, e.TradeValue, e.TradePnl, e.AssetPrice, e.OTMProbability, e.ForwardPrice, e.ForwardLossRatio, e.LossProbability, e.RiskFreeRate, e.CreatedOn, e.CreatedBy, e.UpdatedOn, e.UpdatedBy))
+            .SetParameters(preparedParameters12)
             .QueueCommand());
             // save option leg data within trade position...
             if (e.OptionLegData is not null && e.OptionLegData.Length > 0)
@@ -296,21 +294,23 @@ public static class TradeDbContextExtensions
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep the transaction, resource ownership and failure ordering together during this provider migration; splitting it would obscure the atomic persistence boundary.")]
         internal async Task InsertTradePositionAsyncCoreBinding(ICollection<TradePositionReadModel> tradePositions)
         {
-            ArgumentNullException.ThrowIfNull(tradePositions);
             if (tradePositions.Count == 0)
                 return;
             var queuedCommands = new List<object>();
             var db = context;
             foreach (var e in tradePositions)
             {
+        var preparedParameters13 = new DeleteTradePositionLowerCase(e.OrderId, e.TradeId);
                 queuedCommands.Add(db.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.DeleteTradePosition)}", TradeDbSql.DeleteTradePosition)
-            .SetParameters(new DeleteTradePositionLowerCase(e.OrderId, e.TradeId))
+            .SetParameters(preparedParameters13)
             .QueueCommand());
+        var preparedParameters14 = new DeleteOptionLegDataLowerCase(e.OrderId, e.TradeId);
                 queuedCommands.Add(db.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.DeleteOptionLegData)}", TradeDbSql.DeleteOptionLegData)
-            .SetParameters(new DeleteOptionLegDataLowerCase(e.OrderId, e.TradeId))
+            .SetParameters(preparedParameters14)
             .QueueCommand());
+        var preparedParameters15 = new InsertTradePosition(e.OrderId, e.TradeId, e.TradeType.ToStringFast(), e.ValueDate, e.DaysToExpiry, e.TradeStatus.ToStringFast(), e.Commission, e.DeltaHedge, e.NetSpread, e.TradeValue, e.TradePnl, e.AssetPrice, e.OTMProbability, e.ForwardPrice, e.ForwardLossRatio, e.LossProbability, e.RiskFreeRate, e.CreatedOn, e.CreatedBy, e.UpdatedOn, e.UpdatedBy);
                 queuedCommands.Add(db.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.InsertTradePosition)}", TradeDbSql.InsertTradePosition)
-            .SetParameters(new InsertTradePosition(e.OrderId, e.TradeId, e.TradeType.ToStringFast(), e.ValueDate, e.DaysToExpiry, e.TradeStatus.ToStringFast(), e.Commission, e.DeltaHedge, e.NetSpread, e.TradeValue, e.TradePnl, e.AssetPrice, e.OTMProbability, e.ForwardPrice, e.ForwardLossRatio, e.LossProbability, e.RiskFreeRate, e.CreatedOn, e.CreatedBy, e.UpdatedOn, e.UpdatedBy))
+            .SetParameters(preparedParameters15)
             .QueueCommand());
                 // save option leg data within trade position...
                 if (e.OptionLegData is not null)
@@ -331,7 +331,6 @@ public static class TradeDbContextExtensions
         /// <summary>Validates and persists the InsertTradePositionsAsync operation.</summary>
         internal async Task<long> InsertTradePositionsAsyncCoreBinding(IEnumerable<TradePositionReadModel> tradePositions)
         {
-            ArgumentNullException.ThrowIfNull(tradePositions);
             var rowCount = 0L;
             await (context.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.InsertTradePosition)}", TradeDbSql.InsertTradePosition)
             .SetParameters(EnumerateTradePositions().Select(e => new InsertTradePosition(e.OrderId, e.TradeId, e.TradeType.ToStringFast(), e.ValueDate, e.DaysToExpiry, e.TradeStatus.ToStringFast(), e.Commission, e.DeltaHedge, e.NetSpread, e.TradeValue, e.TradePnl, e.AssetPrice, e.OTMProbability, e.ForwardPrice, e.ForwardLossRatio, e.LossProbability, e.RiskFreeRate, context.BusinessClock.GetLocalNow().DateTime, e.CreatedBy, context.BusinessClock.GetLocalNow().DateTime, e.UpdatedBy)))
@@ -353,7 +352,6 @@ public static class TradeDbContextExtensions
         /// <summary>Validates and persists the InsertTradeFillAsync operation.</summary>
         internal async Task InsertTradeFillAsyncCoreBinding(ICollection<TradeFillReadModel> tradeFills)
         {
-            ArgumentNullException.ThrowIfNull(tradeFills);
             // save any trade fills...
             if (tradeFills.Count > 0)
             {
@@ -361,14 +359,17 @@ public static class TradeDbContextExtensions
                 foreach (var tf in tradeFills)
                 {
                     var queuedCommands = new List<object>();
+        var preparedParameters16 = new DeleteTradeFill(tf.OrderId, tf.TradeId);
                     queuedCommands.Add(db.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.DeleteTradeFill)}", TradeDbSql.DeleteTradeFill)
-            .SetParameters(new DeleteTradeFill(tf.OrderId, tf.TradeId))
+            .SetParameters(preparedParameters16)
             .QueueCommand());
+        var preparedParameters17 = new DeleteTradeFillData(tf.OrderId, tf.TradeId);
                     queuedCommands.Add(db.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.DeleteTradeFillData)}", TradeDbSql.DeleteTradeFillData)
-            .SetParameters(new DeleteTradeFillData(tf.OrderId, tf.TradeId))
+            .SetParameters(preparedParameters17)
             .QueueCommand());
+        var preparedParameters18 = new InsertTradeFill(tf.OrderId, tf.TradeId, tf.FillDate, tf.FillQuantity, tf.CreatedOn, tf.CreatedBy);
                     queuedCommands.Add(db.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.InsertTradeFill)}", TradeDbSql.InsertTradeFill)
-            .SetParameters(new InsertTradeFill(tf.OrderId, tf.TradeId, tf.FillDate, tf.FillQuantity, tf.CreatedOn, tf.CreatedBy))
+            .SetParameters(preparedParameters18)
             .QueueCommand());
                     if (tf.TradeFillData?.Length > 0)
                         foreach (var tfd in tf.TradeFillData!)
@@ -386,7 +387,6 @@ public static class TradeDbContextExtensions
         /// <summary>Validates and persists the InsertTradeFillsAsync operation.</summary>
         internal async Task<long> InsertTradeFillsAsyncCoreBinding(IEnumerable<TradeFillReadModel> tradeFills)
         {
-            ArgumentNullException.ThrowIfNull(tradeFills);
             var rowCount = 0L;
             await (context.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.InsertTradeFill)}", TradeDbSql.InsertTradeFill)
             .SetParameters(EnumerateTradeFills().Select(e => new InsertTradeFill(e.OrderId, e.TradeId, e.FillDate, e.FillQuantity, e.CreatedOn, e.CreatedBy)))
@@ -414,11 +414,9 @@ public static class TradeDbContextExtensions
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
         internal async Task InsertOptionTradeSpreadDataAsyncCoreBinding(OptionTradeSpreadsDataModel e)
         {
-            ArgumentNullException.ThrowIfNull(e);
-            var sequenceId = e.SequenceId > 0 ? e.SequenceId : await (context._sequenceIdGenerator.GetSequenceIdAsync(SequenceName.OptionTradeSpreadData_SequenceId))
-            .ConfigureAwait(false);
+            var preparedParameters19 = new InsertOptionTradeSpreadData(e.OrderId, e.TradeId, e.ValueDate, e.TradeType.ToStringFast(), e.SequenceId, e.LossLimit, e.WinLimit, e.ForwardSpread, e.NetSpread, e.CreatedOn, e.CreatedBy);
             await (context.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.InsertOptionTradeSpreadData)}", TradeDbSql.InsertOptionTradeSpreadData)
-            .SetParameters(new InsertOptionTradeSpreadData(e.OrderId, e.TradeId, e.ValueDate, e.TradeType.ToStringFast(), sequenceId, e.LossLimit, e.WinLimit, e.ForwardSpread, e.NetSpread, e.CreatedOn, e.CreatedBy))
+            .SetParameters(preparedParameters19)
             .ExecuteCommandAsync())
             .ConfigureAwait(false);
         }
@@ -429,7 +427,7 @@ public static class TradeDbContextExtensions
         /// Asynchronously inserts a collection of option trade spread data into the database.
         /// </summary>
         /// <remarks>The method processes the data in batches of 1000 items to optimize database operations. Each
-        /// data entry is assigned a unique sequence ID before insertion.</remarks>
+        /// row carries the sequence identity assigned by its producer.</remarks>
         /// <param name = "optionTradeSpreadsData">A collection of <see cref = "OptionTradeSpreadsDataModel"/> objects representing the option trade spread data to
         /// be inserted.</param>
         /// <returns>A task that represents the asynchronous operation.</returns>
@@ -437,21 +435,12 @@ public static class TradeDbContextExtensions
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
         internal async Task InsertOptionTradeSpreadDataAsyncCoreBinding(ICollection<OptionTradeSpreadsDataModel> optionTradeSpreadsData)
         {
-            ArgumentNullException.ThrowIfNull(optionTradeSpreadsData);
-            List<(long SequenceId, OptionTradeSpreadsDataModel Data)> batchData = [];
             var db = context;
             for (var index = 0; index < optionTradeSpreadsData.Count; index += 1000)
             {
-                batchData.Clear();
-                foreach (var e in optionTradeSpreadsData.Skip(index).Take(1000))
-                {
-                    var id = await (context._sequenceIdGenerator.GetSequenceIdAsync(SequenceName.OptionTradeSpreadData_SequenceId))
-            .ConfigureAwait(false);
-                    batchData.Add((id, e));
-                }
-
+                var batchData = optionTradeSpreadsData.Skip(index).Take(1000);
                 await (db.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.InsertOptionTradeSpreadData)}", TradeDbSql.InsertOptionTradeSpreadData)
-            .SetParameters(batchData.Select(e => new InsertOptionTradeSpreadData(e.Data.OrderId, e.Data.TradeId, e.Data.ValueDate, e.Data.TradeType.ToStringFast(), e.SequenceId, e.Data.LossLimit, e.Data.WinLimit, e.Data.ForwardSpread, e.Data.NetSpread, e.Data.CreatedOn, e.Data.CreatedBy)))
+            .SetParameters(batchData.Select(e => new InsertOptionTradeSpreadData(e.OrderId, e.TradeId, e.ValueDate, e.TradeType.ToStringFast(), e.SequenceId, e.LossLimit, e.WinLimit, e.ForwardSpread, e.NetSpread, e.CreatedOn, e.CreatedBy)))
             .ExecuteCommandAsync())
             .ConfigureAwait(false);
             }
@@ -462,9 +451,7 @@ public static class TradeDbContextExtensions
         /// <summary>
         /// Inserts a collection of option trade spread data into the database asynchronously.
         /// </summary>
-        /// <remarks>This method generates a unique sequence ID for each trade spread entry before inserting it
-        /// into the database. The method ensures that all provided data is processed and inserted in a single
-        /// operation.</remarks>
+        /// <remarks>Stores the provided rows with their existing sequence identities.</remarks>
         /// <param name = "optionTradeSpreadsData">A collection of <see cref = "OptionTradeSpreadsDataModel"/> objects representing the option trade spread data to
         /// be inserted. Each item in the collection must contain valid trade details.</param>
         /// <returns>A <see cref = "Task{TResult}"/> representing the asynchronous operation. The result contains the total number of
@@ -473,15 +460,12 @@ public static class TradeDbContextExtensions
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
         internal async Task<long> InsertOptionTradeSpreadDataAsyncCoreBinding(IEnumerable<OptionTradeSpreadsDataModel> optionTradeSpreadsData)
         {
-            ArgumentNullException.ThrowIfNull(optionTradeSpreadsData);
             var rowCount = 0L;
             var db = context;
             var parameters = new List<InsertOptionTradeSpreadData>();
             foreach (var e in optionTradeSpreadsData)
             {
-                var sequenceId = await (context._sequenceIdGenerator.GetSequenceIdAsync(SequenceName.OptionTradeSpreadData_SequenceId))
-            .ConfigureAwait(false);
-                parameters.Add(new InsertOptionTradeSpreadData(e.OrderId, e.TradeId, e.ValueDate, e.TradeType.ToStringFast(), sequenceId, e.LossLimit, e.WinLimit, e.ForwardSpread, e.NetSpread, e.CreatedOn, e.CreatedBy));
+                parameters.Add(new InsertOptionTradeSpreadData(e.OrderId, e.TradeId, e.ValueDate, e.TradeType.ToStringFast(), e.SequenceId, e.LossLimit, e.WinLimit, e.ForwardSpread, e.NetSpread, e.CreatedOn, e.CreatedBy));
                 rowCount++;
             }
 
@@ -503,9 +487,9 @@ public static class TradeDbContextExtensions
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
         internal async Task InsertOptionTradeSpreadBarDataAsyncCoreBinding(OptionTradeSpreadBarsDataModel e)
         {
-            ArgumentNullException.ThrowIfNull(e);
+        var preparedParameters20 = new InsertOptionTradeSpreadBarData(e.OrderId, e.TradeId, e.TradeType.ToStringFast(), e.ValueDate, e.BarDate, e.LossLimit, e.WinLimit, e.ForwardSpread, e.NetSpread);
             await (context.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.InsertOptionTradeSpreadBarData)}", TradeDbSql.InsertOptionTradeSpreadBarData)
-            .SetParameters(new InsertOptionTradeSpreadBarData(e.OrderId, e.TradeId, e.TradeType.ToStringFast(), e.ValueDate, e.BarDate, e.LossLimit, e.WinLimit, e.ForwardSpread, e.NetSpread))
+            .SetParameters(preparedParameters20)
             .ExecuteCommandAsync())
             .ConfigureAwait(false);
         }
@@ -515,7 +499,6 @@ public static class TradeDbContextExtensions
         /// <summary>Validates and persists the InsertOptionTradeSpreadBarDataAsync operation.</summary>
         internal async Task<long> InsertOptionTradeSpreadBarDataAsyncCoreBinding(IEnumerable<OptionTradeSpreadBarsDataModel> optionTradeSpreadBarsData)
         {
-            ArgumentNullException.ThrowIfNull(optionTradeSpreadBarsData);
             var rowCount = 0L;
             await (context.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.InsertOptionTradeSpreadBarData)}", TradeDbSql.InsertOptionTradeSpreadBarData)
             .SetParameters(EnumerateOptionTradeSpreadBarData().Select(e => new InsertOptionTradeSpreadBarData(e.OrderId, e.TradeId, e.TradeType.ToStringFast(), e.ValueDate, e.BarDate, e.LossLimit, e.WinLimit, e.ForwardSpread, e.NetSpread)))
@@ -543,9 +526,9 @@ public static class TradeDbContextExtensions
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
         internal async Task InsertTradeLiveFeedAsyncCoreBinding(TradeLiveFeedReadModel e)
         {
-            ArgumentNullException.ThrowIfNull(e);
+        var preparedParameters21 = new InsertTradeLiveFeed(e.OrderId, e.TradeId, e.LiveFeed);
             await (context.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.InsertTradeLiveFeed)}", TradeDbSql.InsertTradeLiveFeed)
-            .SetParameters(new InsertTradeLiveFeed(e.OrderId, e.TradeId, e.LiveFeed))
+            .SetParameters(preparedParameters21)
             .ExecuteCommandAsync())
             .ConfigureAwait(false);
         }
@@ -561,21 +544,22 @@ public static class TradeDbContextExtensions
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
         internal async Task InsertTradePlanForwardLossLimitAsyncCoreBinding(TradePlanForwardLossLimitReadModel e)
         {
-            ArgumentNullException.ThrowIfNull(e);
             var db = context;
             var dbReader = db as ITradeDbReadContext;
             var existingTradePlanForwardLossLimit = await (dbReader!.GetTradePlanForwardLossLimitAsync(e.OrderId, e.TradeId, e.ValueDate, e.TradeType))
             .ConfigureAwait(false);
             if (existingTradePlanForwardLossLimit is not null)
             {
+        var preparedParameters22 = new DeleteTradePlanForwardLossLimit(e.OrderId, e.TradeId, e.ValueDate, e.TradeType.ToStringFast());
                 await (db.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.DeleteTradePlanForwardLossLimit)}", TradeDbSql.DeleteTradePlanForwardLossLimit)
-            .SetParameters(new DeleteTradePlanForwardLossLimit(e.OrderId, e.TradeId, e.ValueDate, e.TradeType.ToStringFast()))
+            .SetParameters(preparedParameters22)
             .ExecuteCommandAsync())
             .ConfigureAwait(false);
             }
+        var preparedParameters23 = new InsertTradePlanForwardLossLimit(e.OrderId, e.TradeId, e.ValueDate, e.TradeType.ToStringFast(), e.LimitType.ToStringFast());
 
             await (db.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.InsertTradePlanForwardLossLimit)}", TradeDbSql.InsertTradePlanForwardLossLimit)
-            .SetParameters(new InsertTradePlanForwardLossLimit(e.OrderId, e.TradeId, e.ValueDate, e.TradeType.ToStringFast(), e.LimitType.ToStringFast()))
+            .SetParameters(preparedParameters23)
             .ExecuteCommandAsync())
             .ConfigureAwait(false);
         }
@@ -585,20 +569,17 @@ public static class TradeDbContextExtensions
         /// <summary>
         /// Inserts a trade placement signal into the database asynchronously and returns the generated sequence ID.
         /// </summary>
-        /// <remarks>This method generates a unique sequence ID for the trade placement signal and stores the
-        /// provided data in the database. Ensure that all required properties of the <paramref name = "e"/> parameter are
-        /// populated before calling this method.</remarks>
+        /// <remarks>Stores the trade placement signal under its accepted sequence identity.</remarks>
         /// <param name = "e">The trade placement signal data to insert, encapsulated in a <see cref = "TradePlacementSignalReadModel"/> object.</param>
-        /// <returns>The sequence ID generated for the inserted trade placement signal.</returns>
+        /// <returns>The supplied sequence ID of the stored trade placement signal.</returns>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
         internal async Task<long> InsertTradePlacementSignalAsyncCoreBinding(TradePlacementSignalReadModel e)
         {
-            ArgumentNullException.ThrowIfNull(e);
-            var sequenceId = await (context._sequenceIdGenerator.GetSequenceIdAsync(SequenceName.TradePlacementSignal_SequenceId))
-            .ConfigureAwait(false);
+            var sequenceId = e.SequenceId;
+        var preparedParameters24 = new InsertTradePlacementSignal(sequenceId, e.ContractId, e.ValueDate, e.TradePlacementSignal.ToStringFast(), e.TradePrice, e.CreatedOn, e.CreatedBy);
             await (context.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.InsertTradePlacementSignal)}", TradeDbSql.InsertTradePlacementSignal)
-            .SetParameters(new InsertTradePlacementSignal(sequenceId, e.ContractId, e.ValueDate, e.TradePlacementSignal.ToStringFast(), e.TradePrice, e.CreatedOn, e.CreatedBy))
+            .SetParameters(preparedParameters24)
             .ExecuteCommandAsync())
             .ConfigureAwait(false);
             return sequenceId;
@@ -609,9 +590,9 @@ public static class TradeDbContextExtensions
         /// <summary>Validates and persists the UpdateTradeLiveFeedAsync operation.</summary>
         internal async Task UpdateTradeLiveFeedAsyncCoreBinding(TradeLiveFeedReadModel tradeLiveFeed)
         {
-            ArgumentNullException.ThrowIfNull(tradeLiveFeed);
+        var preparedParameters25 = new UpdateTradeLiveFeed(tradeLiveFeed.OrderId, tradeLiveFeed.TradeId, tradeLiveFeed.LiveFeed);
             await (context.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.UpdateTradeLiveFeed)}", TradeDbSql.UpdateTradeLiveFeed)
-            .SetParameters(new UpdateTradeLiveFeed(tradeLiveFeed.OrderId, tradeLiveFeed.TradeId, tradeLiveFeed.LiveFeed))
+            .SetParameters(preparedParameters25)
             .ExecuteCommandAsync())
             .ConfigureAwait(false);
         }
@@ -627,9 +608,9 @@ public static class TradeDbContextExtensions
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
         internal async Task UpdateOptionLegDataAsyncCoreBinding(OptionTradeLegDataReadModel e)
         {
-            ArgumentNullException.ThrowIfNull(e);
+        var preparedParameters26 = new UpdateOptionLegData(e.OrderId, e.TradeId, e.ValueDate, e.OptionLegId, e.BidPrice, e.AskPrice, e.ImpliedVolatility, e.Delta, e.Gamma, e.Theta, e.Vega, e.Rho, e.UpdatedOn, e.UpdatedBy);
             await (context.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.UpdateOptionLegData)}", TradeDbSql.UpdateOptionLegData)
-            .SetParameters(new UpdateOptionLegData(e.OrderId, e.TradeId, e.ValueDate, e.OptionLegId, e.BidPrice, e.AskPrice, e.ImpliedVolatility, e.Delta, e.Gamma, e.Theta, e.Vega, e.Rho, e.UpdatedOn, e.UpdatedBy))
+            .SetParameters(preparedParameters26)
             .ExecuteCommandAsync())
             .ConfigureAwait(false);
         }
@@ -645,7 +626,6 @@ public static class TradeDbContextExtensions
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
         internal async Task InsertTradeLimitAsyncCoreBinding(TradeLimitReadModel e)
         {
-            ArgumentNullException.ThrowIfNull(e);
             await (context.NativeTransaction().ExecuteOnceAsync(async (db, ct) =>
             {
                 await (TradeDbContextExtensions.TradeFlowProjectMonitoringLimitsAsync(db, e, [], ct))
@@ -661,7 +641,6 @@ public static class TradeDbContextExtensions
         /// <summary>Validates and persists the InsertTradeLimitsAsync operation.</summary>
         internal async Task<long> InsertTradeLimitsAsyncCoreBinding(IEnumerable<TradeLimitReadModel> tradeLimits)
         {
-            ArgumentNullException.ThrowIfNull(tradeLimits);
             var rowCount = 0L;
             await (context.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.InsertTradeLimit)}", TradeDbSql.InsertTradeLimit)
             .SetParameters(EnumerateTradeLimits().Select(e => new InsertTradeLimit(e.TradeId, e.TradeType.ToStringFast(), e.RiskMargin, e.MaxProfit, e.MaxLoss, e.MaxReturn, e.MaxLossLimit, e.MinProfitLimit, e.MaxProfitLimit, e.MinProfitTarget, e.DailyProfitTarget, e.CreatedOn, e.CreatedBy, e.UpdatedOn, e.UpdatedBy)))
@@ -689,7 +668,6 @@ public static class TradeDbContextExtensions
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
         internal async Task InsertTradeTypeLimitAsyncCoreBinding(TradeTypeLimitReadModel e)
         {
-            ArgumentNullException.ThrowIfNull(e);
             await (context.NativeTransaction().ExecuteOnceAsync(async (db, ct) =>
             {
                 await (TradeDbContextExtensions.TradeFlowProjectSpreadLimitsAsync(db, [e], ct))
@@ -705,7 +683,6 @@ public static class TradeDbContextExtensions
         /// <summary>Validates and persists the InsertTradeTypeLimitsAsync operation.</summary>
         internal async Task<long> InsertTradeTypeLimitsAsyncCoreBinding(IEnumerable<TradeTypeLimitReadModel> tradeTypeLimits)
         {
-            ArgumentNullException.ThrowIfNull(tradeTypeLimits);
             var rowCount = 0L;
             await (context.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.InsertTradeTypeLimit)}", TradeDbSql.InsertTradeTypeLimit)
             .SetParameters(EnumerateTradeTypeLimits().Select(e => new InsertTradeTypeLimit(e.TradeId, e.TradeType.ToStringFast(), e.MaxLossLimit, e.MinProfitLimit, e.MaxProfitLimit)))
@@ -734,16 +711,16 @@ public static class TradeDbContextExtensions
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
         internal async Task InsertTradePlanAsyncCoreBinding(TradePlanReadModel e)
         {
-            ArgumentNullException.ThrowIfNull(e);
-            var sequenceId = await (context._sequenceIdGenerator.GetSequenceIdAsync(SequenceName.TradePlan_SequenceId))
-            .ConfigureAwait(false);
+            var sequenceId = e.SequenceId;
             var db = context;
+        var preparedParameters27 = new InsertTradePlan(sequenceId, e.OrderId, e.TradeId, e.TradeType.ToStringFast(), e.TradeDate, e.ValueDate, e.MaturityDate, e.ActionDate, e.ActionType.ToStringFast(), e.ActionSubType.ToStringFast(), e.ActionState.ToStringFast(), e.ActionReason, e.TradePnl, e.ForwardLossRatio, e.LossProbability, e.MScore, e.MaxProfit, e.MaxLoss, e.MinProfitTarget, e.DailyProfitTarget, e.AssetPrice, e.AssetStdDev, e.AssetMean, e.AssetPriceChange, e.MarketTrend.ToStringFast(), e.MarketVolatility.ToStringFast(), e.MarketDirection.ToStringFast(), e.VixVolatility.ToStringFast(), e.TradeRisk.ToStringFast(), e.FiftyDayMA, e.FiveDayXMA, e.PutOTMProbability, e.CallOTMProbability, e.ShortPutGamma, e.ShortCallGamma, e.GammaRisk.ToStringFast(), e.NetPrice, e.ForwardPrice, e.ForwardDelta, e.StopLossLimit, e.TrendType.ToStringFast(), e.TrendStrength.ToStringFast(), e.RSI, e.RSISlope, e.TDI.ToStringFast(), e.TDIStrength.ToStringFast(), e.CreatedOn, e.CreatedBy);
             await (db.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.InsertTradePlan)}", TradeDbSql.InsertTradePlan)
-            .SetParameters(new InsertTradePlan(sequenceId, e.OrderId, e.TradeId, e.TradeType.ToStringFast(), e.TradeDate, e.ValueDate, e.MaturityDate, e.ActionDate, e.ActionType.ToStringFast(), e.ActionSubType.ToStringFast(), e.ActionState.ToStringFast(), e.ActionReason, e.TradePnl, e.ForwardLossRatio, e.LossProbability, e.MScore, e.MaxProfit, e.MaxLoss, e.MinProfitTarget, e.DailyProfitTarget, e.AssetPrice, e.AssetStdDev, e.AssetMean, e.AssetPriceChange, e.MarketTrend.ToStringFast(), e.MarketVolatility.ToStringFast(), e.MarketDirection.ToStringFast(), e.VixVolatility.ToStringFast(), e.TradeRisk.ToStringFast(), e.FiftyDayMA, e.FiveDayXMA, e.PutOTMProbability, e.CallOTMProbability, e.ShortPutGamma, e.ShortCallGamma, e.GammaRisk.ToStringFast(), e.NetPrice, e.ForwardPrice, e.ForwardDelta, e.StopLossLimit, e.TrendType.ToStringFast(), e.TrendStrength.ToStringFast(), e.RSI, e.RSISlope, e.TDI.ToStringFast(), e.TDIStrength.ToStringFast(), e.CreatedOn, e.CreatedBy))
+            .SetParameters(preparedParameters27)
             .ExecuteCommandAsync())
             .ConfigureAwait(false);
+        var preparedParameters28 = new InsertTradePlanForwardLossRatio(1, e.ValueDate, e.ForwardLossRatio, sequenceId);
             await (db.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.InsertTradePlanForwardLossRatio)}", TradeDbSql.InsertTradePlanForwardLossRatio)
-            .SetParameters(new InsertTradePlanForwardLossRatio(1, e.ValueDate, e.ForwardLossRatio, sequenceId))
+            .SetParameters(preparedParameters28)
             .ExecuteCommandAsync())
             .ConfigureAwait(false);
         }
@@ -754,7 +731,7 @@ public static class TradeDbContextExtensions
         /// Inserts a collection of trade plans into the database asynchronously.
         /// </summary>
         /// <remarks>This method processes the provided trade plans in batches of 1,000 to optimize database
-        /// operations. Each trade plan is assigned a unique sequence ID before being inserted into the database. The method
+        /// operations. Each trade plan already carries a unique sequence ID. The method
         /// performs two database operations for each batch: 1. Inserts the trade plans into the main trade plan table. 2.
         /// Inserts forward loss ratio data into a separate table for analytics purposes.  The method is designed to handle
         /// large collections of trade plans efficiently. Ensure that the input collection is not null and contains valid
@@ -767,18 +744,10 @@ public static class TradeDbContextExtensions
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep the transaction, resource ownership and failure ordering together during this provider migration; splitting it would obscure the atomic persistence boundary.")]
         internal async Task InsertTradePlansAsyncCoreBinding(ICollection<TradePlanByIdReadModel> tradePlans)
         {
-            ArgumentNullException.ThrowIfNull(tradePlans);
             var db = context;
             for (var index = 0; index < tradePlans.Count; index += 2000)
             {
-                var tradePlanPage = new List<TradePlanByIdReadModel>(2000);
-                var tradePlanQry = tradePlans.Skip(index).Take(2000);
-                foreach (var e in tradePlanQry)
-                {
-                    var sequenceId = await (context._sequenceIdGenerator.GetSequenceIdAsync(SequenceName.TradePlan_SequenceId))
-            .ConfigureAwait(false);
-                    tradePlanPage.Add(e with { Id = sequenceId });
-                }
+                var tradePlanPage = tradePlans.Skip(index).Take(2000).ToArray();
 
                 await (db.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.InsertTradePlan)}", TradeDbSql.InsertTradePlan)
             .SetParameters(tradePlanPage.Select(e => new InsertTradePlan(e.Id, e.OrderId, e.TradeId, e.TradeType.ToStringFast(), e.TradeDate, e.ValueDate, e.MaturityDate, e.ActionDate, e.ActionType.ToStringFast(), e.ActionSubType.ToStringFast(), e.ActionState.ToStringFast(), e.ActionReason, e.TradePnl, e.ForwardLossRatio, e.LossProbability, e.MScore, e.MaxProfit, e.MaxLoss, e.MinProfitTarget, e.DailyProfitTarget, e.AssetPrice, e.AssetStdDev, e.AssetMean, e.AssetPriceChange, e.MarketTrend.ToStringFast(), e.MarketVolatility.ToStringFast(), e.MarketDirection.ToStringFast(), e.VixVolatility.ToStringFast(), e.TradeRisk.ToStringFast(), e.FiftyDayMA, e.FiveDayXMA, e.PutOTMProbability, e.CallOTMProbability, e.ShortPutGamma, e.ShortCallGamma, e.GammaRisk.ToStringFast(), e.NetPrice, e.ForwardPrice, e.ForwardDelta, e.StopLossLimit, e.TrendType.ToStringFast(), e.TrendStrength.ToStringFast(), e.RSI, e.RSISlope, e.TDI.ToStringFast(), e.TDIStrength.ToStringFast(), e.CreatedOn, e.CreatedBy)))
@@ -802,9 +771,9 @@ public static class TradeDbContextExtensions
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
         internal async Task DeleteTradePositionStateAsyncCoreBinding(OptionTradeEntityId e)
         {
-            ArgumentNullException.ThrowIfNull(e);
+        var preparedParameters29 = new DeleteTradePositionState(e.OrderId, e.TradeId);
             await (context.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.DeleteTradePositionState)}", TradeDbSql.DeleteTradePositionState)
-            .SetParameters(new DeleteTradePositionState(e.OrderId, e.TradeId))
+            .SetParameters(preparedParameters29)
             .ExecuteCommandAsync())
             .ConfigureAwait(false);
         }
@@ -814,9 +783,9 @@ public static class TradeDbContextExtensions
         /// <summary>Validates and persists the DeleteTradePlanForwardLossLimitAsync operation.</summary>
         internal async Task DeleteTradePlanForwardLossLimitAsyncCoreBinding(TradePlanForwardLossLimitEntityId id)
         {
-            ArgumentNullException.ThrowIfNull(id);
+        var preparedParameters30 = new DeleteTradePlanForwardLossLimit(id.OrderId, id.TradeId, id.ValueDate, id.TradeType.ToStringFast());
             await (context.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.DeleteTradePlanForwardLossLimit)}", TradeDbSql.DeleteTradePlanForwardLossLimit)
-            .SetParameters(new DeleteTradePlanForwardLossLimit(id.OrderId, id.TradeId, id.ValueDate, id.TradeType.ToStringFast()))
+            .SetParameters(preparedParameters30)
             .ExecuteCommandAsync())
             .ConfigureAwait(false);
         }
@@ -826,10 +795,9 @@ public static class TradeDbContextExtensions
         /// <summary>Validates and persists the UpsertIntrinsicTimeStrategyWorkflowAsync operation.</summary>
         internal async Task UpsertIntrinsicTimeStrategyWorkflowAsyncCoreBinding(IntrinsicTimeStrategyWorkflowReadModel workflow, CancellationToken cancellationToken)
         {
-            ArgumentNullException.ThrowIfNull(workflow);
-            workflow.RequireNotNull(nameof(workflow));
+        var preparedParameters31 = new UpsertIntrinsicTimeStrategyWorkflow(workflow.WorkflowId.Value, workflow.WorkflowEntityId, workflow.WorkflowDefinitionId, workflow.WorkflowDefinitionVersion, workflow.ContractId, workflow.TimeFrameStartValueDate, workflow.TimePeriod.ToString(), workflow.TriggerEventId, workflow.CorrelationId, workflow.Status.ToString(), workflow.Outcome.ToString(), workflow.CurrentStage.ToString(), workflow.WorkflowRevision, workflow.LastEventId, workflow.StateSchemaVersion, workflow.StatePayload.ToArray(), workflow.StopReasonCode, workflow.StartedAtUtc, workflow.TerminalAtUtc, workflow.UpdatedAtUtc);
             await context.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.UpsertIntrinsicTimeStrategyWorkflow)}", TradeDbSql.UpsertIntrinsicTimeStrategyWorkflow)
-            .SetParameters(new UpsertIntrinsicTimeStrategyWorkflow(workflow.WorkflowId.Value, workflow.WorkflowEntityId, workflow.WorkflowDefinitionId, workflow.WorkflowDefinitionVersion, workflow.ContractId, workflow.TimeFrameStartValueDate, workflow.TimePeriod.ToString(), workflow.TriggerEventId, workflow.CorrelationId, workflow.Status.ToString(), workflow.Outcome.ToString(), workflow.CurrentStage.ToString(), workflow.WorkflowRevision, workflow.LastEventId, workflow.StateSchemaVersion, workflow.StatePayload.ToArray(), workflow.StopReasonCode, workflow.StartedAtUtc, workflow.TerminalAtUtc, workflow.UpdatedAtUtc))
+            .SetParameters(preparedParameters31)
             .ExecuteCommandAsync(cancellationToken)
             .ConfigureAwait(false);
         }
@@ -839,10 +807,9 @@ public static class TradeDbContextExtensions
         /// <summary>Validates and persists the UpsertActiveIntrinsicTimeStrategyWorkflowAsync operation.</summary>
         internal async Task UpsertActiveIntrinsicTimeStrategyWorkflowAsyncCoreBinding(ActiveIntrinsicTimeStrategyWorkflowReadModel workflow, CancellationToken cancellationToken)
         {
-            ArgumentNullException.ThrowIfNull(workflow);
-            workflow.RequireNotNull(nameof(workflow));
+        var preparedParameters32 = new UpsertActiveIntrinsicTimeStrategyWorkflow(workflow.WorkflowEntityId, workflow.WorkflowId.Value, workflow.ContractId, workflow.TimeFrameStartValueDate, workflow.TimePeriod.ToString(), workflow.CurrentStage.ToString(), workflow.WorkflowRevision, workflow.LastEventId, workflow.StateSchemaVersion, workflow.StatePayload.ToArray(), workflow.StartedAtUtc, workflow.UpdatedAtUtc);
             await context.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.UpsertActiveIntrinsicTimeStrategyWorkflow)}", TradeDbSql.UpsertActiveIntrinsicTimeStrategyWorkflow)
-            .SetParameters(new UpsertActiveIntrinsicTimeStrategyWorkflow(workflow.WorkflowEntityId, workflow.WorkflowId.Value, workflow.ContractId, workflow.TimeFrameStartValueDate, workflow.TimePeriod.ToString(), workflow.CurrentStage.ToString(), workflow.WorkflowRevision, workflow.LastEventId, workflow.StateSchemaVersion, workflow.StatePayload.ToArray(), workflow.StartedAtUtc, workflow.UpdatedAtUtc))
+            .SetParameters(preparedParameters32)
             .ExecuteCommandAsync(cancellationToken)
             .ConfigureAwait(false);
         }
@@ -852,10 +819,9 @@ public static class TradeDbContextExtensions
         /// <summary>Validates and persists the InsertIntrinsicTimeStrategyWorkflowStartAttemptAsync operation.</summary>
         internal async Task InsertIntrinsicTimeStrategyWorkflowStartAttemptAsyncCoreBinding(IntrinsicTimeStrategyWorkflowStartAttemptReadModel attempt, CancellationToken cancellationToken)
         {
-            ArgumentNullException.ThrowIfNull(attempt);
-            attempt.RequireNotNull(nameof(attempt));
+        var preparedParameters33 = new InsertIntrinsicTimeStrategyWorkflowStartAttempt(attempt.WorkflowEntityId, attempt.RequestedAtUtc, attempt.RequestedWorkflowId.Value, attempt.Decision.ToString(), attempt.ActiveWorkflowId?.Value, attempt.StartCommandId, attempt.TriggerEventId, attempt.ActiveStage.ToString(), attempt.ReasonCode, attempt.SourceEventId);
             await context.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.InsertIntrinsicTimeStrategyWorkflowStartAttempt)}", TradeDbSql.InsertIntrinsicTimeStrategyWorkflowStartAttempt)
-            .SetParameters(new InsertIntrinsicTimeStrategyWorkflowStartAttempt(attempt.WorkflowEntityId, attempt.RequestedAtUtc, attempt.RequestedWorkflowId.Value, attempt.Decision.ToString(), attempt.ActiveWorkflowId?.Value, attempt.StartCommandId, attempt.TriggerEventId, attempt.ActiveStage.ToString(), attempt.ReasonCode, attempt.SourceEventId))
+            .SetParameters(preparedParameters33)
             .ExecuteCommandAsync(cancellationToken)
             .ConfigureAwait(false);
         }
@@ -865,10 +831,9 @@ public static class TradeDbContextExtensions
         /// <summary>Validates and persists the InsertIntrinsicTimeStrategyWorkflowTimelineAsync operation.</summary>
         internal async Task InsertIntrinsicTimeStrategyWorkflowTimelineAsyncCoreBinding(IntrinsicTimeStrategyWorkflowTimelineReadModel timelineEvent, CancellationToken cancellationToken)
         {
-            ArgumentNullException.ThrowIfNull(timelineEvent);
-            timelineEvent.RequireNotNull(nameof(timelineEvent));
+        var preparedParameters34 = new InsertIntrinsicTimeStrategyWorkflowTimeline(timelineEvent.WorkflowId.Value, timelineEvent.EventId, timelineEvent.WorkflowEntityId, timelineEvent.WorkflowRevision, timelineEvent.Stage.ToString(), timelineEvent.EventName, timelineEvent.EventSchemaVersion, timelineEvent.EventPayload.ToArray(), timelineEvent.OccurredAtUtc);
             await context.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.InsertIntrinsicTimeStrategyWorkflowTimeline)}", TradeDbSql.InsertIntrinsicTimeStrategyWorkflowTimeline)
-            .SetParameters(new InsertIntrinsicTimeStrategyWorkflowTimeline(timelineEvent.WorkflowId.Value, timelineEvent.EventId, timelineEvent.WorkflowEntityId, timelineEvent.WorkflowRevision, timelineEvent.Stage.ToString(), timelineEvent.EventName, timelineEvent.EventSchemaVersion, timelineEvent.EventPayload.ToArray(), timelineEvent.OccurredAtUtc))
+            .SetParameters(preparedParameters34)
             .ExecuteCommandAsync(cancellationToken)
             .ConfigureAwait(false);
         }
@@ -878,8 +843,6 @@ public static class TradeDbContextExtensions
         /// <summary>Validates and persists the UpsertIntrinsicTimeStrategyWorkflowByEntityAsync operation.</summary>
         internal async Task UpsertIntrinsicTimeStrategyWorkflowByEntityAsyncCoreBinding(IntrinsicTimeStrategyWorkflowHistoryReadModel workflow, CancellationToken cancellationToken)
         {
-            ArgumentNullException.ThrowIfNull(workflow);
-            workflow.RequireNotNull(nameof(workflow));
             await context.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.UpsertIntrinsicTimeStrategyWorkflowByEntity)}", TradeDbSql.UpsertIntrinsicTimeStrategyWorkflowByEntity)
             .SetParameters(TradeDbContext.MapToByEntityParameters(workflow))
             .ExecuteCommandAsync(cancellationToken)
@@ -891,10 +854,9 @@ public static class TradeDbContextExtensions
         /// <summary>Validates and persists the UpsertIntrinsicTimeStrategyWorkflowByStatusDayAsync operation.</summary>
         internal async Task UpsertIntrinsicTimeStrategyWorkflowByStatusDayAsyncCoreBinding(IntrinsicTimeStrategyWorkflowHistoryReadModel workflow, CancellationToken cancellationToken)
         {
-            ArgumentNullException.ThrowIfNull(workflow);
-            workflow.RequireNotNull(nameof(workflow));
+        var preparedParameters35 = new UpsertIntrinsicTimeStrategyWorkflowByStatusDay(workflow.Status.ToString(), DateOnly.FromDateTime(workflow.StartedAtUtc), workflow.StartedAtUtc, workflow.WorkflowId.Value, workflow.WorkflowEntityId, workflow.Outcome.ToString(), workflow.CurrentStage.ToString(), workflow.WorkflowRevision, workflow.TerminalAtUtc, workflow.StopReasonCode);
             await context.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.UpsertIntrinsicTimeStrategyWorkflowByStatusDay)}", TradeDbSql.UpsertIntrinsicTimeStrategyWorkflowByStatusDay)
-            .SetParameters(new UpsertIntrinsicTimeStrategyWorkflowByStatusDay(workflow.Status.ToString(), DateOnly.FromDateTime(workflow.StartedAtUtc), workflow.StartedAtUtc, workflow.WorkflowId.Value, workflow.WorkflowEntityId, workflow.Outcome.ToString(), workflow.CurrentStage.ToString(), workflow.WorkflowRevision, workflow.TerminalAtUtc, workflow.StopReasonCode))
+            .SetParameters(preparedParameters35)
             .ExecuteCommandAsync(cancellationToken)
             .ConfigureAwait(false);
         }
@@ -907,14 +869,14 @@ public static class TradeDbContextExtensions
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
         internal async Task UpsertMarketConditionAsyncCoreBinding(MarketConditionReadModel result, CancellationToken token)
         {
-            ArgumentNullException.ThrowIfNull(result);
-            result.RequireNotNull(nameof(result));
+        var preparedParameters36 = new UpsertMarketCondition(result.WorkflowId.Value, result.WorkflowEntityId, result.InputWorkflowRevision, result.CommandId, result.SourceEventId, result.FundId, result.InstrumentRoot, result.TargetHorizon.ToString(), result.ParameterSetId, result.ParameterSetVersion, result.ParameterPayloadSha256, result.SnapshotId, result.SnapshotSha256, result.Tradeability.ToString(), result.ConditionType.ToString(), result.Direction.ToString(), result.Phase.ToString(), result.Strength, result.Confidence, result.PrimaryReasonCode, result.ResultPayload.ToArray(), result.ResultPayloadSha256, result.EvaluatedAtUtc, result.ValidUntilUtc, result.MarketDataAsOfUtc, result.CompletedAtUtc, result.UpdatedAtUtc, result.VolatilityBehavior.ToString(), result.LiquidityQuality.ToString(), result.DataQuality.ToString(), result.UpstreamAlignment.ToString(), result.EvidencePayload.ToArray(), result.ConflictingEvidencePayload.ToArray(), result.BlockingReasonsPayload.ToArray(), result.ReasonsPayload.ToArray(), result.SummaryText);
             await context.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.UpsertMarketCondition)}", TradeDbSql.UpsertMarketCondition)
-            .SetParameters(new UpsertMarketCondition(result.WorkflowId.Value, result.WorkflowEntityId, result.InputWorkflowRevision, result.CommandId, result.SourceEventId, result.FundId, result.InstrumentRoot, result.TargetHorizon.ToString(), result.ParameterSetId, result.ParameterSetVersion, result.ParameterPayloadSha256, result.SnapshotId, result.SnapshotSha256, result.Tradeability.ToString(), result.ConditionType.ToString(), result.Direction.ToString(), result.Phase.ToString(), result.Strength, result.Confidence, result.PrimaryReasonCode, result.ResultPayload.ToArray(), result.ResultPayloadSha256, result.EvaluatedAtUtc, result.ValidUntilUtc, result.MarketDataAsOfUtc, result.CompletedAtUtc, result.UpdatedAtUtc, result.VolatilityBehavior.ToString(), result.LiquidityQuality.ToString(), result.DataQuality.ToString(), result.UpstreamAlignment.ToString(), result.EvidencePayload.ToArray(), result.ConflictingEvidencePayload.ToArray(), result.BlockingReasonsPayload.ToArray(), result.ReasonsPayload.ToArray(), result.SummaryText))
+            .SetParameters(preparedParameters36)
             .ExecuteCommandAsync(token)
             .ConfigureAwait(false);
+        var preparedParameters37 = new UpsertMarketConditionByFund(result.FundId, result.InstrumentRoot, result.TargetHorizon.ToString(), result.EvaluatedAtUtc, result.WorkflowId.Value, result.WorkflowEntityId, result.InputWorkflowRevision, result.CommandId, result.SourceEventId, result.ParameterSetId, result.ParameterSetVersion, result.ParameterPayloadSha256, result.SnapshotId, result.SnapshotSha256, result.Tradeability.ToString(), result.ConditionType.ToString(), result.Direction.ToString(), result.Phase.ToString(), result.Strength, result.Confidence, result.PrimaryReasonCode, result.ResultPayload.ToArray(), result.ResultPayloadSha256, result.ValidUntilUtc, result.MarketDataAsOfUtc, result.CompletedAtUtc, result.UpdatedAtUtc, result.VolatilityBehavior.ToString(), result.LiquidityQuality.ToString(), result.DataQuality.ToString(), result.UpstreamAlignment.ToString(), result.EvidencePayload.ToArray(), result.ConflictingEvidencePayload.ToArray(), result.BlockingReasonsPayload.ToArray(), result.ReasonsPayload.ToArray(), result.SummaryText);
             await context.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.UpsertMarketConditionByFund)}", TradeDbSql.UpsertMarketConditionByFund)
-            .SetParameters(new UpsertMarketConditionByFund(result.FundId, result.InstrumentRoot, result.TargetHorizon.ToString(), result.EvaluatedAtUtc, result.WorkflowId.Value, result.WorkflowEntityId, result.InputWorkflowRevision, result.CommandId, result.SourceEventId, result.ParameterSetId, result.ParameterSetVersion, result.ParameterPayloadSha256, result.SnapshotId, result.SnapshotSha256, result.Tradeability.ToString(), result.ConditionType.ToString(), result.Direction.ToString(), result.Phase.ToString(), result.Strength, result.Confidence, result.PrimaryReasonCode, result.ResultPayload.ToArray(), result.ResultPayloadSha256, result.ValidUntilUtc, result.MarketDataAsOfUtc, result.CompletedAtUtc, result.UpdatedAtUtc, result.VolatilityBehavior.ToString(), result.LiquidityQuality.ToString(), result.DataQuality.ToString(), result.UpstreamAlignment.ToString(), result.EvidencePayload.ToArray(), result.ConflictingEvidencePayload.ToArray(), result.BlockingReasonsPayload.ToArray(), result.ReasonsPayload.ToArray(), result.SummaryText))
+            .SetParameters(preparedParameters37)
             .ExecuteCommandAsync(token)
             .ConfigureAwait(false);
         }
@@ -924,7 +886,6 @@ public static class TradeDbContextExtensions
         /// <summary>Validates and persists the UpsertMarketConditionAssessmentAsync operation.</summary>
         internal async Task UpsertMarketConditionAssessmentAsyncCoreBinding(MarketConditionAssessmentCompletedEvent completed, CancellationToken cancellationToken = default)
         {
-            ArgumentNullException.ThrowIfNull(completed);
             await (context.NativeTransaction().ExecuteOnceAsync(async (db, ct) =>
             {
                 await (TradeDbContextExtensions.PipelineProjectAsync(db, completed, ct))
@@ -940,9 +901,7 @@ public static class TradeDbContextExtensions
         /// <summary>Validates and persists the GetMarketConditionAssessmentHistoryAsync operation.</summary>
         internal Task<ICollection<MarketConditionAssessmentCompletedEvent>> GetMarketConditionAssessmentHistoryAsyncCoreBinding(string profile, string root, TimeFrameType horizon, DateTime beforeUtc, int pageSize, CancellationToken cancellationToken = default)
         {
-            ArgumentNullException.ThrowIfNull(profile);
-            profile.RequireAssessmentHistoryScope(root, horizon, beforeUtc, pageSize);
-            return context.NativeTransaction().ExecuteOnceAsync<ICollection<MarketConditionAssessmentCompletedEvent>>(async (db, ct) => (await (db.QueryAsync(TradeDbSql.HelperStatement6, [profile, root, horizon.ToString(), beforeUtc, pageSize], r => (r.GetFieldValue<byte[]>(0)).VerifyAssessment(r.GetString(1)), ct))
+            return context.NativeTransaction().ExecuteOnceAsync<ICollection<MarketConditionAssessmentCompletedEvent>>(async (db, ct) => (await (db.QueryAsync(TradeDbSql.HelperStatement6, [profile, root, horizon.ToString(), beforeUtc, pageSize], TradeDbContext.MapToGetMarketConditionAssessmentHistoryCoreBindingRow1, ct))
             .ConfigureAwait(false)).ToArray(), cancellationToken);
         }
 
@@ -951,7 +910,6 @@ public static class TradeDbContextExtensions
         /// <summary>Validates and persists the UpsertOrderCompositionAsync operation.</summary>
         internal async Task UpsertOrderCompositionAsyncCoreBinding(OrderCompositionFunctionCompletedEvent completed, CancellationToken token = default)
         {
-            ArgumentNullException.ThrowIfNull(completed);
             await (context.NativeTransaction().ExecuteOnceAsync(async (db, ct) =>
             {
                 await (TradeDbContextExtensions.PipelineProjectAsync(db, completed, ct))
@@ -967,8 +925,6 @@ public static class TradeDbContextExtensions
         /// <summary>Validates and persists the UpsertRegimeDiscoveryAsync operation.</summary>
         internal async Task UpsertRegimeDiscoveryAsyncCoreBinding(RegimeDiscoveryReadModel result, CancellationToken cancellationToken)
         {
-            ArgumentNullException.ThrowIfNull(result);
-            result.RequireNotNull(nameof(result));
             await context.NativeTransaction().ExecuteOnceAsync((db, ct) => TradeDbContextExtensions.RegimeUpsertAsync(db, result, ct), cancellationToken)
             .ConfigureAwait(false);
             return;
@@ -979,7 +935,6 @@ public static class TradeDbContextExtensions
         /// <summary>Validates and persists the UpsertRiskHistoryAsync operation.</summary>
         internal async Task<RiskHistoryProjectionResult> UpsertRiskHistoryAsyncCoreBinding(WorkflowStrategyStateUpdatedEvent snapshot, CancellationToken token = default)
         {
-            ArgumentNullException.ThrowIfNull(snapshot);
             var row = RiskHistoryIdentity.Row(snapshot);
             if (row is null)
                 return new(RiskHistoryProjectionDisposition.NotApplicable);
@@ -991,24 +946,20 @@ public static class TradeDbContextExtensions
             var hash = RiskContracts.Hash(canonical);
             return await context.NativeTransaction().ExecuteOnceAsync(async (db, projectionToken) =>
             {
-                var inserted = (bool)(await db.ScalarAsync(TradeDbSql.HelperStatement7,
-                    [row.WorkflowId, row.InvocationId, row.Revision, payload, hash], projectionToken)
+                var inserted = (bool)(await db.ScalarAsync(TradeDbSql.HelperStatement7, [row.WorkflowId, row.InvocationId, row.Revision, payload, hash], projectionToken)
             .ConfigureAwait(false))!;
                 if (!inserted)
                 {
-                    var old = (string?)await db.ScalarAsync(TradeDbSql.HelperStatement8,
-                        [row.WorkflowId, row.InvocationId, row.Revision], projectionToken)
+                    var old = (string?)await db.ScalarAsync(TradeDbSql.HelperStatement8, [row.WorkflowId, row.InvocationId, row.Revision], projectionToken)
             .ConfigureAwait(false);
                     if (!string.Equals(old, hash, StringComparison.Ordinal))
                         return new RiskHistoryProjectionResult(RiskHistoryProjectionDisposition.Conflict, row.WorkflowId, row.InvocationId, row.Revision, old, hash);
                 }
                 var summary = MessagePackBinarySerializer.Shared.Serialize(row);
-                var added = (bool)(await db.ScalarAsync(TradeDbSql.HelperStatement9,
-                    [row.PortfolioId, row.FundId, row.ValueDate, row.EvaluatedAtUtc, row.InvocationId, row.Revision, summary], projectionToken)
+                var added = (bool)(await db.ScalarAsync(TradeDbSql.HelperStatement9, [row.PortfolioId, row.FundId, row.ValueDate, row.EvaluatedAtUtc, row.InvocationId, row.Revision, summary], projectionToken)
             .ConfigureAwait(false))!;
                 if (!added)
-                    await db.ScalarAsync(TradeDbSql.HelperStatement10,
-                        [row.Revision, summary, row.PortfolioId, row.FundId, row.ValueDate, row.EvaluatedAtUtc, row.InvocationId, row.Revision], projectionToken)
+                    await db.ScalarAsync(TradeDbSql.HelperStatement10, [row.Revision, summary, row.PortfolioId, row.FundId, row.ValueDate, row.EvaluatedAtUtc, row.InvocationId, row.Revision], projectionToken)
             .ConfigureAwait(false);
                 return new RiskHistoryProjectionResult(inserted ? RiskHistoryProjectionDisposition.Projected : RiskHistoryProjectionDisposition.AlreadyProjected,
                     row.WorkflowId, row.InvocationId, row.Revision, hash, hash);
@@ -1021,8 +972,6 @@ public static class TradeDbContextExtensions
         /// <summary>Validates and persists the UpsertTradeOrderAsync operation.</summary>
         internal Task UpsertTradeOrderAsyncCoreBinding(TradeOrderDefinition order, CancellationToken token = default)
         {
-            ArgumentNullException.ThrowIfNull(order);
-            order.RequireNotNull(nameof(order));
             throw new InvalidOperationException("PostgreSQL order projections require the accepted source timestamp.");
         }
 
@@ -1031,9 +980,6 @@ public static class TradeDbContextExtensions
         /// <summary>Validates and persists the UpsertOrderExecutionAsync operation.</summary>
         internal async Task UpsertOrderExecutionAsyncCoreBinding(OrderExecutionDefinition execution, CancellationToken token = default)
         {
-            ArgumentNullException.ThrowIfNull(execution);
-            execution.RequireNotNull(nameof(execution));
-            execution.TradeOrderId.Require();
             await (context.NativeTransaction().ExecuteOnceAsync(async (db, ct) =>
             {
                 await (TradeDbContextExtensions.TradeFlowProjectExecutionAsync(db, execution, ct))
@@ -1049,9 +995,6 @@ public static class TradeDbContextExtensions
         /// <summary>Validates and persists the UpsertEstablishedTradeAsync operation.</summary>
         internal async Task UpsertEstablishedTradeAsyncCoreBinding(EstablishedTradeDefinition trade, CancellationToken token = default)
         {
-            ArgumentNullException.ThrowIfNull(trade);
-            trade.RequireNotNull(nameof(trade));
-            trade.Id.Require();
             await (context.NativeTransaction().ExecuteOnceAsync(async (db, ct) =>
             {
                 await (TradeDbContextExtensions.TradeFlowProjectTradeAsync(db, trade, ct))
@@ -1067,9 +1010,6 @@ public static class TradeDbContextExtensions
         /// <summary>Validates and persists the UpsertStrategyPositionAsync operation.</summary>
         internal async Task UpsertStrategyPositionAsyncCoreBinding(StrategyPositionSnapshot position, CancellationToken token = default)
         {
-            ArgumentNullException.ThrowIfNull(position);
-            position.RequireNotNull(nameof(position));
-            position.RequireValidIdentity();
             await (context.NativeTransaction().ExecuteOnceAsync(async (db, ct) =>
             {
                 await (TradeDbContextExtensions.TradeFlowProjectPositionAsync(db, position, ct))
@@ -1085,9 +1025,6 @@ public static class TradeDbContextExtensions
         /// <summary>Validates and persists the ReplaceOpenPositionRoutesAsync operation.</summary>
         internal async Task ReplaceOpenPositionRoutesAsyncCoreBinding(StrategyPositionSnapshot position, CancellationToken token = default)
         {
-            ArgumentNullException.ThrowIfNull(position);
-            position.RequireNotNull(nameof(position));
-            position.RequireRoutableLegs();
             await (context.NativeTransaction().ExecuteOnceAsync(async (db, ct) =>
             {
                 await (TradeDbContextExtensions.TradeFlowProjectPositionAsync(db, position, ct))
@@ -1103,8 +1040,6 @@ public static class TradeDbContextExtensions
         /// <summary>Validates and persists the GetOpenPositionRoutesAsync operation.</summary>
         internal async Task<ICollection<OpenPositionRouteReadModel>> GetOpenPositionRoutesAsyncCoreBinding(string contractId, CancellationToken token = default)
         {
-            ArgumentNullException.ThrowIfNull(contractId);
-            contractId.RequireContractId();
             return (await (context.NativeTransaction().ExecuteOnceAsync((db, ct) => TradeDbContextExtensions.TradeReadRoutesAsync(db, contractId, ct), token))
             .ConfigureAwait(false)).ToArray();
         }
@@ -1114,7 +1049,6 @@ public static class TradeDbContextExtensions
         /// <summary>Validates and persists the UpsertTradeSelectionAsync operation.</summary>
         internal async Task UpsertTradeSelectionAsyncCoreBinding(TradeSelectionFunctionCompletedEvent completed, CancellationToken cancellationToken = default)
         {
-            ArgumentNullException.ThrowIfNull(completed);
             await (context.NativeTransaction().ExecuteOnceAsync(async (db, ct) =>
             {
                 await (TradeDbContextExtensions.PipelineProjectAsync(db, completed, ct))
@@ -1134,15 +1068,18 @@ public static class TradeDbContextExtensions
         {
             var entityId = optionTrade.EntityId;
             var db = context;
+        var preparedParameters38 = new GetTradePositions(entityId.OrderId, entityId.TradeId);
             var tradePositionsTask = db.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.GetTradePositions)}", TradeDbSql.GetTradePositions)
-            .SetParameters(new GetTradePositions(entityId.OrderId, entityId.TradeId))
+            .SetParameters(preparedParameters38)
             .ExecuteQueryAsync(TradeDbContext.MapToTradePosition!);
+        var preparedParameters39 = new GetOptionLegsByOrderAndTrade(entityId.OrderId, entityId.TradeId);
             var optionLegsTask = db.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.GetOptionLegsByOrderAndTrade)}", TradeDbSql.GetOptionLegsByOrderAndTrade)
-            .SetParameters(new GetOptionLegsByOrderAndTrade(entityId.OrderId, entityId.TradeId))
+            .SetParameters(preparedParameters39)
             .ExecuteQueryAsync(TradeDbContext.MapToOptionLeg!);
             var tradeLimitTask = context.GetTradeLimitAsync(optionTrade.TradeId);
+        var preparedParameters40 = new GetTradeTypeLimits(optionTrade.TradeId);
             var tradeTypeLimitsTask = db.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.GetTradeTypeLimits)}", TradeDbSql.GetTradeTypeLimits)
-            .SetParameters(new GetTradeTypeLimits(optionTrade.TradeId))
+            .SetParameters(preparedParameters40)
             .ExecuteQueryAsync(TradeDbContext.MapToTradeTypeLimit);
             var tradeFillsTask = context.GetTradeFillsAsync(optionTrade.OrderId, optionTrade.TradeId);
             var tradePositions = await (tradePositionsTask)
@@ -1178,15 +1115,18 @@ public static class TradeDbContextExtensions
         {
             var entityId = optionTrade.EntityId;
             var db = context;
+        var preparedParameters41 = new GetTradePositions(entityId.OrderId, entityId.TradeId);
             var tradePositionsTask = db.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.GetTradePositions)}", TradeDbSql.GetTradePositions)
-            .SetParameters(new GetTradePositions(entityId.OrderId, entityId.TradeId))
+            .SetParameters(preparedParameters41)
             .ExecuteQueryAsync(TradeDbContext.MapToTradePosition!, cancellationToken);
+        var preparedParameters42 = new GetOptionLegsByOrderAndTrade(entityId.OrderId, entityId.TradeId);
             var optionLegsTask = db.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.GetOptionLegsByOrderAndTrade)}", TradeDbSql.GetOptionLegsByOrderAndTrade)
-            .SetParameters(new GetOptionLegsByOrderAndTrade(entityId.OrderId, entityId.TradeId))
+            .SetParameters(preparedParameters42)
             .ExecuteQueryAsync(TradeDbContext.MapToOptionLeg!, cancellationToken);
             var tradeLimitTask = context.GetTradeLimitAsync(optionTrade.TradeId, cancellationToken);
+        var preparedParameters43 = new GetTradeTypeLimits(optionTrade.TradeId);
             var tradeTypeLimitsTask = db.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.GetTradeTypeLimits)}", TradeDbSql.GetTradeTypeLimits)
-            .SetParameters(new GetTradeTypeLimits(optionTrade.TradeId))
+            .SetParameters(preparedParameters43)
             .ExecuteQueryAsync(TradeDbContext.MapToTradeTypeLimit, cancellationToken);
             var tradeFillsTask = context.GetTradeFillsAsync(optionTrade.OrderId, optionTrade.TradeId, cancellationToken);
             var tradePositions = await (tradePositionsTask)
@@ -1216,217 +1156,7 @@ public static class TradeDbContextExtensions
             .ConfigureAwait(false)).AddTradeFills(await (tradeFillsTask)
             .ConfigureAwait(false));
         }
-    }
-
-    extension(int pageSize)
-    {
-        /// <summary>Validates a requested TradeDb query page size.</summary>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal int RequirePageSize()
-        {
-            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(pageSize);
-            return pageSize;
-        }
-    }
-
-    extension(DateOnly endDate)
-    {
-        /// <summary>Requires an inclusive date range whose end does not precede its start.</summary>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2208", Justification = "The named argument is the declared C# 14 extension receiver; its name is part of the caller contract.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3928", Justification = "The named argument is the declared C# 14 extension receiver; its name is part of the caller contract.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal void RequireNotBefore(DateOnly startDate)
-        {
-            if (endDate < startDate)
-                throw new ArgumentOutOfRangeException(nameof(endDate), endDate, "End date must not precede start date.");
-        }
-    }
-
-    extension(int fundId)
-    {
-        /// <summary>Validates the market-condition history partition and requested page size.</summary>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2208", Justification = "The named argument is the declared C# 14 extension receiver; its name is part of the caller contract.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3928", Justification = "The named argument is the declared C# 14 extension receiver; its name is part of the caller contract.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal void RequireMarketConditionHistoryScope(string instrumentRoot, int pageSize)
-        {
-            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(fundId);
-            if (string.IsNullOrWhiteSpace(instrumentRoot))
-                throw new ArgumentException("An instrument root is required.", nameof(instrumentRoot));
-            if (pageSize is < 1 or > 100)
-                throw new ArgumentOutOfRangeException(nameof(pageSize));
-        }
-    }
-
-    extension(string profile)
-    {
-        /// <summary>Validates the market-condition assessment history partition and page bound.</summary>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2208", Justification = "The named argument is the declared C# 14 extension receiver; its name is part of the caller contract.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3928", Justification = "The named argument is the declared C# 14 extension receiver; its name is part of the caller contract.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal void RequireAssessmentHistoryScope(string root, TimeFrameType horizon, DateTime beforeUtc, int pageSize)
-        {
-            if (string.IsNullOrWhiteSpace(profile) || !string.Equals(root, "ES", StringComparison.Ordinal) || !MarketConditionAssessmentParameterSet.IsHorizon(horizon) || pageSize is < 1 or > 100 || !MarketConditionAssessmentContracts.Utc(beforeUtc))
-                throw new ArgumentException("Invalid assessment history partition or bound.", nameof(profile));
-        }
-
-        /// <summary>Requires a non-empty routed contract identifier.</summary>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0015", Justification = "This existing options validator reports the invalid configuration property by name; preserve its established exception type and diagnostic property name.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3928", Justification = "This existing options validator reports the invalid configuration property by name; preserve its established exception type and diagnostic property name.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal void RequireContractId()
-        {
-            if (string.IsNullOrWhiteSpace(profile))
-                throw new ArgumentException("ContractId is required.", "contractId");
-        }
-    }
-
-    extension(MarketConditionAssessmentCompletedEvent completed)
-    {
-        /// <summary>Requires the assessment snapshot hashes to match the projected result.</summary>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal void RequireAssessmentProjectionIdentity(MarketConditionAssessmentResult result)
-        {
-            if (!string.Equals(completed.Snapshot.ComputeHash(), result.SnapshotSha256, StringComparison.Ordinal) || !string.Equals(completed.Snapshot.PayloadSha256, result.SnapshotSha256, StringComparison.Ordinal))
-                throw new ArgumentException("Assessment projection snapshot hash mismatch.", nameof(result));
-        }
-    }
-
-    extension(StrategyWorkflowId workflowId)
-    {
-        /// <summary>Requires exact workflow and invocation identities.</summary>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2208", Justification = "The named argument is the declared C# 14 extension receiver; its name is part of the caller contract.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3928", Justification = "The named argument is the declared C# 14 extension receiver; its name is part of the caller contract.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal void RequireInvocation(Guid invocationId, string message)
-        {
-            if (workflowId.Value == Guid.Empty || invocationId == Guid.Empty)
-                throw new ArgumentException(message, nameof(workflowId));
-        }
-    }
-
-    extension(Guid identifier)
-    {
-        /// <summary>Requires exact workflow and invocation identifiers.</summary>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2208", Justification = "The named argument is the declared C# 14 extension receiver; its name is part of the caller contract.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3928", Justification = "The named argument is the declared C# 14 extension receiver; its name is part of the caller contract.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal void RequireInvocation(Guid invocationId, string message)
-        {
-            if (identifier == Guid.Empty || invocationId == Guid.Empty)
-                throw new ArgumentException(message, nameof(identifier));
-        }
-
-        /// <summary>Requires a non-empty identifier.</summary>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal void Require(string message, string parameterName)
-        {
-            if (identifier == Guid.Empty)
-                throw new ArgumentException(message, parameterName);
-        }
-
-        /// <summary>Validates a position-history identity, UTC range, and page size.</summary>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2208", Justification = "The named argument is the declared C# 14 extension receiver; its name is part of the caller contract.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3928", Justification = "The named argument is the declared C# 14 extension receiver; its name is part of the caller contract.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal void RequireUtcHistoryScope(DateTime fromUtc, DateTime toUtc, int pageSize)
-        {
-            if (identifier == Guid.Empty || fromUtc.Kind != DateTimeKind.Utc || toUtc.Kind != DateTimeKind.Utc || fromUtc > toUtc || pageSize is < 1 or > 1000)
-                throw new ArgumentException("Valid PositionId, UTC range, and page size 1..1000 are required.", nameof(identifier));
-        }
-    }
-
-    extension(int portfolioId)
-    {
-        /// <summary>Validates a portfolio/fund/date history partition and page size.</summary>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2208", Justification = "The named argument is the declared C# 14 extension receiver; its name is part of the caller contract.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3928", Justification = "The named argument is the declared C# 14 extension receiver; its name is part of the caller contract.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal void RequireHistoryScope(int fundId, DateOnly valueDate, int pageSize, int maximumPageSize, string message)
-        {
-            if (portfolioId <= 0 || fundId <= 0 || valueDate == default || pageSize < 1 || pageSize > maximumPageSize)
-                throw new ArgumentException(message, nameof(portfolioId));
-        }
-
-        /// <summary>Validates a portfolio/fund UTC history range and page size.</summary>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2208", Justification = "The named argument is the declared C# 14 extension receiver; its name is part of the caller contract.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3928", Justification = "The named argument is the declared C# 14 extension receiver; its name is part of the caller contract.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal void RequireUtcHistoryScope(int fundId, DateTime fromUtc, DateTime toUtc, int pageSize)
-        {
-            if (portfolioId <= 0 || fundId <= 0 || fromUtc.Kind != DateTimeKind.Utc || toUtc.Kind != DateTimeKind.Utc || fromUtc > toUtc || pageSize is < 1 or > 1000)
-                throw new ArgumentException("Valid ownership, UTC range, and page size 1..1000 are required.", nameof(portfolioId));
-        }
-    }
-
-    extension(StrategyPositionSnapshot position)
-    {
-        /// <summary>Requires a strategy position with a valid identity.</summary>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3928", Justification = "This existing options validator reports the invalid configuration property by name; preserve its established exception type and diagnostic property name.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal void RequireValidIdentity()
-        {
-            if (!position.Id.IsValid)
-                throw new ArgumentException("Valid position identity is required.", nameof(position));
-        }
-
-        /// <summary>Requires every routed position leg to identify its contract.</summary>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3928", Justification = "This existing options validator reports the invalid configuration property by name; preserve its established exception type and diagnostic property name.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal void RequireRoutableLegs()
-        {
-            if (position.Legs.Any(static leg => string.IsNullOrWhiteSpace(leg.ContractId)))
-                throw new ArgumentException("Every routed position leg requires ContractId.", nameof(position));
-        }
-    }
-
-    extension(StrategyPositionId id)
-    {
-        /// <summary>Requires a valid strategy-position identity.</summary>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3928", Justification = "This existing options validator reports the invalid configuration property by name; preserve its established exception type and diagnostic property name.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal void Require()
-        {
-            if (!id.IsValid)
-                throw new ArgumentException("Valid position identity is required.", nameof(id));
-        }
-    }
-
-    extension(TradeEntityId id)
-    {
-        /// <summary>Requires a valid portfolio, fund, order, and trade identity.</summary>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3928", Justification = "This existing options validator reports the invalid configuration property by name; preserve its established exception type and diagnostic property name.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal void Require()
-        {
-            if (!id.IsValid)
-                throw new ArgumentException("Valid Portfolio, Fund, Order, and Trade identity is required.", nameof(id));
-        }
-    }
-
-    extension(TradeOrderId id)
-    {
-        /// <summary>Requires a valid portfolio, fund, and order identity.</summary>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3928", Justification = "This existing options validator reports the invalid configuration property by name; preserve its established exception type and diagnostic property name.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal void Require()
-        {
-            if (!id.IsValid)
-                throw new ArgumentException("Valid Portfolio, Fund, and Order identity is required.", nameof(id));
-        }
-    }
-
-    extension<T>(T? value)
-        where T : class
-    {
-        /// <summary>Requires a non-null TradeDb contract argument and returns it.</summary>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3236", Justification = "The validated member belongs to this public input argument; explicitly report its root parameter rather than exposing a member expression as the parameter name.")]
-        internal T RequireNotNull(string parameterName)
-        {
-            ArgumentNullException.ThrowIfNull(value, parameterName);
-            return value;
-        }
-    }
+}
 
     extension(byte[] bytes)
     {
@@ -1450,11 +1180,8 @@ public static class TradeDbContextExtensions
         /// <summary>Projects lifecycle state after its source append, retaining immutable revision terms.</summary>
         public async Task<int> TradeFlowProjectOrderLifecycleAsync(TradeOrderDefinition order, DateTime acceptedAtUtc, CancellationToken token = default)
         {
-            ArgumentNullException.ThrowIfNull(order);
             var identity = new object?[] { order.Id.PortfolioId, order.Id.FundId, order.Id.OrderId, order.Revision };
-            var existing = await db.ScalarAsync(
-                "SELECT payload FROM trade.trade_order WHERE portfolioid=$1 AND fundid=$2 AND orderid=$3 AND revision=$4 FOR UPDATE;",
-                identity, token)
+            var existing = await db.ScalarAsync(TradeDbSql.TradeDbContextExtensions_TradeFlowProjectOrderLifecycleAsync_1, identity, token)
             .ConfigureAwait(false);
             if (existing is not byte[] payload)
                 return await db.TradeFlowProjectOrderAsync(order, acceptedAtUtc, token)
@@ -1469,7 +1196,7 @@ public static class TradeDbContextExtensions
             if (!Terms(stored).AsSpan().SequenceEqual(Terms(order)))
                 throw new InvalidDataException("Accepted order revision conflicts with different source facts.");
             return await db.ExecuteAsync(
-                "UPDATE trade.trade_order SET status=$5,payload=$6,updatedatutc=$7 WHERE portfolioid=$1 AND fundid=$2 AND orderid=$3 AND revision=$4;",
+                TradeDbSql.TradeDbContextExtensions_TradeFlowProjectOrderLifecycleAsync_2,
                 [.. identity, order.Status.ToString(), MessagePackBinarySerializer.Shared.Serialize(order), acceptedAtUtc], token)
             .ConfigureAwait(false);
         }
@@ -1480,24 +1207,19 @@ public static class TradeDbContextExtensions
         public async Task<int> TradeFlowProjectOrderAsync(TradeOrderDefinition order, DateTime acceptedAtUtc, CancellationToken token = default)
         {
             ArgumentNullException.ThrowIfNull(db);
-            ArgumentNullException.ThrowIfNull(order);
             var stored = await (db.ScalarAsync(TradeDbSql.HelperStatement11, [order.Id.PortfolioId, order.Id.FundId, order.Id.OrderId, order.Revision, order.Status.ToString(), order.ValueDate, acceptedAtUtc, order.DefinitionHash, MessagePackBinarySerializer.Shared.Serialize(order)], token))
             .ConfigureAwait(false);
             if (stored is null)
                 throw new InvalidDataException("Accepted order revision conflicts with different source facts.");
             return 1;
         }
-    }
 
-    extension(IEnlistedPostgresTransaction db)
-    {
         /// <summary>Stores the accepted execution and all recorded fills in the same transaction.</summary>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         public async Task TradeFlowProjectExecutionAsync(OrderExecutionDefinition execution, CancellationToken token = default)
         {
             ArgumentNullException.ThrowIfNull(db);
-            ArgumentNullException.ThrowIfNull(execution);
             var id = execution.TradeOrderId;
             await (db.ExecuteAsync(TradeDbSql.HelperStatement12, [id.PortfolioId, id.FundId, id.OrderId, execution.ExecutionAttemptId, execution.Status.ToString(), execution.StartedAtUtc, execution.CompletedAtUtc, MessagePackBinarySerializer.Shared.Serialize(execution)], token))
             .ConfigureAwait(false);
@@ -1505,17 +1227,13 @@ public static class TradeDbContextExtensions
                 await (db.ExecuteAsync(TradeDbSql.HelperStatement13, [fill.ExecutionAttemptId, fill.ExecutionFillId, fill.ComponentId, fill.TradeLegId, fill.ContractId, fill.FilledAtUtc, MessagePackBinarySerializer.Shared.Serialize(fill)], token))
             .ConfigureAwait(false);
         }
-    }
 
-    extension(IEnlistedPostgresTransaction db)
-    {
         /// <summary>Stores the established trade and its dated evidence history together.</summary>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         public async Task TradeFlowProjectTradeAsync(EstablishedTradeDefinition trade, CancellationToken token = default)
         {
             ArgumentNullException.ThrowIfNull(db);
-            ArgumentNullException.ThrowIfNull(trade);
             if (trade.MonitoringLimits is { } limits)
             {
                 if (limits.PortfolioApprovalId == Guid.Empty || limits.OrderRevision < 1 || limits.TradeLimit.TradeId != trade.Id.TradeId
@@ -1540,10 +1258,7 @@ public static class TradeDbContextExtensions
                     throw new InvalidDataException("Accepted current trade revision conflicts with different source facts.");
             }
         }
-    }
 
-    extension(IEnlistedPostgresTransaction db)
-    {
         /// <summary>Atomically updates current state, the stable daily history row and both open-leg routing indexes.
         /// Older position sequences cannot overwrite current state or restore routes for an already closed position.</summary>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
@@ -1551,14 +1266,12 @@ public static class TradeDbContextExtensions
         public async Task TradeFlowProjectPositionAsync(StrategyPositionSnapshot position, CancellationToken token = default)
         {
             ArgumentNullException.ThrowIfNull(db);
-            ArgumentNullException.ThrowIfNull(position);
             var id = position.Id.Trade;
             // Legacy source events retain points at wire key 18. Persist the
             // separately named currency amount without changing source evidence.
             if (position.OpeningCommission is null || position.OpeningValueDate is null || position.ContractCashMultiplier is null)
             {
-                var definition = await db.ScalarAsync(TradeDbSql.HelperStatement32,
-                    [id.PortfolioId, id.FundId, id.OrderId, id.TradeId], token)
+                var definition = await db.ScalarAsync(TradeDbSql.HelperStatement32, [id.PortfolioId, id.FundId, id.OrderId, id.TradeId], token)
             .ConfigureAwait(false);
                 if (definition is byte[] bytes)
                     position = StrategyPositionCurrencyPnl.Apply(position,
@@ -1593,14 +1306,10 @@ public static class TradeDbContextExtensions
             .ConfigureAwait(false);
             }
         }
-    }
 
-    extension(IEnlistedPostgresTransaction db)
-    {
         public async Task TradeFlowProjectMonitoringLimitsAsync(TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradeLimitReadModel limit, IReadOnlyList<TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradeTypeLimitReadModel> spreads, CancellationToken token = default, bool initializeOnly = false)
         {
             ArgumentNullException.ThrowIfNull(db);
-            ArgumentNullException.ThrowIfNull(limit);
             await (db.ExecuteAsync(initializeOnly ? TradeDbSql.InsertInitialMonitoringLimit : TradeDbSql.HelperStatement24, [limit.TradeId, limit.TradeType.ToString(), limit.RiskMargin, limit.MaxProfit, limit.MaxLoss, limit.MaxReturn, limit.MaxLossLimit, limit.MinProfitLimit, limit.MaxProfitLimit, limit.MinProfitTarget, limit.DailyProfitTarget, limit.CreatedOn, limit.CreatedBy, limit.UpdatedOn, limit.UpdatedBy], token))
             .ConfigureAwait(false);
             if (initializeOnly)
@@ -1614,25 +1323,18 @@ public static class TradeDbContextExtensions
                 await TradeDbContextExtensions.TradeFlowProjectSpreadLimitsAsync(db, spreads, token)
             .ConfigureAwait(false);
         }
-    }
 
-    extension(IEnlistedPostgresTransaction db)
-    {
         /// <summary>Stores the exact accepted spread limit values without recalculating the whole-trade limit.</summary>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         public async Task TradeFlowProjectSpreadLimitsAsync(IReadOnlyList<TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradeTypeLimitReadModel> spreads, CancellationToken token = default)
         {
             ArgumentNullException.ThrowIfNull(db);
-            ArgumentNullException.ThrowIfNull(spreads);
             foreach (var spread in spreads)
                 await (db.ExecuteAsync(TradeDbSql.HelperStatement25, [spread.TradeId, spread.TradeType.ToString(), spread.MaxLossLimit, spread.MinProfitLimit, spread.MaxProfitLimit], token))
             .ConfigureAwait(false);
         }
-    }
 
-    extension(IEnlistedPostgresTransaction db)
-    {
         /// <summary>Reads bounded PostgreSQL history with a scoped, complete keyset cursor.</summary>
         internal async Task<QueryPage<EstablishedTradeDefinition>> TradeReadEstablishedHistoryAsync(
             int portfolio, int fund, TradeStrategyKind kind, DateTime from, DateTime through,
@@ -1650,9 +1352,8 @@ public static class TradeDbContextExtensions
             }
             object?[] values = last is null ? [portfolio, fund, kind.ToString(), from, through, pageSize + 1]
                 : [portfolio, fund, kind.ToString(), from, through, last.At, last.Order, last.Trade, last.Revision, pageSize + 1];
-            var rows = await db.QueryAsync(last is null ? TradeDbSql.GetEstablishedTradeHistoryFirstPage : TradeDbSql.EstablishedTradeHistoryNextPage, values,
-                row => (Payload: row.GetValue(0), At: row.GetDateTime(1), Order: row.GetInt32(2), Trade: row.GetInt32(3), Revision: row.GetInt32(4)), token)
-                .ConfigureAwait(false);
+            var rows = await db.QueryAsync(last is null ? TradeDbSql.GetEstablishedTradeHistoryFirstPage : TradeDbSql.EstablishedTradeHistoryNextPage, values, TradeDbContext.MapToTradeReadEstablishedHistoryRow2, token)
+            .ConfigureAwait(false);
             var items = rows.Take(pageSize).Select(row => MessagePackBinarySerializer.Shared.Deserialize<EstablishedTradeDefinition>((byte[])row.Payload)).ToArray();
             var tail = rows.Count > pageSize ? rows[pageSize - 1] : default;
             var next = rows.Count > pageSize ? JsonSerializer.SerializeToUtf8Bytes(new TradeReadEstablishedCursor(portfolio, fund, kind, from, through, tail.At, tail.Order, tail.Trade, tail.Revision)) : null;
@@ -1665,8 +1366,6 @@ public static class TradeDbContextExtensions
         public async Task<QueryPage<StrategyPositionSnapshot>> TradeReadPositionHistoryAsync(Guid positionId, DateTime fromUtc, DateTime toUtc, int pageSize, byte[]? cursor = null, CancellationToken token = default)
         {
             ArgumentNullException.ThrowIfNull(db);
-            if (positionId == Guid.Empty || fromUtc.Kind != DateTimeKind.Utc || toUtc.Kind != DateTimeKind.Utc || fromUtc > toUtc || pageSize is < 1 or > 1000)
-                throw new ArgumentException("A position, ordered UTC range and page size 1..1000 are required.", nameof(positionId));
             TradeReadPositionCursor? last = null;
             if (cursor is not null)
             {
@@ -1700,10 +1399,7 @@ public static class TradeDbContextExtensions
             var next = rows.Count > pageSize ? JsonSerializer.SerializeToUtf8Bytes(new TradeReadPositionCursor(positionId, fromUtc, toUtc, rows[pageSize - 1].At, rows[pageSize - 1].Sequence)) : null;
             return new(items, next);
         }
-    }
 
-    extension(IEnlistedPostgresTransaction db)
-    {
         /// <summary>Reads the last committed position snapshot.</summary>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
@@ -1715,11 +1411,7 @@ public static class TradeDbContextExtensions
             .ConfigureAwait(false);
             return payload is byte[] bytes ? MessagePackBinarySerializer.Shared.Deserialize<StrategyPositionSnapshot>(bytes) : null;
         }
-    }
 
-
-    extension(IEnlistedPostgresTransaction db)
-    {
         /// <summary>Reads the current committed routes for one contract or the complete recovery snapshot.</summary>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
@@ -1728,18 +1420,13 @@ public static class TradeDbContextExtensions
             ArgumentNullException.ThrowIfNull(db);
             return contractId is null ? db.QueryAsync(TradeDbSql.Routes(false), [], TradeDbContext.MapToNativeRoute, token) : db.QueryAsync(TradeDbSql.Routes(true), [contractId], TradeDbContext.MapToNativeRoute, token);
         }
-    }
 
-    extension(IEnlistedPostgresTransaction db)
-    {
         /// <summary>Reads bounded route recovery pages without Scylla paging-state tokens.</summary>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         public async Task<QueryPage<OpenPositionRouteReadModel>> TradeReadRoutePageAsync(int size, byte[]? cursor = null, CancellationToken token = default)
         {
             ArgumentNullException.ThrowIfNull(db);
-            if (size is < 1 or > 500)
-                throw new ArgumentOutOfRangeException(nameof(size));
             TradeReadRouteCursor? last = null;
             if (cursor is not null)
             {
@@ -1772,10 +1459,7 @@ public static class TradeDbContextExtensions
             var next = rows.Count > size ? JsonSerializer.SerializeToUtf8Bytes(new TradeReadRouteCursor(rows[size - 1].Route.StrategyPositionId, rows[size - 1].Route.TradeLegId)) : null;
             return new(rows.Take(size).ToArray(), next);
         }
-    }
 
-    extension(IEnlistedPostgresTransaction db)
-    {
         /// <summary>Reads the persisted execution facts without contacting the broker.</summary>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
@@ -1786,10 +1470,7 @@ public static class TradeDbContextExtensions
             .ConfigureAwait(false);
             return value is byte[] bytes ? MessagePackBinarySerializer.Shared.Deserialize<OrderExecutionDefinition>(bytes) : null;
         }
-    }
 
-    extension(IEnlistedPostgresTransaction db)
-    {
         /// <summary>Reads the established trade's last accepted evidence revision.</summary>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
@@ -1800,10 +1481,7 @@ public static class TradeDbContextExtensions
             .ConfigureAwait(false);
             return value is byte[] bytes ? MessagePackBinarySerializer.Shared.Deserialize<EstablishedTradeDefinition>(bytes) : null;
         }
-    }
 
-    extension(IEnlistedPostgresTransaction db)
-    {
         /// <summary>Reads persisted whole-trade limits, preserving the existing optional same-type limit override.</summary>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         public Task<IReadOnlyList<TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradeLimitReadModel>> TradeReadLimitsAsync(int? tradeId = null, CancellationToken token = default)
@@ -1812,41 +1490,29 @@ public static class TradeDbContextExtensions
             var sql = TradeDbSql.Limits(tradeId.HasValue);
             return db.QueryAsync(sql, tradeId.HasValue ? [tradeId.Value] : [], TradeDbContext.MapToNativeTradeLimit, token);
         }
-    }
 
-    extension(IEnlistedPostgresTransaction db)
-    {
         /// <summary>Reads the saved spread limit rows without requesting live market data.</summary>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        public Task<IReadOnlyList<TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradeTypeLimitReadModel>> TradeReadSpreadLimitsAsync(int? tradeId = null, TradeType? type = null, CancellationToken token = default)
+        public Task<IReadOnlyList<TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradeTypeLimitReadModel>> TradeReadSpreadLimitsAsync(
+            (int TradeId, TradeType? Type)? scope, CancellationToken token = default)
         {
             ArgumentNullException.ThrowIfNull(db);
-            var sql = TradeDbSql.SpreadLimits(tradeId.HasValue, type.HasValue);
-            object? [] values = [];
-            if (tradeId.HasValue)
+            var sql = TradeDbSql.SpreadLimits(scope.HasValue, scope?.Type.HasValue == true);
+            object?[] values = scope switch
             {
-                values = [tradeId.Value];
-            }
-
-            if (type.HasValue)
-            {
-                if (!tradeId.HasValue)
-                    throw new ArgumentException("A trade identifier is required with a spread type.", nameof(type));
-                values = [tradeId.Value, type.Value.ToString()];
-            }
+                { Type: { } type } value => [value.TradeId, type.ToString()],
+                { } value => [value.TradeId],
+                null => []
+            };
 
             return db.QueryAsync(sql, values, TradeDbContext.MapToNativeSpreadLimit, token);
         }
-    }
 
-    extension(IEnlistedPostgresTransaction db)
-    {
         /// <summary>Stores the exact market assessment and its profile history atomically.</summary>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         public async Task PipelineProjectAsync(MarketConditionAssessmentCompletedEvent completed, CancellationToken token = default)
         {
-            ArgumentNullException.ThrowIfNull(completed);
             ArgumentNullException.ThrowIfNull(db);
             var r = TradeProjectionFacts.Assessment(completed);
             var bytes = MessagePackSerializer.Serialize(completed, cancellationToken: token);
@@ -1858,15 +1524,11 @@ public static class TradeDbContextExtensions
             await (db.ExecuteAsync(TradeDbSql.HelperStatement36, [r.MarketProfileId, r.InstrumentRoot, r.TargetHorizon.ToString(), r.EvaluatedAtUtc, r.WorkflowId.Value, bytes, hash], token))
             .ConfigureAwait(false);
         }
-    }
 
-    extension(IEnlistedPostgresTransaction db)
-    {
         /// <summary>Stores the immutable composer invocation and its exact fund/value-date history atomically.</summary>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         public async Task PipelineProjectAsync(OrderCompositionFunctionCompletedEvent completed, CancellationToken token = default)
         {
-            ArgumentNullException.ThrowIfNull(completed);
             ArgumentNullException.ThrowIfNull(db);
             var r = TradeProjectionFacts.Composition(completed);
             var bytes = MessagePackBinarySerializer.Shared.Serialize(global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(completed, completed with { EventId = 0 }));
@@ -1877,15 +1539,11 @@ public static class TradeDbContextExtensions
             await (db.ExecuteAsync(TradeDbSql.HelperStatement38, [r.DecisionContext.PortfolioId, r.DecisionContext.FundId, r.DecisionContext.ValueDate, r.EvaluatedAtUtc, r.InvocationId, r.WorkflowId.Value, completed.Id, (short)r.TargetHorizon, (short)r.Outcome, r.Reasons[0], r.ResultId, completed.Result.PayloadSha256], token))
             .ConfigureAwait(false);
         }
-    }
 
-    extension(IEnlistedPostgresTransaction db)
-    {
         /// <summary>Stores the complete selector decision and history, without rerunning selection or dispatching an order.</summary>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         public async Task PipelineProjectAsync(TradeSelectionFunctionCompletedEvent completed, CancellationToken token = default)
         {
-            ArgumentNullException.ThrowIfNull(completed);
             ArgumentNullException.ThrowIfNull(db);
             var r = TradeProjectionFacts.Selection(completed);
             var selected = r.SelectedCandidate;
@@ -1898,10 +1556,170 @@ public static class TradeDbContextExtensions
             await (db.ExecuteAsync(TradeDbSql.HelperStatement40, [r.PortfolioId, r.FundId, DateOnly.FromDateTime(r.ProducedAtUtc), r.ProducedAtUtc, r.WorkflowId.Value, r.InvocationId, completed.Id, (short)r.DecisionHorizon, (short)r.Outcome, r.PrimaryReasonCode, r.ResultId, completed.Result.PayloadSha256], token))
             .ConfigureAwait(false);
         }
+
+        internal async Task<int> WorkflowWriteDetailAsync(WorkflowStrategyStateUpdatedEvent source, byte[] payload, CancellationToken token)
+        {
+            using var write = TradeStorageTelemetry.Source.StartActivity("workflow.project.detail_write");
+            var state = source.State;
+            var entity = state.EntityId;
+            var iti = entity.ItiSignalEntityId;
+            return await TradeDbContextExtensions.WorkflowUpsertAsync(db, "intrinsic_time_strategy_workflow", "workflowId,workflowEntityId,workflowDefinitionId,workflowDefinitionVersion,contractId,timeFrameStartValueDate,timePeriod,triggerEventId,correlationId,status,outcome,currentStage,workflowRevision,lastEventId,stateSchemaVersion,statePayload,stopReasonCode,startedAtUtc,terminalAtUtc,updatedAtUtc", "workflowId", [state.WorkflowId.Value, entity.Format(), entity.WorkflowDefinitionId, state.WorkflowDefinitionVersion, iti.ContractId, iti.TimeFrameStartValueDate, iti.TimePeriod.ToString(), state.TriggerEventId, state.CorrelationId, TradeProjectionFacts.Status(state).ToString(), TradeProjectionFacts.Outcome(state).ToString(), state.CurrentStage.ToString(), state.WorkflowRevision, source.EventId, 2, payload, state.StopReasonCode, state.StartedAtUtc, state.TerminalAtUtc, state.UpdatedAtUtc], token, "lastEventId")
+            .ConfigureAwait(false);
+        }
+
+        internal async Task WorkflowWriteHistoryAsync(WorkflowStrategyStateUpdatedEvent source, CancellationToken token)
+        {
+            var state = source.State;
+            var status = TradeProjectionFacts.Status(state).ToString();
+            var outcome = TradeProjectionFacts.Outcome(state).ToString();
+            await TradeDbContextExtensions.WorkflowUpsertAsync(db, "intrinsic_time_strategy_workflow_by_entity", "workflowEntityId,startedAtUtc,workflowId,status,outcome,currentStage,workflowRevision,terminalAtUtc,stopReasonCode", "workflowEntityId,startedAtUtc,workflowId", [state.EntityId.Format(), state.StartedAtUtc, state.WorkflowId.Value, status, outcome, state.CurrentStage.ToString(), state.WorkflowRevision, state.TerminalAtUtc, state.StopReasonCode], token, "workflowRevision")
+            .ConfigureAwait(false);
+            await TradeDbContextExtensions.WorkflowUpsertAsync(db, "intrinsic_time_strategy_workflow_by_status_day", "status,startedDate,startedAtUtc,workflowId,workflowEntityId,outcome,currentStage,workflowRevision,terminalAtUtc,stopReasonCode", "status,startedDate,startedAtUtc,workflowId", [status, DateOnly.FromDateTime(state.StartedAtUtc), state.StartedAtUtc, state.WorkflowId.Value, state.EntityId.Format(), outcome, state.CurrentStage.ToString(), state.WorkflowRevision, state.TerminalAtUtc, state.StopReasonCode], token, "workflowRevision")
+            .ConfigureAwait(false);
+        }
+
+        internal async Task WorkflowWriteTimelineAsync(WorkflowStrategyStateUpdatedEvent source, CancellationToken token)
+        {
+            var state = source.State;
+            byte[] payload;
+            using (var serialization = TradeStorageTelemetry.Source.StartActivity("workflow.project.timeline_serialize"))
+            {
+                payload = MessagePackSerializer.Serialize(source, cancellationToken: token);
+                serialization?.SetTag("ifm.payload.bytes", payload.Length);
+            }
+            await TradeDbContextExtensions.WorkflowUpsertAsync(db, "intrinsic_time_strategy_workflow_timeline", "workflowId,eventId,workflowEntityId,workflowRevision,stage,eventName,eventSchemaVersion,eventPayload,occurredAtUtc", "workflowId,eventId", [source.WorkflowId.Value, source.EventId, source.EntityId.Format(), source.WorkflowRevision, state.CurrentStage.ToString(), source.EventName, 2, payload, source.UpdatedAtUtc], token)
+            .ConfigureAwait(false);
+            if (state.Status == WorkflowStrategyMachineStatus.Started && source.PreviousStatus != WorkflowStrategyMachineStatus.Started)
+                await TradeDbContextExtensions.WorkflowUpsertAsync(db, "intrinsic_time_strategy_workflow_start_attempt", "workflowEntityId,requestedAtUtc,requestedWorkflowId,decision,activeWorkflowId,startCommandId,triggerEventId,activeStage,reasonCode,sourceEventId", "workflowEntityId,requestedAtUtc,requestedWorkflowId", [source.EntityId.Format(), state.StartedAtUtc, source.WorkflowId.Value, StrategyWorkflowStartDecision.Accepted.ToString(), source.WorkflowId.Value, source.CommandId, state.TriggerEventId, state.CurrentStage.ToString(), string.Empty, source.EventId], token)
+            .ConfigureAwait(false);
+        }
+
+        internal async Task WorkflowWriteActiveAsync(WorkflowStrategyStateUpdatedEvent source, byte[] payload, CancellationToken token)
+        {
+            var state = source.State;
+            if (state.Status != WorkflowStrategyMachineStatus.Started)
+            {
+                using var delete = TradeStorageTelemetry.Source.StartActivity("workflow.project.active_delete");
+                await db.ExecuteAsync(TradeDbSql.HelperStatement46, [source.EntityId.Format(), source.EventId], token)
+            .ConfigureAwait(false);
+                return;
+            }
+
+            var iti = source.EntityId.ItiSignalEntityId;
+            using var write = TradeStorageTelemetry.Source.StartActivity("workflow.project.active_write");
+            await TradeDbContextExtensions.WorkflowUpsertAsync(db, "intrinsic_time_strategy_workflow_active", "workflowEntityId,workflowId,contractId,timeFrameStartValueDate,timePeriod,currentStage,workflowRevision,lastEventId,stateSchemaVersion,statePayload,startedAtUtc,updatedAtUtc", "workflowEntityId", [source.EntityId.Format(), source.WorkflowId.Value, iti.ContractId, iti.TimeFrameStartValueDate, iti.TimePeriod.ToString(), state.CurrentStage.ToString(), state.WorkflowRevision, source.EventId, 2, payload, state.StartedAtUtc, state.UpdatedAtUtc], token, "lastEventId")
+            .ConfigureAwait(false);
+        }
+
+        internal async Task WorkflowWriteRiskAsync(WorkflowStrategyStateUpdatedEvent source, CancellationToken token)
+        {
+            var row = RiskHistoryIdentity.Row(source);
+            if (row is null)
+                return;
+            var canonical = MessagePackBinarySerializer.Shared.Deserialize<WorkflowStrategyStateUpdatedEvent>(MessagePackBinarySerializer.Shared.Serialize(global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(source, source with { EventId = 0 })));
+            var hash = RiskContracts.Hash(canonical);
+            var payload = MessagePackBinarySerializer.Shared.Serialize(canonical);
+            var stored = await db.ScalarAsync(TradeDbSql.HelperStatement47, [row.WorkflowId, row.InvocationId, row.Revision, payload, hash], token)
+            .ConfigureAwait(false);
+            if (stored is null)
+                throw new InvalidDataException("Accepted risk history conflicts with different source facts.");
+            await TradeDbContextExtensions.WorkflowUpsertAsync(db, "risk_management_history", "portfolio_id,fund_id,value_date,evaluated_at_utc,invocation_id,revision,payload", "portfolio_id,fund_id,value_date,evaluated_at_utc,invocation_id", [row.PortfolioId, row.FundId, row.ValueDate, row.EvaluatedAtUtc, row.InvocationId, row.Revision, MessagePackBinarySerializer.Shared.Serialize(row)], token, "revision")
+            .ConfigureAwait(false);
+        }
+
+        internal async Task<int> WorkflowUpsertAsync(string table, string columnList, string keyList, object? [] values, CancellationToken token, string? revision = null)
+        {
+            var operation = table switch
+            {
+                "intrinsic_time_strategy_workflow_by_entity" => "workflow.project.entity_write",
+                "intrinsic_time_strategy_workflow_by_status_day" => "workflow.project.status_write",
+                "intrinsic_time_strategy_workflow_timeline" => "workflow.project.timeline_write",
+                _ => null
+            };
+            using var write = operation is null ? null : TradeStorageTelemetry.Source.StartActivity(operation);
+            return await db.ExecuteAsync(TradeDbSql.WorkflowUpsert(table, columnList, keyList, values.Length, revision), values, token)
+            .ConfigureAwait(false);
+        }
+
+    /// <summary>Reads bounded PostgreSQL Risk pages ordered by evaluation time and invocation identity.</summary>
+    public async Task<QueryPage<RiskHistoryRow>> RiskReadHistoryAsync(int portfolio,int fund,DateOnly date,int size,byte[]? pagingState,CancellationToken token=default)
+    {
+        ArgumentNullException.ThrowIfNull(db);
+        var scope=string.Create(CultureInfo.InvariantCulture,$"risk:{portfolio}:{fund}:{date.DayNumber}:{size}");
+        RiskReadCursor? cursor=null;
+        if(pagingState is not null){if(pagingState.Length>2048)throw new ArgumentException("Invalid Risk history cursor.", nameof(pagingState));try{cursor=JsonSerializer.Deserialize<RiskReadCursor>(pagingState);}catch(JsonException e){throw new ArgumentException("Invalid Risk history cursor.",nameof(pagingState),e);}if(cursor is null||cursor.Scope!=scope||cursor.AtUtc.Kind!=DateTimeKind.Utc||cursor.Invocation==Guid.Empty)throw new ArgumentException("Risk history cursor does not belong to this scope.", nameof(pagingState));}
+        object?[] values=cursor is null?[portfolio,fund,date,size+1]:[portfolio,fund,date,cursor.AtUtc,cursor.Invocation,size+1];
+        var rows=await db.QueryAsync(TradeDbSql.RiskHistory(cursor is not null), values, TradeDbContext.MapToRiskReadHistoryRow3, token)
+            .ConfigureAwait(false);
+        var items=rows.Take(size).ToArray();
+        var next=rows.Count>size?JsonSerializer.SerializeToUtf8Bytes(new RiskReadCursor(scope,items[^1].AtUtc,items[^1].Invocation)):null;
+        return new(items.Select(r=>r.Item).ToArray(),next);
     }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     extension(IEnlistedPostgresTransaction transaction)
     {
+        /// <summary>Reads the exact committed authorization source row for the claimed event and command.</summary>
+        public async Task<EventLogReadModel?> ReadStrategyHandoffAuthorizationAsync(long eventId, Guid commandId, CancellationToken token)
+            => (await transaction.QueryAsync(TradeDbSql.StrategyHandoff.Authorization, (object? [])new StrategyHandoffAuthorizationSelection(eventId, commandId).Bind(), TradeDbContext.MapToStrategyHandoffAuthorization, token)
+            .ConfigureAwait(false)).SingleOrDefault();
+
+        /// <summary>Writes an accepted handoff projection under its monotonic revision fence.</summary>
+        public Task WriteStrategyHandoffAsync(StrategyExecutionHandoffDefinition value, CancellationToken token)
+        {
+            var parameters = new StrategyHandoffWrite(value.Id.Format(), value.Authorization.WorkflowId.Value,
+                value.Revision, (int)value.Phase, value.UpdatedAtUtc, MessagePackBinarySerializer.Shared.Serialize(value)!);
+            return transaction.ExecuteAsync(TradeDbSql.StrategyHandoff.Upsert, (object?[])parameters.Bind(), token);
+        }
+
+        /// <summary>Reads one exact projected handoff identity.</summary>
+        public async Task<StrategyExecutionHandoffDefinition?> ReadStrategyHandoffAsync(string id, CancellationToken token)
+            => await transaction.ScalarAsync(TradeDbSql.StrategyHandoff.Read, (object? [])new StrategyHandoffCursor(id).Bind(), token)
+            .ConfigureAwait(false) is byte[] payload
+                ? MessagePackBinarySerializer.Shared.Deserialize<StrategyExecutionHandoffDefinition>(payload) : null;
+
+        /// <summary>Reads the bounded pending handoff projection page after the supplied key.</summary>
+        public Task<IReadOnlyList<StrategyExecutionHandoffDefinition>> ReadPendingStrategyHandoffsAsync(string after, CancellationToken token)
+            => transaction.QueryAsync(TradeDbSql.StrategyHandoff.Pending, (object? [])new StrategyHandoffCursor(after).Bind(), TradeDbContext.MapToStrategyHandoff, token);
+
+        /// <summary>Reads the ordered projected handoff rows for one workflow.</summary>
+        public Task<IReadOnlyList<StrategyExecutionHandoffDefinition>> ReadWorkflowStrategyHandoffsAsync(Guid workflow, CancellationToken token)
+            => transaction.QueryAsync(TradeDbSql.StrategyHandoff.ReadWorkflow, (object? [])new StrategyHandoffWorkflowSelection(workflow).Bind(), TradeDbContext.MapToStrategyHandoff, token);
+
+
         public async Task<OrderCompositionFunctionCompletedEvent?> PipelineReadCompositionAsync(StrategyWorkflowId workflow, Guid invocation, CancellationToken token = default)
         {
             ArgumentNullException.ThrowIfNull(transaction);
@@ -1916,10 +1734,7 @@ public static class TradeDbContextExtensions
                 throw new InvalidDataException("Stored composition evidence mismatch.");
             return source;
         }
-    }
 
-    extension(IEnlistedPostgresTransaction transaction)
-    {
         public async Task<TradeSelectionFunctionCompletedEvent?> PipelineReadSelectionAsync(StrategyWorkflowId workflow, Guid invocation, CancellationToken token = default)
         {
             ArgumentNullException.ThrowIfNull(transaction);
@@ -1934,39 +1749,24 @@ public static class TradeDbContextExtensions
                 throw new InvalidDataException("Stored selector evidence identity/hash mismatch.");
             return source;
         }
-    }
 
-    extension(IEnlistedPostgresTransaction transaction)
-    {
         public async Task<QueryPage<OrderCompositionHistoryRow>> PipelineReadCompositionHistoryAsync(int portfolio, int fund, DateOnly date, int pageSize, byte[]? pagingState, CancellationToken token = default)
         {
             var page = await TradeDbContextExtensions.PipelineReadReadHistoryAsync(transaction, true, portfolio, fund, date, pageSize, pagingState, token)
             .ConfigureAwait(false);
             return new(page.Items.Select(r => new OrderCompositionHistoryRow(portfolio, fund, date, r.AtUtc, r.Workflow, r.Invocation, r.Event, r.Horizon, r.Outcome, r.Reason, r.Result, r.Hash)).ToArray(), page.PagingState);
         }
-    }
 
-    extension(IEnlistedPostgresTransaction transaction)
-    {
         public async Task<QueryPage<TradeSelectionHistoryRow>> PipelineReadSelectionHistoryAsync(int portfolio, int fund, DateOnly date, int pageSize, byte[]? pagingState, CancellationToken token = default)
         {
             var page = await TradeDbContextExtensions.PipelineReadReadHistoryAsync(transaction, false, portfolio, fund, date, pageSize, pagingState, token)
             .ConfigureAwait(false);
             return new(page.Items.Select(r => new TradeSelectionHistoryRow(portfolio, fund, date, r.AtUtc, r.Workflow, r.Invocation, r.Event, r.Horizon, r.Outcome, r.Reason, r.Result, r.Hash)).ToArray(), page.PagingState);
         }
-    }
 
-    extension(IEnlistedPostgresTransaction transaction)
-    {
         internal async Task<QueryPage<PipelineReadHistoryRow>> PipelineReadReadHistoryAsync(bool composition, int portfolio, int fund, DateOnly date, int pageSize, byte[]? pagingState, CancellationToken token)
         {
             ArgumentNullException.ThrowIfNull(transaction);
-            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(portfolio);
-            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(fund);
-            if (date == default)
-                throw new ArgumentException("A history value date is required.", nameof(date));
-            if (pageSize < 1 || pageSize > (composition ? 100 : 200))
-                throw new ArgumentOutOfRangeException(nameof(pageSize), "A bounded history page size is required.");
             var scope = string.Create(CultureInfo.InvariantCulture, $"{composition}:{portfolio}:{fund}:{date.DayNumber}");
             PipelineReadCursor? cursor = null;
             if (pagingState is not null)
@@ -2000,14 +1800,10 @@ public static class TradeDbContextExtensions
 
             return new(items, next);
         }
-    }
 
-    extension(IEnlistedPostgresTransaction transaction)
-    {
         public async Task RegimeProjectAsync(RegimeDiscoveryPipelineCompletedEvent source, CancellationToken token = default)
         {
             ArgumentNullException.ThrowIfNull(transaction);
-            ArgumentNullException.ThrowIfNull(source);
             var result = TradeProjectionFacts.Regime(source);
             var payload = MessagePackBinarySerializer.Shared.Serialize(global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(source, source with { EventId = 0 }));
             var accepted = await transaction.ScalarAsync(TradeDbSql.HelperStatement43, [source.WorkflowId.Value, source.CommandId, source.Id, payload], token)
@@ -2018,20 +1814,13 @@ public static class TradeDbContextExtensions
             await TradeDbContextExtensions.RegimeUpsertAsync(transaction, new RegimeDiscoveryReadModel { WorkflowId = source.WorkflowId, WorkflowEntityId = source.EntityId.Format(), InputWorkflowRevision = source.InputWorkflowRevision, CommandId = source.CommandId, SourceEventId = source.Id, SourceEventSequence = source.EventId, Status = "Completed", ParameterPayloadSha256 = source.ParameterPayloadSha256, SignalSnapshotId = source.SignalSnapshotId, ResultPayload = bytes, ResultPayloadSha256 = StrategyStageResultEnvelope.ComputePayloadSha256(bytes), ReasonsPayload = MessagePackSerializer.Serialize(result.Reasons, cancellationToken: token), SchemaVersion = source.Result.SchemaVersion, TerminalAtUtc = source.CompletedAtUtc, UpdatedAtUtc = source.CompletedAtUtc }, token)
             .ConfigureAwait(false);
         }
-    }
 
-    extension(IEnlistedPostgresTransaction transaction)
-    {
         public Task<int> RegimeUpsertAsync(RegimeDiscoveryReadModel value, CancellationToken token = default)
         {
             ArgumentNullException.ThrowIfNull(transaction);
-            ArgumentNullException.ThrowIfNull(value);
             return transaction.ExecuteAsync(TradeDbSql.HelperStatement44, [value.WorkflowId.Value, value.WorkflowEntityId, value.InputWorkflowRevision, value.CommandId, value.SourceEventId, value.SourceEventSequence, value.Status, value.ParameterPayloadSha256, value.SignalSnapshotId, value.ResultPayload.ToArray(), value.ResultPayloadSha256, value.FailureCode, value.FailureMessage, value.ReasonsPayload.ToArray(), value.SchemaVersion, value.TerminalAtUtc, value.UpdatedAtUtc], token);
         }
-    }
 
-    extension(IEnlistedPostgresTransaction transaction)
-    {
         public async Task<RegimeDiscoveryReadModel?> RegimeReadAsync(StrategyWorkflowId workflowId, CancellationToken token = default)
         {
             ArgumentNullException.ThrowIfNull(transaction);
@@ -2039,14 +1828,10 @@ public static class TradeDbContextExtensions
             .ConfigureAwait(false);
             return rows.Count == 0 ? null : rows[0];
         }
-    }
 
-    extension(IEnlistedPostgresTransaction transaction)
-    {
         public async Task WorkflowProjectAsync(WorkflowStrategyStateUpdatedEvent source, CancellationToken token = default)
         {
             ArgumentNullException.ThrowIfNull(transaction);
-            ArgumentNullException.ThrowIfNull(source);
             var state = TradeProjectionFacts.Workflow(source);
             byte[] payload;
             using (var serialization = TradeStorageTelemetry.Source.StartActivity("workflow.project.state_serialize"))
@@ -2067,132 +1852,41 @@ public static class TradeDbContextExtensions
         }
     }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     extension(WorkflowStrategyStateUpdatedEvent source)
     {
         public ActiveIntrinsicTimeStrategyWorkflowReadModel? WorkflowActive() => TradeProjectionFacts.Active(source);
     }
 
-    extension(IEnlistedPostgresTransaction db)
-    {
-        internal async Task<int> WorkflowWriteDetailAsync(WorkflowStrategyStateUpdatedEvent source, byte[] payload, CancellationToken token)
-        {
-            using var write = TradeStorageTelemetry.Source.StartActivity("workflow.project.detail_write");
-            var state = source.State;
-            var entity = state.EntityId;
-            var iti = entity.ItiSignalEntityId;
-            return await TradeDbContextExtensions.WorkflowUpsertAsync(db, "intrinsic_time_strategy_workflow", "workflowId,workflowEntityId,workflowDefinitionId,workflowDefinitionVersion,contractId,timeFrameStartValueDate,timePeriod,triggerEventId,correlationId,status,outcome,currentStage,workflowRevision,lastEventId,stateSchemaVersion,statePayload,stopReasonCode,startedAtUtc,terminalAtUtc,updatedAtUtc", "workflowId", [state.WorkflowId.Value, entity.Format(), entity.WorkflowDefinitionId, state.WorkflowDefinitionVersion, iti.ContractId, iti.TimeFrameStartValueDate, iti.TimePeriod.ToString(), state.TriggerEventId, state.CorrelationId, TradeProjectionFacts.Status(state).ToString(), TradeProjectionFacts.Outcome(state).ToString(), state.CurrentStage.ToString(), state.WorkflowRevision, source.EventId, 2, payload, state.StopReasonCode, state.StartedAtUtc, state.TerminalAtUtc, state.UpdatedAtUtc], token, "lastEventId")
-            .ConfigureAwait(false);
-        }
-    }
-
-    extension(IEnlistedPostgresTransaction db)
-    {
-        internal async Task WorkflowWriteHistoryAsync(WorkflowStrategyStateUpdatedEvent source, CancellationToken token)
-        {
-            var state = source.State;
-            var status = TradeProjectionFacts.Status(state).ToString();
-            var outcome = TradeProjectionFacts.Outcome(state).ToString();
-            await TradeDbContextExtensions.WorkflowUpsertAsync(db, "intrinsic_time_strategy_workflow_by_entity", "workflowEntityId,startedAtUtc,workflowId,status,outcome,currentStage,workflowRevision,terminalAtUtc,stopReasonCode", "workflowEntityId,startedAtUtc,workflowId", [state.EntityId.Format(), state.StartedAtUtc, state.WorkflowId.Value, status, outcome, state.CurrentStage.ToString(), state.WorkflowRevision, state.TerminalAtUtc, state.StopReasonCode], token, "workflowRevision")
-            .ConfigureAwait(false);
-            await TradeDbContextExtensions.WorkflowUpsertAsync(db, "intrinsic_time_strategy_workflow_by_status_day", "status,startedDate,startedAtUtc,workflowId,workflowEntityId,outcome,currentStage,workflowRevision,terminalAtUtc,stopReasonCode", "status,startedDate,startedAtUtc,workflowId", [status, DateOnly.FromDateTime(state.StartedAtUtc), state.StartedAtUtc, state.WorkflowId.Value, state.EntityId.Format(), outcome, state.CurrentStage.ToString(), state.WorkflowRevision, state.TerminalAtUtc, state.StopReasonCode], token, "workflowRevision")
-            .ConfigureAwait(false);
-        }
-    }
-
-    extension(IEnlistedPostgresTransaction db)
-    {
-        internal async Task WorkflowWriteTimelineAsync(WorkflowStrategyStateUpdatedEvent source, CancellationToken token)
-        {
-            var state = source.State;
-            byte[] payload;
-            using (var serialization = TradeStorageTelemetry.Source.StartActivity("workflow.project.timeline_serialize"))
-            {
-                payload = MessagePackSerializer.Serialize(source, cancellationToken: token);
-                serialization?.SetTag("ifm.payload.bytes", payload.Length);
-            }
-            await TradeDbContextExtensions.WorkflowUpsertAsync(db, "intrinsic_time_strategy_workflow_timeline", "workflowId,eventId,workflowEntityId,workflowRevision,stage,eventName,eventSchemaVersion,eventPayload,occurredAtUtc", "workflowId,eventId", [source.WorkflowId.Value, source.EventId, source.EntityId.Format(), source.WorkflowRevision, state.CurrentStage.ToString(), source.EventName, 2, payload, source.UpdatedAtUtc], token)
-            .ConfigureAwait(false);
-            if (state.Status == WorkflowStrategyMachineStatus.Started && source.PreviousStatus != WorkflowStrategyMachineStatus.Started)
-                await TradeDbContextExtensions.WorkflowUpsertAsync(db, "intrinsic_time_strategy_workflow_start_attempt", "workflowEntityId,requestedAtUtc,requestedWorkflowId,decision,activeWorkflowId,startCommandId,triggerEventId,activeStage,reasonCode,sourceEventId", "workflowEntityId,requestedAtUtc,requestedWorkflowId", [source.EntityId.Format(), state.StartedAtUtc, source.WorkflowId.Value, StrategyWorkflowStartDecision.Accepted.ToString(), source.WorkflowId.Value, source.CommandId, state.TriggerEventId, state.CurrentStage.ToString(), string.Empty, source.EventId], token)
-            .ConfigureAwait(false);
-        }
-    }
-
-    extension(IEnlistedPostgresTransaction db)
-    {
-        internal async Task WorkflowWriteActiveAsync(WorkflowStrategyStateUpdatedEvent source, byte[] payload, CancellationToken token)
-        {
-            var state = source.State;
-            if (state.Status != WorkflowStrategyMachineStatus.Started)
-            {
-                using var delete = TradeStorageTelemetry.Source.StartActivity("workflow.project.active_delete");
-                await db.ExecuteAsync(TradeDbSql.HelperStatement46, [source.EntityId.Format(), source.EventId], token)
-            .ConfigureAwait(false);
-                return;
-            }
-
-            var iti = source.EntityId.ItiSignalEntityId;
-            using var write = TradeStorageTelemetry.Source.StartActivity("workflow.project.active_write");
-            await TradeDbContextExtensions.WorkflowUpsertAsync(db, "intrinsic_time_strategy_workflow_active", "workflowEntityId,workflowId,contractId,timeFrameStartValueDate,timePeriod,currentStage,workflowRevision,lastEventId,stateSchemaVersion,statePayload,startedAtUtc,updatedAtUtc", "workflowEntityId", [source.EntityId.Format(), source.WorkflowId.Value, iti.ContractId, iti.TimeFrameStartValueDate, iti.TimePeriod.ToString(), state.CurrentStage.ToString(), state.WorkflowRevision, source.EventId, 2, payload, state.StartedAtUtc, state.UpdatedAtUtc], token, "lastEventId")
-            .ConfigureAwait(false);
-        }
-    }
-
-    extension(IEnlistedPostgresTransaction db)
-    {
-        internal async Task WorkflowWriteRiskAsync(WorkflowStrategyStateUpdatedEvent source, CancellationToken token)
-        {
-            var row = RiskHistoryIdentity.Row(source);
-            if (row is null)
-                return;
-            var canonical = MessagePackBinarySerializer.Shared.Deserialize<WorkflowStrategyStateUpdatedEvent>(MessagePackBinarySerializer.Shared.Serialize(global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(source, source with { EventId = 0 })));
-            var hash = RiskContracts.Hash(canonical);
-            var payload = MessagePackBinarySerializer.Shared.Serialize(canonical);
-            var stored = await db.ScalarAsync(TradeDbSql.HelperStatement47, [row.WorkflowId, row.InvocationId, row.Revision, payload, hash], token)
-            .ConfigureAwait(false);
-            if (stored is null)
-                throw new InvalidDataException("Accepted risk history conflicts with different source facts.");
-            await TradeDbContextExtensions.WorkflowUpsertAsync(db, "risk_management_history", "portfolio_id,fund_id,value_date,evaluated_at_utc,invocation_id,revision,payload", "portfolio_id,fund_id,value_date,evaluated_at_utc,invocation_id", [row.PortfolioId, row.FundId, row.ValueDate, row.EvaluatedAtUtc, row.InvocationId, row.Revision, MessagePackBinarySerializer.Shared.Serialize(row)], token, "revision")
-            .ConfigureAwait(false);
-        }
-    }
-
-    extension(IEnlistedPostgresTransaction db)
-    {
-        internal async Task<int> WorkflowUpsertAsync(string table, string columnList, string keyList, object? [] values, CancellationToken token, string? revision = null)
-        {
-            var operation = table switch
-            {
-                "intrinsic_time_strategy_workflow_by_entity" => "workflow.project.entity_write",
-                "intrinsic_time_strategy_workflow_by_status_day" => "workflow.project.status_write",
-                "intrinsic_time_strategy_workflow_timeline" => "workflow.project.timeline_write",
-                _ => null
-            };
-            using var write = operation is null ? null : TradeStorageTelemetry.Source.StartActivity(operation);
-            return await db.ExecuteAsync(TradeDbSql.WorkflowUpsert(table, columnList, keyList, values.Length, revision), values, token)
-            .ConfigureAwait(false);
-        }
-    }
 
 
-    extension(IEnlistedPostgresTransaction db)
-    {
-    /// <summary>Reads bounded PostgreSQL Risk pages ordered by evaluation time and invocation identity.</summary>
-    public async Task<QueryPage<RiskHistoryRow>> RiskReadHistoryAsync(int portfolio,int fund,DateOnly date,int size,byte[]? pagingState,CancellationToken token=default)
-    {
-        ArgumentNullException.ThrowIfNull(db);
-        if(portfolio<=0||fund<=0||date==default||size<1||size>100)throw new ArgumentException("Invalid Risk history scope.");
-        var scope=string.Create(CultureInfo.InvariantCulture,$"risk:{portfolio}:{fund}:{date.DayNumber}:{size}");
-        RiskReadCursor? cursor=null;
-        if(pagingState is not null){if(pagingState.Length>2048)throw new ArgumentException("Invalid Risk history cursor.");try{cursor=JsonSerializer.Deserialize<RiskReadCursor>(pagingState);}catch(JsonException e){throw new ArgumentException("Invalid Risk history cursor.",nameof(pagingState),e);}if(cursor is null||cursor.Scope!=scope||cursor.AtUtc.Kind!=DateTimeKind.Utc||cursor.Invocation==Guid.Empty)throw new ArgumentException("Risk history cursor does not belong to this scope.");}
-        object?[] values=cursor is null?[portfolio,fund,date,size+1]:[portfolio,fund,date,cursor.AtUtc,cursor.Invocation,size+1];
-        var rows=await db.QueryAsync(TradeDbSql.RiskHistory(cursor is not null),values,r=>(Item:MessagePackBinarySerializer.Shared.Deserialize<RiskHistoryRow>(r.GetFieldValue<byte[]>(0)),AtUtc:r.GetDateTime(1),Invocation:r.GetGuid(2)),token)
-            .ConfigureAwait(false);
-        var items=rows.Take(size).ToArray();
-        var next=rows.Count>size?JsonSerializer.SerializeToUtf8Bytes(new RiskReadCursor(scope,items[^1].AtUtc,items[^1].Invocation)):null;
-        return new(items.Select(r=>r.Item).ToArray(),next);
-    }
-    }
+
+
+
+
+
+
+
+
+
+
+
+
 
 }
 
@@ -2219,8 +1913,7 @@ public static class RiskCompletionProjection
             .ConfigureAwait(false) == 1)
             return;
 
-        var prior = await db.QueryAsync(TradeDbSql.ReadRiskCompletion, [source.WorkflowId.Value, source.CommandId],
-            row => (EventId: row.GetInt64(0), Hash: row.GetString(2)), token)
+        var prior = await db.QueryAsync(TradeDbSql.ReadRiskCompletion, [source.WorkflowId.Value, source.CommandId], MapToWriteRow4, token)
             .ConfigureAwait(false);
         if (prior.Single() != (source.EventId, hash))
             throw new InvalidDataException("Conflicting projected Risk completion.");
@@ -2244,6 +1937,9 @@ public static class RiskCompletionProjection
             throw new InvalidDataException("Risk completion projection identity or revision mismatch.");
         RiskContracts.ValidateResult(source.Result);
     }
+
+    /// <summary>Maps the selected database columns in their query ordinal order.</summary>
+    private static (long EventId, string Hash) MapToWriteRow4(global::System.Data.Common.DbDataReader row) => (EventId: row.GetInt64(0), Hash: row.GetString(2));
 }
 
 internal sealed record TradeReadEstablishedCursor(int Portfolio, int Fund, TradeStrategyKind Kind, DateTime From, DateTime Through, DateTime At, int Order, int Trade, int Revision);

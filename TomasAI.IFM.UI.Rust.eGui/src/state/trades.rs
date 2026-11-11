@@ -476,7 +476,7 @@ impl TradeController {
             "FundId",
             "Name",
         )?;
-        result.choices.insert("baseContract".into(),data.contracts.iter().map(|wire|registry.project("TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesContractV3ReadModel",wire).and_then(|row|row["ContractId"].as_str().map(str::to_string).ok_or("Missing contract identity".into()))).collect::<Result<Vec<_>,_>>()?);
+        result.choices.insert("baseContract".into(), data.base_contract_choices()?);
         result.choices.insert(
             "tradeType".into(),
             [

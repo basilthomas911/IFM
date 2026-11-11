@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Shared.QueryParameters;
 using TomasAI.IFM.Domain.MarketData.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
@@ -59,7 +60,7 @@ public static class GetEconomicCalendar
                 : GetNextWeekStartingDate(todaysDate);
             var startDate = startDay.Add(todaysDate.TimeOfDay);
             var endDate = startDate.AddDays(7).AddTicks(-1);
-            return await (db.GetEconomicCalendarsAsync(startDate, endDate, countryCode, cancellationToken)).ConfigureAwait(false);
+            return await (db.GetEconomicCalendarsAsync(new EconomicCalendarDateRange(startDate, endDate, countryCode), cancellationToken)).ConfigureAwait(false);
         }
 
         return calendarViewType switch
@@ -73,7 +74,7 @@ public static class GetEconomicCalendar
         Task<ICollection<EconomicCalendarReadModel>> ReadDateAsync(DateTime startDate)
         {
             var endDate = startDate.AddDays(1).AddTicks(-1);
-            return db.GetEconomicCalendarsAsync(startDate, endDate, countryCode, cancellationToken);
+            return db.GetEconomicCalendarsAsync(new EconomicCalendarDateRange(startDate, endDate, countryCode), cancellationToken);
         }
     }
 

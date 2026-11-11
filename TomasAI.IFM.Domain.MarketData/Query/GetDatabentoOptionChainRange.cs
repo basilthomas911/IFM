@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Shared.QueryParameters;
 using TomasAI.IFM.Domain.MarketData.Query.Actor;
 using TomasAI.IFM.Domain.MarketData.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -19,10 +20,7 @@ public static class GetDatabentoOptionChainRange
             ArgumentNullException.ThrowIfNull(query);
             cancellationToken.ThrowIfCancellationRequested();
             var contracts = await context.DbFactory.SecuritiesDb.GetOptionContractExpiriesAsync(
-                query.UnderlyingSymbol,
-                query.FromMaturityDate,
-                query.ThroughMaturityDate,
-                cancellationToken).ConfigureAwait(false);
+                new OptionDefinitionExpiryRange(query.UnderlyingSymbol, query.FromMaturityDate, query.ThroughMaturityDate), cancellationToken).ConfigureAwait(false);
             ServiceResult<OptionContractExpiryReadModel[]> result =
                 new ServiceOk<OptionContractExpiryReadModel[]>(contracts.ToArray());
             cancellationToken.ThrowIfCancellationRequested();

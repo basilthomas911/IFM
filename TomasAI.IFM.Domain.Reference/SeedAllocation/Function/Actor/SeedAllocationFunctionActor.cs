@@ -1,7 +1,7 @@
 using System.Collections.Frozen;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.CommandPipeline;
-using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Domain.Reference.SeedAllocation.Function.State;
 using TomasAI.IFM.Domain.Reference.Shared.SeedAllocation;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -14,7 +14,7 @@ namespace TomasAI.IFM.Domain.Reference.SeedAllocation.Function.Actor;
 public sealed class SeedAllocationFunctionActor(
     IFunctionActorContext<SeedAllocationFunctionActor> context,
     IEventSourceFunctionStateRepository<SeedAllocationFunctionState, AllocateSeedIdCommand> repository,
-    IDbContextFactory databases, ILogger<SeedAllocationFunctionActor> logger)
+    ISequenceIdGenerator sequences, ILogger<SeedAllocationFunctionActor> logger)
     : BaseEventSourceFunctionActor<SeedAllocationFunctionActor, AllocateSeedIdCommand, ActorEntityId, ActorEntityId,
         SeedAllocationFunctionState, SeedAllocationCompletedEvent, SeedAllocationFailedEvent>(context, repository, null, logger)
 {
@@ -26,10 +26,10 @@ public sealed class SeedAllocationFunctionActor(
             [AllocateSeedIdCommand.Verb] = message => message.AsCommand<AllocateSeedIdCommand>()!
         }.ToFrozenDictionary(StringComparer.Ordinal);
 
-    static readonly FrozenDictionary<Type, Func<AllocateSeedIdCommand, IDbContextFactory, CancellationToken, ValueTask<SeedAllocationCompletedEvent>>> _receiveMap =
-        new Dictionary<Type, Func<AllocateSeedIdCommand, IDbContextFactory, CancellationToken, ValueTask<SeedAllocationCompletedEvent>>>
+    static readonly FrozenDictionary<Type, Func<AllocateSeedIdCommand, ISequenceIdGenerator, CancellationToken, ValueTask<SeedAllocationCompletedEvent>>> _receiveMap =
+        new Dictionary<Type, Func<AllocateSeedIdCommand, ISequenceIdGenerator, CancellationToken, ValueTask<SeedAllocationCompletedEvent>>>
         {
-            [typeof(AllocateSeedIdCommand)] = static (request, factory, token) => request.ExecuteAsync(factory, token)
+            [typeof(AllocateSeedIdCommand)] = static (request, generator, token) => request.ExecuteAsync(generator, token)
         }.ToFrozenDictionary();
 
     static readonly FrozenDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
@@ -74,7 +74,7 @@ public sealed class SeedAllocationFunctionActor(
         AllocateSeedIdCommand request, CancellationToken cancellationToken)
     {
         var receive = ResolveMappedFunctionHandler(request, _receiveMap);
-        var completed = await receive(request, databases, cancellationToken).ConfigureAwait(false);
+        var completed = await receive(request, sequences, cancellationToken).ConfigureAwait(false);
         return FunctionResult<SeedAllocationCompletedEvent, SeedAllocationFailedEvent>.Complete(completed);
     }
 

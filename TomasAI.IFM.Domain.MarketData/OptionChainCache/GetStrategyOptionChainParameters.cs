@@ -16,6 +16,8 @@ public static class GetStrategyOptionChainParameters
         {
             ArgumentNullException.ThrowIfNull(context);
             ArgumentNullException.ThrowIfNull(query);
+            if (query.ParameterSetId == Guid.Empty || query.Version < 1)
+                throw new ArgumentException("Exact parameter identity is required", nameof(query));
             var parameters = await context.DbFactory.MarketDataDb.ReadVersionAsync(query.ParameterSetId, query.Version, token).ConfigureAwait(false);
             ServiceResult<StrategyOptionChainParameterSet> result = parameters is null
                 ? new ServiceFailed<StrategyOptionChainParameterSet>(404, "Strategy option-chain parameter version not found.")

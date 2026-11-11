@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Persistence;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.TradePlanDb;
@@ -17,7 +18,7 @@ internal static class ExitWorkflowProjectionDescriptors
             async (source, execution) =>
             {
                 if (!string.Equals(store.ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
-                    await store.ProjectExitWorkflowAsync(ExitWorkflowSnapshotFacts.From(source), execution.CancellationToken).ConfigureAwait(false);
+                    await store.ProjectExitWorkflowAsync(TradePlanProjectionWriter.PrepareExitStage(ExitWorkflowSnapshotFacts.From(source)), execution.CancellationToken).ConfigureAwait(false);
                 if (ExitWorkflowLegacyReconciliation.IsHistorical(source))
                     _ = await ExitWorkflowLegacyReconciliation.AdvanceAsync(source, transactions, producer(), execution.CancellationToken).ConfigureAwait(false);
                 else
@@ -26,6 +27,6 @@ internal static class ExitWorkflowProjectionDescriptors
             },
             static _ => null, static (_, _) => null,
             publishProcessingEvent: false, useDurableReplay: true, publishTerminalEvent: false)
-            .WithReadModelRebuild((source, token) => store.ProjectExitWorkflowAsync(ExitWorkflowSnapshotFacts.From(source), token)))
+            .WithReadModelRebuild((source, token) => store.ProjectExitWorkflowAsync(TradePlanProjectionWriter.PrepareExitStage(ExitWorkflowSnapshotFacts.From(source)), token)))
             .ToArray();
 }

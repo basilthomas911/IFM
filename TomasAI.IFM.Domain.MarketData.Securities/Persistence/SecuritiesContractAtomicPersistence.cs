@@ -18,24 +18,19 @@ internal static class SecuritiesContractAtomicPersistence
             var version = committedVersion;
             if (version == 0 && command.StreamId is SecuritiesCatalogStreams.Futures or SecuritiesCatalogStreams.Options)
             {
-                var legacy = await transaction.ScalarAsync("""
-                    SELECT EXISTS (
-                        SELECT 1 FROM public.event_stream_id
-                        WHERE currentversion > 0 AND eventstream <> $1 AND eventstream <> $2
-                            AND (starts_with(eventstream, 'Command.FuturesContractCommand.')
-                                OR starts_with(eventstream, 'Command.FuturesOptionContractCommand.')));
-                    """, [SecuritiesCatalogStreams.Futures, SecuritiesCatalogStreams.Options], cancellation)
-                    .ConfigureAwait(false);
-                if (legacy is true)
+                if (await database.HasLegacyCatalogHistoryAsync(transaction,
+                    [SecuritiesCatalogStreams.Futures, SecuritiesCatalogStreams.Options],
+                    ["Command.FuturesContractCommand.", "Command.FuturesOptionContractCommand."], cancellation)
+                    .ConfigureAwait(false))
                     throw new InvalidOperationException("Capture the verified PostgreSQL Securities baseline before accepting catalog commands.");
             }
             foreach (var source in pending)
             {
-                await transaction.AppendAsync(command.StreamId,command.CommandId,source,version++,cancellation).ConfigureAwait(false);
+                await transaction.AppendAsync(new EnlistedEventAppend(command.StreamId,command.CommandId,source,version++),cancellation).ConfigureAwait(false);
                 await SecuritiesCatalogProjection.ApplyAsync(database,transaction,source,cancellation).ConfigureAwait(false);
             }
             if (snapshot is not null)
-                await transaction.AppendAsync(command.StreamId, command.CommandId, snapshot, version, cancellation).ConfigureAwait(false);
+                await transaction.AppendAsync(new EnlistedEventAppend(command.StreamId, command.CommandId, snapshot, version), cancellation).ConfigureAwait(false);
             return true;
         },token).ConfigureAwait(false);
     }

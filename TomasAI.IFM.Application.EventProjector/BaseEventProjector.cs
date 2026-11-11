@@ -181,6 +181,7 @@ public abstract class BaseEventProjector<TActor>(
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(context);
+        ArgumentException.ThrowIfNullOrWhiteSpace(ProjectorName);
         _context = IsArgumentNull.Set(context);
         context.SupervisorRuntime?.RegisterProjector(this);
         var descriptors = GetDescriptorMap().Values;
@@ -398,13 +399,20 @@ public abstract class BaseEventProjector<TActor>(
         long afterEventId = 0,
         int batchSize = 256,
         CancellationToken cancellationToken = default)
-        => DbEventSource.GetEventProjectorOperationalStatePageAsync(
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(ProjectorName);
+        if (!Enum.IsDefined(status)) throw new ArgumentOutOfRangeException(nameof(status));
+        ArgumentOutOfRangeException.ThrowIfNegative(afterEventId);
+        if (batchSize is < 1 or > 2_048) throw new ArgumentOutOfRangeException(nameof(batchSize));
+        return DbEventSource.GetEventProjectorOperationalStatePageAsync(
             ProjectorName, status, afterEventId, batchSize, cancellationToken);
+    }
 
     public async ValueTask<bool> RetryExactAsync(
         long eventId,
         CancellationToken cancellationToken = default)
     {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(eventId);
         var eventLog = await DbEventSource.GetEventLogByEventIdAsync(eventId, cancellationToken).ConfigureAwait(false);
         if (eventLog is null)
             return false;
@@ -413,6 +421,7 @@ public abstract class BaseEventProjector<TActor>(
             || !GetDescriptorMap().TryGetValue(domainEvent.GetType(), out var descriptor)
             || !descriptor.UseDurableReplay)
             return false;
+        ArgumentException.ThrowIfNullOrWhiteSpace(ProjectorName);
         var state = await DbEventSource.TryRetryEventProjectorExecutionAsync(
             eventId, ProjectorName, DateTime.UtcNow, cancellationToken).ConfigureAwait(false);
         if (state is null)
@@ -425,8 +434,14 @@ public abstract class BaseEventProjector<TActor>(
         long eventId,
         string reason,
         CancellationToken cancellationToken = default)
-        => await DbEventSource.TrySkipEventProjectorExecutionAsync(
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(eventId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(ProjectorName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(reason);
+        if (reason.Length > 2_000) throw new ArgumentOutOfRangeException(nameof(reason));
+        return await DbEventSource.TrySkipEventProjectorExecutionAsync(
             eventId, ProjectorName, reason, DateTime.UtcNow, cancellationToken).ConfigureAwait(false) is not null;
+    }
 
     async Task<EventProjectorDeliveryResult> ProcessQueuedDomainEventAsync(IEvent domainEvent)
     {
@@ -628,6 +643,7 @@ public abstract class BaseEventProjector<TActor>(
                 return eventStreamId;
         }
 
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(domainEvent.EventId);
         var eventLog = await DbEventSource.GetEventLogByEventIdAsync(
             domainEvent.EventId,
             cancellationToken).ConfigureAwait(false);
@@ -720,8 +736,7 @@ public abstract class BaseEventProjector<TActor>(
 
                     case EventProjectorStageType.ApplyProjection:
                         var executionState = await DbEventSource.GetEventProjectorExecutionStateAsync(
-                            domainEvent.EventId,
-                            ProjectorName).ConfigureAwait(false);
+                            new EventProjectorIdentity(domainEvent.EventId, ProjectorName)).ConfigureAwait(false);
                         var eventStreamId = executionState?.EventStreamId ?? 0;
                         if (eventStreamId <= 0 && !string.IsNullOrWhiteSpace(domainEvent.AggregateId))
                             eventStreamId = await DbEventSource.GetEventStreamIdAsync(domainEvent.AggregateId).ConfigureAwait(false);

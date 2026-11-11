@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.EventSourcing.Persistence.Command;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
 using Newtonsoft.Json;
@@ -73,7 +74,7 @@ public class CommandAuditPostgresBenchmarks
             var id = DeterministicGuid(Interlocked.Increment(ref _sequence) ^ _runSeed);
             var command = BenchmarkCommand.Create(id, index);
             operations[index] = _writer.ReserveAsync(
-                CommandAuditEnvelope.Create(command, new CommandAuditMessagePackCodec()));
+                CommandAuditPreparation.Create(command, new CommandAuditMessagePackCodec()));
         }
         for (var index = 0; index < operations.Length; index++)
             _ = await operations[index].ConfigureAwait(false);
@@ -203,7 +204,7 @@ public class AtomicCommandEventPostgresBenchmarks
             };
             operations[index] = _appender.AppendAsync(new EventLogAppendRequest(
                 _stream, _streamId, id, [new EventLogAppendEntry(_eventNameId, domainEvent)],
-                start + index, DateTime.UtcNow, CommandAuditEnvelope.Create(command, _auditCodec)));
+                start + index, DateTime.UtcNow, CommandAuditPreparation.Create(command, _auditCodec)));
         }
         for (var index = 0; index < operations.Length; index++)
             _ = await operations[index].ConfigureAwait(false);

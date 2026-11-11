@@ -69,7 +69,7 @@ public sealed partial class EventSourceActorSnapshotRangeFixture : IAsyncLifetim
     public async Task DisposeAsync()
     {
         if (ActorEventDb is not null)
-            await ActorEventDb.DisposeAsync();
+            await ((IAsyncDisposable)ActorEventDb).DisposeAsync();
         if (_ownsInfrastructure)
             await _infrastructure.DisposeAsync();
     }

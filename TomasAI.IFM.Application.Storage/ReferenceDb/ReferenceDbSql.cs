@@ -43,8 +43,22 @@ internal static class ReferenceDbSql
     internal const string CountScheduledJobs = "SELECT count(*) FROM reference.scheduled_job;";
     internal const string CountOrphanScheduledJobDays = "SELECT count(*) FROM reference.scheduled_job_days d WHERE NOT EXISTS(SELECT 1 FROM reference.scheduled_job j WHERE j.jobId=d.jobId);";
     internal const string GetInstrumentDefinitionSnapshot = "SELECT snapshot_id,completed_utc,record_count,datasets_json FROM reference.instrument_definition_snapshot WHERE catalog='current';";
-    internal const string GetInstrumentDefinitionSymbols = "SELECT symbol_id,symbol,currency,exchange FROM reference.instrument_definition_product WHERE snapshot_id=$1 AND family=$2 ORDER BY symbol,exchange,currency;";
+    internal const string GetInstrumentDefinitionSymbols = """
+        SELECT p.symbol_id,p.symbol,p.currency,p.exchange,
+          COALESCE((SELECT min(d.description) FROM reference.product_description d
+            WHERE d.exchange=p.exchange AND d.family=p.family AND d.symbol=p.symbol
+              AND d.contract='' AND d.resolved
+            HAVING count(DISTINCT d.description)=1),'')
+        FROM reference.instrument_definition_product p WHERE p.snapshot_id=$1 AND p.family=$2
+        ORDER BY p.symbol,p.exchange,p.currency;
+        """;
+    internal const string GetContractDescriptions = """
+        SELECT contract,min(description) FROM reference.product_description
+        WHERE exchange=$1 AND family=1 AND symbol=$2 AND contract<>'' AND resolved
+        GROUP BY contract HAVING count(DISTINCT description)=1;
+        """;
     internal const string ReadInstrumentDefinitionJson = "SELECT definition_json FROM reference.instrument_definition WHERE snapshot_id=$1 AND dataset=$2 AND bucket=$3 ORDER BY record_index;";
+    internal const string GetInstrumentDefinitionJson = "SELECT definition_json FROM reference.instrument_definition WHERE snapshot_id=$1 AND dataset=$2 AND bucket=$3 AND record_index=$4;";
     internal const string InsertInstrumentDefinitionSelection = """
                 INSERT INTO reference.instrument_definition_selection(snapshot_id,dataset,root,options,instrument_key,payload)
                 VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(snapshot_id,dataset,root,options,instrument_key) DO UPDATE SET payload=EXCLUDED.payload;
@@ -87,4 +101,20 @@ internal static class ReferenceDbSql
             VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT(jobId) DO UPDATE SET monday=EXCLUDED.monday,tuesday=EXCLUDED.tuesday,
             wednesday=EXCLUDED.wednesday,thursday=EXCLUDED.thursday,friday=EXCLUDED.friday,saturday=EXCLUDED.saturday,sunday=EXCLUDED.sunday;
             """;
+    internal const string LockInstrumentCatalog = "SELECT pg_advisory_xact_lock(hashtextextended($1, 0));";
+    internal const string ReadInstrumentCatalogRevision = "SELECT currentversion FROM public.event_stream_id WHERE eventstream=$1;";
+    internal const string ReadPreviousInstrumentCompletion = "SELECT completed_utc FROM reference.instrument_definition_snapshot WHERE catalog='current';";
+    internal const string HasInstrumentDefinitionSelection = "SELECT EXISTS (SELECT 1 FROM reference.instrument_definition_selection WHERE snapshot_id=$1);";
+    internal const string HasInstrumentCatalogReceipt = """
+        SELECT EXISTS (
+            SELECT 1 FROM public.event_log l JOIN public.event_stream_id s USING(eventstreamid)
+            WHERE s.eventstream=$1 AND l.commandid=$2);
+        """;
+    internal const string ReadInstrumentCatalogEvent = """
+        SELECT n.eventtypename, l.eventversion, l.eventpayload
+        FROM public.event_log l JOIN public.event_stream_id s USING(eventstreamid)
+        JOIN public.event_name_id n USING(eventnameid)
+        WHERE s.eventstream=$1 AND l.streamversion=$2;
+        """;
+
 }

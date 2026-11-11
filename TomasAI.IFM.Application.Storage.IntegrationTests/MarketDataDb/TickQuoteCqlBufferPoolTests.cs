@@ -17,7 +17,7 @@ public sealed class TickQuoteCqlBufferPoolTests
         Assert.Equal("TomasAI.IFM.Shared", typeof(FuturesTickQuoteDataSegment).Assembly.GetName().Name);
         Assert.Equal("TomasAI.IFM.Application.Contracts.MarketData.Feed", typeof(PooledTickQuoteBuffer).Assembly.GetName().Name);
         Assert.Same(typeof(PooledTickQuoteBuffer).Assembly, typeof(TickQuoteBufferEncoder).Assembly);
-        var storageAssembly = typeof(TickQuoteScyllaBindValue).Assembly;
+        var storageAssembly = typeof(TomasAI.IFM.Application.Storage.TradeTickQuoteDb.TradeTickQuoteDbContext).Assembly;
         Assert.Null(storageAssembly.GetType(
             "TomasAI.IFM.Application.Storage.MarketDataDb.PooledTickQuoteCqlBuffer"));
         Assert.Null(storageAssembly.GetType(

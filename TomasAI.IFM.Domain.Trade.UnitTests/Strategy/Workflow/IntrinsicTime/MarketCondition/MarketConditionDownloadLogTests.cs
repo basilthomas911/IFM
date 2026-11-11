@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Shared.QueryParameters;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment;
 using System.Buffers;
 using System.Text.Json;
@@ -32,7 +33,7 @@ public sealed class MarketConditionDownloadLogTests
         result.DownloadEvidence!.Attempts.Should().ContainSingle().Which.Should().Be(row);
         result.DownloadEvidence.CheckedAtUtc.Should().Be(CalendarDownloadFixture.At);
         result.DownloadEvidence.Attempts[0].Outcome.FinishedAtUtc.Should().Be(CalendarDownloadFixture.At.AddHours(-1));
-        await db.Received(1).GetEconomicCalendarsAsync(Arg.Any<DateTime>(), Arg.Any<DateTime>(), "US", Arg.Any<CancellationToken>());
+        await db.Received(1).GetEconomicCalendarsAsync(Arg.Is<EconomicCalendarDateRange>(range => range.CountryCode == "US"), Arg.Any<CancellationToken>());
         queries.ReceivedCalls().Should().HaveCount(2);
     }
 
@@ -279,7 +280,7 @@ internal static class CalendarDownloadFixture
     public static (MarketConditionEventRiskAdapter Adapter, IMarketDataDbContext Db, IDownloadLogQueryApi Queries) Adapter(params MarketDataDownloadLogReadModel[] rows)
     {
         var db = Substitute.For<IMarketDataDbContext>();
-        db.GetEconomicCalendarsAsync(Arg.Any<DateTime>(), Arg.Any<DateTime>(), "US", Arg.Any<CancellationToken>())
+        db.GetEconomicCalendarsAsync(Arg.Is<EconomicCalendarDateRange>(range => range.CountryCode == "US"), Arg.Any<CancellationToken>())
             .Returns(new List<EconomicCalendarReadModel>());
         var factory = Substitute.For<IDbContextFactory>();
         factory.MarketDataDb.Returns(db);

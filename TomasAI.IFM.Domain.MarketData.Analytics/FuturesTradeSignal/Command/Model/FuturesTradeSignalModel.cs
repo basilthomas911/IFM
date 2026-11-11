@@ -1,3 +1,5 @@
+using TomasAI.IFM.Application.MarketData.Contracts.Historical;
+using TomasAI.IFM.Application.MarketData.Databento.Historical;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
@@ -18,8 +20,9 @@ public class FuturesTradeSignalModel(
     FuturesEodDataV2ReadModel futuresEodData,
     FuturesRsiSignalReadModel? rsiSignal,
     FuturesTdiSignalReadModel? tdiSignal,
-    FuturesItiSignalDataReadModel? itiSignalData, TimeProvider? timeProvider = null)
+    FuturesItiSignalDataReadModel? itiSignalData, TimeProvider? timeProvider = null, IMarketSessionCalendar? sessionCalendar = null)
 {
+    readonly IMarketSessionCalendar calendar = sessionCalendar ?? new CmeFuturesMarketSessionCalendar();
     readonly TimeProvider clock = timeProvider ?? TimeProvider.System;
     readonly FuturesEodDataV2ReadModel _futuresEodData = futuresEodData;
     readonly FuturesRsiSignalReadModel? _rsiSignal = rsiSignal;
@@ -245,13 +248,21 @@ public class FuturesTradeSignalModel(
                 && _tdiSignal.TDI == FuturesTrendDirectionType.DownTrending
                 && Convert.ToDouble(_futuresEodData.ClosePrice) < _itiSignalData.TrendDirectionChange.IntrinsicPrice;
     }
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6561", Justification = "This decision compares recorded intrinsic local wall-clock times; preserve the existing clock convention.")]
     bool CheckTradeExecuteState()
-            => (clock.GetLocalNow().DateTime - _itiSignalData!.TrendDirectionChange!.IntrinsicTime).TotalSeconds <= 30;
+            => TrendAge().TotalSeconds <= 30;
 
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6561", Justification = "This decision compares recorded intrinsic local wall-clock times; preserve the existing clock convention.")]
     bool InHoldTradeExecuteState()
-            => _itiSignalData!.TrendDirectionChange!.TradeState == IntrinsicTimeTradeState.Hold && (clock.GetLocalNow().DateTime - _itiSignalData.TrendDirectionChange.IntrinsicTime).TotalMinutes < 5;
+            => _itiSignalData!.TrendDirectionChange!.TradeState == IntrinsicTimeTradeState.Hold && TrendAge().TotalMinutes < 5;
+
+
+    /// <summary>Retains legacy local intrinsic timestamps while excluding closed exchange sessions from their age.</summary>
+    TimeSpan TrendAge()
+    {
+        var at = _itiSignalData!.TrendDirectionChange!.IntrinsicTime;
+        var utc = at.Kind == DateTimeKind.Utc ? at : TimeZoneInfo.ConvertTimeToUtc(
+            DateTime.SpecifyKind(at, DateTimeKind.Unspecified), clock.LocalTimeZone);
+        return MarketTradingTime.Elapsed(calendar, new(utc), clock.GetUtcNow(), TimeSpan.FromMinutes(5));
+    }
 
 
 }

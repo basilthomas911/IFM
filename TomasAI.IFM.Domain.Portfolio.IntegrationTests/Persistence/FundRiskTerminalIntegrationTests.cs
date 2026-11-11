@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.EventSourcing;
 using FluentAssertions;
 using TomasAI.IFM.Domain.Portfolio.Financial.Repository;
 using TomasAI.IFM.Domain.Portfolio.Shared.Events;
@@ -38,7 +39,7 @@ public sealed class FundRiskTerminalIntegrationTests(PortfolioEventStoreFixture 
                 OrderComposition = new() { Result = new() { PayloadSha256 = new('A', 64), CompositionResult = new() { Candidate = new() { PortfolioId = book.PortfolioId, FundId = fund, OrderId = pending.Body.OrderId } } } }
             }
         };
-        await Transactions().ExecuteAsync(async (db, ct) => { await db.AppendAsync($"RiskTerminalTest.{source.CommandId}", source.CommandId, source, 0, ct); return true; });
+        await Transactions().ExecuteAsync(async (db, ct) => { await db.AppendAsync(new EnlistedEventAppend($"RiskTerminalTest.{source.CommandId}", source.CommandId, source, 0), ct); return true; });
         var evidence = source.TerminalRisk!; evidence.Should().NotBeNull();
         if (tamper) evidence = evidence with { Reason = "different" };
         var changed = new FundCompositionStateChangedEvent(Guid.NewGuid(), Guid.NewGuid(), 2, DateTime.UtcNow, "test", new() { PortfolioId = book.PortfolioId, FundId = fund, OrderId = pending.Body.OrderId, Status = "Expired", TerminalRisk = evidence });

@@ -47,6 +47,7 @@ public sealed class PortfolioCommandActorMapConventionTests
             [
                 CreateFundMandateCommand.Verb,
                 AddFundMandateVersionCommand.Verb,
+                ConfigureFundBaseContractsCommand.Verb,
                 ChangeFundOperatingStateCommand.Verb,
                 AssignTradeTemplateCommand.Verb,
                 ReserveFundOrderCompositionCommand.Verb,

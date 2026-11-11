@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.Strategy.StrategyCatalog;
 using System.Text.Json;
 using System.Collections.Immutable;
 using Microsoft.Extensions.Logging;
@@ -32,7 +33,7 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Development;
 /// Creates one explicit paper-trading authority through the same commands and immutable configuration
 /// lifecycle used by the trading runtime. Existing records are verified and never silently replaced.
 /// </summary>
-public sealed class DevelopmentTradingPortfolioProvisioner(DevelopmentTradingPortfolioOptions options, FinancialDevelopmentPolicy development, IConfigurationDbContext configuration, IMarketDataApi marketData, IPortfolioBusinessIdAllocator identities, IPortfolioCommandApi portfolios, IPortfolioFundCommandApi funds, IPortfolioFinancialPolicyCommandApi policies, IPortfolioQueryApi queries, IPortfolioFinancialApi financial, DevelopmentTradingPortfolioIdentityRecovery identityRecovery, IntrinsicTimeStrategyWorkflowOptions workflow, ILogger<DevelopmentTradingPortfolioProvisioner> logger)
+public sealed class DevelopmentTradingPortfolioProvisioner(DevelopmentTradingPortfolioOptions options, FinancialDevelopmentPolicy development, IConfigurationDbContext configuration, IMarketDataApi marketData, IPortfolioBusinessIdAllocator identities, IPortfolioCommandApi portfolios, IPortfolioFundCommandApi funds, IPortfolioFinancialPolicyCommandApi policies, IPortfolioQueryApi queries, IPortfolioFinancialApi financial, DevelopmentTradingPortfolioIdentityRecovery identityRecovery, IntrinsicTimeStrategyWorkflowOptions workflow, ILogger<DevelopmentTradingPortfolioProvisioner> logger, StrategyCatalogQualification? catalogQualification = null)
 {
     static readonly string[] DeploymentFamilies = ["Future", "Vertical", "IronCondor"];
     static readonly string[] FutureVariants = ["LongFuture", "ShortFuture"];
@@ -645,7 +646,7 @@ public sealed class DevelopmentTradingPortfolioProvisioner(DevelopmentTradingPor
         if (!string.Equals(current?.ContentHash, expected, StringComparison.Ordinal))
             throw new InvalidOperationException($"Development catalog {definition.Code} conflicts with existing immutable content.");
         if (current.Status == CatalogLifecycleStatus.Draft)
-            await configuration.PublishStrategyCatalogAsync(definition.Key, expected, now.AddSeconds(-1), Principal, token).ConfigureAwait(false);
+            await (catalogQualification ?? new StrategyCatalogQualification()).PublishAsync(configuration, definition.Key, expected, now.AddSeconds(-1), Principal, token).ConfigureAwait(false);
         else if (current.Status != CatalogLifecycleStatus.Published)
             throw new InvalidOperationException($"Development catalog {definition.Code} is retired.");
     }

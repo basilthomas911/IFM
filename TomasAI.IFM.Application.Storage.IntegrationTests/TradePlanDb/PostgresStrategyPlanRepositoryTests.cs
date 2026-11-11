@@ -45,6 +45,7 @@ public sealed class PostgresStrategyPlanRepositoryTests(PostgresTradePlanFixture
         if (failAfterPlanWrite)
         {
             target = Substitute.For<ITradePlanDbContext>();
+            target.DbWriter.Returns(target);
             target.ProviderName.Returns("System.Data.Postgres");
             target.ConnectionString.Returns(fixture.Connection);
             target.ProjectMaterialAsync(Arg.Any<IEnlistedPostgresTransaction>(), Arg.Any<StrategyTradePlanSnapshot>(), Arg.Any<CancellationToken>())

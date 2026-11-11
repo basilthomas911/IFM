@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Persistence;
 using FluentAssertions;
 using System;
 using System.Linq;
@@ -32,9 +33,9 @@ public sealed class FmpQueryOptimizationTests(MarketDataFixture fixture)
     public async Task EconomicCalendarRangeRejectsUnboundedMonthFanOut()
     {
         var start = new DateTime(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-        var end = start.AddMonths(MarketDataDbContext.EconomicCalendarMaximumRangeMonths);
+        var end = start.AddMonths(EconomicCalendarQueryLimits.MaximumRangeMonths);
 
-        var act = () => fixture.DevDatabase.GetEconomicCalendarsAsync(start, end, "US");
+        var act = () => fixture.DevDatabase.GetEconomicCalendarsAsync(new EconomicCalendarDateRange(start, end, "US"));
 
         await act.Should().ThrowAsync<ArgumentOutOfRangeException>();
     }
@@ -92,9 +93,9 @@ public sealed class FmpQueryOptimizationTests(MarketDataFixture fixture)
     public async Task YieldCurveRangeRejectsUnboundedMaterialization()
     {
         var start = new DateOnly(2000, 1, 1);
-        var end = start.AddDays(MarketDataDbContext.YieldCurveMaximumRangeDays);
+        var end = start.AddDays(YieldCurveReadRange.MaximumDays);
 
-        var act = () => fixture.DevDatabase.GetYieldCurveRatesAsync(start, end);
+        var act = () => fixture.DevDatabase.GetYieldCurveRatesAsync(new YieldCurveReadRange(start, end));
 
         await act.Should().ThrowAsync<ArgumentOutOfRangeException>();
     }
@@ -107,7 +108,7 @@ public sealed class FmpQueryOptimizationTests(MarketDataFixture fixture)
 
         try
         {
-            await fixture.DevDatabase.InsertYieldCurveRatesAsync([latest, earlier]);
+            await fixture.DevDatabase.InsertYieldCurveRatesAsync(MarketDataImportBatch.YieldCurves([latest, earlier]));
 
             (await fixture.DevDatabase.GetYieldCurveRateYearsAsync())
                 .Count(year => year == 9998).Should().Be(1);
@@ -133,13 +134,10 @@ public sealed class FmpQueryOptimizationTests(MarketDataFixture fixture)
 
         try
         {
-            await fixture.DevDatabase.InsertYieldCurveRatesAsync(
-                [rate], ImportDuplicatePolicy.Reject, commandId);
-            await fixture.DevDatabase.InsertYieldCurveRatesAsync(
-                [rate], ImportDuplicatePolicy.Reject, commandId);
+            await fixture.DevDatabase.InsertYieldCurveRatesAsync(MarketDataImportBatch.YieldCurves([rate], ImportDuplicatePolicy.Reject, commandId));
+            await fixture.DevDatabase.InsertYieldCurveRatesAsync(MarketDataImportBatch.YieldCurves([rate], ImportDuplicatePolicy.Reject, commandId));
 
-            var act = () => fixture.DevDatabase.InsertYieldCurveRatesAsync(
-                [rate], ImportDuplicatePolicy.Reject, Guid.NewGuid());
+            var act = () => fixture.DevDatabase.InsertYieldCurveRatesAsync(MarketDataImportBatch.YieldCurves([rate], ImportDuplicatePolicy.Reject, Guid.NewGuid()));
 
             await act.Should().ThrowAsync<MarketDataImportDuplicateException>();
             (await fixture.DevDatabase.GetYieldCurveRateAsync(rate.ValueDate))
@@ -171,10 +169,7 @@ public sealed class FmpQueryOptimizationTests(MarketDataFixture fixture)
         {
             await fixture.DevDatabase.InsertEconomicCalendarAsync(calendar);
 
-            var act = () => fixture.DevDatabase.InsertEconomicCalendarsAsync(
-                [calendar with { Actual = "2" }],
-                ImportDuplicatePolicy.Reject,
-                Guid.NewGuid());
+            var act = () => fixture.DevDatabase.InsertEconomicCalendarsAsync(MarketDataImportBatch.Calendars([calendar with { Actual = "2" }], ImportDuplicatePolicy.Reject, Guid.NewGuid()));
 
             await act.Should().ThrowAsync<MarketDataImportDuplicateException>();
             (await fixture.DevDatabase.GetEconomicCalendarAsync(calendar.Id))!
@@ -209,8 +204,7 @@ public sealed class FmpQueryOptimizationTests(MarketDataFixture fixture)
             {
                 try
                 {
-                    await fixture.DevDatabase.InsertEconomicCalendarsAsync(
-                        [calendar], ImportDuplicatePolicy.Reject, commandId);
+                    await fixture.DevDatabase.InsertEconomicCalendarsAsync(MarketDataImportBatch.Calendars([calendar], ImportDuplicatePolicy.Reject, commandId));
                     return (CommandId: commandId, Accepted: true);
                 }
                 catch (MarketDataImportDuplicateException)
@@ -222,8 +216,7 @@ public sealed class FmpQueryOptimizationTests(MarketDataFixture fixture)
             outcomes.Should().ContainSingle(outcome => outcome.Accepted);
             var winner = outcomes.Single(outcome => outcome.Accepted);
             outcomes.Should().ContainSingle(outcome => !outcome.Accepted);
-            await fixture.DevDatabase.InsertEconomicCalendarsAsync(
-                [calendar], ImportDuplicatePolicy.Reject, winner.CommandId);
+            await fixture.DevDatabase.InsertEconomicCalendarsAsync(MarketDataImportBatch.Calendars([calendar], ImportDuplicatePolicy.Reject, winner.CommandId));
             (await fixture.DevDatabase.GetEconomicCalendarAsync(calendar.Id))
                 .Should().BeEquivalentTo(calendar);
         }

@@ -1,6 +1,7 @@
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.Trade.Shared;
 using FluentAssertions;
-using TomasAI.IFM.Domain.Portfolio.Financial.Repository;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Realtime;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Commands;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events;
@@ -27,11 +28,11 @@ public sealed class FinancialWorkflowRecoveryIntegrationTests(PortfolioEventStor
             State = first.State with { WorkflowRevision = 2 }
         };
         await Save(stream, second, 1);
-        var page = await new FinancialWorkflowRecoveryJournal(Transactions()).ReadPageAsync(0, exactStream: stream);
+        var page = await Journal().ReadPageAsync(0, exactStream: stream);
         page.StreamsRead.Should().Be(1); page.Snapshots.Should().ContainSingle();
         page.Snapshots[0].WorkflowRevision.Should().Be(2);
         page.Snapshots[0].CommandId.Should().Be(second.CommandId);
-        (await new FinancialWorkflowRecoveryJournal(Transactions()).ReadPageAsync(page.NextStreamId, exactStream: stream)).StreamsRead.Should().Be(0);
+        (await Journal().ReadPageAsync(page.NextStreamId, exactStream: stream)).StreamsRead.Should().Be(0);
     }
 
     [Fact]
@@ -49,17 +50,17 @@ public sealed class FinancialWorkflowRecoveryIntegrationTests(PortfolioEventStor
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var pending = Transactions().ExecuteAsync(async (db, ct) =>
         {
-            await db.AppendAsync(stream, second.CommandId, second, 1, ct);
+            await db.AppendAsync(new EnlistedEventAppend(stream, second.CommandId, second, 1), ct);
             appended.SetResult(); await release.Task.WaitAsync(TimeSpan.FromSeconds(10)); return true;
         });
         try
         {
             await appended.Task.WaitAsync(TimeSpan.FromSeconds(5));
-            var journal = new FinancialWorkflowRecoveryJournal(Transactions());
+            var journal = Journal();
             (await journal.ReadPageAsync(0, exactStream: stream)).Snapshots.Single().WorkflowRevision.Should().Be(1);
         }
         finally { release.TrySetResult(); await pending; }
-        (await new FinancialWorkflowRecoveryJournal(Transactions()).ReadPageAsync(0, exactStream: stream))
+        (await Journal().ReadPageAsync(0, exactStream: stream))
             .Snapshots.Single().WorkflowRevision.Should().Be(2);
     }
 
@@ -76,10 +77,10 @@ public sealed class FinancialWorkflowRecoveryIntegrationTests(PortfolioEventStor
         };
         await FluentActions.Awaiting(() => Transactions().ExecuteAsync<bool>(async (db, ct) =>
         {
-            await db.AppendAsync(stream, second.CommandId, second, 1, ct);
+            await db.AppendAsync(new EnlistedEventAppend(stream, second.CommandId, second, 1), ct);
             throw new InvalidOperationException("Deliberate pre-commit failure");
         })).Should().ThrowAsync<InvalidOperationException>();
-        var page = await new FinancialWorkflowRecoveryJournal(Transactions()).ReadPageAsync(0, exactStream: stream);
+        var page = await Journal().ReadPageAsync(0, exactStream: stream);
         page.Snapshots.Single().CommandId.Should().Be(first.CommandId);
     }
 
@@ -89,7 +90,7 @@ public sealed class FinancialWorkflowRecoveryIntegrationTests(PortfolioEventStor
         var first = Snapshot(); var stream = Stream(first); await Save(stream, first, 0);
         var invalid = first with { Id = Guid.NewGuid(), CommandId = Guid.NewGuid(), WorkflowRevision = 2 };
         await Save(stream, invalid, 1);
-        var journal = new FinancialWorkflowRecoveryJournal(Transactions());
+        var journal = Journal();
         var page = await journal.ReadPageAsync(0, exactStream: stream);
         page.StreamsRead.Should().Be(1); page.Snapshots.Should().BeEmpty();
         page.InvalidStreamIds.Should().Equal(page.NextStreamId);
@@ -106,8 +107,18 @@ public sealed class FinancialWorkflowRecoveryIntegrationTests(PortfolioEventStor
         next.InvalidStreamIds.Should().BeEmpty(); next.Snapshots.Single().WorkflowRevision.Should().Be(3);
     }
 
+    static FinancialWorkflowRecoveryJournal Journal()
+    {
+        var settings = new TomasAI.IFM.Shared.Storage.DbConnectionSettings().Add(
+            TomasAI.IFM.Application.Storage.PortfolioDb.PortfolioDbContext.PortfolioDbConnection,
+            Environment.GetEnvironmentVariable("IFM_POSTGRES_EVENTSOURCE_TEST_CONNECTION")
+                ?? "Host=localhost;Port=5432;Database=event-source-test-db", "System.Data.Postgres");
+        return new(new TomasAI.IFM.Application.Storage.PortfolioDb.PortfolioDbContext(settings,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<TomasAI.IFM.Framework.Storage.DbProvider>.Instance, Transactions()));
+    }
+
     static Task Save(string stream, WorkflowStrategyStateUpdatedEvent value, long version)
-        => Transactions().ExecuteAsync(async (db, ct) => { await db.AppendAsync(stream, value.CommandId, value, version, ct); return true; });
+        => Transactions().ExecuteAsync(async (db, ct) => { await db.AppendAsync(new EnlistedEventAppend(stream, value.CommandId, value, version), ct); return true; });
     static string Stream(WorkflowStrategyStateUpdatedEvent snapshot)
         => new ActorSubject(ActorType.Command, RedispatchCurrentStrategyPipelineCommand.Actor, "test", snapshot.EntityId.Format()).StreamId;
     static WorkflowStrategyStateUpdatedEvent Snapshot()

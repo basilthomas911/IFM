@@ -1,3 +1,5 @@
+using TomasAI.IFM.Domain.MarketData.Shared.QueryParameters;
+using TomasAI.IFM.Domain.MarketData.Securities.Persistence;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Shared.MarketData.Contracts.Pricing;
 using System.Text.Json;
@@ -9,9 +11,9 @@ namespace TomasAI.IFM.Application.MarketData.Rust.Host;
 /// <summary>Passive raw database facts. This type has no native runtime, lease,
 /// recovery registry, pricing context provider, connection or subscription owner.</summary>
 public sealed class NativeReferenceFacts(IDbContextFactory databases,IOptionPricingConventionStore conventions,
-    TomasAI.IFM.Application.MarketData.Subscriptions.Persistence.IDurableSubscriptionIntentStore? journal=null,ICompositionRoutePlanStore? plans=null,TomasAI.IFM.Application.MarketData.Contracts.IOptionChainStatisticsStore? statistics=null):INativeReferenceFacts
+    TomasAI.IFM.Application.MarketData.Subscriptions.Persistence.IDurableSubscriptionIntentStore? journal=null,ICompositionRoutePlanStore? plans=null,TomasAI.IFM.Application.MarketData.Contracts.IOptionChainStatisticsStore? statistics=null, SecuritiesReferenceReader? referenceReader=null, SecuritiesOptionDefinitionReader? definitionReader=null):INativeReferenceFacts
 {
-    readonly NativeDefinitionFacts definitionSnapshots=new(databases);
+    readonly NativeDefinitionFacts definitionSnapshots=new(databases, definitionReader: definitionReader);
     readonly NativeJournalFacts? journalSnapshots=journal is not null&&plans is not null?new(journal,plans):null;
     /// <inheritdoc/>
     public async Task<byte[]> ReadAsync(byte kind,ReadOnlyMemory<byte> arguments,CancellationToken cancellationToken)
@@ -54,7 +56,8 @@ public sealed class NativeReferenceFacts(IDbContextFactory databases,IOptionPric
                     MessagePack.MessagePackSerializerOptions.Standard.WithSecurity(MessagePack.MessagePackSecurity.UntrustedData));
                 if(model is null||model.ContractId!=stageContract||model.MappingVersion!=stageVersion)throw new InvalidDataException("Raw option staging identity conflict.");
                 var securities=databases.SecuritiesDb;
-                if(await securities.GetReferenceVersionAsync(model.ContractId,model.MappingVersion!,cancellationToken).ConfigureAwait(false) is null){
+                if(await (referenceReader?.GetReferenceVersionAsync(model.ContractId,model.MappingVersion!,cancellationToken)
+                    ?? securities.GetReferenceVersionAsync(new ExactReferenceVersion(model.ContractId, model.MappingVersion!),cancellationToken)).ConfigureAwait(false) is null){
                     var pending=await securities.StageReferenceVersionAsync(model,cancellationToken).ConfigureAwait(false);
                     await securities.CommitReferenceVersionAsync(pending,cancellationToken).ConfigureAwait(false);
                 }
@@ -71,8 +74,9 @@ public sealed class NativeReferenceFacts(IDbContextFactory databases,IOptionPric
                 var first=DateOnly.FromDayNumber(value.GetProperty("from").GetInt32());var last=DateOnly.FromDayNumber(value.GetProperty("until").GetInt32());
                 if(string.IsNullOrWhiteSpace(root)||root.Length>60||last<first||last.DayNumber-first.DayNumber>2000)throw new InvalidDataException("Invalid raw option definition range.");
                 var definitions = new List<object?[]>();
-                await foreach (var row in databases.SecuritiesDb.ReadPublishedOptionDefinitionsAsync(
-                    root, first, last, 2048, cancellationToken: cancellationToken).ConfigureAwait(false))
+                var publishedRows = definitionReader?.ReadPublishedOptionDefinitionsAsync(root, first, last, 2048, cancellationToken: cancellationToken)
+                    ?? databases.SecuritiesDb.ReadPublishedOptionDefinitionsAsync(new OptionDefinitionExpiryRange(root, first, last, 2048), cancellationToken: cancellationToken);
+                await foreach (var row in publishedRows.ConfigureAwait(false))
                 {
                     if (definitions.Count == 2048)
                         throw new InvalidDataException("Raw option definition capacity exceeded.");
@@ -85,7 +89,7 @@ public sealed class NativeReferenceFacts(IDbContextFactory databases,IOptionPric
                 var canonical=value.GetProperty("contract").GetString();
                 if(string.IsNullOrWhiteSpace(canonical)||canonical.Length>1024)throw new InvalidDataException("Invalid raw canonical option identity.");
                 var raw=value.TryGetProperty("version",out var immutableVersion)
-                    ?(await databases.SecuritiesDb.GetReferenceVersionAsync(canonical,immutableVersion.GetString()??throw new InvalidDataException("Missing immutable version."),cancellationToken).ConfigureAwait(false))?.Option
+                    ?(await ReadVersionAsync(canonical,immutableVersion.GetString()??throw new InvalidDataException("Missing immutable version."),cancellationToken).ConfigureAwait(false))?.Option
                     :await databases.SecuritiesDb.GetFuturesOptionContractAsync(canonical,cancellationToken).ConfigureAwait(false);
                 return JsonSerializer.SerializeToUtf8Bytes(raw is null?null:NativeReferenceProjection.Option(raw));
             case 7: return await definitionSnapshots.ReadAsync(value,cancellationToken).ConfigureAwait(false);
@@ -95,4 +99,9 @@ public sealed class NativeReferenceFacts(IDbContextFactory databases,IOptionPric
             default:throw new InvalidDataException("Unsupported raw database fact kind.");
         }
     }
+
+    Task<TomasAI.IFM.Domain.Reference.Shared.ViewModels.ReferenceContractVersion?> ReadVersionAsync(string id, string version, CancellationToken token)
+        => referenceReader?.GetReferenceVersionAsync(id, version, token)
+            ?? databases.SecuritiesDb.GetReferenceVersionAsync(new ExactReferenceVersion(id, version), token);
+
 }

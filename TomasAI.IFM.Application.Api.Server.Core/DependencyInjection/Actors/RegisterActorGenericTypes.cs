@@ -314,6 +314,7 @@ public static partial class CoreServiceRegistration
         siContainer.Register<TomasAI.IFM.Domain.Portfolio.GeneralLedger.Command.GeneralLedgerCommandServices>(Lifestyle.Singleton);
         siContainer.Register<TomasAI.IFM.Domain.Portfolio.GeneralLedger.Command.LedgerConfigurationCommandServices>(Lifestyle.Singleton);
         siContainer.Register<TomasAI.IFM.Domain.Portfolio.GeneralLedger.Preparation.FinancialBookPreparation>(Lifestyle.Singleton);
+        siContainer.Register<TomasAI.IFM.Domain.Portfolio.ReferencePreparation.FundBaseContractPreparation>(Lifestyle.Singleton);
         siContainer.Register<TomasAI.IFM.Domain.Portfolio.GeneralLedger.IPortfolioTradeAccountingApi,
         TomasAI.IFM.Domain.Portfolio.GeneralLedger.BrokerExecutionAccountingApi>(Lifestyle.Singleton);
         siContainer.Register<TomasAI.IFM.Domain.Portfolio.GeneralLedger.IPortfolioTradeValuationApi,

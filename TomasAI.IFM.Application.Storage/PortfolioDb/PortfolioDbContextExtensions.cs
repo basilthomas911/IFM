@@ -38,9 +38,9 @@ public static class PortfolioDbContextExtensions
             where T : class
             => await context
                 .Use($"{nameof(PortfolioDbSql)}.{name}", sql)
-                .SetParameters(parameters)
-                .ExecuteSingleAsync(PortfolioDbContext.MapToModel<T>, cancellationToken)
-                .ConfigureAwait(false);
+            .SetParameters(parameters)
+            .ExecuteSingleAsync(PortfolioDbContext.MapToModel<T>, cancellationToken)
+            .ConfigureAwait(false);
 
         /// <summary>Reads one mapped domain value.</summary>
         /// <typeparam name="T">The shared-domain result type.</typeparam>
@@ -60,9 +60,9 @@ public static class PortfolioDbContextExtensions
             where T : class
             => await context
                 .Use($"{nameof(PortfolioDbSql)}.{name}", sql)
-                .SetParameters(parameters)
-                .ExecuteSingleAsync(map, cancellationToken)
-                .ConfigureAwait(false);
+            .SetParameters(parameters)
+            .ExecuteSingleAsync(map, cancellationToken)
+            .ConfigureAwait(false);
 
         /// <summary>Reads a collection of JSON-backed domain read models.</summary>
         /// <typeparam name="T">The shared-domain read-model type.</typeparam>
@@ -80,9 +80,9 @@ public static class PortfolioDbContextExtensions
             where T : class
             => [.. await context
                 .Use($"{nameof(PortfolioDbSql)}.{name}", sql)
-                .SetParameters(parameters)
-                .ExecuteQueryAsync(PortfolioDbContext.MapToModel<T>, cancellationToken)
-                .ConfigureAwait(false)];
+            .SetParameters(parameters)
+            .ExecuteQueryAsync(PortfolioDbContext.MapToModel<T>, cancellationToken)
+            .ConfigureAwait(false)];
 
         /// <summary>Executes one Portfolio persistence command.</summary>
         /// <param name="name">The persistence operation name.</param>
@@ -98,8 +98,8 @@ public static class PortfolioDbContextExtensions
             CancellationToken cancellationToken)
             => context
                 .Use($"{nameof(PortfolioDbSql)}.{name}", sql)
-                .SetParameters(parameters)
-                .ExecuteCommandAsync(cancellationToken);
+            .SetParameters(parameters)
+            .ExecuteCommandAsync(cancellationToken);
 
         /// <summary>Creates a Portfolio PostgreSQL parameter binding from positional values.</summary>
         /// <param name="values">The positional persistence values.</param>
@@ -114,11 +114,10 @@ public static class PortfolioDbContextExtensions
 
     extension<T>(PortfolioProjection<T> projection)
     {
-        /// <summary>Validates the projection wrapper and returns its domain value.</summary>
+        /// <summary>Returns the already prepared projection value.</summary>
         /// <returns>The accepted domain read model.</returns>
         internal T RequiredValue()
         {
-            ArgumentNullException.ThrowIfNull(projection);
             return projection.Value;
         }
 
@@ -138,24 +137,22 @@ public static class PortfolioDbContextExtensions
 
     extension(DraftPolicyProjectionDeletion deletion)
     {
-        /// <summary>Validates a policy deletion and binds its accepted identifiers.</summary>
+        /// <summary>Binds the accepted policy deletion identifiers.</summary>
         /// <returns>The canonical policy deletion parameters.</returns>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "The C# 14 extension member reads and validates its declared receiver.")]
         internal object?[] ToDeletionValues()
         {
-            ArgumentNullException.ThrowIfNull(deletion);
             return [deletion.PortfolioId, deletion.PolicyId, deletion.SourceEventId];
         }
     }
 
     extension(DraftPortfolioProjectionDeletion deletion)
     {
-        /// <summary>Validates a portfolio deletion and binds its accepted identifiers.</summary>
+        /// <summary>Binds the accepted portfolio deletion identifiers.</summary>
         /// <returns>The canonical portfolio deletion parameters.</returns>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "The C# 14 extension member reads and validates its declared receiver.")]
         internal object?[] ToDeletionValues()
         {
-            ArgumentNullException.ThrowIfNull(deletion);
             return [deletion.PortfolioId, deletion.SourceEventId];
         }
     }
@@ -189,11 +186,8 @@ public static class PortfolioDbContextExtensions
         internal async Task<T?> ReadFinancialOperationAsync<T>(int portfolioId, Guid operationId, string? inputHash, CancellationToken token)
             where T : class, IFinancialCompletedEvent
         {
-            var rows = await transaction.QueryAsync(PortfolioDbSql.Financial.PortfolioDbFinancialSupport.Select02,
-                [portfolioId, operationId], reader => (Hash: reader.GetString(0), Event: new EventLogReadModel(
-                    reader.GetInt64(1), reader.GetString(2), reader.GetString(3), reader.GetInt64(4),
-                    reader.GetFieldValue<byte[]>(5), reader.GetGuid(6), reader.GetString(7), reader.GetInt64(8))), token)
-                .ConfigureAwait(false);
+            var rows = await transaction.QueryAsync(PortfolioDbSql.Financial.PortfolioDbFinancialSupport.Select02, [portfolioId, operationId], PortfolioDbContext.MapToFinancialOperation, token)
+            .ConfigureAwait(false);
             if (rows.Count == 0) return null;
             var row = rows.Single();
             if (inputHash is not null && !string.Equals(inputHash, row.Hash, StringComparison.Ordinal))
@@ -204,70 +198,59 @@ public static class PortfolioDbContextExtensions
     }
     extension(IEnlistedPostgresTransaction transaction)
     {
-        /// <summary>Stores the current mandate and disables superseded mandate projections atomically.</summary>
-        public async Task WriteFundProjectionAsync(PortfolioProjection<FundMandateReadModel> row, CancellationToken token)
+        /// <summary>Locks the mandate scope and returns exact stored mandate versions on the caller's transaction.</summary>
+        public async Task<IReadOnlyList<FundMandateReadModel>> ReadLockedFundProjectionsAsync(int portfolioId, int fundId, CancellationToken token)
         {
-            var fund = row.Value;
-            await transaction.ScalarAsync("SELECT pg_advisory_xact_lock(1701,$1)", [fund.FundId], token)
+            await transaction.ScalarAsync(PortfolioDbSql.LockFundProjection, [fundId], token)
             .ConfigureAwait(false);
-            var versions = await transaction.QueryAsync(
-                "SELECT payload_json::text FROM portfolio.fund_by_portfolio WHERE portfolio_id=$1 AND fund_id=$2 FOR UPDATE",
-                [fund.PortfolioId, fund.FundId], reader => JsonSerializer.Deserialize<FundMandateReadModel>(reader.GetString(0))!, token)
-            .ConfigureAwait(false);
-            if (versions.Any(v => v.FundMandateVersion > fund.FundMandateVersion))
-            {
-                fund = fund with { OperatingState = FundOperatingState.Disabled };
-                row = PortfolioProjection<FundMandateReadModel>.Create(fund, row.AggregateVersion, row.SourceEventId, row.UpdatedOnUtc);
-            }
-            foreach (var old in versions.Where(v => v.FundMandateVersion < fund.FundMandateVersion && v.OperatingState != FundOperatingState.Disabled))
-            {
-                var disabled = PortfolioProjection<FundMandateReadModel>.Create(old with { OperatingState = FundOperatingState.Disabled }, row.AggregateVersion, row.SourceEventId, row.UpdatedOnUtc);
-                await transaction.WritePortfolioValuesAsync("""
-                    UPDATE portfolio.fund_by_portfolio SET operating_state='Disabled',schema_version=$4,aggregate_version=$5,
-                    source_event_id=$6,updated_on_utc=$7,payload_json=$8,payload_hash=$9
-                    WHERE portfolio_id=$1 AND fund_id=$2 AND fund_mandate_version=$3 AND source_event_id<=$6
-                    """, token, old.PortfolioId, old.FundId, old.FundMandateVersion, disabled.ToCommonValues())
-            .ConfigureAwait(false);
-            }
-            await transaction.WritePortfolioValuesAsync(PortfolioDbSql.Fund.Upsert, token, fund.PortfolioId, fund.FundId,
-                fund.FundMandateVersion, fund.OperatingState.ToString(), row.ToCommonValues(), fund.TradingYear, fund.DecisionHorizon, fund.EffectiveFromUtc)
+            return await transaction.QueryAsync(PortfolioDbSql.ReadLockedFundProjection, [portfolioId, fundId], PortfolioDbContext.MapToLockedFundProjection, token)
             .ConfigureAwait(false);
         }
 
-        /// <summary>Persists accepted business rows, indexes and deletions without reloading aggregate state.</summary>
-        public async Task PersistAcceptedPortfolioAsync(IEvent source,PortfolioProjectionFacts facts,CancellationToken token = default)
+        /// <summary>Stores the exact prepared mandate projection.</summary>
+        public Task UpsertPreparedFundProjectionAsync(PortfolioProjection<FundMandateReadModel> row, CancellationToken token)
         {
-            ArgumentNullException.ThrowIfNull(transaction);
-            ArgumentNullException.ThrowIfNull(source);
-            ArgumentNullException.ThrowIfNull(facts);
-            if (facts.SchemaVersion != 1 || facts.Revision <= 0 || source.EventId <= 0 || facts.UpdatedAtUtc.Kind != DateTimeKind.Utc)
-                throw new InvalidOperationException("Accepted Portfolio projection facts require schema 1, committed identity, revision and UTC timestamp.");
-            await transaction.WritePortfolioAsync(source,facts,token)
-                .ConfigureAwait(false);
-            await transaction.WriteFundAsync(source,facts,token)
-                .ConfigureAwait(false);
+            var fund = row.Value;
+            return transaction.WritePortfolioValuesAsync(PortfolioDbSql.Fund.Upsert, token, fund.PortfolioId, fund.FundId,
+                fund.FundMandateVersion, fund.OperatingState.ToString(), row.ToCommonValues(), fund.TradingYear, fund.DecisionHorizon, fund.EffectiveFromUtc);
+        }
+
+        /// <summary>Applies the caller's prepared disabled row with the source-event fence intact.</summary>
+        public Task DisablePreparedFundProjectionAsync(PortfolioProjection<FundMandateReadModel> row, CancellationToken token)
+            => transaction.WritePortfolioValuesAsync(PortfolioDbSql.DisableFundProjection, token,
+                row.Value.PortfolioId, row.Value.FundId, row.Value.FundMandateVersion, row.ToCommonValues());
+
+        /// <summary>Persists supplied portfolio, allocation and envelope rows before any Fund row lock.</summary>
+        public Task WriteAcceptedPortfolioHeaderAsync(IEvent source, PortfolioProjectionFacts facts, CancellationToken token)
+            => transaction.WritePortfolioAsync(source, facts, token);
+
+        /// <summary>Persists supplied assignment, order, policy and deletion rows after the Fund version writes.</summary>
+        public async Task WriteAcceptedPortfolioTailAsync(IEvent source, PortfolioProjectionFacts facts, CancellationToken token)
+        {
+            await transaction.WriteFundAsync(source, facts, token)
+            .ConfigureAwait(false);
             await transaction.WriteCompositionAsync(source,facts,token)
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
             await transaction.ProjectFundRiskAuthorizationAsync(source, token)
             .ConfigureAwait(false);
             foreach (var value in facts.Policies)
             {
                 var row = facts.ToAcceptedRow(value,source);
                 await transaction.WritePortfolioValuesAsync(PortfolioDbSql.Policy.Upsert,token,value.PolicyId,value.PolicyVersion,value.PortfolioId,value.OperatingState.ToString(),row.ToCommonValues())
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
             }
             foreach (var tradeId in facts.DeletedTradeIds)
                 await transaction.WritePortfolioValuesAsync(PortfolioDbSql.Orders.DeleteTrade,token,tradeId,source.EventId)
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
             if (facts.DeletedOrderId > 0)
                 await transaction.WritePortfolioValuesAsync(PortfolioDbSql.Orders.DeleteOrder,token,facts.DeletedOrderId,source.EventId)
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
             if (facts.DeletedPolicyId > 0)
                 await transaction.WritePortfolioValuesAsync(PortfolioDbSql.Policy.DeleteDraft,token,facts.DeletedPolicyPortfolioId,facts.DeletedPolicyId,source.EventId)
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
             if (facts.DeletedPortfolioId > 0)
                 await transaction.WritePortfolioValuesAsync(PortfolioDbSql.Portfolio.DeleteDraft,token,facts.DeletedPortfolioId,source.EventId)
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
         }
 
         /// <summary>Projects immutable authorization evidence for reads keyed by Fund and command.</summary>
@@ -278,7 +261,7 @@ public static class PortfolioDbContextExtensions
             if (changed.FinancialAuthorization is { } authorization)
                 await transaction.WritePortfolioValuesAsync(PortfolioDbSql.Financial.FundRiskAuthorizationStore.Project, token,
                     authorization.PortfolioId, authorization.FundId, source.CommandId, source.Id, BindValues.Json(JsonSerializer.Serialize(authorization)))
-                    .ConfigureAwait(false);
+            .ConfigureAwait(false);
             await transaction.WritePortfolioValuesAsync(PortfolioDbSql.Financial.FundRiskAuthorizationStore.AcknowledgeProjection, token,
                 source.EventId)
             .ConfigureAwait(false);
@@ -288,23 +271,20 @@ public static class PortfolioDbContextExtensions
         {
             if (facts.Portfolio is { } value)
                 await transaction.WritePortfolioValuesAsync(PortfolioDbSql.Portfolio.Upsert,token,value.PortfolioId,value.PortfolioVersion,value.OperatingState.ToString(),facts.ToAcceptedRow(value,source).ToCommonValues(),checked((value.PortfolioId-1)/1000))
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
             if (facts.Allocation is { } allocation)
                 await transaction.WritePortfolioValuesAsync(PortfolioDbSql.Fund.UpsertAllocation,token,allocation.PortfolioId,allocation.FundId,allocation.AllocationVersion,facts.ToAcceptedRow(allocation,source).ToCommonValues())
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
             if (facts.RiskEnvelope is { } risk)
                 await transaction.WritePortfolioValuesAsync(PortfolioDbSql.Fund.UpsertEnvelope,token,risk.PortfolioId,risk.FundId,risk.EnvelopeVersion,facts.ToAcceptedRow(risk,source).ToCommonValues())
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
         }
 
         private async Task WriteFundAsync(IEvent source,PortfolioProjectionFacts facts,CancellationToken token)
         {
-            if (facts.Fund is { } value)
-                await transaction.WriteFundProjectionAsync(facts.ToAcceptedRow(value,source),token)
-            .ConfigureAwait(false);
             if (facts.Assignment is { } assigned)
                 await transaction.WritePortfolioValuesAsync(PortfolioDbSql.Fund.UpsertAssignment,token,assigned.PortfolioId,assigned.FundId,assigned.FundMandateVersion,assigned.TradeTemplateId,assigned.TradeTemplateVersion,facts.ToAcceptedRow(assigned,source).ToCommonValues())
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
         }
 
         private async Task WriteCompositionAsync(IEvent source,PortfolioProjectionFacts facts,CancellationToken token)
@@ -313,15 +293,15 @@ public static class PortfolioDbContextExtensions
             var row = PortfolioProjection<FundOrderProjectionReadModel>.Create(order,facts.OrderRevision,source.EventId,facts.UpdatedAtUtc);
             var month = new DateOnly(order.CreatedOnUtc.Year,order.CreatedOnUtc.Month,1);
             await transaction.WritePortfolioValuesAsync(PortfolioDbSql.Orders.UpsertOrder,token,order.PortfolioId,order.FundId,month,order.CreatedOnUtc,order.OrderId,order.Status,row.ToCommonValues())
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
             foreach (var trade in facts.Trades)
                 await transaction.WritePortfolioValuesAsync(PortfolioDbSql.Orders.UpsertTrade,token,trade.OrderId,trade.TradeId,trade.PortfolioId,trade.FundId,
                     PortfolioProjection<FundOrderTradeProjectionReadModel>.Create(trade,facts.OrderRevision,source.EventId,facts.UpdatedAtUtc).ToCommonValues())
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
             if (facts.Composition is { } composition)
                 await transaction.WritePortfolioValuesAsync(PortfolioDbSql.Orders.UpsertComposition,token,composition.WorkflowId,composition.OrderId,composition.PortfolioId,composition.FundId,composition.Status,
                     PortfolioProjection<FundCompositionWorkflowProjectionReadModel>.Create(composition,facts.OrderRevision,source.EventId,facts.UpdatedAtUtc).ToCommonValues())
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
         }
 
         private Task<int> WritePortfolioValuesAsync(string sql,CancellationToken token,params object?[] values)

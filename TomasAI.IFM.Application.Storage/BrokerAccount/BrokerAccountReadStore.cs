@@ -21,7 +21,8 @@ public sealed class BrokerAccountReadStore(IDbConnectionSettings settings, ILogg
     {
         var account = await Use("BrokerAccount.Get", "SELECT account_definition FROM trade.broker_account_read_model WHERE account_alias = $1 ORDER BY revision DESC LIMIT 1;")
             .SetParameters((object)Values(Text(accountId.AccountAlias)))
-            .ExecuteSingleAsync(row => MessagePackSerializer.Deserialize<BrokerAccountDefinition>(row.GetBytes(0)), cancellationToken).ConfigureAwait(false);
+            .ExecuteSingleAsync(row => MessagePackSerializer.Deserialize<BrokerAccountDefinition>(row.GetBytes(0)), cancellationToken)
+            .ConfigureAwait(false);
         return account is null ? null : BrokerAccountTradingQualifications.TradingView(account,
             hostEnvironment?.IsDevelopment() == true);
     }
@@ -31,6 +32,7 @@ public sealed class BrokerAccountReadStore(IDbConnectionSettings settings, ILogg
         ArgumentNullException.ThrowIfNull(brokerAccountDefinition);
         await Use("BrokerAccount.Project", "INSERT INTO trade.broker_account_read_model (account_alias, revision, account_definition) VALUES ($1, $2, $3) ON CONFLICT (account_alias, revision) DO UPDATE SET account_definition = EXCLUDED.account_definition;")
             .SetParameters((object)Values(Text(brokerAccountDefinition.Id.AccountAlias), Bigint((long)brokerAccountDefinition.Revision), Bytea(MessagePackSerializer.Serialize(brokerAccountDefinition with { DevelopmentQualificationsExempt = false }, cancellationToken: cancellationToken))))
-            .ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
+            .ExecuteCommandAsync(cancellationToken)
+            .ConfigureAwait(false);
     }
 }

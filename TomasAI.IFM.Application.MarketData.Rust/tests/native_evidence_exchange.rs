@@ -92,12 +92,13 @@ async fn pipelined_receipts_preserve_actor_order_and_pending_state_after_failure
                         }
                     }
                     "SUB" => inbox = Some((fields[1].to_owned(), fields[2].to_owned())),
-                    "PUB" => {
+                    "PUB" | "HPUB" => {
                         assert_eq!(fields[1], "ifm.test.marketdata.v1.evidence.write");
                         let length = fields.last().unwrap().parse::<usize>().unwrap();
                         let mut bytes = vec![0; length + 2];
                         read.read_exact(&mut bytes).await.unwrap();
-                        let request = rmpv::decode::read_value(&mut &bytes[..length]).unwrap();
+                        let headers = if fields[0] == "HPUB" { fields[fields.len()-2].parse::<usize>().unwrap() } else { 0 };
+                        let request = rmpv::decode::read_value(&mut &bytes[headers..length]).unwrap();
                         let request = request.as_array().unwrap();
                         assert_eq!(request[0].as_u64(), Some((pending.len() + 1) as u64));
                         pending.push(request[..3].to_vec());
@@ -144,11 +145,16 @@ async fn pipelined_receipts_preserve_actor_order_and_pending_state_after_failure
                 if fields[0] == "PING" && write.write_all(b"PONG\r\n").await.is_err() {
                     break;
                 }
-                if fields[0] == "PUB" {
+                if matches!(fields[0], "PUB" | "HPUB") {
                     let length = fields.last().unwrap().parse::<usize>().unwrap();
                     let mut bytes = vec![0; length + 2];
                     read.read_exact(&mut bytes).await.unwrap();
                     bytes.truncate(length);
+                    if fields[0] == "HPUB" {
+                        let headers = fields[fields.len()-2].parse::<usize>().unwrap();
+                        assert!(std::str::from_utf8(&bytes[..headers]).unwrap().contains("OriginatedAtUtc"));
+                        bytes.drain(..headers);
+                    }
                     published.send(bytes).unwrap();
                 }
                 line.clear();
@@ -223,6 +229,7 @@ async fn pipelined_receipts_preserve_actor_order_and_pending_state_after_failure
                     sequence: (sequence + 1) as i64,
                     kind: 6,
                     payload: records[index].bytes.to_vec(),
+                    origin_ticks: None,
                 };
                 assert_eq!(bytes, expected.encode().unwrap());
             }
@@ -268,15 +275,17 @@ async fn durable_receipt_is_separate_and_silent_writer_cannot_block_join() {
                 } else if fields.first() == Some(&"SUB") {
                     assert_eq!(fields.len(), 3);
                     subscription = Some((fields[1].to_owned(), fields[2].to_owned()));
-                } else if fields.first() == Some(&"PUB") {
-                    assert_eq!(fields.len(), 4);
+                } else if matches!(fields.first(), Some(&"PUB") | Some(&"HPUB")) {
+                    let headers = fields[0] == "HPUB";
+                    assert_eq!(fields.len(), if headers { 5 } else { 4 });
                     assert_eq!(fields[1], "ifm.test.marketdata.v1.evidence.write");
-                    let size: usize = fields[3].parse().unwrap();
+                    let size: usize = fields.last().unwrap().parse().unwrap();
                     assert!(size < 132096);
                     let mut bytes = vec![0; size + 2];
                     reader.read_exact(&mut bytes).await.unwrap();
                     assert_eq!(&bytes[size..], b"\r\n");
                     bytes.truncate(size);
+                    if headers { bytes.drain(..fields[fields.len()-2].parse::<usize>().unwrap()); }
                     let value = rmpv::decode::read_value(&mut bytes.as_slice()).unwrap();
                     let value = value.as_array().unwrap();
                     assert_eq!(value.len(), 4);
@@ -447,13 +456,15 @@ async fn spool_integration(production: bool) {
                     }
                 } else if fields.first() == Some(&"SUB") {
                     subscription = Some((fields[1].to_owned(), fields[2].to_owned()));
-                } else if fields.first() == Some(&"PUB") {
+                } else if matches!(fields.first(), Some(&"PUB") | Some(&"HPUB")) {
+                    let headers = fields[0] == "HPUB";
                     let size: usize = fields.last().unwrap().parse().unwrap();
                     assert!(size < 132096);
                     let mut bytes = vec![0; size + 2];
                     reader.read_exact(&mut bytes).await.unwrap();
                     bytes.truncate(size);
-                    if fields.len() == 4 {
+                    if headers { bytes.drain(..fields[fields.len()-2].parse::<usize>().unwrap()); }
+                    if fields.len() == if headers { 5 } else { 4 } {
                         if mode == 1
                             && let Some(published) = published.take()
                         {
@@ -501,7 +512,7 @@ async fn spool_integration(production: bool) {
                             acknowledged,
                             "Actor publication preceded durable persistence"
                         );
-                        assert_eq!(fields.len(), 3);
+                        assert_eq!(fields.len(), if headers { 4 } else { 3 });
                         assert!(
                             fields[1].starts_with("ifm.test.marketdata.v1.publications.Options.")
                         );

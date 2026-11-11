@@ -23,6 +23,8 @@ internal static class OrderCompositionQueryModel
 
     internal static async Task<OrderCompositionProjection> ExactAsync(IOrderCompositionQueryContext services, CompositionQueryAccess access, StrategyWorkflowId workflowId, Guid invocationId, CancellationToken token)
     {
+        if (workflowId.Value == Guid.Empty || invocationId == Guid.Empty)
+            throw new ArgumentException("Exact workflow and invocation required.", nameof(workflowId));
         var completed = await (services.DbFactory.TradeDb.GetOrderCompositionInvocationAsync(workflowId, invocationId, token)).ConfigureAwait(false) ?? throw new KeyNotFoundException("Exact composition invocation not found.");
         var result = OrderCompositionContracts.ReadResult(completed.Result);
         await (AuthorizeAsync(services, access, result.DecisionContext.PortfolioId, result.DecisionContext.FundId, token)).ConfigureAwait(false);

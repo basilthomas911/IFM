@@ -351,7 +351,7 @@ public static partial class CoreServiceRegistration
         provider.GetRequiredService<DatasetWorkerAdmissionRegistry>());
         services.AddSingleton<DatasetPublicationIngress>();
         services.AddSingleton<TomasAI.IFM.Application.MarketData.Pricing.IOptionTradeEvidenceWriter>(provider =>
-        provider.GetRequiredService<IMarketDataDbContext>());
+            new TomasAI.IFM.Application.MarketData.Pricing.QualifiedOptionTradeEvidenceWriter(provider.GetRequiredService<IMarketDataDbContext>()));
         services.AddSingleton<DatasetWorkerProcessRecoveryService>();
         services.AddSingleton<TomasAI.IFM.Application.MarketData.Pricing.ICompositionMarketDataApi>(provider =>
         provider.GetRequiredService<DatasetWorkerProcessRecoveryService>());

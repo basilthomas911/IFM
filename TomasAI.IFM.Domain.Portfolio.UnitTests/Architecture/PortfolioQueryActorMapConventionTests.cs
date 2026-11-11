@@ -31,7 +31,7 @@ public sealed class PortfolioQueryActorMapConventionTests
     }
 
     [Theory]
-    [InlineData(typeof(PortfolioFundQueryActor), 14)]
+    [InlineData(typeof(PortfolioFundQueryActor), 15)]
     [InlineData(typeof(PortfolioFinancialPolicyQueryActor), 3)]
     [InlineData(typeof(GeneralLedgerQueryActor), 10)]
     [InlineData(typeof(CapacityReservationQueryActor), 4)]

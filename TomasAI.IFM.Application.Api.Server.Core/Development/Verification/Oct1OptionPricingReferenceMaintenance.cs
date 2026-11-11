@@ -1,3 +1,5 @@
+using TomasAI.IFM.Domain.MarketData.Shared.QueryParameters;
+using TomasAI.IFM.Domain.MarketData.Securities.Persistence;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage.SecuritiesDb;
 using TomasAI.IFM.Application.Storage;
@@ -32,7 +34,7 @@ internal static class Oct1OptionPricingReferenceMaintenance
         SecuritiesDbContext? securities = null;
         var factory = new DbContextFactory(new DbContextResolver(_ => securities!));
         securities = new SecuritiesDbContext(settings, factory, logs.CreateLogger<DbProvider>());
-        var rows = await securities.GetCachedOptionContractDefinitionsAsync("ES", "ES20261218", Expiry, ["E1D"], token);
+        var rows = await securities.GetCachedOptionContractDefinitionsAsync(new OptionDefinitionPartition("ES", "ES20261218", Expiry), ["E1D"], token);
         var selected = rows.Select(row => new Cached(row.UnderlyingContractId, row.ProviderRoot, row.Definition))
             .DistinctBy(row => row.Definition.ContractId).ToArray();
         if (selected.Length == 0) throw new InvalidDataException("No cached Oct 1 E1D definitions for ES20261218.");

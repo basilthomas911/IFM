@@ -1,7 +1,7 @@
 namespace TomasAI.IFM.Application.Storage.MarketDataDb;
 
 /// <summary>Native PostgreSQL session snapshot and observation statements.</summary>
-public static partial class MarketDataDbSql
+public static class MarketDataDbSql
 {
     // These older rows lack the provider mapping necessary to reuse them across a registration change.
     internal const string UnversionedProviderSeedCalculations = """
@@ -736,7 +736,11 @@ public static partial class MarketDataDbSql
 
     /// <summary>Creates or advances a checkpoint and stores its immutable terminal manifest.</summary>
     public const string GetHistoricalAnalyticsAttemptProjection = """
-        SELECT payload FROM historical_analytics_attempt_projection WHERE attempt_id = $1;
+        SELECT CASE WHEN e.payload::jsonb ->> 'Status' IN ('Completed', 'Failed')
+                    THEN e.payload ELSE COALESCE(p.payload, e.payload) END
+        FROM historical_analytics_attempt_projection e
+        FULL JOIN historical_analytics_attempt_progress p USING (attempt_id)
+        WHERE attempt_id = $1;
         """;
 
     public const string UpsertHistoricalAnalyticsAttemptProjection = """
@@ -763,14 +767,40 @@ public static partial class MarketDataDbSql
             error_message = EXCLUDED.error_message,
             updated_at_utc = EXCLUDED.updated_at_utc
         RETURNING data_load_attempt_id
+    ), manifest AS (
+        INSERT INTO historical_data_load_manifest (
+            data_load_attempt_id, manifest_json, audit_json, created_at_utc)
+        SELECT $1, $11, $12, $10
+        FROM checkpoint
+        WHERE $11 <> '' OR $12 <> ''
+        ON CONFLICT (data_load_attempt_id) DO NOTHING
+        RETURNING data_load_attempt_id
     )
-    INSERT INTO historical_data_load_manifest (
-        data_load_attempt_id, manifest_json, audit_json, created_at_utc)
-    SELECT $1, $11, $12, $10
-    FROM checkpoint
-    WHERE $11 <> '' OR $12 <> ''
-    ON CONFLICT (data_load_attempt_id) DO NOTHING;
+    INSERT INTO historical_analytics_attempt_progress (attempt_id, payload)
+    SELECT data_load_attempt_id, $13 FROM checkpoint
+    ON CONFLICT (attempt_id) DO UPDATE SET payload = EXCLUDED.payload
+    WHERE ($11 = '' AND $12 = '') OR EXISTS (SELECT 1 FROM manifest);
     """;
+
+    /// <summary>Reads a bounded page for backfilling the historical-load progress projection.</summary>
+    public const string ReadUnprojectedHistoricalDataLoads = """
+        SELECT c.data_load_attempt_id, c.request_sha256, c.status, c.stage,
+               c.provider_job_id, c.provider_file_id, c.batch_ordinal,
+               c.source_position, c.error_message, c.updated_at_utc,
+               NULLIF(m.manifest_json, ''), NULLIF(m.audit_json, '')
+        FROM historical_data_load_checkpoint c
+        LEFT JOIN historical_data_load_manifest m ON m.data_load_attempt_id = c.data_load_attempt_id
+        WHERE NOT EXISTS (
+            SELECT 1 FROM historical_analytics_attempt_progress p WHERE p.attempt_id = c.data_load_attempt_id)
+        ORDER BY c.data_load_attempt_id
+        LIMIT 128;
+        """;
+
+    /// <summary>Inserts legacy progress without replacing a projection written by a running loader.</summary>
+    public const string BackfillHistoricalAnalyticsProgress = """
+        INSERT INTO historical_analytics_attempt_progress (attempt_id, payload) VALUES ($1, $2)
+        ON CONFLICT (attempt_id) DO NOTHING;
+        """;
 
     /// <summary>Reads one exact attempt.</summary>
     public const string GetHistoricalDataLoadByAttempt = """
@@ -879,4 +909,98 @@ public static partial class MarketDataDbSql
             WHERE ordinal=1 AND ($10::date IS NULL OR (value_date,sampling_slot COLLATE "C")>($10,$11::text COLLATE "C"))
             ORDER BY value_date,sampling_slot COLLATE "C" LIMIT $12;
             """;
+    /// <summary>Parameter-bound persistence statement.</summary>
+    internal const string MarketDataDbContext_Statement_1 = "SELECT payload FROM composition_preparation WHERE workflow_id=:workflow AND input_revision=:revision;";
+
+    /// <summary>Parameter-bound persistence statement.</summary>
+    internal const string MarketDataDbContext_Statement_2 = "INSERT INTO composition_preparation(workflow_id,input_revision,payload) VALUES(:workflow,:revision,:payload) IF NOT EXISTS;";
+
+    /// <summary>Parameter-bound persistence statement.</summary>
+    internal const string MarketDataDbContext_ReadPublishedAsync_1 = "SELECT DISTINCT ON(set_id) set_id,version,published,parameter_hash FROM market_data.strategy_option_chain_policy_current WHERE environment=$1 ORDER BY set_id,version DESC LIMIT 129;";
+
+    /// <summary>Parameter-bound persistence statement.</summary>
+    internal const string ql_IndicatorSeedCoverage_Statement_1 = """
+        INSERT INTO market_data.indicator_seed_coverage(contract_id,time_frame,value_date,source_version,interval_end,payload)
+        SELECT $1,$2,$3,$4,interval_end,payload
+        FROM unnest($5::timestamptz[],$6::bytea[]) AS qualified(interval_end,payload)
+        ORDER BY interval_end
+        ON CONFLICT (contract_id,time_frame,value_date,source_version,interval_end) DO NOTHING;
+        """;
+
+    /// <summary>Parameter-bound persistence statement.</summary>
+    internal const string MarketDataImportStreamFence_LockAsync_1 = """
+                INSERT INTO event_stream_id (eventstream) VALUES ($1)
+                ON CONFLICT (eventstream) DO NOTHING;
+                """;
+
+    /// <summary>Parameter-bound persistence statement.</summary>
+    internal const string MarketDataImportStreamFence_LockAsync_2 = """
+                SELECT eventstreamid, currentversion FROM event_stream_id
+                WHERE eventstream = $1 FOR UPDATE;
+                """;
+
+    /// <summary>Parameter-bound persistence statement.</summary>
+    internal const string MarketDataImportStreamFence_LockAsync_3 = """
+                SELECT EXISTS (
+                    SELECT 1 FROM event_log source
+                    JOIN event_projector_state projection ON projection.eventid = source.eventversion
+                    WHERE source.eventstreamid = $1 AND projection.projectorname = $2
+                      AND (projection.stage IS DISTINCT FROM 'Completed'
+                        OR projection.outcome IS NULL
+                        OR projection.outcome NOT IN ('Completed', 'AlreadyCompleted', 'Superseded'))
+                );
+                """;
+
+    /// <summary>Parameter-bound persistence statement.</summary>
+    internal const string LockMarketDataBaseline = """
+                LOCK TABLE event_stream_id, event_log, market_data.economic_calendar,
+                    market_data.economic_calendar_country_code, market_data.yield_curve_rates,
+                    market_data.yield_curve_rate_by_date, market_data.yield_curve_rate_year
+                    IN SHARE ROW EXCLUSIVE MODE;
+                """;
+
+    /// <summary>Parameter-bound persistence statement.</summary>
+    internal const string HasMarketDataBaseline = "SELECT currentversion FROM event_stream_id WHERE eventstream = $1 AND currentversion > 0;";
+
+    /// <summary>Parameter-bound persistence statement.</summary>
+    internal const string ReadBaselineEconomicCalendar = """
+                SELECT eventDate, countryCode, eventName, actual, forecast, prior, impact, unit,
+                       change, changePercentage, createdOn, createdBy
+                FROM market_data.economic_calendar
+                ORDER BY countryCode, eventDate, eventName;
+                """;
+
+    /// <summary>Parameter-bound persistence statement.</summary>
+    internal const string ReadMarketDataBaselineHeads = """
+            SELECT eventstream, currentversion FROM event_stream_id
+            WHERE starts_with(eventstream, $1) AND currentversion > 0
+            ORDER BY eventstream;
+            """;
+
+    internal const string GetQualifiedIndicatorSeedBars = $$"""
+        WITH canonical AS (
+            SELECT DISTINCT ON (marketDataAsOf) marketDataAsOf, observationId, intervalStart, intervalEnd,
+                   openPrice, highPrice, lowPrice, closePrice, volume, tradeCount, priceVolumeSum,
+                   firstSourceSequence, lastSourceSequence, firstMarketEvent, lastMarketEvent,
+                   calculatedAt, schemaVersion, calculationVersion
+            FROM market_data.futures_trade_session_bar
+            WHERE seriesKey=$1 AND timePeriod=$2 AND yearMonth=$3 AND marketDataAsOf=ANY($4)
+                AND contractId=$5 AND valueDate=$6 AND isComplete AND isValid
+                AND calculationVersion NOT IN {{UnversionedProviderSeedCalculations}}
+            ORDER BY marketDataAsOf,calculatedAt DESC,observationId
+        )
+        SELECT observationId,intervalStart,intervalEnd,openPrice,highPrice,lowPrice,closePrice,
+               volume,tradeCount,priceVolumeSum,firstSourceSequence,lastSourceSequence,
+               firstMarketEvent,lastMarketEvent,calculatedAt,schemaVersion,calculationVersion,NULL::bytea
+        FROM canonical
+        UNION ALL
+        SELECT NULL,NULL,seed.interval_end,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,seed.payload
+        FROM market_data.indicator_seed_coverage seed
+        WHERE seed.contract_id=$5 AND seed.time_frame=$2 AND seed.value_date=$6
+            AND seed.source_version=$7 AND seed.interval_end=ANY($4)
+            AND NOT EXISTS (SELECT 1 FROM canonical WHERE marketDataAsOf=seed.interval_end);
+        """;
+
+    internal const string StoreQualifiedIndicatorSeedBars = MarketDataDbSql.ql_IndicatorSeedCoverage_Statement_1;
+
 }

@@ -381,6 +381,14 @@ async fn portfolio_native_selection_uses_api_clock_revisions_and_atomic_scope_ch
 
     /// Provides difference for the backend nats implementation.
     fn difference(path: &str, a: &serde_json::Value, b: &serde_json::Value) -> Option<String> {
+        // The native Fund screen deliberately adds this tree/action to the legacy UI.
+        if b.is_null() && path.ends_with("/baseContracts") && *a == serde_json::json!([
+            {"symbol":"ES","contractId":"ESZ6","description":"Provider fixture"}]) {
+            return None;
+        }
+        if b.is_null() && path.ends_with("/enabled/Base Contracts...") && *a == serde_json::Value::Bool(true) {
+            return None;
+        }
         if a == b || a.is_number() && b.is_number() && a.as_f64() == b.as_f64() {
             return None;
         }

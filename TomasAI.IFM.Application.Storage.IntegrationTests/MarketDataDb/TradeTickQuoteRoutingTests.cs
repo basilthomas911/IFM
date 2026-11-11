@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using System.Text.Json;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
@@ -59,7 +60,7 @@ public sealed class TradeTickQuoteRoutingTests
         Assert.Null(await market.GetFuturesTickAtOrBeforeAsync(contract, date.AddDays(1), new TimeOnly(12, 1)));
         Assert.Null(await market.GetFuturesTickAtOrBeforeAsync(contract, date, new TimeOnly(11, 59)));
         Assert.Equal(30, (await market.GetLastFuturesTickDataByTickDateAsync(contract, date.ToDateTime(new TimeOnly(12, 0, 30))))!.TickId);
-        await Assert.ThrowsAsync<ArgumentException>(() => market.InsertFuturesTickDataAsync(new[] { ticks[0], ticks[0] }));
+        Assert.Throws<ArgumentException>(() => RawTickRequestQualification.RequireDistinctFuturesRows(new[] { ticks[0], ticks[0] }));
         await market.DeleteFuturesTickDataAsync(contract, date);
         Assert.Null(await market.GetLastFuturesTickDataAsync(contract, date));
         Assert.Null(await market.GetFuturesTickAtOrBeforeAsync(contract, date, new TimeOnly(13, 0)));

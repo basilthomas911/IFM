@@ -24,7 +24,7 @@ public sealed class ScheduledTaskEventProjector(IScheduledTaskProjectionWriter w
             async (domainEvent, execution) =>
             {
                 if (writer is not IScheduledTaskTransactionalProjectionWriter { ProviderName: "System.Data.Postgres" })
-                    await writer.ProjectAsync(((ScheduledTaskCreatedEvent)domainEvent).ScheduledTaskDefinition!, execution.CancellationToken).ConfigureAwait(false);
+                    await writer.ProjectAsync(((ScheduledTaskCreatedEvent)domainEvent).ScheduledTaskDefinition ?? throw new InvalidDataException("Missing committed ScheduledTaskDefinition source payload."), execution.CancellationToken).ConfigureAwait(false);
                 return new(EventProjectionApplyOutcome.Applied);
             }, domainEvent =>
             {
@@ -38,7 +38,7 @@ public sealed class ScheduledTaskEventProjector(IScheduledTaskProjectionWriter w
             async (domainEvent, execution) =>
             {
                 if (writer is not IScheduledTaskTransactionalProjectionWriter { ProviderName: "System.Data.Postgres" })
-                    await writer.ProjectAsync(((ScheduledTaskScheduleChangedEvent)domainEvent).ScheduledTaskDefinition!, execution.CancellationToken).ConfigureAwait(false);
+                    await writer.ProjectAsync(((ScheduledTaskScheduleChangedEvent)domainEvent).ScheduledTaskDefinition ?? throw new InvalidDataException("Missing committed ScheduledTaskDefinition source payload."), execution.CancellationToken).ConfigureAwait(false);
                 return new(EventProjectionApplyOutcome.Applied);
             }, domainEvent =>
             {
@@ -52,7 +52,7 @@ public sealed class ScheduledTaskEventProjector(IScheduledTaskProjectionWriter w
             async (domainEvent, execution) =>
             {
                 if (writer is not IScheduledTaskTransactionalProjectionWriter { ProviderName: "System.Data.Postgres" })
-                    await writer.ProjectAsync(((ScheduledTaskEnabledEvent)domainEvent).ScheduledTaskDefinition!, execution.CancellationToken).ConfigureAwait(false);
+                    await writer.ProjectAsync(((ScheduledTaskEnabledEvent)domainEvent).ScheduledTaskDefinition ?? throw new InvalidDataException("Missing committed ScheduledTaskDefinition source payload."), execution.CancellationToken).ConfigureAwait(false);
                 return new(EventProjectionApplyOutcome.Applied);
             }, domainEvent =>
             {
@@ -66,7 +66,7 @@ public sealed class ScheduledTaskEventProjector(IScheduledTaskProjectionWriter w
             async (domainEvent, execution) =>
             {
                 if (writer is not IScheduledTaskTransactionalProjectionWriter { ProviderName: "System.Data.Postgres" })
-                    await writer.ProjectAsync(((ScheduledTaskDisabledEvent)domainEvent).ScheduledTaskDefinition!, execution.CancellationToken).ConfigureAwait(false);
+                    await writer.ProjectAsync(((ScheduledTaskDisabledEvent)domainEvent).ScheduledTaskDefinition ?? throw new InvalidDataException("Missing committed ScheduledTaskDefinition source payload."), execution.CancellationToken).ConfigureAwait(false);
                 return new(EventProjectionApplyOutcome.Applied);
             }, domainEvent =>
             {
@@ -80,7 +80,7 @@ public sealed class ScheduledTaskEventProjector(IScheduledTaskProjectionWriter w
             async (domainEvent, execution) =>
             {
                 if (writer is not IScheduledTaskTransactionalProjectionWriter { ProviderName: "System.Data.Postgres" })
-                    await writer.ProjectAsync(((ScheduledTaskRemovedEvent)domainEvent).ScheduledTaskDefinition!, execution.CancellationToken).ConfigureAwait(false);
+                    await writer.ProjectAsync(((ScheduledTaskRemovedEvent)domainEvent).ScheduledTaskDefinition ?? throw new InvalidDataException("Missing committed ScheduledTaskDefinition source payload."), execution.CancellationToken).ConfigureAwait(false);
                 return new(EventProjectionApplyOutcome.Applied);
             }, domainEvent =>
             {
@@ -94,7 +94,7 @@ public sealed class ScheduledTaskEventProjector(IScheduledTaskProjectionWriter w
             async (domainEvent, execution) =>
             {
                 if (writer is not IScheduledTaskTransactionalProjectionWriter { ProviderName: "System.Data.Postgres" })
-                    await writer.ProjectAsync(((ScheduledTaskInstallationRecordedEvent)domainEvent).ScheduledTaskDefinition!, execution.CancellationToken).ConfigureAwait(false);
+                    await writer.ProjectAsync(((ScheduledTaskInstallationRecordedEvent)domainEvent).ScheduledTaskDefinition ?? throw new InvalidDataException("Missing committed ScheduledTaskDefinition source payload."), execution.CancellationToken).ConfigureAwait(false);
                 return new(EventProjectionApplyOutcome.Applied);
             }, domainEvent =>
             {
@@ -108,7 +108,7 @@ public sealed class ScheduledTaskEventProjector(IScheduledTaskProjectionWriter w
             async (domainEvent, execution) =>
             {
                 if (writer is not IScheduledTaskTransactionalProjectionWriter { ProviderName: "System.Data.Postgres" })
-                    await writer.ProjectAsync(((ScheduledTaskInstallationFailureRecordedEvent)domainEvent).ScheduledTaskDefinition!, execution.CancellationToken).ConfigureAwait(false);
+                    await writer.ProjectAsync(((ScheduledTaskInstallationFailureRecordedEvent)domainEvent).ScheduledTaskDefinition ?? throw new InvalidDataException("Missing committed ScheduledTaskDefinition source payload."), execution.CancellationToken).ConfigureAwait(false);
                 return new(EventProjectionApplyOutcome.Applied);
             }, domainEvent =>
             {
@@ -122,7 +122,7 @@ public sealed class ScheduledTaskEventProjector(IScheduledTaskProjectionWriter w
             async (domainEvent, execution) =>
             {
                 if (writer is not IScheduledTaskTransactionalProjectionWriter { ProviderName: "System.Data.Postgres" })
-                    await writer.ProjectAsync(((ScheduledTaskRunAdmittedEvent)domainEvent).ScheduledTaskDefinition!, execution.CancellationToken).ConfigureAwait(false);
+                    await writer.ProjectAsync(((ScheduledTaskRunAdmittedEvent)domainEvent).ScheduledTaskDefinition ?? throw new InvalidDataException("Missing committed ScheduledTaskDefinition source payload."), execution.CancellationToken).ConfigureAwait(false);
                 return new(EventProjectionApplyOutcome.Applied);
             }, domainEvent =>
             {
@@ -136,7 +136,7 @@ public sealed class ScheduledTaskEventProjector(IScheduledTaskProjectionWriter w
             async (domainEvent, execution) =>
             {
                 if (writer is not IScheduledTaskTransactionalProjectionWriter { ProviderName: "System.Data.Postgres" })
-                    await writer.ProjectAsync(((ScheduledTaskRunReleasedEvent)domainEvent).ScheduledTaskDefinition!, execution.CancellationToken).ConfigureAwait(false);
+                    await writer.ProjectAsync(((ScheduledTaskRunReleasedEvent)domainEvent).ScheduledTaskDefinition ?? throw new InvalidDataException("Missing committed ScheduledTaskDefinition source payload."), execution.CancellationToken).ConfigureAwait(false);
                 return new(EventProjectionApplyOutcome.Applied);
             }, domainEvent =>
             {

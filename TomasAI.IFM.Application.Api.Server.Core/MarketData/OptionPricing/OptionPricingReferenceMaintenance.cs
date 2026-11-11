@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Securities.Persistence;
 using TomasAI.IFM.Shared.MarketData.Definitions;
 using System.Collections.Immutable;
 using System.Globalization;

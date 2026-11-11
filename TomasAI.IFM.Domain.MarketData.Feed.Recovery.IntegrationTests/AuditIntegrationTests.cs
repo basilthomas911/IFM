@@ -25,7 +25,6 @@ using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.EventSourceDb.Schema;
 using TomasAI.IFM.Application.Storage.MarketDataServiceDb.Schema;
-using TomasAI.IFM.Application.Storage.MarketDataServiceDb.Recovery;
 using TomasAI.IFM.Domain.MarketData.Feed.Recovery.Command.Actor;
 using TomasAI.IFM.Domain.MarketData.Feed.Recovery.Command.State;
 using TomasAI.IFM.Domain.MarketData.Feed.Recovery.Function.Actor;
@@ -53,6 +52,20 @@ public sealed class AuditIntegrationTests
             return value;
         }
     }
+    static IMarketDataServiceDbContext OpenRecoveryLog(string connection)
+    {
+        var settings = new DbConnectionSettings().Add(MarketDataServiceDbContext.MarketDataServiceDbConnection, connection, "System.Data.Postgres");
+        return new MarketDataServiceDbContext(settings, NullLogger<DbProvider>.Instance);
+    }
+
+    static Task ProjectRecoveryFactAsync(string connection, MarketDataFeedRecoveryFact source)
+    {
+        var record = RecoveryRecord.Parse(source.Payload, source.Digest);
+        return OpenRecoveryLog(connection).DbWriter.AppendRecoveryLogAsync(new RecoveryLogRow(record.RecordId,
+            record.OperationId, record.Sequence, record.ValueDate, record.Role, record.Dataset, record.Kind,
+            record.OccurredAtUtc, source.ReceivedOn, source.Digest, source.Payload, source.EventId));
+    }
+
     static RecoveryRecord Start() { var at=DateTimeOffset.UtcNow;return new() {Version=1,RecordId=Guid.NewGuid(),OperationId=Guid.NewGuid(),Sequence=1,Kind="Started",RuntimeId=Guid.NewGuid().ToString(),Role="Options",Dataset="GLBX.MDP3",ValueDate=new(2026,10,29),OccurredAtUtc=at,StartedAtUtc=at,RecoveryDeadlineUtc=at.AddMinutes(2),MissingProofs=["Transport","Pricing"]}; }
     static RecordMarketDataFeedRecoveryCommand Request(RecoveryRecord record)
     {
@@ -78,14 +91,14 @@ public sealed class AuditIntegrationTests
         Assert.Equal(2,await fixture.Count(append.StreamId));
         // Target database failure cannot invalidate the already committed Function reply.
         var unavailable=new NpgsqlConnectionStringBuilder(Connection) {Host="127.0.0.1",Port=1};
-        await Assert.ThrowsAsync<NpgsqlException>(()=>MarketDataRecoveryLog.ProjectAsync(unavailable.ConnectionString,fixture.Facts.First()));
-        foreach(var fact in fixture.Facts) await MarketDataRecoveryLog.ProjectAsync(Connection,fact);
-        var rows=await MarketDataRecoveryLog.QueryAsync(Connection,record.ValueDate,record.Dataset,record.OperationId);
+        await Assert.ThrowsAsync<NpgsqlException>(()=>ProjectRecoveryFactAsync(unavailable.ConnectionString,fixture.Facts.First()));
+        foreach(var fact in fixture.Facts) await ProjectRecoveryFactAsync(Connection,fact);
+        var rows=await OpenRecoveryLog(Connection).ReadRecoveryLogAsync(record.ValueDate,record.Dataset,record.OperationId,256);
         Assert.Equal(2,rows.Count);
         // Rebuild from replayed immutable facts produces exactly the same rows.
         await fixture.Sql("DELETE FROM market_data_service.marketdata_recovery_log WHERE operation_id='"+record.OperationId+"'");
-        foreach(var fact in fixture.Facts) await MarketDataRecoveryLog.ProjectAsync(Connection,fact);
-        Assert.Equal(2,(await MarketDataRecoveryLog.QueryAsync(Connection,record.ValueDate,record.Dataset,record.OperationId)).Count);
+        foreach(var fact in fixture.Facts) await ProjectRecoveryFactAsync(Connection,fact);
+        Assert.Equal(2,(await OpenRecoveryLog(Connection).ReadRecoveryLogAsync(record.ValueDate,record.Dataset,record.OperationId,256)).Count);
     }
     [Theory]
     [InlineData(false,false)] [InlineData(true,false)] [InlineData(false,true)]
@@ -132,8 +145,8 @@ public sealed class AuditIntegrationTests
                 await exit;Assert.True(process.ExitCode==0,(await output)+(await error));
             }
             finally {if(!process.HasExited){process.Kill(entireProcessTree:true);await process.WaitForExitAsync();}}
-            foreach(var fact in fixture.Facts) await MarketDataRecoveryLog.ProjectAsync(Connection,fact);
-            var rows=await MarketDataRecoveryLog.QueryAsync(Connection,record.ValueDate,record.Dataset,record.OperationId);Assert.Equal(timeline.Count,rows.Count);
+            foreach(var fact in fixture.Facts) await ProjectRecoveryFactAsync(Connection,fact);
+            var rows=await OpenRecoveryLog(Connection).ReadRecoveryLogAsync(record.ValueDate,record.Dataset,record.OperationId,256);Assert.Equal(timeline.Count,rows.Count);
             Assert.Equal(timeline.Select(item=>JsonSerializer.Serialize(item)),rows);
             var evidence=Environment.GetEnvironmentVariable("IFM_RECOVERY_AUDIT_EVIDENCE")??Path.GetTempPath();
             await File.WriteAllTextAsync(Path.Combine(evidence,$"recovery-native-timeline-{loseFirstReply}-{finalFailure}.json"),"["+string.Join(",",rows)+"]");
@@ -163,7 +176,7 @@ public sealed class AuditIntegrationTests
         var stored=await fixture.Record(Request(record));Assert.True(stored.IsCompleted,stored.Failed?.ErrorData);
         var settings=new DbConnectionSettings().Add(MarketDataServiceDbContext.MarketDataServiceDbConnection,Connection,"System.Data.Postgres");
         var databases=Substitute.For<IDbContextFactory>();
-        var store=new MarketDataServiceDbContext(settings,databases,Substitute.For<ISequenceIdDbContext>(),NullLogger<DbProvider>.Instance);
+        var store=new MarketDataServiceDbContext(settings,NullLogger<DbProvider>.Instance);
         databases.MarketDataServiceDb.Returns(store);
         var projector=new MarketDataFeedRecoveryEventProjector(Substitute.For<IDurableReplayQueue>(),fixture.Source,databases,logging.CreateLogger<MarketDataFeedRecoveryEventProjector>());
         foreach(var fact in fixture.Facts)
@@ -183,14 +196,20 @@ public sealed class AuditIntegrationTests
         await app.StopAsync();
     }
     [Fact]
-    public async Task Projection_creates_its_additive_table_when_full_deployment_schema_initialization_was_not_run()
+    public async Task Additive_schema_preflight_is_explicit_and_projection_writes_no_DDL()
     {
         await using var fixture=await Fixture.Create();var record=Start();Assert.True((await fixture.Record(Request(record))).IsCompleted);
-        // A new configured target identity exercises cold initialization against the same dedicated test database.
-        var cold=new NpgsqlConnectionStringBuilder(Connection) {ApplicationName="recovery-audit-cold-schema"};
+        var cold = new NpgsqlConnectionStringBuilder(Connection) { ApplicationName = "recovery-audit-cold-schema" };
         await fixture.Sql("DROP TABLE market_data_service.marketdata_recovery_log");
-        await MarketDataRecoveryLog.ProjectAsync(cold.ConnectionString,fixture.Facts.Single());
-        Assert.Single(await MarketDataRecoveryLog.QueryAsync(cold.ConnectionString,record.ValueDate,record.Dataset,record.OperationId));
+        var absent = await Assert.ThrowsAsync<PostgresException>(() =>
+            ProjectRecoveryFactAsync(cold.ConnectionString, fixture.Facts.Single()));
+        Assert.Equal(PostgresErrorCodes.UndefinedTable, absent.SqlState);
+        var settings = new DbConnectionSettings().Add(MarketDataServiceDbContext.MarketDataServiceDbConnection,
+            cold.ConnectionString, "System.Data.Postgres");
+        await new MarketDataServiceSchemaDb(settings, NullLogger<DbProvider>.Instance)
+            .CreateAsync(["market_data_service", "marketdata_recovery_log"]);
+        await ProjectRecoveryFactAsync(cold.ConnectionString, fixture.Facts.Single());
+        Assert.Single(await OpenRecoveryLog(cold.ConnectionString).ReadRecoveryLogAsync(record.ValueDate,record.Dataset,record.OperationId,256));
     }
     [Fact]
     public async Task Real_JetStream_replay_survives_projector_restart_and_updates_the_durable_checkpoint()
@@ -206,7 +225,7 @@ public sealed class AuditIntegrationTests
             await producer.EnqueueAsync(name,fact,deadline.Token);
         }
         var settings=new DbConnectionSettings().Add(MarketDataServiceDbContext.MarketDataServiceDbConnection,Connection,"System.Data.Postgres");
-        var databases=Substitute.For<IDbContextFactory>();databases.MarketDataServiceDb.Returns(new MarketDataServiceDbContext(settings,databases,Substitute.For<ISequenceIdDbContext>(),NullLogger<DbProvider>.Instance));
+        var databases=Substitute.For<IDbContextFactory>();databases.MarketDataServiceDb.Returns(new MarketDataServiceDbContext(settings,NullLogger<DbProvider>.Instance));
         var context=Substitute.For<ICommandActorContext>();context.ActorId.Returns(new ActorMailboxId(ActorType.Command,MarketDataFeedRecoveryCommandActor.ActorName));
         // A transient allowlist must not turn this mandatory audit projector into an in-memory queue.
         var reliability=new EventProjectorReliabilityOptions {InitialReplayDelay=TimeSpan.FromMilliseconds(100),DurableProjectorAllowlist=[]};
@@ -214,7 +233,7 @@ public sealed class AuditIntegrationTests
             var projector=new MarketDataFeedRecoveryEventProjector(queue,fixture.Source,databases,NullLogger<MarketDataFeedRecoveryEventProjector>.Instance,reliability);
             await projector.StartAsync(context,deadline.Token);
             try {
-                while((await MarketDataRecoveryLog.QueryAsync(Connection,record.ValueDate,record.Dataset,record.OperationId,token:deadline.Token)).Count==0) await Task.Delay(10,deadline.Token);
+                while((await OpenRecoveryLog(Connection).ReadRecoveryLogAsync(record.ValueDate,record.Dataset,record.OperationId,256,token:deadline.Token)).Count==0) await Task.Delay(10,deadline.Token);
                 await fixture.WaitForCheckpoint(fact.EventId,deadline.Token);
             } finally {await projector.StopAsync();}
         }
@@ -222,7 +241,7 @@ public sealed class AuditIntegrationTests
         await using(var queue=new NatsJSDurableReplayQueue(options)) {
             var projector=new MarketDataFeedRecoveryEventProjector(queue,fixture.Source,databases,NullLogger<MarketDataFeedRecoveryEventProjector>.Instance,reliability);
             await projector.StartAsync(context,deadline.Token);
-            try {await projector.ProcessDomainEventAsync(fact);Assert.Single(await MarketDataRecoveryLog.QueryAsync(Connection,record.ValueDate,record.Dataset,record.OperationId));}
+            try {await projector.ProcessDomainEventAsync(fact);Assert.Single(await OpenRecoveryLog(Connection).ReadRecoveryLogAsync(record.ValueDate,record.Dataset,record.OperationId,256));}
             finally {await projector.StopAsync();}
         }
     }
@@ -285,7 +304,7 @@ public sealed class AuditIntegrationTests
         }
         public async Task<long> Count(string stream) {await using var connection=new PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(Connection);await connection.OpenAsync();await using var command=new NpgsqlCommand("SELECT count(*) FROM event_log l JOIN event_stream_id s ON l.eventstreamid=s.eventstreamid WHERE s.eventstream=$1",connection);command.Parameters.AddWithValue(stream);return (long)(await command.ExecuteScalarAsync())!;}
         public async Task Sql(string sql) {await using var connection=new PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(Connection);await connection.OpenAsync();await using var command=new NpgsqlCommand(sql,connection);await command.ExecuteNonQueryAsync();}
-        public async ValueTask DisposeAsync() {await CommandActor.StopAsync();await Source.DisposeAsync();}
+        public async ValueTask DisposeAsync() {await CommandActor.StopAsync();await ((IAsyncDisposable)Source).DisposeAsync();}
     }
     sealed class Message(ICommand request) : IActorMessage
     {

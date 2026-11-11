@@ -7,6 +7,8 @@ namespace TomasAI.IFM.Domain.Reference.Query.Actor;
 /// <summary>Defines the runtime services required by <see cref="ReferenceQueryActor"/>.</summary>
 public interface IReferenceQueryContext : IQueryActorContext<ReferenceQueryActor>
 {
+    /// <summary>Gets the application owner that qualifies strategy catalog projections.</summary>
+    TomasAI.IFM.Domain.Reference.StrategyCatalog.StrategyCatalogService? Catalog => null;
     TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi? MarketDataApi => null;
     /// <summary>Gets the database-context factory.</summary>
     IDbContextFactory DbFactory { get; }

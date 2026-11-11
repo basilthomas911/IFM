@@ -155,14 +155,22 @@ internal static class IntrinsicTimeStrategyWorkflowQueryModel
 
     internal static async ValueTask<ServiceResult<IntrinsicTimeStrategyWorkflowHistoryReadModel[]>> ExecuteAsync(IIntrinsicTimeStrategyWorkflowQueryContext services, GetCompletedIntrinsicTimeStrategyWorkflowsQuery query, CancellationToken cancellationToken)
     {
+        RequireWorkflowStatusDateRange(query.StartDate, query.EndDate);
         var result = await services.DbFactory.TradeDb.GetIntrinsicTimeStrategyWorkflowsByStatusAsync(StrategyWorkflowStatus.Completed, query.StartDate, query.EndDate, RequirePageSize(query.PageSize), cancellationToken).ConfigureAwait(false);
         return new ServiceResult<IntrinsicTimeStrategyWorkflowHistoryReadModel[]>(result.ToArray());
     }
 
     internal static async ValueTask<ServiceResult<IntrinsicTimeStrategyWorkflowHistoryReadModel[]>> ExecuteAsync(IIntrinsicTimeStrategyWorkflowQueryContext services, GetStoppedIntrinsicTimeStrategyWorkflowsQuery query, CancellationToken cancellationToken)
     {
+        RequireWorkflowStatusDateRange(query.StartDate, query.EndDate);
         var result = await services.DbFactory.TradeDb.GetIntrinsicTimeStrategyWorkflowsByStatusAsync(StrategyWorkflowStatus.Stopped, query.StartDate, query.EndDate, RequirePageSize(query.PageSize), cancellationToken).ConfigureAwait(false);
         return new ServiceResult<IntrinsicTimeStrategyWorkflowHistoryReadModel[]>(result.ToArray());
+    }
+
+    static void RequireWorkflowStatusDateRange(DateOnly startDate, DateOnly endDate)
+    {
+        if (endDate < startDate)
+            throw new ArgumentOutOfRangeException(nameof(endDate), endDate, "End date must not precede start date.");
     }
 
     internal static async ValueTask<ServiceResult<IntrinsicTimeStrategyWorkflowObservationReadModel>> ExecuteAsync(IIntrinsicTimeStrategyWorkflowQueryContext services, GetIntrinsicTimeStrategyWorkflowObservationQuery query, CancellationToken cancellationToken)

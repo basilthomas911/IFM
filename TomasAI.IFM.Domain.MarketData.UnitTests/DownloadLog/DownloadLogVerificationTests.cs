@@ -54,6 +54,10 @@ public sealed class DownloadLogVerificationTests
         using var cancellation = new CancellationTokenSource();
         var execution = new ProjectionExecutionContext(projector.ProjectorName, 1, 1,
             new EventProjectorEffectIdentity(projector.ProjectorName, 1, EventProjectorEffectKind.TargetProjection), Guid.NewGuid(), EventProjectionIdempotencyStrategy.NaturalKeyMutation, cancellation.Token);
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            descriptor.ApplyAsync(inserted with { PayloadSha256 = new string('f', 64) }, execution).AsTask());
+        await db.DidNotReceive().InsertMarketDataDownloadLogAsync(
+            Arg.Any<MarketDataDownloadOutcome>(), Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
         await descriptor.ApplyAsync(inserted, execution); await descriptor.ApplyAsync(inserted, execution);
         await db.Received(2).InsertMarketDataDownloadLogAsync(o, command.CommandId, command.PayloadSha256, cancellation.Token);
         db.InsertMarketDataDownloadLogAsync(o, command.CommandId, command.PayloadSha256, cancellation.Token).Returns(Task.FromException(new InvalidOperationException("Scylla unavailable")));

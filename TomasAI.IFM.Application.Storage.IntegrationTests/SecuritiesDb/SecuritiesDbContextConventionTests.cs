@@ -38,9 +38,13 @@ public sealed class SecuritiesDbContextConventionTests
         Assert.True(typeof(IObjectRepository<SecuritiesDbContext>).IsAssignableFrom(typeof(ISecuritiesDbContext)));
         Assert.True(typeof(ISecuritiesDbReadContext).IsAssignableFrom(typeof(ISecuritiesDbContext)));
         Assert.True(typeof(ICurrentFuturesContractCatalog).IsAssignableFrom(typeof(ISecuritiesDbReadContext)));
-        Assert.True(typeof(IOptionPricingConventionStore).IsAssignableFrom(typeof(ISecuritiesDbReadContext)));
+        Assert.False(typeof(IOptionPricingConventionStore).IsAssignableFrom(typeof(ISecuritiesDbReadContext)));
+        Assert.True(typeof(IOptionPricingConventionStore).IsAssignableFrom(typeof(
+            TomasAI.IFM.Domain.MarketData.Securities.Persistence.SecuritiesReferenceReader)));
         Assert.True(typeof(ISecuritiesDbWriteContext).IsAssignableFrom(typeof(ISecuritiesDbContext)));
-        Assert.True(typeof(IFuturesContractRolloverStore).IsAssignableFrom(typeof(ISecuritiesDbContext)));
+        Assert.False(typeof(IFuturesContractRolloverStore).IsAssignableFrom(typeof(ISecuritiesDbContext)));
+        Assert.True(typeof(IFuturesContractRolloverReadStore).IsAssignableFrom(typeof(ISecuritiesDbReadContext)));
+        Assert.True(typeof(IFuturesContractRolloverWriteStore).IsAssignableFrom(typeof(ISecuritiesDbWriteContext)));
         Assert.True(typeof(ISecuritiesDbContext).IsAssignableFrom(typeof(SecuritiesDbContext)));
     }
 
@@ -56,7 +60,7 @@ public sealed class SecuritiesDbContextConventionTests
     [Fact]
     public void Public_context_methods_are_contract_implementations()
     {
-        Type[] contracts = [typeof(ISecuritiesDbReadContext), typeof(ISecuritiesDbWriteContext), typeof(IFuturesContractRolloverStore)];
+        Type[] contracts = [typeof(ISecuritiesDbReadContext), typeof(ISecuritiesDbWriteContext), typeof(IFuturesContractRolloverReadStore), typeof(IFuturesContractRolloverWriteStore)];
         var contractMethods = contracts.SelectMany(type => type.GetMethods()).ToArray();
         var publicMethods = typeof(SecuritiesDbContext)
             .GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)

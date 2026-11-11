@@ -1,3 +1,5 @@
+using TomasAI.IFM.Domain.Trade.Persistence;
+using TomasAI.IFM.Domain.Trade.Model.Position.Query;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage.TradeDb;
 using TomasAI.IFM.Application.Storage.TradePlanDb;
@@ -26,6 +28,7 @@ public static class GetIronCondorTradePlanChart
     internal static async Task<StrategyTradePlanChartSeries> LoadSeriesAsync(ITradeDbReadContext tradeDb, ITradePlanDbReadContext planDb,
         StrategyPositionId position, DateOnly valueDate, DateTimeOffset now, CancellationToken token)
     {
+        TradePlanRequestQualification.RequireScope(position, TradeStrategyKind.IronCondor, valueDate);
         var trade = await tradeDb.GetEstablishedTradeAsync(position.Trade, token).ConfigureAwait(false)
             ?? throw new InvalidOperationException("The chart requires an established trade.");
         if (trade.StrategyKind != TradeStrategyKind.IronCondor || trade.TradeDate is not { } tradeDate || trade.MaturityDate is not { } maturity)
@@ -35,6 +38,7 @@ public static class GetIronCondorTradePlanChart
         byte[]? cursor = null;
         if (window.ObservationEndUtc >= window.StartUtc)
         {
+            TradeHistorySelection.RequirePosition(position.PositionId, window.StartUtc, window.ObservationEndUtc, 1000);
             do
             {
                 var page = await tradeDb.GetStrategyPositionHistoryAsync(position.PositionId,
@@ -45,6 +49,7 @@ public static class GetIronCondorTradePlanChart
         }
         var daily = DailySnapshots(history, trade, valueDate, window.ObservationEndUtc).ToArray();
         var dayEnds = daily.ToDictionary(p => p.ValueDate, p => p.CloseBoundaryUtc ?? p.AsOfUtc);
+        TradePlanRequestQualification.RequireDailySpreads(position, dayEnds);
         var forwards = dayEnds.Count == 0 ? new Dictionary<DateOnly, decimal?>()
             : await planDb.GetDailyForwardSpreadsAsync(position, dayEnds, token).ConfigureAwait(false);
         var points = daily.Select(p => DailyPoint(p, trade) with
@@ -53,6 +58,7 @@ public static class GetIronCondorTradePlanChart
         }).ToList();
         if (window.ObservationEndUtc >= window.SessionStartUtc)
         {
+            TradePlanRequestQualification.RequireChart(position, valueDate, valueDate, window.SessionStartUtc, window.ObservationEndUtc);
             var intraday = await planDb.GetChartRangeAsync(position,
                 valueDate, valueDate, window.SessionStartUtc, window.ObservationEndUtc, token).ConfigureAwait(false);
             points.AddRange(intraday.Points);

@@ -1,4 +1,6 @@
 using System.Globalization;
+using TomasAI.IFM.Application.MarketData.Contracts.Historical;
+using TomasAI.IFM.Application.MarketData.Databento.Historical;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Commands;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment;
@@ -7,8 +9,10 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.R
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.MarketCondition.Model;
 /// <summary>Pure evaluation of one sealed market snapshot and its accepted upstream decision.</summary>
-public sealed class MarketConditionAssessmentCalculator : IMarketConditionAssessmentCalculator
+public sealed class MarketConditionAssessmentCalculator(IMarketSessionCalendar? sessionCalendar = null) : IMarketConditionAssessmentCalculator
 {
+    readonly IMarketSessionCalendar calendar = sessionCalendar ?? new CmeFuturesMarketSessionCalendar();
+
     internal static bool HasTrustworthyMetadata(AssessmentObservation observation, DateTime evaluatedAtUtc, int skewSeconds)
     {
         var latest = evaluatedAtUtc.AddSeconds(skewSeconds);
@@ -43,15 +47,19 @@ public sealed class MarketConditionAssessmentCalculator : IMarketConditionAssess
                 || o.Availability == MarketSourceAvailability.Unknown || o.Validity != MarketSourceValidity.Valid
                 || !HasTrustworthyMetadata(o, at, p.FutureClockSkewSeconds))
                 throw Invalid($"Untrustworthy {o.SourceId} metadata. Observed={o.ObservedAtUtc:O}, Received={o.ReceivedAtUtc:O}, Evaluated={at:O}, Sequence={o.Sequence}.");
-            var age = Age(at, o.ObservedAtUtc);
+            var marketObservation = IsMarketObservation(binding.SourceId);
+            var age = Age(at, o.ObservedAtUtc, marketObservation);
             // NormalizedMovement comes from a completed one-minute ATR bar, not
             // a tick. The configured age is its publication grace after the next
             // minute closes. Preserve original source time and all tick deadlines.
-            var sourceExpiry = string.Equals(binding.SourceId, "NormalizedMovement", StringComparison.Ordinal)
+            var nominalExpiry = string.Equals(binding.SourceId, "NormalizedMovement", StringComparison.Ordinal)
                 ? new DateTime(o.ObservedAtUtc.Ticks - o.ObservedAtUtc.Ticks % TimeSpan.TicksPerMinute, DateTimeKind.Utc)
                     .AddMinutes(2).AddSeconds(binding.MaximumAgeSeconds)
                 : o.ObservedAtUtc.AddSeconds(binding.MaximumAgeSeconds);
-            var maximumAge = (decimal)(sourceExpiry - o.ObservedAtUtc).TotalSeconds;
+            var maximumAge = (decimal)(nominalExpiry - o.ObservedAtUtc).TotalSeconds;
+            var sourceExpiry = marketObservation
+                ? MarketTradingTime.Add(calendar, new(o.ObservedAtUtc), nominalExpiry - o.ObservedAtUtc).UtcDateTime
+                : nominalExpiry;
             var usable = o.Availability == MarketSourceAvailability.Available && at < sourceExpiry;
             fresh.Add(o.SourceId, usable);
             var reason = ((usable) switch
@@ -126,8 +134,8 @@ public sealed class MarketConditionAssessmentCalculator : IMarketConditionAssess
             }
 
             var o = observations.Single(x => string.Equals(x.SourceId, "ReferenceQuote", StringComparison.Ordinal));
-            evidence.Add(new(p.TargetHorizon, o.SourceId, "SpreadTicks", spread, "ticks", o.ObservedAtUtc, Age(at, o.ObservedAtUtc), o.Availability, crossed ? "Crossed market" : ""));
-            evidence.Add(new(p.TargetHorizon, o.SourceId, "BestSideSize", size, "contracts", o.ObservedAtUtc, Age(at, o.ObservedAtUtc), o.Availability, ""));
+            evidence.Add(new(p.TargetHorizon, o.SourceId, "SpreadTicks", spread, "ticks", o.ObservedAtUtc, Age(at, o.ObservedAtUtc, true), o.Availability, crossed ? "Crossed market" : ""));
+            evidence.Add(new(p.TargetHorizon, o.SourceId, "BestSideSize", size, "contracts", o.ObservedAtUtc, Age(at, o.ObservedAtUtc, true), o.Availability, ""));
         }
 
         decimal? Optional(string id)
@@ -173,7 +181,7 @@ public sealed class MarketConditionAssessmentCalculator : IMarketConditionAssess
         var trend = command.TriggerEvent.FuturesItiSignal?.IntrinsicTimeTrend;
         if (trend is not (IntrinsicTimeTrendType.UpTrend or IntrinsicTimeTrendType.DownTrend))
             throw Invalid("Invalid trigger direction.");
-        var alignment = ((Age(at, triggerAt) >= p.TriggerMaximumAgeSeconds) switch
+        var alignment = ((Age(at, triggerAt, true) >= p.TriggerMaximumAgeSeconds) switch
         {
             true => AssessmentTriggerAlignment.NotApplicable,
             _ => ((decision.Direction == RegimeDirection.Neutral) switch
@@ -181,7 +189,7 @@ public sealed class MarketConditionAssessmentCalculator : IMarketConditionAssess
                 true => AssessmentTriggerAlignment.Neutral,
                 _ => (trend == IntrinsicTimeTrendType.UpTrend) == (decision.Direction == RegimeDirection.Up) ? AssessmentTriggerAlignment.Aligned : AssessmentTriggerAlignment.Conflicted
             })});
-        var triggerEvidence = new AssessmentEvidence(p.TargetHorizon, "ITI", "TriggerAlignment", null, "", triggerAt, Age(at, triggerAt), MarketSourceAvailability.Available, alignment.ToString());
+        var triggerEvidence = new AssessmentEvidence(p.TargetHorizon, "ITI", "TriggerAlignment", null, "", triggerAt, Age(at, triggerAt, true), MarketSourceAvailability.Available, alignment.ToString());
         evidence.Add(triggerEvidence);
         if (alignment == AssessmentTriggerAlignment.NotApplicable)
             reasons.Add("MC.ASSESSMENT.TRIGGER.STALE");
@@ -264,7 +272,12 @@ public sealed class MarketConditionAssessmentCalculator : IMarketConditionAssess
         return result;
     }
 
-    static decimal Age(DateTime now, DateTime at) => Math.Max(0m, (now.Ticks - at.Ticks) / (decimal)TimeSpan.TicksPerSecond);
+    decimal Age(DateTime now, DateTime at, bool marketObservation = false)
+        => Math.Max(0m, (marketObservation ? MarketTradingTime.Elapsed(calendar, new(at), new(now)).Ticks
+            : now.Ticks - at.Ticks) / (decimal)TimeSpan.TicksPerSecond);
+
+    static bool IsMarketObservation(string source)
+        => source is "ReferenceQuote" or "LastTrade" or "NormalizedMovement" or "VolatilityChange";
     static DateTime Min(DateTime a, DateTime b) => a < b ? a : b;
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0015", Justification = "The exact exception message is the domain rejection code; the helper parameter is not the rejected command argument.")]
     static ArgumentException Invalid(string reason) => new(reason);

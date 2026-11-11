@@ -1,3 +1,5 @@
+using TomasAI.IFM.Domain.MarketData.Shared.QueryParameters;
+using TomasAI.IFM.Domain.MarketData.Securities.Persistence;
 // Application persistence/reference policy adapted from the current Host.
 // Provider acquisition is supplied by the native IMarketDataApi composition.
 ﻿using System.Collections.Immutable;
@@ -18,13 +20,16 @@ public sealed class StoredOptionUniverseSource(TomasAI.IFM.Application.Storage.I
     TomasAI.IFM.Shared.MarketData.Contracts.TreasuryRateConversionPolicy conversion,
     IHostEnvironment environment, IOptionUniversePlanner planner, OptionChainCoverageObservations coverage,
     Microsoft.Extensions.Logging.ILogger<StoredOptionUniverseSource> logger, NativeHostState health,
-    TomasAI.IFM.Application.MarketData.Rust.Api.NativeMarketDataEpochFactory epochs) : IOptionUniverseSource
+    TomasAI.IFM.Application.MarketData.Rust.Api.NativeMarketDataEpochFactory epochs, SecuritiesOptionDefinitionReader definitionReader) : IOptionUniverseSource
 {
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")] 
     /// <inheritdoc />
     public async Task<ImmutableArray<PreparedOptionUniverse>> LoadAsync(DateOnly valueDate, CancellationToken cancellationToken)
     {
-        var parameters = await databases.MarketDataDb.ReadPublishedAsync(environment.EnvironmentName, cancellationToken).ConfigureAwait(false);
+        var environmentName = environment.EnvironmentName;
+        if (environmentName is not ("Development" or "Paper" or "Production"))
+            throw new ArgumentException("Invalid parameter environment.", nameof(environmentName));
+        var parameters = await databases.MarketDataDb.ReadPublishedAsync(environmentName, cancellationToken).ConfigureAwait(false);
         if (parameters.IsEmpty) return [];
         var output = ImmutableArray.CreateBuilder<PreparedOptionUniverse>();
         foreach (var policy in parameters)
@@ -94,12 +99,12 @@ public sealed class StoredOptionUniverseSource(TomasAI.IFM.Application.Storage.I
     async Task<Dictionary<string, FuturesOptionContractReadModel>> ReadDefinitionsAsync(string instrumentRoot,
         DateOnly from, DateOnly through, CancellationToken cancellationToken)
     {
-            var expirations = await databases.SecuritiesDb.GetOptionContractExpiriesAsync(instrumentRoot,
-                from, through, cancellationToken).ConfigureAwait(false);
+            var expirations = await databases.SecuritiesDb.GetOptionContractExpiriesAsync(
+                new OptionDefinitionExpiryRange(instrumentRoot, from, through), cancellationToken).ConfigureAwait(false);
             var definitions = new Dictionary<string, FuturesOptionContractReadModel>(StringComparer.Ordinal);
             foreach (var expiry in expirations.Select(x => (x.ExpiryDate, x.ContractId)).Distinct())
             {
-                var found = await databases.SecuritiesDb.GetCachedOptionContractDefinitionsAsync(instrumentRoot,
+                var found = await definitionReader.GetOptionDefinitionsAsync(instrumentRoot,
                     expiry.ContractId, expiry.ExpiryDate, null, cancellationToken).ConfigureAwait(false);
                 foreach (var row in found) definitions.TryAdd(row.Definition.ContractId, row.Definition);
             }

@@ -27,7 +27,7 @@ public static class StartTradeSelectionPipeline
                 return PipelineStartResult<TradeSelectionPipelineInitialization>.Failed("TS.INIT.ACTIVATION_MISSING", "ConfigurationUnavailable", "No exact Trade Selection activation is pinned for the triggering horizon.");
             var activation = await context.ConfigurationDb.GetEffectiveTradeSelectionActivationAsync(activationRef.Id, activationRef.Version, activationRef.PayloadSha256, view.StartedAtUtc).ConfigureAwait(false);
             var nextRevision = view.WorkflowRevision + 1;
-            var binding = await new StrategySelectionUniverseResolver(context.ConfigurationDb).ResolveAsync(activation, view.WorkflowId.Value, nextRevision, view.CorrelationId, view.StartedAtUtc, view.ExpiresAtUtc, DateOnly.FromDateTime(view.TriggerEvent.CreatedOn)).ConfigureAwait(false);
+            var binding = await new StrategySelectionUniverseResolver(context.ConfigurationDb, context.CatalogDeployments).ResolveAsync(activation, view.WorkflowId.Value, nextRevision, view.CorrelationId, view.StartedAtUtc, view.ExpiresAtUtc, DateOnly.FromDateTime(view.TriggerEvent.CreatedOn)).ConfigureAwait(false);
             TradeSelectionContracts.ValidateBinding(binding);
             return PipelineStartResult<TradeSelectionPipelineInitialization>.Started(new(binding));
         }

@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.EventSourcing.Persistence.Command;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.TradeDb;
@@ -18,7 +19,7 @@ internal static class TradePipelineAtomicPersistence
         return await owner.ExecuteOnceAsync(async (db, ct) =>
         {
             await db.ReserveCommandAsync(request, ct).ConfigureAwait(false);
-            await db.AppendAsync(request.StreamId, request.CommandId, candidate, 0, ct).ConfigureAwait(false);
+            await db.AppendAsync(new EnlistedEventAppend(request.StreamId, request.CommandId, candidate, 0), ct).ConfigureAwait(false);
 
             switch (candidate)
             {

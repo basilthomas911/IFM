@@ -45,7 +45,7 @@ public sealed class EconomicCalendarsImportedHandlerTests
         receivedCountries.Should().BeEquivalentTo(["US", "CA"]);
         await context.Container.Resolve<IPostgresEventTransaction>().Received(1).ExecuteAsync(
             Arg.Any<Func<EnlistedEventTransaction, CancellationToken, Task<bool>>>(), Arg.Any<CancellationToken>());
-        await db.DidNotReceiveWithAnyArgs().InsertEconomicCalendarsAsync(default!, default, default);
+        await db.DidNotReceiveWithAnyArgs().InsertEconomicCalendarsAsync(default!);
         completed.Should().NotBeNull();
         completed!.EconomicCalendars.Should().ContainSingle();
         completed.CountryCodes.Should().Equal(" us ", "CA");
@@ -72,7 +72,7 @@ public sealed class EconomicCalendarsImportedHandlerTests
 
         await context.Container.Resolve<IPostgresEventTransaction>().Received(1).ExecuteAsync(
             Arg.Any<Func<EnlistedEventTransaction, CancellationToken, Task<bool>>>(), Arg.Any<CancellationToken>());
-        await db.DidNotReceiveWithAnyArgs().InsertEconomicCalendarsAsync(default!, default, default);
+        await db.DidNotReceiveWithAnyArgs().InsertEconomicCalendarsAsync(default!);
         await context.Received(1).SendAsync<EconomicCalendarsImportedCompleteEvent, EconomicCalendarId>(
             Arg.Is<EconomicCalendarsImportedCompleteEvent>(value => value.EconomicCalendars.Length == 0));
     }
@@ -124,7 +124,7 @@ public sealed class EconomicCalendarsImportedHandlerTests
             context, api, dbFactory, NullLogger<EconomicCalendarEventActor>.Instance);
 
         result.Should().BeTrue();
-        await db.DidNotReceiveWithAnyArgs().InsertEconomicCalendarsAsync(default!, default, default);
+        await db.DidNotReceiveWithAnyArgs().InsertEconomicCalendarsAsync(default!);
         await context.Received(1).SendAsync<EconomicCalendarsImportedFailEvent, EconomicCalendarId>(
             Arg.Any<EconomicCalendarsImportedFailEvent>());
     }
@@ -140,10 +140,7 @@ public sealed class EconomicCalendarsImportedHandlerTests
         api.ReadEconomicCalendarAsync(Arg.Any<DateOnly>(), Arg.Any<DateOnly>(), Arg.Any<string[]?>(), Arg.Any<CancellationToken>())
             .Returns(async call => (await calendar.GetAsync(call.ArgAt<DateOnly>(0), call.ArgAt<DateOnly>(1), call.ArgAt<string[]?>(2)?.ToHashSet(StringComparer.OrdinalIgnoreCase), call.ArgAt<CancellationToken>(3))).ToArray());
         dbFactory.MarketDataDb.Returns(db);
-        db.InsertEconomicCalendarsAsync(
-                Arg.Any<EconomicCalendarReadModel[]>(),
-                Arg.Any<ImportDuplicatePolicy>(),
-                Arg.Any<Guid>())
+        db.InsertEconomicCalendarsAsync(Arg.Any<MarketDataImportBatch<EconomicCalendarReadModel>>())
             .Returns(Task.CompletedTask);
         PostgresImportBoundary.Configure(dbFactory, context);
         return (api, calendar, dbFactory, db, context);

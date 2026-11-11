@@ -14,7 +14,6 @@ internal sealed class EventLogSqlLayout
 
     internal static EventLogSqlLayout ForProduction(EventLogPersistenceOptions options)
     {
-        ArgumentNullException.ThrowIfNull(options);
         options.Validate();
         return Current;
     }

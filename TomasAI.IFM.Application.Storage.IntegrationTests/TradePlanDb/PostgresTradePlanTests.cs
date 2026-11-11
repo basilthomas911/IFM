@@ -1,3 +1,6 @@
+using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Domain.Trade.Persistence;
+using TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Query;
 using NSubstitute;
 using System;
 using System.Collections.Generic;
@@ -166,14 +169,14 @@ public sealed class PostgresTradePlanTests(PostgresTradePlanFixture fixture)
             await fixture.Transactions.ExecuteOnceAsync(async (transaction, token) =>
             { await fixture.Plans.ProjectMaterialAsync(transaction, plan, token); return true; });
         }
-        var first = await fixture.Plans.GetOffsetHistoryAsync(original.Position.Id, original.Position.StrategyKind, original.ValueDate, 0, 1);
+        var first = await TradePlanOffsetHistory.ReadAsync(fixture.Plans, original.Position.Id, original.Position.StrategyKind, original.ValueDate, 0, 1);
         first.Items.Should().HaveCount(1);
         first.Items[0].IronCondorTradePlanSnapshot!.CombinedForwardPrice.Should().Be(rawClosingCost ? 13.5m : -13.5m);
         first.Items[0].IronCondorTradePlanSnapshot!.ForwardSpreadForChart.Should().Be(-13.5m);
         first.ChartEndUtc.Should().BeCloseTo(at.AddHours(7).AddSeconds(40), TimeSpan.FromMicroseconds(1));
         first.ChartPoints.Select(point => point.NetSpread).Should().Equal(-11m,-13m);
         first.ChartPoints.Select(point => point.ForwardSpread).Should().Equal(-11.5m,-13.5m);
-        var older = await fixture.Plans.GetOffsetHistoryAsync(original.Position.Id, original.Position.StrategyKind, original.ValueDate, 1, 1, first.MaximumRevision);
+        var older = await TradePlanOffsetHistory.ReadAsync(fixture.Plans, original.Position.Id, original.Position.StrategyKind, original.ValueDate, 1, 1, first.MaximumRevision);
         older.ChartPoints.Should().BeEmpty();
         // A new live cycle must see newly persisted samples even within the chart cache's one-minute lifetime.
         var next = original with { PlanRevision = 5, CalculatedAtUtc = at.AddHours(7).AddMinutes(1),
@@ -183,12 +186,12 @@ public sealed class PostgresTradePlanTests(PostgresTradePlanFixture fixture)
         next = next with { ContentHash = TradePlanContractIdentity.PlanHash(next) };
         await fixture.Transactions.ExecuteOnceAsync(async (transaction, token) =>
         { await fixture.Plans.ProjectMaterialAsync(transaction, next, token); return true; });
-        var refreshed = await fixture.Plans.GetOffsetHistoryAsync(original.Position.Id, original.Position.StrategyKind, original.ValueDate, 0, 1);
+        var refreshed = await TradePlanOffsetHistory.ReadAsync(fixture.Plans, original.Position.Id, original.Position.StrategyKind, original.ValueDate, 0, 1);
         refreshed.ChartEndUtc.Should().Be(next.CalculatedAtUtc);
         refreshed.ChartPoints.Select(point => point.NetSpread).Should().Equal(-11m, -13m, -14m);
         refreshed.ChartPoints.Select(point => point.ForwardSpread).Should().Equal(-11.5m, -13.5m, -14.5m);
         // Paging against an older revision still retains the original baseline.
-        var anchored = await fixture.Plans.GetOffsetHistoryAsync(original.Position.Id, original.Position.StrategyKind, original.ValueDate, 0, 1, first.MaximumRevision);
+        var anchored = await TradePlanOffsetHistory.ReadAsync(fixture.Plans, original.Position.Id, original.Position.StrategyKind, original.ValueDate, 0, 1, first.MaximumRevision);
         anchored.ChartPoints.Select(point => point.NetSpread).Should().Equal(-11m, -13m);
     }
 
@@ -204,19 +207,19 @@ public sealed class PostgresTradePlanTests(PostgresTradePlanFixture fixture)
             { await fixture.Plans.ProjectMaterialAsync(transaction, plan, token); return true; });
         }
         for (var revision = 1; revision <= 125; revision++) await Insert(revision);
-        var first = await fixture.Plans.GetOffsetHistoryAsync(original.Position.Id, original.Position.StrategyKind, original.ValueDate, 0, 50);
+        var first = await TradePlanOffsetHistory.ReadAsync(fixture.Plans, original.Position.Id, original.Position.StrategyKind, original.ValueDate, 0, 50);
         first.TotalCount.Should().Be(125);
         first.Items.Should().HaveCount(50);
         first.Items.Select(plan => plan.PlanRevision).Should().Equal(Enumerable.Range(76, 50).Reverse().Select(i => (long)i));
         await Insert(126);
-        var next = await fixture.Plans.GetOffsetHistoryAsync(original.Position.Id, original.Position.StrategyKind, original.ValueDate, 50, 50, first.MaximumRevision);
+        var next = await TradePlanOffsetHistory.ReadAsync(fixture.Plans, original.Position.Id, original.Position.StrategyKind, original.ValueDate, 50, 50, first.MaximumRevision);
         next.Offset.Should().Be(50); next.TotalCount.Should().Be(125);
         next.Items.Select(plan => plan.PlanRevision).Should().Equal(Enumerable.Range(26, 50).Reverse().Select(i => (long)i));
-        var tail = await fixture.Plans.GetOffsetHistoryAsync(original.Position.Id, original.Position.StrategyKind, original.ValueDate, 100, 50, first.MaximumRevision);
+        var tail = await TradePlanOffsetHistory.ReadAsync(fixture.Plans, original.Position.Id, original.Position.StrategyKind, original.ValueDate, 100, 50, first.MaximumRevision);
         tail.Items.Should().HaveCount(25);
-        var empty = await fixture.Plans.GetOffsetHistoryAsync(original.Position.Id, original.Position.StrategyKind, original.ValueDate, 10000, 50, first.MaximumRevision);
+        var empty = await TradePlanOffsetHistory.ReadAsync(fixture.Plans, original.Position.Id, original.Position.StrategyKind, original.ValueDate, 10000, 50, first.MaximumRevision);
         empty.Items.Should().BeEmpty(); empty.TotalCount.Should().Be(125);
-        var invalid = async () => await fixture.Plans.GetOffsetHistoryAsync(original.Position.Id, original.Position.StrategyKind, original.ValueDate, -1, 50);
+        var invalid = async () => await TradePlanOffsetHistory.ReadAsync(fixture.Plans, original.Position.Id, original.Position.StrategyKind, original.ValueDate, -1, 50);
         await invalid.Should().ThrowAsync<ArgumentOutOfRangeException>();
     }
 
@@ -258,7 +261,7 @@ public sealed class PostgresTradePlanTests(PostgresTradePlanFixture fixture)
         var stream = "plan-atomic-" + Guid.NewGuid().ToString("N");
         await fixture.Transactions.ExecuteOnceAsync(async (transaction, token) =>
         {
-            await transaction.AppendAsync(stream, source.CommandId, source, 0, token);
+            await transaction.AppendAsync(new EnlistedEventAppend(stream, source.CommandId, source, 0), token);
             await fixture.Plans.ProjectMaterialAsync(transaction, plan, token);
             return true;
         });
@@ -285,7 +288,7 @@ public sealed class PostgresTradePlanTests(PostgresTradePlanFixture fixture)
         await Assert.ThrowsAsync<PostgresException>(() => fixture.Transactions.ExecuteOnceAsync(async (transaction, token) =>
         {
             attempts++;
-            await transaction.AppendAsync(stream, source.CommandId, source, 0, token);
+            await transaction.AppendAsync(new EnlistedEventAppend(stream, source.CommandId, source, 0), token);
             await fixture.Plans.ProjectMaterialAsync(transaction, plan, token);
             await transaction.ExecuteAsync("SELECT 1/0;", [], token);
             return true;
@@ -348,8 +351,8 @@ public sealed class PostgresTradePlanTests(PostgresTradePlanFixture fixture)
         logger.IsEnabled(Microsoft.Extensions.Logging.LogLevel.Error).Returns(true);
         var target = new TradePlanDbContext(fixture.Settings, logger);
         var plan = Plan();
-        await target.ProjectMaterialAsync(plan);
-        await target.ProjectMaterialAsync(plan with { ContentHash = "conflicting-snapshot", TotalPnl = -999m });
+        await TradePlanProjectionWriter.TryWriteDisposableAsync(target, plan, logger);
+        await TradePlanProjectionWriter.TryWriteDisposableAsync(target, plan with { ContentHash = "conflicting-snapshot", TotalPnl = -999m }, logger);
         (await target.GetCurrentAsync(plan.Position.Id, plan.Position.StrategyKind, plan.ValueDate)).Should().BeEquivalentTo(plan);
         logger.ReceivedCalls().Should().Contain(call => call.GetMethodInfo().Name == "Log" && call.GetArguments().Any(argument => argument is InvalidOperationException));
     }

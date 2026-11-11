@@ -12,6 +12,8 @@ public static class GetMarketDataDownloadLog
         {
             ArgumentNullException.ThrowIfNull(db);
             ArgumentNullException.ThrowIfNull(query);
+            ArgumentNullException.ThrowIfNull(query.Attempt);
+            MarketDataDownloadReadRequests.ValidateSelection(query.Request, 1, query.Attempt);
             return db.MarketDataDb.GetMarketDataDownloadLogAsync(query.Request, query.Attempt, cancellationToken);
         }
     }

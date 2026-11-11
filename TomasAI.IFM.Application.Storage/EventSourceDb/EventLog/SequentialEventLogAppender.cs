@@ -11,32 +11,8 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb.EventLog;
 
 public sealed class SequentialEventLogAppender : IEventLogAppender
 {
-    const string InsertReturningVersion = """
-        WITH next_stream_version AS (
-            UPDATE event_stream_id
-            SET CurrentVersion = CurrentVersion + 1
-            WHERE EventStreamId = $1
-            RETURNING CurrentVersion AS StreamVersion
-        )
-        INSERT INTO event_log (
-            EventStreamId, EventNameId, StreamVersion, EventPayload, CommandId, EventTimestamp, MessageOriginJson)
-        SELECT $1, $2, next_stream_version.StreamVersion, $3, $4, $5, $6
-        FROM next_stream_version
-        RETURNING EventVersion, StreamVersion;
-        """;
-    const string InsertExpectedReturningEventVersion = """
-        WITH next_stream_version AS (
-            UPDATE event_stream_id
-            SET CurrentVersion = CurrentVersion + 1
-            WHERE EventStreamId = $1 AND CurrentVersion = $7
-            RETURNING CurrentVersion AS StreamVersion
-        )
-        INSERT INTO event_log (
-            EventStreamId, EventNameId, StreamVersion, EventPayload, CommandId, EventTimestamp, MessageOriginJson)
-        SELECT $1, $2, next_stream_version.StreamVersion, $3, $4, $5, $6
-        FROM next_stream_version
-        RETURNING EventVersion;
-        """;
+    const string InsertReturningVersion = EventSourceDbSql.InsertEventLog;
+    const string InsertExpectedReturningEventVersion = EventSourceDbSql.InsertEventLogExpectedVersion;
     readonly EventLogPersistenceOptions _options;
     readonly EventLogMessagePackCodec _codec;
     readonly string _connectionString;
@@ -194,9 +170,10 @@ public sealed class SequentialEventLogAppender : IEventLogAppender
         {
             var expectedCommand = EventLogAppenderSupport.Command(
                 connection, transaction, _expectedInsertSql);
-        await using var expectedCommandDisposal = expectedCommand.ConfigureAwait(false);
-            AddInsertParameters(expectedCommand, request, entry);
-            EventLogAppenderSupport.Add(expectedCommand, BindValues.Bigint(expectedStreamVersion.Value));
+            await using var expectedCommandDisposal = expectedCommand.ConfigureAwait(false);
+            var parameters = new InsertEventLogExpectedVersion(request.EventStreamId, entry.EventNameId, entry.Payload,
+                request.CommandId, $"{request.EventTimestampUtc:o}", expectedStreamVersion.Value, entry.MessageOriginJson);
+            PostgresValueBinding.AddParameters(expectedCommand, (object?[])parameters.Bind());
             var scalar = await expectedCommand.ExecuteScalarAsync(cancellationToken)
             .ConfigureAwait(false);
             if (scalar is not long eventVersion)
@@ -210,7 +187,9 @@ public sealed class SequentialEventLogAppender : IEventLogAppender
             transaction,
             _insertSql);
         await using var commandDisposal = command.ConfigureAwait(false);
-        AddInsertParameters(command, request, entry);
+        var insertParameters = new InsertEventLog(request.EventStreamId, entry.EventNameId, entry.Payload,
+            request.CommandId, $"{request.EventTimestampUtc:o}", entry.MessageOriginJson);
+        PostgresValueBinding.AddParameters(command, (object?[])insertParameters.Bind());
         var reader = await command.ExecuteReaderAsync(CommandBehavior.SingleRow, cancellationToken)
             .ConfigureAwait(false);
         await using var readerDisposal = reader.ConfigureAwait(false);
@@ -218,19 +197,6 @@ public sealed class SequentialEventLogAppender : IEventLogAppender
             .ConfigureAwait(false))
             throw new InvalidOperationException($"Event stream {request.EventStream} was not found.");
         return new EventLogAssignment(reader.GetInt64(0), reader.GetInt64(1));
-    }
-
-    static void AddInsertParameters(
-        NpgsqlCommand command,
-        PreparedEventLogRequest request,
-        PreparedEventLogEntry entry)
-    {
-        EventLogAppenderSupport.Add(command, BindValues.Bigint(request.EventStreamId));
-        EventLogAppenderSupport.Add(command, BindValues.Integer(entry.EventNameId));
-        EventLogAppenderSupport.Add(command, BindValues.Bytea(entry.Payload));
-        EventLogAppenderSupport.Add(command, BindValues.Uuid(request.CommandId));
-        EventLogAppenderSupport.Add(command, BindValues.Text($"{request.EventTimestampUtc:o}"));
-        EventLogAppenderSupport.Add(command, BindValues.Text(entry.MessageOriginJson));
     }
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;

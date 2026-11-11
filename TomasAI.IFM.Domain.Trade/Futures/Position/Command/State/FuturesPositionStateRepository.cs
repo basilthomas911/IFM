@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.EventSourcing.Persistence.Command;
 using TomasAI.IFM.Domain.Trade.Shared.Futures.Position;
 using TomasAI.IFM.Application.EventSourcing.Repository;
 using Microsoft.Extensions.Logging;
@@ -41,7 +42,7 @@ public sealed class FuturesPositionStateRepository(IEventSourceActorStateFactory
             committed = events;
         }
         else
-            committed = await EventSourceDb.SaveCommandEventsAtomicallyAsync(command, events, expectedStreamVersion, cancellationToken).ConfigureAwait(false);
+            committed = await AtomicCommandEventCommit.CommitAsync(EventSourceDb, command, events, expectedStreamVersion, cancellationToken).ConfigureAwait(false);
         await projector.DomainEventsProjectionAsync(committed).ConfigureAwait(false);
     }
 

@@ -29,13 +29,13 @@ public sealed record IntrinsicTimeStrategyUpdatesGridRow(
         view.WorkflowId, view.WorkflowRevision,
         view.TriggerEvent.CreatedOn == default ? view.StartedAtUtc : view.TriggerEvent.CreatedOn,
         view.Status.ToString(), view.Outcome.ToString(), view.TriggerEvent.FuturesItiSignal,
-        [IntrinsicTimeStrategyUpdatesGridStage.FromState(view.RegimeDiscovery),
+        [IntrinsicTimeStrategyUpdatesGridStage.FromState(view.RegimeDiscovery, stopReason: view.StopReasonCode),
          IntrinsicTimeStrategyUpdatesGridStage.FromState(view.MarketCondition,
              view.Outcome == StrategyWorkflowOutcome.NoTrade ? view.RegimeDiscovery.Result?.RegimeResult : null,
              view.Outcome == StrategyWorkflowOutcome.NoTrade ? view.StopReasonCode : null),
-         IntrinsicTimeStrategyUpdatesGridStage.FromState(view.TradeSelection),
-         IntrinsicTimeStrategyUpdatesGridStage.FromState(view.OrderComposition),
-         IntrinsicTimeStrategyUpdatesGridStage.FromState(view.RiskManagement)]);
+         IntrinsicTimeStrategyUpdatesGridStage.FromState(view.TradeSelection, stopReason: view.StopReasonCode),
+         IntrinsicTimeStrategyUpdatesGridStage.FromState(view.OrderComposition, stopReason: view.StopReasonCode),
+         IntrinsicTimeStrategyUpdatesGridStage.FromState(view.RiskManagement, stopReason: view.StopReasonCode)]);
 }
 
 /// <summary>Contains the status and tooltip fields for one pipeline indicator.</summary>
@@ -55,9 +55,9 @@ public sealed record IntrinsicTimeStrategyUpdatesGridStage(
     {
         var message = state.Failure?.ErrorMessage;
         var reasons = state.ContinuationDecision == StrategyWorkflowContinuationDecision.Stop
-            && state.Failure is null ? state.ContinuationReasonCodes : [];
+            && state.ProcessingStatus == StrategyActorProcessingStatus.Completed ? state.ContinuationReasonCodes : [];
         if (reasons.Length == 0 && state.ContinuationDecision == StrategyWorkflowContinuationDecision.Stop
-            && state.Failure is null && !string.IsNullOrWhiteSpace(stopReason))
+            && state.ProcessingStatus == StrategyActorProcessingStatus.Completed && !string.IsNullOrWhiteSpace(stopReason))
             reasons = [stopReason];
         if (reasons.Contains("MC.ASSESSMENT.INHERITED_NO_NEW_TRADE", StringComparer.Ordinal)
             && regime is not null)

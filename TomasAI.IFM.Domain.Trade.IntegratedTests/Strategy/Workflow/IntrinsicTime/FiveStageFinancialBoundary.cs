@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.EventSourcing;
 using FluentAssertions;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Domain.Portfolio.Financial.Repository;
@@ -46,7 +47,7 @@ public sealed partial class TradeSelectionRuntimeTests
         {
             foreach (var stream in new[] { $"Portfolio.{book.PortfolioId}", $"PortfolioFund.{book.PortfolioId}.{candidate.FundId}", $"PortfolioFinancialPolicy.{book.PortfolioId}.{authority.PolicyId}" })
             {
-                var command = Guid.NewGuid(); await db.AppendAsync(stream, command, new PortfolioCreatedEvent(Guid.NewGuid(), command, 1, DateTime.UtcNow, "FiveStageAuthorityFixture", new()), 0, ct);
+                var command = Guid.NewGuid(); await db.AppendAsync(new EnlistedEventAppend(stream, command, new PortfolioCreatedEvent(Guid.NewGuid(), command, 1, DateTime.UtcNow, "FiveStageAuthorityFixture", new()), 0), ct);
             }
             return true;
         });

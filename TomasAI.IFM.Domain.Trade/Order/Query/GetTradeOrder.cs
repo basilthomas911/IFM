@@ -14,6 +14,8 @@ public static class GetTradeOrder
         {
             ArgumentNullException.ThrowIfNull(context);
             ArgumentNullException.ThrowIfNull(query);
+            if (!query.TradeOrderId.IsValid)
+                throw new ArgumentException("Valid Portfolio, Fund, and Order identity is required.", nameof(query));
             var value = await context.DbFactory.TradeDb.GetTradeOrderAsync(query.TradeOrderId, cancellationToken).ConfigureAwait(false);
             return new ServiceResult<TradeOrderDefinition?>(value);
         }

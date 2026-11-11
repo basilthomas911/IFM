@@ -1,3 +1,5 @@
+using TomasAI.IFM.Domain.MarketData.Persistence;
+using TomasAI.IFM.Domain.MarketData.Securities.Persistence;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -142,17 +144,17 @@ internal static class Program
                 .Add(EventSourceActorDbContext.EventSourceActorDbConnection, connection, "System.Data.Postgres")
                 .Add(SecuritiesDbContext.SecuritiesDbConnection, connection, "System.Data.Postgres");
             var transactions = new PostgresEventTransaction(settings);
+            var repositories = new Dictionary<Type, object>();
+            var database = new SecuritiesDbContext(settings, CreateFactory(repositories), Logger);
+            repositories.Add(typeof(IObjectRepository<SecuritiesDbContext>), database);
             if (rebuildQualification)
             {
-                var repositories = new Dictionary<Type, object>();
-                var database = new SecuritiesDbContext(settings, CreateFactory(repositories), Logger);
-                repositories.Add(typeof(IObjectRepository<SecuritiesDbContext>), database);
                 var replayed = await SecuritiesCatalogProjection.RebuildEmptyAsync(database, transactions).ConfigureAwait(false);
                 Console.WriteLine($"Rebuilt the isolated Securities projections from {replayed} source events.");
                 return SuccessExitCode;
             }
 
-            var captured = await new SecuritiesCatalogBaseline(transactions)
+            var captured = await new SecuritiesCatalogBaseline(transactions, database)
                 .CaptureAsync(writersDrained: true,
                     expectedMissing: qualification ? null : (41, 6)).ConfigureAwait(false);
             Console.WriteLine(captured is { } result
@@ -284,7 +286,7 @@ internal static class Program
                 cancellationToken).ConfigureAwait(false);
         }
 
-        var backfill = await context.BackfillSymbolProjectionsAsync(
+        var backfill = await new SecuritiesSymbolProjectionMaintenance(context.DbWriter).BackfillSymbolProjectionsAsync(
             options.BatchSize,
             cancellationToken,
             options.StaleOperationCutoffUtc).ConfigureAwait(false);

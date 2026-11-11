@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.EventSourcing.Persistence.Command;
 using System;
 using System.IO;
 using System.Linq;
@@ -103,11 +104,11 @@ public sealed class CommandAuditPersistenceTests(TomasAI.IFM.Application.Storage
             var retry = original with { EntityId = new(id), Subject = original.Subject with { EntityId = id.ToString("N") },
                 Evidence = new(42, Assignments: [], Versions: []) };
             await using var restarted = new PostgresCommandAuditWriter(BaseConnectionString(), options);
-            var duplicate = await restarted.ReserveAsync(CommandAuditEnvelope.Create(retry, codec));
+            var duplicate = await restarted.ReserveAsync(CommandAuditPreparation.Create(retry, codec));
             duplicate.Accepted.Should().BeFalse();
             duplicate.PayloadConflict.Should().BeFalse();
             duplicate.LegacyConflict.Should().BeFalse();
-            await FluentActions.Awaiting(async () => await restarted.ReserveAsync(CommandAuditEnvelope.Create(retry with { ExpectedFingerprint = "changed" }, codec)))
+            await FluentActions.Awaiting(async () => await restarted.ReserveAsync(CommandAuditPreparation.Create(retry with { ExpectedFingerprint = "changed" }, codec)))
                 .Should().ThrowAsync<CommandAuditPayloadConflictException>();
             await using var connection = CreateConnection();
             await connection.OpenAsync();
@@ -142,7 +143,7 @@ public sealed class CommandAuditPersistenceTests(TomasAI.IFM.Application.Storage
                 await insert.ExecuteNonQueryAsync();
             }
             await using var writer = new PostgresCommandAuditWriter(BaseConnectionString(), new() { WriteMode = CommandAuditWriteMode.WindowedMessagePack });
-            var result = await writer.ReserveAsync(CommandAuditEnvelope.Create(command, new CommandAuditMessagePackCodec()));
+            var result = await writer.ReserveAsync(CommandAuditPreparation.Create(command, new CommandAuditMessagePackCodec()));
             result.Accepted.Should().BeFalse();
             result.PayloadConflict.Should().BeFalse();
             result.LegacyConflict.Should().BeTrue();
@@ -166,15 +167,15 @@ public sealed class CommandAuditPersistenceTests(TomasAI.IFM.Application.Storage
 
         try
         {
-            var accepted = await writer.ReserveAsync(CommandAuditEnvelope.Create(TestCommand.Create(commandId, 7), codec));
-            var duplicate = await writer.ReserveAsync(CommandAuditEnvelope.Create(TestCommand.Create(commandId, 7), codec));
+            var accepted = await writer.ReserveAsync(CommandAuditPreparation.Create(TestCommand.Create(commandId, 7), codec));
+            var duplicate = await writer.ReserveAsync(CommandAuditPreparation.Create(TestCommand.Create(commandId, 7), codec));
 
             accepted.Accepted.Should().BeTrue();
             duplicate.Accepted.Should().BeFalse();
             duplicate.LegacyConflict.Should().BeFalse();
 
             var conflicting = async () =>
-                await writer.ReserveAsync(CommandAuditEnvelope.Create(TestCommand.Create(commandId, 8), codec));
+                await writer.ReserveAsync(CommandAuditPreparation.Create(TestCommand.Create(commandId, 8), codec));
             await conflicting.Should().ThrowAsync<CommandAuditPayloadConflictException>();
 
             await using var connection = CreateConnection();
@@ -238,7 +239,7 @@ public sealed class CommandAuditPersistenceTests(TomasAI.IFM.Application.Storage
         await EnsureSchemaAsync();
         var commandId = Guid.NewGuid();
         var codec = new CommandAuditMessagePackCodec();
-        var envelope = CommandAuditEnvelope.Create(TestCommand.Create(commandId, 12), codec);
+        var envelope = CommandAuditPreparation.Create(TestCommand.Create(commandId, 12), codec);
 
         try
         {
@@ -265,8 +266,8 @@ public sealed class CommandAuditPersistenceTests(TomasAI.IFM.Application.Storage
         await EnsureSchemaAsync();
         var commandId = Guid.NewGuid();
         var codec = new CommandAuditMessagePackCodec();
-        var first = CommandAuditEnvelope.Create(TestCommand.Create(commandId, 12), codec);
-        var conflicting = CommandAuditEnvelope.Create(TestCommand.Create(commandId, 13), codec);
+        var first = CommandAuditPreparation.Create(TestCommand.Create(commandId, 12), codec);
+        var conflicting = CommandAuditPreparation.Create(TestCommand.Create(commandId, 13), codec);
 
         try
         {
@@ -317,14 +318,14 @@ public sealed class CommandAuditPersistenceTests(TomasAI.IFM.Application.Storage
             await using (var seedWriter = new PostgresCommandAuditWriter(BaseConnectionString(), options))
             {
                 var seeded = await seedWriter.ReserveAsync(
-                    CommandAuditEnvelope.Create(TestCommand.Create(conflictingCommandId, 1), codec));
+                    CommandAuditPreparation.Create(TestCommand.Create(conflictingCommandId, 1), codec));
                 seeded.Accepted.Should().BeTrue();
             }
 
             await using var writer = new PostgresCommandAuditWriter(BaseConnectionString(), options);
-            var conflictingEnvelope = CommandAuditEnvelope.Create(
+            var conflictingEnvelope = CommandAuditPreparation.Create(
                 TestCommand.Create(conflictingCommandId, 2), codec);
-            var validEnvelope = CommandAuditEnvelope.Create(TestCommand.Create(validCommandId, 3), codec);
+            var validEnvelope = CommandAuditPreparation.Create(TestCommand.Create(validCommandId, 3), codec);
             Task<CommandAuditWriteResult> conflict;
             Task<CommandAuditWriteResult> valid;
             if (conflictFirst)
@@ -369,13 +370,13 @@ public sealed class CommandAuditPersistenceTests(TomasAI.IFM.Application.Storage
         var codec = new CommandAuditMessagePackCodec();
         var original = RetryCommand.Create();
         var retry = original with { CorrelationId = Guid.NewGuid(), RequestedUtc = original.RequestedUtc.AddMinutes(1) };
-        var first = CommandAuditEnvelope.Create(original, codec);
-        var second = CommandAuditEnvelope.Create(retry, codec);
+        var first = CommandAuditPreparation.Create(original, codec);
+        var second = CommandAuditPreparation.Create(retry, codec);
         first.RetrySha256.Should().Equal(second.RetrySha256);
         first.Payload.Sha256.Should().NotEqual(second.Payload.Sha256);
         codec.Deserialize(typeof(RetryCommand), first.Payload.Bytes, (short)first.Payload.Format, first.Payload.Version).Should().BeEquivalentTo(original);
         foreach (var changed in new[] { retry with { Value = 2 }, retry with { Principal = "other" }, retry with { Subject = new ActorSubject(ActorType.Command, "Test", "Other", "2") } })
-            CommandAuditEnvelope.Create(changed, codec).RetrySha256.Should().NotEqual(first.RetrySha256);
+            CommandAuditPreparation.Create(changed, codec).RetrySha256.Should().NotEqual(first.RetrySha256);
     }
 
     [Fact]
@@ -397,12 +398,12 @@ public sealed class CommandAuditPersistenceTests(TomasAI.IFM.Application.Storage
             }
             await using var restarted = new PostgresCommandAuditWriter(BaseConnectionString(), options);
             var retry = original with { CorrelationId = Guid.NewGuid(), RequestedUtc = original.RequestedUtc.AddMinutes(1) };
-            var duplicate = await restarted.ReserveAsync(CommandAuditEnvelope.Create(retry, codec));
+            var duplicate = await restarted.ReserveAsync(CommandAuditPreparation.Create(retry, codec));
             duplicate.Accepted.Should().BeFalse();
             duplicate.PayloadConflict.Should().BeFalse();
             duplicate.LegacyConflict.Should().BeFalse();
             foreach (var changed in new[] { retry with { Value = 2 }, retry with { Principal = "other" }, retry with { Subject = new ActorSubject(ActorType.Command, "Test", "Other", "2") } })
-                await FluentActions.Awaiting(async () => await restarted.ReserveAsync(CommandAuditEnvelope.Create(changed, codec)))
+                await FluentActions.Awaiting(async () => await restarted.ReserveAsync(CommandAuditPreparation.Create(changed, codec)))
                     .Should().ThrowAsync<CommandAuditPayloadConflictException>();
             await using var connection = CreateConnection();
             await connection.OpenAsync();
@@ -429,7 +430,7 @@ public sealed class CommandAuditPersistenceTests(TomasAI.IFM.Application.Storage
             await connection.OpenAsync();
             await using var transaction = await connection.BeginTransactionAsync();
             var commands = new[] { first, first with { CorrelationId = Guid.NewGuid(), RequestedUtc = first.RequestedUtc.AddSeconds(1) }, first with { Principal = "other" } };
-            var results = await CommandAuditPostgres.ReserveAsync(connection, transaction, commands.Select(x => CommandAuditEnvelope.Create(x, codec)).ToArray(), CancellationToken.None);
+            var results = await CommandAuditPostgres.ReserveAsync(connection, transaction, commands.Select(x => CommandAuditPreparation.Create(x, codec)).ToArray(), CancellationToken.None);
             await transaction.CommitAsync();
             results.Select(x => x.Accepted).Should().Equal(true, false, false);
             results.Select(x => x.PayloadConflict).Should().Equal(false, false, true);
@@ -447,7 +448,7 @@ public sealed class CommandAuditPersistenceTests(TomasAI.IFM.Application.Storage
         try
         {
             await using var writer = new PostgresCommandAuditWriter(BaseConnectionString(), new CommandAuditPersistenceOptions { WriteMode = CommandAuditWriteMode.WindowedMessagePack });
-            (await writer.ReserveAsync(CommandAuditEnvelope.Create(original, codec))).Accepted.Should().BeTrue();
+            (await writer.ReserveAsync(CommandAuditPreparation.Create(original, codec))).Accepted.Should().BeTrue();
             await using (var connection = CreateConnection())
             {
                 await connection.OpenAsync();
@@ -456,7 +457,7 @@ public sealed class CommandAuditPersistenceTests(TomasAI.IFM.Application.Storage
                 corrupt.Parameters.AddWithValue(codec.Serialize(original with { Value = 99 }).Bytes);
                 await corrupt.ExecuteNonQueryAsync();
             }
-            await FluentActions.Awaiting(async () => await writer.ReserveAsync(CommandAuditEnvelope.Create(original with { CorrelationId = Guid.NewGuid() }, codec)))
+            await FluentActions.Awaiting(async () => await writer.ReserveAsync(CommandAuditPreparation.Create(original with { CorrelationId = Guid.NewGuid() }, codec)))
                 .Should().ThrowAsync<CommandAuditPayloadConflictException>();
         }
         finally { await DeleteAsync(original.CommandId); }

@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -17,6 +18,11 @@ public static class GetIronCondorMarketDataFeed
         {
             ArgumentNullException.ThrowIfNull(dbFactory);
             ArgumentNullException.ThrowIfNull(q);
+            RawTickRequestQualification.RequireScope(q.UnderlyingContractId, q.ValueDate);
+            RawTickRequestQualification.RequireScope(q.ShortPutOptionContractId, q.ValueDate);
+            RawTickRequestQualification.RequireScope(q.LongPutOptionContractId, q.ValueDate);
+            RawTickRequestQualification.RequireScope(q.ShortCallOptionContractId, q.ValueDate);
+            RawTickRequestQualification.RequireScope(q.LongCallOptionContractId, q.ValueDate);
             var db = dbFactory.MarketDataDb;
             return await (GetIronCondorMarketDataFeedAsync(db,
                 q.UnderlyingContractId,

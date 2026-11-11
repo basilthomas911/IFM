@@ -63,6 +63,16 @@ public static class PortfolioFundCommandValidation
             return errors;
         }
 
+        /// <summary>Validates the ConfigureFundBaseContractsCommand payload and its Fund identity.</summary>
+        public TErrors ValidateFundCommand(ConfigureFundBaseContractsCommand typed)
+        {
+            ArgumentNullException.ThrowIfNull(errors);
+            ArgumentNullException.ThrowIfNull(typed);
+            ValidateIdentity(errors, typed);
+            ValidateConfiguration(errors, typed);
+            return errors;
+        }
+
         /// <summary>Validates the AddFundMandateVersionCommand payload and its Fund identity.</summary>
         public TErrors ValidateFundCommand(AddFundMandateVersionCommand typed)
         {
@@ -280,6 +290,13 @@ public static class PortfolioFundCommandValidation
     {
         ValidateExpectedVersion(errors, command.ExpectedVersion, command.CommandName);
         ValidateMandate(errors, command, command.Mandate);
+    }
+
+    /// <summary>Validates a Fund base-contract replacement before command execution.</summary>
+    static void ValidateConfiguration(ICollection<ValidationError> errors, ConfigureFundBaseContractsCommand command)
+    {
+        ValidateExpectedVersion(errors,command.ExpectedVersion,command.CommandName);
+        ValidateMandate(errors,command,command.Mandate);
     }
 
     /// <summary>Checks ValidateStateChange without changing state.</summary>

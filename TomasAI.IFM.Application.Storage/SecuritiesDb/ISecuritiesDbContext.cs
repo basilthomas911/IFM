@@ -1,15 +1,13 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
 
 namespace TomasAI.IFM.Application.Storage.SecuritiesDb;
 
-/// <summary>Combines the Securities repository, read, write, and rollover contracts.</summary>
+/// <summary>Combines the Securities repository, read, and write contracts.</summary>
 public interface ISecuritiesDbContext :
     IObjectRepository<SecuritiesDbContext>,
     ISecuritiesDbReadContext,
-    ISecuritiesDbWriteContext,
-    IFuturesContractRolloverStore
+    ISecuritiesDbWriteContext
 {
     /// <summary>Gets the Securities read capability.</summary>
     ISecuritiesDbReadContext DbReader { get; }

@@ -9,39 +9,7 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb.EventLog;
 /// Only enabled through the guarded benchmark layout; caller owns commit/rollback.</summary>
 internal static class BatchedProjectionMarkerWriter
 {
-    internal const string Sql = """
-        WITH requested AS (
-            SELECT * FROM unnest($1::bigint[], $2::text[], $3::text[], $4::text[])
-                AS input(EventId, ActorName, ProjectorName, InitialStage)
-        ), inserted AS (
-            INSERT INTO event_projector_state (
-                EventId, ActorName, ProjectorName, IsReplay, AttemptNumber,
-                Outcome, Stage, ErrorMessage, CreatedTimestamp, UpdatedTimestamp,
-                EventStreamId, SourceEventName, UpdatedAtUtc, StreamVersion
-            )
-            SELECT input.EventId, input.ActorName, input.ProjectorName, false, 0,
-                CASE
-                    WHEN checkpoint.LastAppliedStreamVersion IS NULL
-                      OR checkpoint.LastAppliedStreamVersion < el.StreamVersion THEN 'Processing'
-                    WHEN checkpoint.LastAppliedStreamVersion = el.StreamVersion THEN 'AlreadyCompleted'
-                    ELSE 'Superseded'
-                END,
-                CASE WHEN checkpoint.LastAppliedStreamVersion >= el.StreamVersion
-                    THEN 'Completed' ELSE input.InitialStage END,
-                CASE WHEN checkpoint.LastAppliedStreamVersion >= el.StreamVersion
-                    THEN 'stream-checkpoint-covered' ELSE '' END,
-                $5, $5, el.EventStreamId, en.EventName, $6, el.StreamVersion
-            FROM requested input
-            JOIN event_log el ON el.EventVersion = input.EventId
-            JOIN event_name_id en ON en.EventNameId = el.EventNameId
-            LEFT JOIN event_projector_stream_checkpoint checkpoint
-                ON checkpoint.ProjectorName = input.ProjectorName
-               AND checkpoint.EventStreamId = el.EventStreamId
-            ON CONFLICT (EventId, ProjectorName) DO NOTHING
-            RETURNING EventId
-        )
-        SELECT count(*) FROM inserted;
-        """;
+    internal const string Sql = EventSourceDbSql.BatchedProjectionMarkerWriter_Statement_1;
 
     internal static async Task InsertAsync(NpgsqlConnection connection, NpgsqlTransaction transaction,
         IReadOnlyList<ProjectionMarker> markers, string sql, CancellationToken cancellationToken)

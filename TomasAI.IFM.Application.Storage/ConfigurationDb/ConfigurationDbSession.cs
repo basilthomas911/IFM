@@ -18,9 +18,14 @@ internal sealed class ConfigurationDbSession(NpgsqlConnection connection,NpgsqlT
             .ConfigureAwait(false);await using var command=Command(sql,parameters);return await command.ExecuteNonQueryAsync(token)
             .ConfigureAwait(false);}
     public async Task<object?> ScalarAsync(string sql,object?[] parameters,CancellationToken token, PostgresQueryTimeout? timeout = null)
-    {await timeouts.ApplyAsync(timeout,token)
-            .ConfigureAwait(false);await using var command=Command(sql,parameters);var value=await command.ExecuteScalarAsync(token)
-            .ConfigureAwait(false);return value is DBNull?null:value;}
+    {
+        await timeouts.ApplyAsync(timeout, token)
+            .ConfigureAwait(false);
+        await using var command = Command(sql, parameters);
+        var value = await command.ExecuteScalarAsync(token)
+            .ConfigureAwait(false);
+        return value is DBNull ? null : value;
+    }
     public async Task<IReadOnlyList<T>> QueryAsync<T>(string sql,object?[] parameters,Func<System.Data.Common.DbDataReader,T> map,CancellationToken token, PostgresQueryTimeout? timeout = null)
     {
         await timeouts.ApplyAsync(timeout,token)

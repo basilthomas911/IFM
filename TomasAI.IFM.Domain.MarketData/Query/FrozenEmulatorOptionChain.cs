@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Shared.QueryParameters;
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.MarketData.Query.Actor;
@@ -18,7 +19,7 @@ internal static class FrozenEmulatorOptionChain
     {
         var timer = Stopwatch.StartNew();
         var definitions = await context.DbFactory.SecuritiesDb.GetCachedOptionContractDefinitionsAsync(
-            query.UnderlyingSymbol, query.UnderlyingContractId, query.ExpiryDate, query.ProviderRoots, token)
+            new OptionDefinitionPartition(query.UnderlyingSymbol, query.UnderlyingContractId, query.ExpiryDate), query.ProviderRoots, token)
             .ConfigureAwait(false);
         var definitionsMs = timer.Elapsed.TotalMilliseconds;
         var inputs = await OptionChainWindowInputs.GetAsync(

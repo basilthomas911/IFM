@@ -1,6 +1,5 @@
 using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Catalog.Contracts;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts;
-using System.Security.Cryptography;
 using System.Text.Json;
 using MessagePack;
 using Npgsql;
@@ -14,26 +13,25 @@ internal static class ScheduledTaskDbContextExtensions
 {
     extension(ScheduledTaskDbContext context)
     {
-        /// <summary>Rejects a missing snapshot or transaction before persistence.</summary>
-        internal void ValidateSnapshot(object value) => ArgumentNullException.ThrowIfNull(value);
         /// <summary>Reads a scoped keyset page and strips output tails from history rows.</summary>
-        internal async Task<ScheduledTaskRunPage> ReadHistoryAsync(string environment, string host, ScheduledTaskId schedule, int size, byte[]? paging, CancellationToken token)
+        internal async Task<ScheduledTaskRunPage> ReadHistoryAsync(ScheduledTaskHistorySelection selection, CancellationToken token)
         {
-            size = Math.Clamp(size, 1, 100);
-            var scope = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new { environment, host, schedule = schedule.Value })));
-            var cursor = paging is null ? null : JsonSerializer.Deserialize<ScheduledTaskHistoryCursor>(paging) ?? throw new ArgumentException("Invalid scheduled-task history cursor.", nameof(paging));
-            if (cursor is not null && (!string.Equals(cursor.Scope, scope, StringComparison.Ordinal) || cursor.Fire.Kind != DateTimeKind.Utc))
-                throw new ArgumentException("Scheduled-task cursor belongs to another query or has an invalid timestamp.", nameof(paging));
-            object? [] values = cursor is null ? [environment, host, schedule.Value, size + 1] : [environment, host, schedule.Value, cursor.Fire, cursor.Run, size + 1];
+            var size = selection.PageSize;
+            var cursor = selection.After;
+            var environment = selection.Environment;
+            var host = selection.Host;
+            var schedule = selection.Schedule;
+            object?[] values = cursor is null ? [environment, host, schedule.Value, size + 1] : [environment, host, schedule.Value, cursor.Fire, cursor.Run, size + 1];
+        var preparedParameters1 = new ScheduledTaskDbParameters(values);
             var rows = await context.Use("ScheduledTask.History", cursor is null ? ScheduledTaskDbSql.History : ScheduledTaskDbSql.HistoryAfter)
-            .SetParameters(new ScheduledTaskDbParameters(values))
+            .SetParameters(preparedParameters1)
             .ExecuteQueryAsync(ScheduledTaskDbContext.MapToSnapshot<ScheduledTaskRun>, token)
             .ConfigureAwait(false);
             var items = rows.Take(size).ToArray();
             return new()
             {
                 Runs = items.Select(run => run with { StandardOutputTail = "", StandardErrorTail = "" }).ToArray(),
-                PagingState = rows.Count > size ? JsonSerializer.SerializeToUtf8Bytes(new ScheduledTaskHistoryCursor(scope, items[^1].IntendedFireTimeUtc.UtcDateTime, items[^1].Id.Value)) : null
+                PagingState = rows.Count > size ? JsonSerializer.SerializeToUtf8Bytes(new ScheduledTaskHistoryCursor(selection.Scope, items[^1].IntendedFireTimeUtc.UtcDateTime, items[^1].Id.Value)) : null
             };
         }
 
@@ -58,12 +56,21 @@ internal static class ScheduledTaskDbContextExtensions
     extension(IEnlistedPostgresTransaction transaction)
     {
         /// <summary>Upserts an accepted snapshot with persisted revision fencing.</summary>
-        internal Task<int> ProjectScheduledTaskAsync(ScheduledTaskDefinition value, CancellationToken token) => transaction.ExecuteAsync(ScheduledTaskDbSql.UpsertDefinition, [value.Schedule.Environment, value.Schedule.HostId, value.Id.Value, value.Revision, MessagePackSerializer.Serialize(value, cancellationToken: token)], token);
+        internal Task<int> ProjectScheduledTaskAsync(ScheduledTaskDefinition value, CancellationToken token)
+        {
+            ArgumentNullException.ThrowIfNull(transaction);
+            return transaction.ExecuteAsync(ScheduledTaskDbSql.UpsertDefinition, [value.Schedule.Environment, value.Schedule.HostId, value.Id.Value, value.Revision, MessagePackSerializer.Serialize(value, cancellationToken: token)], token);
+        }
         /// <summary>Upserts an accepted snapshot with persisted revision fencing.</summary>
-        internal Task<int> ProjectScheduledTaskAsync(ScheduledTaskCatalog value, CancellationToken token) => transaction.ExecuteAsync(ScheduledTaskDbSql.UpsertCatalog, [value.Environment, value.HostId, value.Revision, MessagePackSerializer.Serialize(value, cancellationToken: token)], token);
+        internal Task<int> ProjectScheduledTaskAsync(ScheduledTaskCatalog value, CancellationToken token)
+        {
+            ArgumentNullException.ThrowIfNull(transaction);
+            return transaction.ExecuteAsync(ScheduledTaskDbSql.UpsertCatalog, [value.Environment, value.HostId, value.Revision, MessagePackSerializer.Serialize(value, cancellationToken: token)], token);
+        }
         /// <summary>Atomically upserts a run and advances its completed session date.</summary>
         internal async Task ProjectScheduledTaskAsync(ScheduledTaskRun value, CancellationToken token)
         {
+            ArgumentNullException.ThrowIfNull(transaction);
             var written = await (transaction.ExecuteAsync(ScheduledTaskDbSql.UpsertRun, [value.Environment, value.HostId, value.ScheduleId.Value, value.IntendedFireTimeUtc.UtcDateTime, value.Id.Value, value.Revision, MessagePackSerializer.Serialize(value, cancellationToken: token)], token))
             .ConfigureAwait(false);
             if (written != 0 && value.CompletedEndOfDayValueDate is { } date)
@@ -83,8 +90,6 @@ internal static class ScheduledTaskDbContextExtensions
     }
 }
 
-/// <summary>Opaque query-scoped history keyset.</summary>
-internal sealed record ScheduledTaskHistoryCursor(string Scope, DateTime Fire, Guid Run);
 /// <summary>Adapter that never owns commit and binds operations to the local projection transaction.</summary>
 internal sealed class ScheduledTaskLocalTransaction(NpgsqlConnection connection, NpgsqlTransaction transaction) : IEnlistedPostgresTransaction
 {

@@ -21,7 +21,7 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 /// <item><description>ContractId must not be null or empty</description></item>
 /// <item><description>ValueDate must be greater than DateOnly.MinValue</description></item>
 /// <item><description>ValueDate must be less than DateOnly.MaxValue</description></item>
-/// <item><description>Timestamp must be greater than TimeOnly.MinValue</description></item>
+/// <item><description>Midnight is a valid observation time, including UTC midnight during an open session.</description></item>
 /// <item><description>Timestamp must be less than TimeOnly.MaxValue</description></item>
 /// </list>
 /// </para>
@@ -56,7 +56,8 @@ public class FuturesTdiSignalIdValidationRules : BaseValidationRules, IValidatio
             RuleFor(x => x.ContractId).NotEmpty().WithMessage(ContractIdErrorMessage);
             RuleFor(x => x.ValueDate).NotEqual(DateOnly.MinValue).WithMessage(ValueDateMinErrorMessage);
             RuleFor(x => x.ValueDate).NotEqual(DateOnly.MaxValue).WithMessage(ValueDateMaxErrorMessage);
-            RuleFor(x => x.Timestamp).NotEqual(TimeOnly.MinValue).WithMessage(TimestampMinErrorMessage);
+            // TimeOnly.MinValue is midnight, not an absent market observation.
+            // Source identity/date and the RSI window are validated independently.
             RuleFor(x => x.Timestamp).NotEqual(TimeOnly.MaxValue).WithMessage(TimestampMaxErrorMessage);
         }
 

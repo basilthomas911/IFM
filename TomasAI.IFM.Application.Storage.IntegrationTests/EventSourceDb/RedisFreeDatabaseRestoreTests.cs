@@ -25,7 +25,7 @@ public sealed class RedisFreeDatabaseRestoreTests
         const string stream = "RedisRemoval.ActualRestore";
         var oldOwner = CreateOwner();
         var baselineId = await oldOwner.GetEventStreamIdAsync(stream);
-        await oldOwner.DisposeAsync();
+        await ((IAsyncDisposable)oldOwner).DisposeAsync();
         await ExecuteSql("CREATE TABLE redis_removal_restore_probe(value text); INSERT INTO redis_removal_restore_probe VALUES ('baseline');");
         var container = "ifm-redisrestore-pg-" + infrastructure.RunId;
         var dump = await DockerAsync(["exec", container, "pg_dump", "-U", infrastructure.PostgresUser,
@@ -34,7 +34,7 @@ public sealed class RedisFreeDatabaseRestoreTests
         await ExecuteSql("UPDATE event_stream_id SET eventstreamid=eventstreamid+1000; UPDATE redis_removal_restore_probe SET value='newer';");
         var newerOwner = CreateOwner();
         Assert.NotEqual(baselineId, await newerOwner.GetEventStreamIdAsync(stream));
-        await newerOwner.DisposeAsync();
+        await ((IAsyncDisposable)newerOwner).DisposeAsync();
         await DockerAsync(["exec", "-i", container, "psql", "-U", infrastructure.PostgresUser,
             "-d", infrastructure.PostgresDatabase, "--set", "ON_ERROR_STOP=1"], dump);
         // A real cutover restarts all processes and therefore all connection pools and cache owners.

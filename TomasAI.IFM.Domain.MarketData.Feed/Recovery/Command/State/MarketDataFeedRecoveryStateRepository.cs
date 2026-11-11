@@ -40,10 +40,10 @@ public sealed class MarketDataFeedRecoveryStateRepository(IEventSourceActorState
                 {
                     var version = head;
                     foreach (var fact in committed)
-                        await transaction.AppendAsync(command.StreamId, command.CommandId, fact, version++, cancellationToken).ConfigureAwait(false);
+                        await transaction.AppendAsync(new EnlistedEventAppend(command.StreamId, command.CommandId, fact, version++), cancellationToken).ConfigureAwait(false);
                     // The event IDs assigned above are required if a duplicate later repairs projection delivery.
                     var snapshot = state.CaptureSnapshot(command);
-                    await transaction.AppendAsync(command.StreamId, command.CommandId, snapshot, version, cancellationToken).ConfigureAwait(false);
+                    await transaction.AppendAsync(new EnlistedEventAppend(command.StreamId, command.CommandId, snapshot, version), cancellationToken).ConfigureAwait(false);
                     return true;
                 }, budget.Token).ConfigureAwait(false);
             }

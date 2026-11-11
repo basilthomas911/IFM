@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Persistence;
 using TomasAI.IFM.Domain.Trade.Futures.Option.Query.Actor;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Futures.Option;
@@ -24,6 +25,7 @@ public static class GetVerticalSpreadOptionTrades
         {
             ArgumentNullException.ThrowIfNull(context);
             ArgumentNullException.ThrowIfNull(query);
+            TradeHistorySelection.RequireEstablished(query.PortfolioId, query.FundId, query.FromUtc, query.ToUtc, query.PageSize);
             var page = await context.DbFactory.TradeDb.GetEstablishedTradesAsync(query.PortfolioId, query.FundId, TradeStrategyKind.VerticalSpread, query.FromUtc, query.ToUtc, query.PageSize, query.PagingState, cancellationToken).ConfigureAwait(false);
             return new ServiceResult<EstablishedTradeDefinition[]>(page.Items);
         }

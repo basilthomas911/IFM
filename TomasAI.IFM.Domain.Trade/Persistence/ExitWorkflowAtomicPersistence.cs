@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.EventSourcing.Persistence.Command;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Workflow;
@@ -25,9 +26,9 @@ internal static class ExitWorkflowAtomicPersistence
             foreach (var sourceEvent in pending)
             {
                 await ExitWorkflowReceiptStore.VerifyAsync(transaction, command, sourceEvent, token).ConfigureAwait(false);
-                await transaction.AppendAsync(command.StreamId, command.CommandId, sourceEvent, version++, token).ConfigureAwait(false);
+                await transaction.AppendAsync(new EnlistedEventAppend(command.StreamId, command.CommandId, sourceEvent, version++), token).ConfigureAwait(false);
                 if (projectWorkflow)
-                    await factory.TradePlanDb.ProjectExitWorkflowAsync(transaction, ExitWorkflowSnapshotFacts.From(sourceEvent), token).ConfigureAwait(false);
+                    await factory.TradePlanDb.ProjectExitWorkflowAsync(transaction, TradePlanProjectionWriter.PrepareExitStage(ExitWorkflowSnapshotFacts.From(sourceEvent)), token).ConfigureAwait(false);
             }
             return true;
         }, cancellationToken).ConfigureAwait(false);

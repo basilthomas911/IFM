@@ -50,13 +50,22 @@ public class FuturesOptionContractId : IActorEntityId
             throw new InvalidOperationException($"FuturesOptionContractId: '{contractId}' is incomplete");
         try
         {
+            var separator = contractId.IndexOf('~');
+            var canonical = separator < 0 ? contractId : contractId[..separator];
+            if (separator >= 0)
+            {
+                var provider = contractId[(separator + 1)..].Split('-');
+                if (provider.Length != 2 || !ushort.TryParse(provider[0], NumberStyles.None, CultureInfo.InvariantCulture, out var publisher) || publisher == 0 ||
+                    !uint.TryParse(provider[1], NumberStyles.None, CultureInfo.InvariantCulture, out var instrument) || instrument == 0)
+                    throw new FormatException();
+            }
             // Strikes have variable width (the published ES chain includes 10000+).
             // Locate the right marker instead of assuming exactly four strike digits.
-            var rightIndex = Math.Max(contractId.LastIndexOf('C'), contractId.LastIndexOf('P'));
+            var rightIndex = Math.Max(canonical.LastIndexOf('C'), canonical.LastIndexOf('P'));
             var dateStart = rightIndex - 8;
-            if (dateStart < 1 || !DateTime.TryParseExact(contractId.AsSpan(dateStart, 8), "yyyyMMdd",
+            if (dateStart < 1 || !DateTime.TryParseExact(canonical.AsSpan(dateStart, 8), "yyyyMMdd",
                 CultureInfo.InvariantCulture, DateTimeStyles.None, out var maturity)
-                || !TryParseStrike(contractId.AsSpan(rightIndex + 1), out var strike))
+                || !TryParseStrike(canonical.AsSpan(rightIndex + 1), out var strike))
                 throw new FormatException();
             Symbol = contractId.Substring(0, dateStart);
             MaturityDate = maturity;
@@ -86,6 +95,17 @@ public class FuturesOptionContractId : IActorEntityId
         if (strike <= 0) throw new ArgumentException(invalid, nameof(strike));
         return string.Create(CultureInfo.InvariantCulture,
             $"{symbol}{expiry:yyyyMMdd}{(right == OptionType.Call ? 'C' : 'P')}{strike:0.############################}");
+    }
+
+    /// <summary>Disambiguates distinct provider instruments without changing an existing recorded identity.</summary>
+    public static string WithProviderIdentity(string canonicalId, ushort publisherId, uint instrumentId)
+    {
+        _ = new FuturesOptionContractId(canonicalId);
+        if (publisherId == 0) throw new ArgumentOutOfRangeException(nameof(publisherId));
+        if (instrumentId == 0) throw new ArgumentOutOfRangeException(nameof(instrumentId));
+        var separator = canonicalId.IndexOf('~');
+        var prefix = separator < 0 ? canonicalId : canonicalId[..separator];
+        return string.Create(CultureInfo.InvariantCulture, $"{prefix}~{publisherId}-{instrumentId}");
     }
 
     /// <summary>Reads an exact positive invariant strike without rounding over-precision input.</summary>

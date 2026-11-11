@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Shared;
 using Cassandra;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -74,8 +75,7 @@ public sealed class MarketConditionDownloadLogIntegrationTests : IAsyncLifetime
 
         // A real stored event is still classified by the production adapter.
         var eventAt = at;
-        await fixture.MarketDataDb.InsertEconomicCalendarsAsync(
-            [new EconomicCalendarReadModel(eventAt.AddMinutes(5), "US", "FOMC Rate Decision", null, null, null, eventAt, "test", "High")]);
+        await fixture.MarketDataDb.InsertEconomicCalendarsAsync(MarketDataImportBatch.Calendars([new EconomicCalendarReadModel(eventAt.AddMinutes(5), "US", "FOMC Rate Decision", null, null, null, eventAt, "test", "High")]));
         Assert.Equal(MarketEventRiskStatus.Blocked, (await adapter.ReadOnceAsync(new(), at, default)).Status);
 
         var failed = Outcome(DateOnly.FromDateTime(at), "US") with

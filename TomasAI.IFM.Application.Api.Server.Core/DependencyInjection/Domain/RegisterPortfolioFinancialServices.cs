@@ -48,7 +48,7 @@ internal static class RegisterPortfolioFinancialServices
         TomasAI.IFM.Domain.Portfolio.Financial.Repository.LedgerConfigurationStore>();
         // Financial history recovery, workflow recovery, and capacity expiry polling are
         // temporarily disabled pending review of retry behavior and persisted-data compatibility.
-        services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Financial.Repository.FinancialWorkflowRecoveryJournal>();
+        services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Realtime.FinancialWorkflowRecoveryJournal>();
         services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Financial.Repository.CapacityExpiryDispatchStore>();
     }
 }

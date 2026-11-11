@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using TomasAI.IFM.Application.EventProjector.Contracts;
@@ -49,7 +50,7 @@ public sealed class IronCondorPositionReloadTests
         var projector = Substitute.For<IEventProjector<FuturesIronCondorTradePositionCommandActor>>();
         var repository = new IronCondorPositionStateRepository(factory, db, Substitute.For<IActorService>(), projector,
             Substitute.For<ILogger<IronCondorPositionStateRepository>>());
-        var command = new ChangeTradeLegDataCommand { CommandId = Guid.NewGuid(), EntityId = id,
+        var command = new ChangeTradeLegDataCommand { CommandId = Guid.NewGuid(), EntityId = id, TradeType = TradeStrategyKind.IronCondor,
             Subject = new(ActorType.Command, FuturesIronCondorTradePositionCommandActor.ActorName, ChangeTradeLegDataCommand.Verb, id.Format()) };
         using var cancellation = new CancellationTokenSource();
         var loaded = await repository.LoadStateAsync(command, cancellable ? cancellation.Token : default);
@@ -62,9 +63,9 @@ public sealed class IronCondorPositionReloadTests
         await db.Received(0).MapReduceActorEventStreamAsync<IronCondorPositionCommandState, IronCondorMonitoringInitializedEvent>(Arg.Any<long>(), 1, Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), Arg.Any<CancellationToken>());
         await db.DidNotReceive().MapReduceActorEventStreamAsync<IronCondorPositionCommandState>(Arg.Any<long>(), Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), Arg.Any<CancellationToken>());
         loaded.Apply(source with { CommandId = command.CommandId, PositionSnapshot = snapshot with { PositionSequence = 10 } });
-        db.SaveCommandEventsAtomicallyAsync(command, Arg.Any<DomainEventCollection>(), 11, Arg.Any<CancellationToken>())
+        db.PersistCommandEventBatchAsync(Arg.Is<CommandAuditEnvelope>(audit => audit.CommandId == command.CommandId), Arg.Any<DomainEventCollection>(), 11, Arg.Any<CancellationToken>())
             .Returns(call => Task.FromResult(call.ArgAt<DomainEventCollection>(1)));
         await repository.SaveResidentEventsAsync(Substitute.For<ICommandActorContext>(), loaded.DetachChanges(), command, loaded.CommittedStreamVersion, default);
-        await db.Received(1).SaveCommandEventsAtomicallyAsync(command, Arg.Any<DomainEventCollection>(), 11, Arg.Any<CancellationToken>());
+        await db.Received(1).PersistCommandEventBatchAsync(Arg.Is<CommandAuditEnvelope>(audit => audit.CommandId == command.CommandId), Arg.Any<DomainEventCollection>(), 11, Arg.Any<CancellationToken>());
     }
 }

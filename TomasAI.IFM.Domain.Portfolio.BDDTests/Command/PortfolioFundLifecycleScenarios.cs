@@ -39,6 +39,33 @@ public sealed class PortfolioFundLifecycleScenarios
         action.Should().Throw<InvalidOperationException>();
     }
 
+    [Fact]
+    public void Given_saved_Futures_defaults_when_replayed_then_symbols_and_cycles_are_retained_without_changing_mandate_version()
+    {
+        var fund = new PortfolioFundAggregate();
+        fund.Create(Guid.NewGuid(), Draft() with { SchemaVersion=3, PermittedTradeFamilies=[] }, Now, "fund-admin");
+        var replacement = Draft() with { FundMandateVersion=2, SchemaVersion=4, PermittedTradeFamilies=[],
+            UnderlyingUniverse=["ES","VX"], BaseContracts=[new(){Symbol="ES",ForwardCycles=2},new(){Symbol="VX",ForwardCycles=1}] };
+        fund.ConfigureBaseContracts(Guid.NewGuid(),1,replacement with { FundMandateVersion=1 },Now.AddMinutes(1),"fund-admin");
+        var restored = new PortfolioFundAggregate();
+        restored.RestoreSnapshot(fund.CaptureSnapshot());
+        restored.Current!.BaseContracts.Should().BeEquivalentTo(replacement.BaseContracts);
+        restored.Current.FundMandateVersion.Should().Be(1);
+    }
+
+    [Theory]
+    [InlineData(true)] [InlineData(false)]
+    public void Given_a_Futures_configuration_when_no_symbol_or_Equities_is_saved_then_it_is_rejected(bool equities)
+    {
+        var fund = new PortfolioFundAggregate();
+        fund.Create(Guid.NewGuid(),Draft(),Now,"fund-admin");
+        var replacement = Draft() with { FundMandateVersion=2, SchemaVersion=4, PermittedTradeFamilies=[],
+            BaseContracts=equities?[new(){BaseAsset="Equities",Symbol="ES"}]:[] };
+        var save=()=>fund.AddVersion(Guid.NewGuid(),1,replacement,default,Now.AddMinutes(1),"fund-admin");
+        save.Should().Throw<ArgumentException>();
+        fund.Revision.Should().Be(1);
+    }
+
     static FundMandateReadModel Draft() => new()
     {
         PortfolioId = 101,

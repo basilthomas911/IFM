@@ -19,37 +19,6 @@ public static class ReferenceDbContextExtensions
         /// <returns>The owner of the Reference persistence transaction.</returns>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "The C# 14 extension member reads its declared DbContext receiver.")]
         internal TomasAI.IFM.Application.Storage.EventSourceDb.PostgresEventTransaction LookupTransaction() => new(new DbConnectionSettings().Add(TomasAI.IFM.Application.Storage.EventSourceDb.EventSourceActorDbContext.EventSourceActorDbConnection, context.ConnectionString, "System.Data.Postgres"));
-        /// <summary>Checks the technical batch bound for the compatibility maintenance API.</summary>
-        internal void ValidatePositiveBatchSize(int batchSize) => ArgumentOutOfRangeException.ThrowIfNegativeOrZero(batchSize);
-        /// <summary>Validates a required binding argument before context persistence.</summary>
-        /// <param name = "value">The required domain value.</param>
-        /// <param name = "argumentName">The original caller argument name.</param>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Validation belongs to the established DbContext binding extension contract.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Validation belongs to the established DbContext binding extension contract.")]
-        internal void ValidateRequiredArgument<T>([System.Diagnostics.CodeAnalysis.NotNull] T value, [System.Runtime.CompilerServices.CallerArgumentExpression("value")] string? argumentName = null)
-        {
-            if (value is null)
-                throw new ArgumentNullException(argumentName);
-        }
-
-        /// <summary>
-        /// Performs the ValidateMdiForwardLossRatioLogicalKeys Reference persistence helper operation.
-        /// </summary>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal void ValidateMdiForwardLossRatioLogicalKeys(IEnumerable<MDIForwardLossRatioReadModel> mdiForwardLossRatios)
-        {
-            var logicalKeys = new HashSet<MdiForwardLossRatioLogicalKey>();
-            foreach (var ratio in mdiForwardLossRatios)
-            {
-                var key = new MdiForwardLossRatioLogicalKey(ratio.TrendDirection.ToStringFast(), ratio.TradeType.ToStringFast(), ratio.MDI);
-                if (!logicalKeys.Add(key))
-                {
-                    throw new ArgumentException($"MDI forward-loss-ratio batch contains duplicate key " + $"({key.TrendDirection}, {key.TradeType}, {key.Mdi}).", nameof(mdiForwardLossRatios));
-                }
-            }
-        }
-
         /// <summary>Reads definitions from the retained catalog document without executing its requests.</summary>
         internal async Task<IReadOnlyList<TradeStrategyFamilyReadModel>> ReadCatalogDefinitionsAsync(CancellationToken cancellationToken)
         {
@@ -70,7 +39,6 @@ public static class ReferenceDbContextExtensions
         /// <summary>Upserts the accepted row, preserving its creation metadata during rebuilding.</summary>
         public async Task InsertLookupAsync(LookupTypeReadModel row, CancellationToken token = default)
         {
-            ArgumentNullException.ThrowIfNull(row);
             ArgumentNullException.ThrowIfNull(transaction);
             await (transaction.LockLookupAsync(row.LookupTypeName, token))
             .ConfigureAwait(false);
@@ -81,8 +49,6 @@ public static class ReferenceDbContextExtensions
         /// <summary>Atomically replaces the old identifier with the accepted row. Locks names in stable order.</summary>
         public async Task UpdateLookupAsync(LookupTypeId oldId, LookupTypeReadModel row, CancellationToken token = default)
         {
-            ArgumentNullException.ThrowIfNull(oldId);
-            ArgumentNullException.ThrowIfNull(row);
             ArgumentNullException.ThrowIfNull(transaction);
             foreach (var name in new[]
             {
@@ -101,7 +67,6 @@ public static class ReferenceDbContextExtensions
         /// <remarks>The source-event checkpoint must prevent repeated application of this positional deletion.</remarks>
         public async Task DeleteLookupAsync(LookupTypeId id, CancellationToken token = default)
         {
-            ArgumentNullException.ThrowIfNull(id);
             ArgumentNullException.ThrowIfNull(transaction);
             await (transaction.LockLookupAsync(id.LookupTypeName, token))
             .ConfigureAwait(false);
@@ -122,9 +87,6 @@ public static class ReferenceDbContextExtensions
         /// <summary>Inserts one definition and its optional weekdays atomically. Duplicate IDs or exact names are rejected.</summary>
         internal async Task InsertScheduledJobAsync(ScheduledJobReadModel row, CancellationToken token)
         {
-            ArgumentNullException.ThrowIfNull(row);
-            if (row.JobId <= 0)
-                throw new ArgumentException("A positive job identifier is required.", nameof(row));
             await transaction.LockScheduledJobAsync(row.JobId, token)
             .ConfigureAwait(false);
             await transaction.ExecuteAsync(ReferenceDbSql.InsertScheduledJob, row.ScheduledJobValues(), token)
@@ -136,9 +98,6 @@ public static class ReferenceDbContextExtensions
         /// <summary>Updates accepted facts and weekdays atomically. A conflicting rename leaves both jobs unchanged.</summary>
         internal async Task UpdateScheduledJobAsync(ScheduledJobReadModel row, CancellationToken token)
         {
-            ArgumentNullException.ThrowIfNull(row);
-            if (row.JobId <= 0)
-                throw new ArgumentException("A positive job identifier is required.", nameof(row));
             await transaction.LockScheduledJobAsync(row.JobId, token)
             .ConfigureAwait(false);
             var affected = await transaction.ExecuteAsync(ReferenceDbSql.UpdateScheduledJob, row.ScheduledJobValues(), token)
@@ -179,6 +138,3 @@ public static class ReferenceDbContextExtensions
         internal object? [] ScheduledJobValues() => [row.JobId, row.JobName, row.JobSchedule.ToString(), row.JobScheduleDate, row.JobScheduleInterval, row.TaskName, row.TaskEnabled, row.CreatedOn, row.CreatedBy, row.UpdatedOn, row.UpdatedBy];
     }
 }
-
-[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
-internal readonly record struct MdiForwardLossRatioLogicalKey(string TrendDirection, string TradeType, int Mdi);

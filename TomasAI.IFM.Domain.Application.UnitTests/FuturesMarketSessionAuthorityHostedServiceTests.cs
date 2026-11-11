@@ -75,18 +75,23 @@ public sealed class FuturesMarketSessionAuthorityHostedServiceTests
         public int ReadCount { get; private set; }
         public ValueTask<DateOnly?> GetCompletedEndOfDayAsync(string environment, CancellationToken cancellationToken = default)
             => throw new NotSupportedException("Position finalization cannot restore ValueDate.");
-        public ValueTask<DateOnly?> GetCompletedMarketCloseAsync(string environment, CancellationToken cancellationToken = default)
+        public ValueTask<ScheduledTaskRunPage> GetRunHistoryAsync(ScheduledTaskHistorySelection selection, CancellationToken cancellationToken = default)
         {
-            Assert.Equal("Development", environment);
+            Assert.Equal("Development", selection.Environment);
+            Assert.Equal(ScheduledTaskKeys.ApiMarketCloseHost, selection.Host);
             ReadCount++;
             if (failRead) throw new InvalidOperationException("Injected completion read failure.");
-            return ValueTask.FromResult<DateOnly?>(new DateOnly(2026,10,6));
+            return ValueTask.FromResult(new ScheduledTaskRunPage { Runs = [new()
+            {
+                HostId = selection.Host, TaskKey = ScheduledTaskKeys.FuturesMarketClose,
+                Status = ScheduledTaskRunStatus.Succeeded, Stage = ScheduledTaskKeys.MarketClosedStage,
+                ExitCode = 0, CompletedEndOfDayValueDate = new DateOnly(2026,10,6)
+            }] });
         }
         public ValueTask<ScheduledTaskDefinition?> GetDefinitionAsync(string environment, string hostId, ScheduledTaskId id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public ValueTask<ScheduledTaskDefinition[]> GetDefinitionsAsync(string environment, string hostId, int limit, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public ValueTask<ScheduledTaskCatalog?> GetCatalogAsync(string environment, string hostId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public ValueTask<ScheduledTaskRun?> GetRunAsync(string environment, string hostId, ScheduledTaskId scheduleId, ScheduledTaskId runId, DateTimeOffset intendedFireTimeUtc, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public ValueTask<ScheduledTaskRunPage> GetRunHistoryAsync(string environment, string hostId, ScheduledTaskId scheduleId, int pageSize, byte[]? pagingState, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public ValueTask<ScheduledTaskRun[]> GetRunsAsync(string environment, string hostId, ScheduledTaskId scheduleId, int limit, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 

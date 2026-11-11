@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -18,6 +19,9 @@ public static class GetLastFuturesOptionTickData
 
         internal async ValueTask<FuturesOptionTickDataV2ReadModel?> ExecuteAsync(
         IDbContextFactory dbFactory)
-            => await (dbFactory.MarketDataDb.GetLastFuturesOptionTickDataAsync(q.ContractId, q.ValueDate)).ConfigureAwait(false);
+        {
+            RawTickRequestQualification.RequireScope(q.ContractId, q.ValueDate);
+            return await dbFactory.MarketDataDb.GetLastFuturesOptionTickDataAsync(q.ContractId, q.ValueDate).ConfigureAwait(false);
+        }
     }
 }

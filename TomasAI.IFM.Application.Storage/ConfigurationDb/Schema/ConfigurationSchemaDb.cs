@@ -2,7 +2,6 @@ using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage.SchemaDb;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
-using TomasAI.IFM.Shared.Storage;
 
 namespace TomasAI.IFM.Application.Storage.ConfigurationDb.Schema;
 /// <summary>Creates every ConfigurationDb PostgreSQL schema object, including tables, indexes, constraints, functions, triggers and seed definitions.</summary>
@@ -12,7 +11,7 @@ public sealed class ConfigurationSchemaDb : SchemaDbContext<ConfigurationSchemaD
     /// <param name = "connectionSettings">The named PostgreSQL connection settings.</param>
     /// <param name = "logger">The schema-provider logger.</param>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Major Code Smell", "S6672", Justification = "SchemaDbContext shares the storage provider logger category.")]
-    public ConfigurationSchemaDb(IDbConnectionSettings connectionSettings, ILogger<DbProvider> logger) : this(connectionSettings ?? throw new ArgumentNullException(nameof(connectionSettings)), logger, true)
+    public ConfigurationSchemaDb(IDbConnectionSettings connectionSettings, ILogger<DbProvider> logger) : this(connectionSettings, logger, true)
     {
     }
 
@@ -22,7 +21,6 @@ public sealed class ConfigurationSchemaDb : SchemaDbContext<ConfigurationSchemaD
     /// <returns>The schema executor with lookup default insertion disabled.</returns>
     public static ConfigurationSchemaDb WithoutLookupDefaults(IDbConnectionSettings connectionSettings, ILogger logger)
     {
-        ArgumentNullException.ThrowIfNull(connectionSettings);
         return new(connectionSettings, logger as ILogger<DbProvider> ?? new ProviderCategoryLogger(logger), false);
     }
 
@@ -36,7 +34,7 @@ public sealed class ConfigurationSchemaDb : SchemaDbContext<ConfigurationSchemaD
     }
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Major Code Smell", "S6672", Justification = "SchemaDbContext shares the storage provider logger category.")]
-    private ConfigurationSchemaDb(IDbConnectionSettings connectionSettings, ILogger<DbProvider> logger, bool seedLookupDefaults) : base(connectionSettings[ConfigurationDbContext.ConfigurationDbConnection], logger)
+    private ConfigurationSchemaDb(IDbConnectionSettings connectionSettings, ILogger<DbProvider> logger, bool seedLookupDefaults) : base((connectionSettings ?? throw new ArgumentNullException(nameof(connectionSettings)))[ConfigurationDbContext.ConfigurationDbConnection], logger)
     {
         definitions = ConfigurationSchemaSql.GetDefinitions(seedLookupDefaults);
     }

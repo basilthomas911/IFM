@@ -370,6 +370,28 @@ public class FuturesTdiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         generated.FuturesTdiSignal.SchemaVersion.Should().BeGreaterThanOrEqualTo(2);
     }
 
+    [Fact]
+    public async Task Hourly_observation_at_UTC_midnight_is_valid_and_preserves_its_source_time()
+    {
+        var scenario = CreateScenario();
+        var original = SampleData.TdiGenerateCommandFor(TimeFrameType.OneHour);
+        var midnight = DateTime.SpecifyKind(original.EntityId.ValueDate.ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc);
+        var samples = original.FuturesRsiSignals.Select((signal, index) =>
+        {
+            var source = midnight.AddHours(index - original.FuturesRsiSignals.Length + 1);
+            return signal with { Timestamp = TimeOnly.FromDateTime(source), SourceEventTimestamp = source };
+        }).ToArray();
+        var id = original.FuturesTdiSignalId with { Timestamp = TimeOnly.MinValue };
+        var command = original with { FuturesTdiSignalId = id, FuturesRsiSignals = samples };
+        await scenario.Actor.InvokeOnValidateAsync(scenario.Context, command.Subject.ThreadId, command);
+        var state = CreateState(command);
+        var result = await scenario.Actor.InvokeReceiveAsync(scenario.Context, state, command);
+        result.Success.Should().BeTrue();
+        var generated = state.Events.OfType<FuturesTdiSignalGeneratedEvent>().Should().ContainSingle().Subject;
+        generated.FuturesTdiSignal.Timestamp.Should().Be(TimeOnly.MinValue);
+        generated.FuturesTdiSignal.SourceEventTimestamp.Should().Be(midnight);
+    }
+
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task OnValidateAsync_ValidCommand_CompletesSuccessfully(

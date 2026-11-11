@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.EventProjector.ReadModels;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using TomasAI.IFM.Application.Api.Nats.Client;
@@ -51,7 +52,7 @@ public sealed class ParameterOwnershipRuntimeTests(ReferenceIntegrationInfrastru
         foreach (var source in events)
         {
             var execution = await infrastructure.ActorEventSourceDb.GetEventProjectorExecutionStateAsync(
-                source.EventVersion, "RegimeDiscoveryConfigurationEventProjector", token);
+                new EventProjectorIdentity(source.EventVersion, "RegimeDiscoveryConfigurationEventProjector"), token);
             Assert.NotNull(execution);
             Assert.Equal(EventProjectorOutcomeType.Completed, execution.Outcome);
             Assert.Equal(EventProjectorStageType.PublishCompletedEvent, execution.LastCompletedStage);
@@ -208,7 +209,7 @@ public sealed class ParameterOwnershipRuntimeTests(ReferenceIntegrationInfrastru
             {
                 foreach (var fact in facts)
                 {
-                    await transaction.AppendAsync(registry.StreamId, fact.CommandId, fact, version++, cancellation);
+                    await transaction.AppendAsync(new EnlistedEventAppend(registry.StreamId, fact.CommandId, fact, version++), cancellation);
                     await infrastructure.ConfigurationDb.ProjectParameterStartupAsync(transaction, fact, cancellation);
                 }
                 await infrastructure.ConfigurationDb.AdvanceParameterRevisionFenceAsync(transaction, cancellation);

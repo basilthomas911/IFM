@@ -17,3 +17,9 @@ public interface IInstrumentDefinitionStore
     Task<TomasAI.IFM.Domain.MarketData.Shared.ViewModels.TradeStrategySymbolReadModel[]> GetSymbolsAsync(Guid snapshot, TradeStrategyFamilyType family, CancellationToken cancellationToken);
     Task<IReadOnlyList<TradeStrategyProduct>> GetProductsAsync(Guid snapshot, TradeStrategyFamilyType family, CancellationToken cancellationToken);
 }
+
+/// <summary>Optional bounded bulk ingest for exact reference records; publication remains a separate atomic operation.</summary>
+public interface IInstrumentDefinitionBatchStore
+{
+    Task InsertBatchAsync(Guid snapshot, long firstIndex, IReadOnlyList<ExactInstrumentDefinition> definitions, CancellationToken cancellationToken);
+}

@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.EventSourcing.Persistence.Command;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan;
@@ -28,8 +29,8 @@ internal static class TradePlanAtomicPersistence
                     VerticalSpreadTradePlanUpdatedEvent vertical => vertical.Plan,
                     _ => throw new InvalidOperationException("Unsupported atomic trade plan event: " + sourceEvent.GetType().Name)
                 };
-                await transaction.AppendAsync(request.StreamId, request.CommandId, sourceEvent, version++, token).ConfigureAwait(false);
-                await factory.TradePlanDb.ProjectMaterialAsync(transaction, plan, token).ConfigureAwait(false);
+                await transaction.AppendAsync(new EnlistedEventAppend(request.StreamId, request.CommandId, sourceEvent, version++), token).ConfigureAwait(false);
+                await TradePlanProjectionWriter.WriteAcceptedAsync(factory.TradePlanDb.DbWriter, transaction, plan, token).ConfigureAwait(false);
             }
             return true;
         }, cancellationToken).ConfigureAwait(false);

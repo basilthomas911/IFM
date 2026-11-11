@@ -144,7 +144,7 @@ public sealed class CapacityReservationIntegrationTests(PortfolioEventStoreFixtu
         var cancel = ChangeRequest(consume, CapacityChangeKind.ConfirmCancel, 4, 3, 4, 6, 0);
         cancel = cancel with { Body = cancel.Body with { RelatedPostingReference = "reconciliation:fixture" } };
         cancel = cancel with { InputSha256 = FinancialCanonicalHash.Request(cancel) };
-        await Transactions().ExecuteAsync((db, ct) => db.AppendAsync($"IntegrationReconciliation.{cancel.Body.Source.SourceEventId:N}", cancel.Body.Source.SourceEventId,
+        await Transactions().ExecuteAsync((db, ct) => db.AppendAsync(new EnlistedEventAppend($"IntegrationReconciliation.{cancel.Body.Source.SourceEventId:N}", cancel.Body.Source.SourceEventId,
             new TestCapacityReconciliationEvent
             {
                 Id = Guid.NewGuid(),
@@ -164,7 +164,7 @@ public sealed class CapacityReservationIntegrationTests(PortfolioEventStoreFixtu
                     ReconciliationReference = cancel.Body.RelatedPostingReference,
                     Environment = book.Environment
                 }
-            }, 0, ct));
+            }, 0), ct));
         await Change(cancel);
         var usage = await Transactions().ExecuteAsync((db, ct) => db.QueryAsync("SELECT held,working,position FROM portfolio_financial.capacity_usage WHERE portfolio_id=$1 AND measure=$2;",
             [book.PortfolioId, (int)CapacityMeasure.PositionSlots], r => (r.GetDecimal(0), r.GetDecimal(1), r.GetDecimal(2)), ct));
@@ -335,8 +335,8 @@ public sealed class CapacityReservationIntegrationTests(PortfolioEventStoreFixtu
             ValidUntilUtc = body.ValidUntilUtc,
             Eligible = true
         };
-        await Transactions().ExecuteAsync((db, ct) => db.AppendAsync($"IntegrationRisk.{risk:N}", risk,
-            new TestCapacityAssessmentEvent { Id = Guid.NewGuid(), CommandId = risk, CapacityAssessment = assessment, ReceivedOn = now }, 0, ct));
+        await Transactions().ExecuteAsync((db, ct) => db.AppendAsync(new EnlistedEventAppend($"IntegrationRisk.{risk:N}", risk,
+            new TestCapacityAssessmentEvent { Id = Guid.NewGuid(), CommandId = risk, CapacityAssessment = assessment, ReceivedOn = now }, 0), ct));
         var request = new ReservePortfolioTradeRiskCommand
         {
             CommandId = operation,
@@ -454,7 +454,7 @@ public sealed class CapacityReservationIntegrationTests(PortfolioEventStoreFixtu
             Receipt = receipt
         });
     internal static Task Accept(ReservePortfolioTradeRiskCommand reserve, ConsumeCapacityReservationCommand consume, string executionOrderHash = "") => Transactions().ExecuteAsync((db, ct) => db.AppendAsync(
-        $"IntegrationAcceptance.{consume.Body.ExecutionId:N}", consume.Body.ExecutionId, new TestCapacityAcceptanceEvent
+        new EnlistedEventAppend($"IntegrationAcceptance.{consume.Body.ExecutionId:N}", consume.Body.ExecutionId, new TestCapacityAcceptanceEvent
         {
             Id = Guid.NewGuid(),
             CommandId = consume.Body.ExecutionId,
@@ -472,7 +472,7 @@ public sealed class CapacityReservationIntegrationTests(PortfolioEventStoreFixtu
                 ValidUntilUtc = reserve.Body.ValidUntilUtc,
                 ExecutionOrderHash = executionOrderHash
             }
-        }, 0, ct));
+        }, 0), ct));
     internal static Task<(decimal Held, decimal Working, decimal Position)> Usage(FinancialBookConfiguration book) => Transactions().ExecuteAsync(async (db, ct) =>
         (await db.QueryAsync("SELECT held,working,position FROM portfolio_financial.capacity_usage WHERE portfolio_id=$1;", [book.PortfolioId], r => (r.GetDecimal(0), r.GetDecimal(1), r.GetDecimal(2)), ct)).Single());
 }

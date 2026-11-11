@@ -48,7 +48,7 @@ public sealed class StrategyCatalogMigration(IDbContextFactory factory, IMarketD
             if (PostgresDatabaseIdentity.Parse(factory.ConfigurationDb.ConnectionString) != PostgresDatabaseIdentity.Parse(factory.ActorEventSourceDb.ConnectionString))
                 throw new InvalidOperationException("Strategy catalog baseline and source events must share one PostgreSQL database/security identity.");
             await transactions.ExecuteOnceAsync((transaction, token) =>
-                factory.ConfigurationDb.CaptureStrategyCatalogBaselineAsync(transaction, token), ct).ConfigureAwait(false);
+                StrategyCatalogReconstruction.CaptureBaselineAsync(factory.ConfigurationDb, transaction, token), ct).ConfigureAwait(false);
         }
         return new(definitions.Count(x => x.Definition.Key.Kind != StrategyCatalogKind.Deployment),
             definitions.Count(x => x.Definition.Key.Kind == StrategyCatalogKind.Deployment),

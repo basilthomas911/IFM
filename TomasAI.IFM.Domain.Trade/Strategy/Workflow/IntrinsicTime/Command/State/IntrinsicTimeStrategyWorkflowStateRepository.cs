@@ -1,4 +1,5 @@
-﻿using TomasAI.IFM.Application.EventSourcing.Repository;
+﻿using TomasAI.IFM.Application.EventSourcing.Persistence.Command;
+using TomasAI.IFM.Application.EventSourcing.Repository;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.TradeDb;
 using Microsoft.Extensions.Logging;
@@ -150,14 +151,14 @@ public sealed class IntrinsicTimeStrategyWorkflowStateRepository(IEventSourceAct
                 {
                     if (domainEvent is not WorkflowStrategyStateUpdatedEvent snapshot)
                         throw new InvalidOperationException("A strategy workflow transaction requires complete state snapshots.");
-                    await transaction.AppendAsync(command.StreamId, command.CommandId, snapshot, version++, token).ConfigureAwait(false);
+                    await transaction.AppendAsync(new EnlistedEventAppend(command.StreamId, command.CommandId, snapshot, version++), token).ConfigureAwait(false);
                     await writer.ProjectWorkflowAsync(transaction, snapshot, token).ConfigureAwait(false);
                 }
                 if (capture)
                 {
                     var latest = (WorkflowStrategyStateUpdatedEvent)pending[^1];
-                    await transaction.AppendAsync(command.StreamId, command.CommandId, state.CaptureSnapshot(command, latest),
-                        version, token).ConfigureAwait(false);
+                    await transaction.AppendAsync(new EnlistedEventAppend(command.StreamId, command.CommandId, state.CaptureSnapshot(command, latest),
+                        version), token).ConfigureAwait(false);
                 }
                 return true;
             }, cancellationToken).ConfigureAwait(false);

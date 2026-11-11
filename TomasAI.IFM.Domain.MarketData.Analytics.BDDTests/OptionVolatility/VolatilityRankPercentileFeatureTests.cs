@@ -62,7 +62,10 @@ public sealed class VolatilityRankPercentileFeatureTests
             .FreshnessStatus.Should().Be(VolatilityFreshnessStatus.Accepted);
         clock.Advance(TimeSpan.FromMinutes(2));
         (await service.GetLatestAsync(new(scope, clock.GetUtcNow(), TimeSpan.FromMinutes(5))))
-            .FreshnessStatus.Should().Be(VolatilityFreshnessStatus.Stale);
+            .FreshnessStatus.Should().Be(VolatilityFreshnessStatus.Accepted, "the exchange is still closed");
+        clock.Advance(DateTimeOffset.Parse("2026-09-20T22:05:01Z") - clock.GetUtcNow());
+        (await service.GetLatestAsync(new(scope, clock.GetUtcNow(), TimeSpan.FromMinutes(5))))
+            .FreshnessStatus.Should().Be(VolatilityFreshnessStatus.Stale, "five trading minutes have now elapsed after reopening");
         (await service.GetSnapshotAsync("simulation", "closed-snapshot")).Should().Be(metric);
     }
 

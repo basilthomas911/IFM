@@ -90,7 +90,7 @@ public class FuturesEodDataStateRepository(
             {
                 IEvent fact = source;
                 if (source is VixFuturesEodDataInsertedEvent vix) fact = await AcceptedMarketSignalProjection.AcceptVixAsync(transaction,vix,token).ConfigureAwait(false);
-                await transaction.AppendAsync(command.StreamId,command.CommandId,fact,version++,token).ConfigureAwait(false);
+                await transaction.AppendAsync(new EnlistedEventAppend(command.StreamId,command.CommandId,fact,version++),token).ConfigureAwait(false);
                 _ = await AcceptedMarketSignalProjection.TryProjectAsync(transaction,fact,token).ConfigureAwait(false);
                 accepted.Add(fact);
             }

@@ -3,6 +3,8 @@ namespace TomasAI.IFM.Application.Storage.SecuritiesDb.Schema;
 /// <summary>Native PostgreSQL schema with explicit ordered indexes. No runtime CQL translation.</summary>
 public static class SecuritiesSchemaSql
 {
+    public const string Drop = "DROP SCHEMA IF EXISTS securities CASCADE;";
+
     public const string Create = """
         CREATE SCHEMA IF NOT EXISTS securities;
         
@@ -107,39 +109,6 @@ public static class SecuritiesSchemaSql
             PRIMARY KEY (symbol, contractMonth, optionType, strikePrice, contractId)
             );
         CREATE INDEX IF NOT EXISTS futures_option_contract_by_symbol_ordered ON securities.futures_option_contract_by_symbol (symbol, contractMonth DESC, optionType ASC, strikePrice ASC, contractId ASC);
-        
-        CREATE TABLE IF NOT EXISTS securities.securities_projection_state (
-            projectionName text,
-            generation uuid,
-            completed boolean,
-            activeOperations uuid[],
-            PRIMARY KEY (projectionName)
-            );
-        
-        CREATE TABLE IF NOT EXISTS securities.securities_symbol_projection_state (
-            projectionName text,
-            symbol text,
-            generation uuid,
-            completed boolean,
-            activeOperations uuid[],
-            PRIMARY KEY (projectionName, symbol)
-            );
-        
-        CREATE TABLE IF NOT EXISTS securities.securities_projection_operation (
-            projectionName text,
-            operationId uuid,
-            startedOn timestamptz,
-            stateMayBeActive boolean,
-            PRIMARY KEY (projectionName, operationId)
-            );
-        
-        CREATE TABLE IF NOT EXISTS securities.securities_projection_operation_scope (
-            projectionName text,
-            operationId uuid,
-            scopeType text,
-            scopeKey text,
-            PRIMARY KEY (projectionName, operationId, scopeType, scopeKey)
-            );
         
         ALTER TABLE securities.option_contract_expiry_calendar ADD COLUMN IF NOT EXISTS underlyingContractId text;
         

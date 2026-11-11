@@ -1,3 +1,4 @@
+using ISequenceIdDbContext = TomasAI.IFM.Shared.Identity.ISequenceIdDbContext;
 using TomasAI.IFM.Application.Storage.ScheduledTaskDb;
 using TomasAI.IFM.Application.Storage.ScheduledTaskDb.Schema;
 using TomasAI.IFM.Application.Storage.TradeTickQuoteDb;
@@ -31,7 +32,8 @@ namespace TomasAI.IFM.Application.Storage;
 public interface IDbContextFactory
 {
     IEventSourceActorDbContext ActorEventSourceDb { get; }
-    IObjectRepository<SequenceIdDbContext> SequenceIdDb { get; }
+    /// <summary>Gets typed sequence reads and allocations.</summary>
+    SequenceIdDb.ISequenceIdDbContext SequenceIdDb { get; }
 
     IMarketDataDbContext MarketDataDb { get; }
     ITradeTickQuoteDbContext TradeTickQuoteDb { get; }

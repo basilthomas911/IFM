@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.EventSourcing.Persistence.Command;
 using TomasAI.IFM.Application.Storage.PortfolioDb.Schema;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
@@ -429,7 +430,7 @@ public static class EventLogV2Benchmark
                 RequiresDurableProjection = scenario.Markers && (expected + i + 1) % scenario.MarkerEvery == 0
             })).ToArray();
         return new EventLogAppendRequest(stream.Name, stream.Id, id, entries, expected, FixtureTime,
-            scenario.Audit ? CommandAuditEnvelope.Create(command, AuditCodec) : null);
+            scenario.Audit ? CommandAuditPreparation.Create(command, AuditCodec) : null);
     }
 
     static async Task VerifyShape(NpgsqlConnection connection, string table, Variant variant)
@@ -514,7 +515,7 @@ public static class EventLogV2Benchmark
             if (committed != await Snapshot(connection, table)) throw new InvalidOperationException("Duplicate appended twice.");
             var conflicting = request with
             {
-                CommandAudit = CommandAuditEnvelope.Create(
+                CommandAudit = CommandAuditPreparation.Create(
                 new BenchmarkCommand { CommandId = command, StreamId = stream.Name, Value = -100, Payload = Payload }, AuditCodec)
             };
             // Current atomic COPY writer reports both hash conflicts and exact duplicates as DuplicateException.

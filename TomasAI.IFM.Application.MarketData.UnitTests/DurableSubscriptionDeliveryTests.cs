@@ -12,6 +12,20 @@ public sealed class DurableSubscriptionDeliveryTests
             [new(Guid.NewGuid(), 1, SubscriptionLeasePurpose.WorkingOrder, new("Databento", "GLBX.MDP3", "ES-option", "mbp-1", SubscriptionAssetKind.FuturesOption, "ES-future"))])]);
 
     [Fact]
+    public async Task Invalid_durable_queries_are_rejected_before_persistence()
+    {
+        var persistence = Substitute.For<IDurableSubscriptionPersistence>();
+        var owner = new DurableSubscriptionIntentStore(persistence);
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(
+            () => owner.ReadPendingOutboxAsync("IFM", "GLBX.MDP3", 1001));
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => owner.FindOperationAsync("IFM", "GLBX.MDP3", Guid.Empty));
+
+        Assert.Empty(persistence.ReceivedCalls());
+    }
+
+    [Fact]
     public async Task Restart_restores_durable_union_without_TTL_and_unknown_authority_retains_it()
     {
         await using var coordinator = new MarketDataSubscriptionCoordinator("IFM", "GLBX.MDP3", new(2026, 9, 8));

@@ -81,7 +81,7 @@ public class LookupTypeStateRepository(
             var version = state.CommittedStreamVersion;
             foreach (var source in pending)
             {
-                await transaction.AppendAsync(command.StreamId,command.CommandId,source,version++,token).ConfigureAwait(false);
+                await transaction.AppendAsync(new EnlistedEventAppend(command.StreamId,command.CommandId,source,version++),token).ConfigureAwait(false);
                 await (source switch
                 {
                     LookupTypeAddedEvent added => transaction.InsertLookupAsync(added.LookupType,token),
@@ -91,7 +91,7 @@ public class LookupTypeStateRepository(
                 }).ConfigureAwait(false);
             }
             if (snapshot is not null)
-                await transaction.AppendAsync(command.StreamId, command.CommandId, snapshot, version, token).ConfigureAwait(false);
+                await transaction.AppendAsync(new EnlistedEventAppend(command.StreamId, command.CommandId, snapshot, version), token).ConfigureAwait(false);
             return true;
         },cancellationToken).ConfigureAwait(false);
         state.AcceptChanges();

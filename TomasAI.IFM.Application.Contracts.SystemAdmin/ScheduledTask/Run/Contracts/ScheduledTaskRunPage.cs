@@ -1,6 +1,6 @@
 using MessagePack;
 namespace TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts;
-/// <summary>Contains a bounded page of persisted occurrences with an opaque Scylla continuation.</summary>
+/// <summary>Contains a bounded page of persisted occurrences with an opaque PostgreSQL keyset continuation.</summary>
 [MessagePackObject]
 public sealed record ScheduledTaskRunPage
 {

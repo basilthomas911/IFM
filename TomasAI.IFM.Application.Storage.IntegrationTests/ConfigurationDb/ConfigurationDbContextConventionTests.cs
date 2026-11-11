@@ -4,6 +4,7 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using TomasAI.IFM.Application.Storage.ConfigurationDb;
+using TomasAI.IFM.Application.Storage.IntegrationTests.Conventions;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
 using Xunit;
@@ -118,9 +119,9 @@ public sealed class ConfigurationDbContextConventionTests
             line => line.Contains(
                 "partial class ConfigurationDbContext",
                 StringComparison.Ordinal));
-        Assert.DoesNotContain("throw new Argument", context, StringComparison.Ordinal);
-        Assert.DoesNotContain("ArgumentException.Throw", context, StringComparison.Ordinal);
-        Assert.DoesNotContain("ArgumentNullException.Throw", context, StringComparison.Ordinal);
+        Assert.Empty(StorageConventionAudit.Inspect(
+            new("ConfigurationDb", "ConfigurationDbContext", "Configuration"), "Validation",
+            [StorageSource.Parse("ConfigurationDbContext.cs", context)]));
         Assert.Contains(
             "extension(ConfigurationDbContext context)",
             extensions,
@@ -175,27 +176,10 @@ public sealed class ConfigurationDbContextConventionTests
     [Fact]
     public void Public_storage_methods_document_parameters_and_results_in_the_context()
     {
-        var source = File.ReadAllText(Path.Combine(GetFolder(), "ConfigurationDbContext.cs"));
-        var signatures = System.Text.RegularExpressions.Regex.Matches(source,
-            @"public\s+(?:async\s+)?(?:[^\n(]|\([^\n)]*\))+?\b(?<name>\w+Async)\((?<parameters>[^)]*)\)");
-        var methods = typeof(ConfigurationDbContext).GetMethods(
-            BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
-            .Where(static method => !method.IsSpecialName).ToArray();
-        Assert.Equal(methods.Length, signatures.Count);
-        foreach (System.Text.RegularExpressions.Match signature in signatures)
-        {
-            var start = source.LastIndexOf("/// <summary>", signature.Index, StringComparison.Ordinal);
-            Assert.True(start >= 0);
-            var documentation = source[start..signature.Index];
-            Assert.Contains("<returns>", documentation, StringComparison.Ordinal);
-            var method = methods.Single(candidate => candidate.Name == signature.Groups["name"].Value
-                && candidate.GetParameters().Length == signature.Groups["parameters"].Value.Split(',').Length
-                && candidate.GetParameters().All(parameter =>
-                    System.Text.RegularExpressions.Regex.IsMatch(signature.Groups["parameters"].Value,
-                        @"\b" + parameter.Name + @"\b")));
-            foreach (var parameter in method.GetParameters())
-                Assert.Matches("<param name\\s*=\\s*\"" + parameter.Name + "\">", documentation);
-        }
+        var findings = TomasAI.IFM.Application.Storage.IntegrationTests.Conventions.StorageConventionAudit.Inspect(
+            TomasAI.IFM.Application.Storage.IntegrationTests.Conventions.StorageConventionAudit.Contexts.Single(context => context.Name == "ConfigurationDb"),
+            "Documentation");
+        Assert.True(findings.Count == 0, string.Join(Environment.NewLine, findings));
     }
 
     [Fact]

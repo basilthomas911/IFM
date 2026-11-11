@@ -17,7 +17,7 @@ public static class StrategyCatalog
             ArgumentNullException.ThrowIfNull(context);
             ArgumentNullException.ThrowIfNull(query);
             var request = StrategyCatalogJson.Read<CatalogQueryRequest>(query.RequestJson);
-            var value = await (new TomasAI.IFM.Domain.Reference.StrategyCatalog.StrategyCatalogService(context.DbFactory).QueryAsync(request, cancellationToken)).ConfigureAwait(false);
+            var value = await ((context.Catalog ?? new TomasAI.IFM.Domain.Reference.StrategyCatalog.StrategyCatalogService(context.DbFactory)).QueryAsync(request, cancellationToken)).ConfigureAwait(false);
             return value;
         }
     }

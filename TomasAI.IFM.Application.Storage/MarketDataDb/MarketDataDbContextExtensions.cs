@@ -58,24 +58,6 @@ using TomasAI.IFM.Shared.Storage;
 namespace TomasAI.IFM.Application.Storage.MarketDataDb;
 public static class MarketDataDbContextExtensions
 {
-    extension(ImportDuplicatePolicy duplicatePolicy)
-    {
-        /// <summary>
-        /// Performs the <c>ValidateImportPolicy</c> operation for MarketDataDb persistence.
-        /// </summary>
-        /// <param name="commandId">The originating command identifier.</param>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2208", Justification = "The named argument is the declared C# 14 extension receiver; its name is part of the caller contract.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3928", Justification = "The named argument is the declared C# 14 extension receiver; its name is part of the caller contract.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal void ValidateImportPolicy(Guid commandId)
-        {
-            if (!Enum.IsDefined(duplicatePolicy))
-                throw new ArgumentOutOfRangeException(nameof(duplicatePolicy));
-            if (duplicatePolicy == ImportDuplicatePolicy.Reject && commandId == Guid.Empty)
-                throw new ArgumentException("Reject imports require a durable command identity.", nameof(commandId));
-        }
-    }
-
     extension(MarketDataDbContext context)
     {
         /// <summary>Read Stored Futures Eod Data using the MarketDataDb persistence.</summary>
@@ -88,13 +70,15 @@ public static class MarketDataDbContextExtensions
         internal async Task<FuturesEodDataV2ReadModel?> ReadStoredFuturesEodDataAsync(string contractId, DateOnly valueDate)
         {
             var db = context._dbFactory.MarketDataDb;
-            var futuresEodData = await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesEodData)}", MarketDataDbSql.GetFuturesEodData)
-                .SetParameters(new GetFuturesEodData(contractId, valueDate))
-                .ExecuteSingleAsync(MarketDataDbContext.MapToFuturesEodData!))
+        var preparedParameters1 = new GetFuturesEodData(contractId, valueDate);
+            var futuresEodData = await (db.Use($"{nameof(MarketDataDbSql)}.GetFuturesEodData", MarketDataDbSql.GetFuturesEodData)
+            .SetParameters(preparedParameters1)
+            .ExecuteSingleAsync(MarketDataDbContext.MapToFuturesEodData!))
                 .ConfigureAwait(false);
-            futuresEodData ??= await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetYesterdaysFuturesEodData)}", MarketDataDbSql.GetYesterdaysFuturesEodData)
-                .SetParameters(new GetYesterdaysFuturesEodData(contractId, valueDate))
-                .ExecuteSingleAsync(MarketDataDbContext.MapToFuturesEodData!))
+        var preparedParameters2 = new GetYesterdaysFuturesEodData(contractId, valueDate);
+            futuresEodData ??= await (db.Use($"{nameof(MarketDataDbSql)}.GetYesterdaysFuturesEodData", MarketDataDbSql.GetYesterdaysFuturesEodData)
+            .SetParameters(preparedParameters2)
+            .ExecuteSingleAsync(MarketDataDbContext.MapToFuturesEodData!))
                 .ConfigureAwait(false);
             return futuresEodData;
         }
@@ -106,37 +90,10 @@ public static class MarketDataDbContextExtensions
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Keep the C# 14 DbContext binding extension receiver contract.")]
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Keep the C# 14 DbContext binding extension receiver contract.")]
         /// <summary>Executes the ReadStoredVixFuturesEodDataAsync persistence helper.</summary>
-        internal async Task<VixFuturesEodDataReadModel?> ReadStoredVixFuturesEodDataAsync(string contractId, DateOnly valueDate) => await (context._dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetVixFuturesEodData)}", MarketDataDbSql.GetVixFuturesEodData)
-                .SetParameters(new GetVixFuturesEodData(contractId, valueDate))
-                .ExecuteSingleAsync(MarketDataDbContext.MapToVixFuturesEodData))
+        internal async Task<VixFuturesEodDataReadModel?> ReadStoredVixFuturesEodDataAsync(string contractId, DateOnly valueDate) => await (context._dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbSql)}.GetVixFuturesEodData", MarketDataDbSql.GetVixFuturesEodData)
+            .SetParameters(new GetVixFuturesEodData(contractId, valueDate))
+            .ExecuteSingleAsync(MarketDataDbContext.MapToVixFuturesEodData))
                 .ConfigureAwait(false);
-
-        /// <summary>
-        /// Performs the <c>EnsureImportOwnershipAsync</c> operation for MarketDataDb persistence.
-        /// </summary>
-        /// <param name="dataset">The dataset used by this operation.</param>
-        /// <param name="logicalKey">The logical key used by this operation.</param>
-        /// <param name="commandId">The originating command identifier.</param>
-        /// <param name="logicalRowAlreadyExists">The logical row already exists used by this operation.</param>
-        /// <returns>The completion of the persistence operation.</returns>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal async Task EnsureImportOwnershipAsync(string dataset, string logicalKey, Guid commandId, bool logicalRowAlreadyExists)
-        {
-            var db = context._dbFactory.MarketDataDb;
-            var applied = await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.ClaimMarketDataImportOwnership)}", MarketDataDbCql.ClaimMarketDataImportOwnership)
-                .SetParameters(new ClaimMarketDataImportOwnership(dataset, logicalKey, commandId, !logicalRowAlreadyExists, DateTime.UtcNow))
-                .ExecuteScalarAsync(MapToBoolean!))
-                .ConfigureAwait(false);
-            if (applied && !logicalRowAlreadyExists)
-                return;
-            var owner = await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetMarketDataImportOwnership)}", MarketDataDbCql.GetMarketDataImportOwnership)
-                .SetParameters(new GetMarketDataImportOwnership(dataset, logicalKey))
-                .ExecuteSingleAsync(MapToMarketDataImportOwnership!))
-                .ConfigureAwait(false);
-            if (owner is { CommandId: var ownerCommandId, MayWrite: true } && ownerCommandId == commandId)
-                return;
-            throw new MarketDataImportDuplicateException($"A {dataset} row with logical key '{logicalKey}' is already owned by another import command.");
-        }
 
         /// <summary>
         /// Performs the <c>GetProjectionGuardScopeKeys</c> operation for MarketDataDb persistence.
@@ -146,625 +103,38 @@ public static class MarketDataDbContextExtensions
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         internal string[] GetProjectionGuardScopeKeys() => Enumerable.Range(0, MarketDataDbContext.ProjectionGuardScopeCount).Select(bucket => string.Concat(MarketDataDbContext.ProjectionGuardScopePrefix, bucket.ToString(System.Globalization.CultureInfo.InvariantCulture))).ToArray();
         /// <summary>
-        /// Performs the <c>GetProjectionStateAsync</c> operation for MarketDataDb persistence.
-        /// </summary>
-        /// <param name="projectionName">The projection name used by this operation.</param>
-        /// <returns>The typed result of the market-data query or mutation.</returns>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal async Task<MarketDataProjectionStateReadModel?> GetProjectionStateAsync(string projectionName) => await (context._dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetMarketDataProjectionState)}", MarketDataDbCql.GetMarketDataProjectionState)
-                .SetParameters(new GetMarketDataProjectionState(projectionName)).ExecuteSingleAsync<MarketDataProjectionStateReadModel?>(static row => MarketDataDbContext.MapToProjectionState(row)))
-                .ConfigureAwait(false);
-        /// <summary>
-        /// Performs the <c>HasProjectionMutationAsync</c> operation for MarketDataDb persistence.
-        /// </summary>
-        /// <param name="projectionName">The projection name used by this operation.</param>
-        /// <returns>The typed result of the market-data query or mutation.</returns>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal async Task<bool> HasProjectionMutationAsync(string projectionName) => (await (context._dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetMarketDataProjectionMutation)}", MarketDataDbCql.GetMarketDataProjectionMutation)
-                .SetParameters(new GetMarketDataProjectionMutation(projectionName))
-                .ExecuteQueryAsync(MarketDataDbContext.MapToGuid))
-                .ConfigureAwait(false)).Count != 0;
-        /// <summary>
-        /// Performs the <c>GetProjectionReadGenerationAsync</c> operation for MarketDataDb persistence.
-        /// </summary>
-        /// <param name="projectionName">The projection name used by this operation.</param>
-        /// <returns>The typed result of the market-data query or mutation.</returns>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal async Task<Guid?> GetProjectionReadGenerationAsync(string projectionName)
-        {
-            var state = await (context.GetProjectionStateAsync(projectionName))
-                .ConfigureAwait(false);
-            if (state is null || !state.Value.IsReady || await (context.HasProjectionMutationAsync(projectionName))
-                .ConfigureAwait(false))
-                return null;
-            return state.Value.Generation;
-        }
-
-        /// <summary>
-        /// Performs the <c>IsProjectionReadGenerationValidAsync</c> operation for MarketDataDb persistence.
-        /// </summary>
-        /// <param name="projectionName">The projection name used by this operation.</param>
-        /// <param name="generation">The generation used by this operation.</param>
-        /// <returns>The typed result of the market-data query or mutation.</returns>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal async Task<bool> IsProjectionReadGenerationValidAsync(string projectionName, Guid generation)
-        {
-            var state = await (context.GetProjectionStateAsync(projectionName))
-                .ConfigureAwait(false);
-            return state is { IsReady: true } && state.Value.Generation == generation && !await (context.HasProjectionMutationAsync(projectionName))
-                .ConfigureAwait(false);
-        }
-
-        /// <summary>
-        /// Performs the <c>GetProjectionScopeStatesAsync</c> operation for MarketDataDb persistence.
-        /// </summary>
-        /// <param name="projectionName">The projection name used by this operation.</param>
-        /// <param name="scopeKeys">The scope keys used by this operation.</param>
-        /// <returns>The typed result of the market-data query or mutation.</returns>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal async Task<Dictionary<string, MarketDataProjectionScopeStateReadModel?>> GetProjectionScopeStatesAsync(string projectionName, IReadOnlyList<string> scopeKeys)
-        {
-            var states = new Dictionary<string, MarketDataProjectionScopeStateReadModel?>(scopeKeys.Count, StringComparer.Ordinal);
-            for (var offset = 0; offset < scopeKeys.Count; offset += MarketDataDbContext.ProjectionScopeStateReadBatchSize)
-            {
-                var count = Math.Min(MarketDataDbContext.ProjectionScopeStateReadBatchSize, scopeKeys.Count - offset);
-                var keys = scopeKeys.Skip(offset).Take(count).ToArray();
-                foreach (var key in keys)
-                    states.Add(key, null);
-                var values = await (context._dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetMarketDataProjectionScopeStatesV3)}", MarketDataDbCql.GetMarketDataProjectionScopeStatesV3)
-                .SetParameters(new GetMarketDataProjectionScopeStatesV3(projectionName, keys))
-                .ExecuteQueryAsync(MarketDataDbContext.MapToProjectionScopeState))
-                .ConfigureAwait(false);
-                foreach (var value in values)
-                    states[value.ScopeKey] = value;
-            }
-
-            return states;
-        }
-
-        /// <summary>
-        /// Performs the <c>GetProjectionScopeReadStampAsync</c> operation for MarketDataDb persistence.
-        /// </summary>
-        /// <param name="projectionName">The projection name used by this operation.</param>
-        /// <param name="scopeKeys">The scope keys used by this operation.</param>
-        /// <returns>The typed result of the market-data query or mutation.</returns>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal async Task<MarketDataProjectionScopeReadStamp?> GetProjectionScopeReadStampAsync(string projectionName, IEnumerable<string> scopeKeys)
-        {
-            var scopes = MarketDataDbContextExtensions.AddProjectionGuardScopes(scopeKeys);
-            var globalGeneration = await (context.GetProjectionReadGenerationAsync(projectionName))
-                .ConfigureAwait(false);
-            if (globalGeneration is null)
-                return null;
-            var states = await (context.GetProjectionScopeStatesAsync(projectionName, scopes))
-                .ConfigureAwait(false);
-            var generations = new MarketDataProjectionScopeGeneration[scopes.Length];
-            for (var index = 0; index < scopes.Length; index++)
-            {
-                var state = states[scopes[index]];
-                if (state is null)
-                {
-                    // A globally ready projection plus a stable ready guard is a valid
-                    // negative cache entry. Any writer that creates this data scope also
-                    // changes its guard, and validation below rejects an appeared scope.
-                    if (MarketDataDbContextExtensions.IsProjectionGuardScopeKey(scopes[index]))
-                        return null;
-                    generations[index] = new(scopes[index], Guid.Empty, IsMissing: true);
-                    continue;
-                }
-
-                if (!state.Value.CanRead)
-                    return null;
-                generations[index] = new(scopes[index], state.Value.Generation, IsMissing: false);
-            }
-
-            return new(projectionName, globalGeneration.Value, generations);
-        }
-
-        /// <summary>
-        /// Performs the <c>IsProjectionScopeReadStampValidAsync</c> operation for MarketDataDb persistence.
-        /// </summary>
-        /// <param name="stamp">The stamp used by this operation.</param>
-        /// <returns>The typed result of the market-data query or mutation.</returns>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal async Task<bool> IsProjectionScopeReadStampValidAsync(MarketDataProjectionScopeReadStamp stamp)
-        {
-            if (!await (context.IsProjectionReadGenerationValidAsync(stamp.ProjectionName, stamp.GlobalGeneration))
-                .ConfigureAwait(false))
-            {
-                return false;
-            }
-
-            var states = await (context.GetProjectionScopeStatesAsync(stamp.ProjectionName, stamp.Scopes.Select(static scope => scope.ScopeKey).ToArray()))
-                .ConfigureAwait(false);
-            foreach (var scope in stamp.Scopes)
-            {
-                var state = states[scope.ScopeKey];
-                if (scope.IsMissing)
-                {
-                    if (state is not null)
-                        return false;
-                    continue;
-                }
-
-                if (state is null || !state.Value.CanRead || state.Value.Generation != scope.Generation)
-                    return false;
-            }
-
-            return true;
-        }
-
-        /// <summary>
-        /// Performs the <c>ExecuteMaintainedProjectionMutationAsync</c> operation for MarketDataDb persistence.
-        /// </summary>
-        /// <param name="projectionName">The projection name used by this operation.</param>
-        /// <param name="scopeKeys">The scope keys used by this operation.</param>
-        /// <param name="mutation">The mutation used by this operation.</param>
-        /// <returns>The completion of the persistence operation.</returns>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Retain the existing bounded persistence failure boundary: complete cleanup or report failure while preserving ambiguous commit/recovery evidence and the original cause.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep the transaction, resource ownership and failure ordering together during this provider migration; splitting it would obscure the atomic persistence boundary.")]
-        internal async Task ExecuteMaintainedProjectionMutationAsync(string projectionName, IEnumerable<string> scopeKeys, Func<Task> mutation)
-        {
-            var scopes = MarketDataDbContextExtensions.AddProjectionGuardScopes(scopeKeys);
-            if (scopes.Length == 0)
-            {
-                await (mutation())
-                .ConfigureAwait(false);
-                return;
-            }
-
-            var globalGeneration = await (context.GetProjectionReadGenerationAsync(projectionName))
-                .ConfigureAwait(false);
-            var initialStates = await (context.GetProjectionScopeStatesAsync(projectionName, scopes))
-                .ConfigureAwait(false);
-            var restorableScopes = globalGeneration is null ? new HashSet<string>(StringComparer.Ordinal) : scopes.Where(scope => initialStates[scope] is null || initialStates[scope]!.Value.CanRead).ToHashSet(StringComparer.Ordinal);
-            var mutationId = Guid.NewGuid();
-            var activeOperations = new HashSet<Guid>
-            {
-                mutationId
-            };
-            var db = context._dbFactory.MarketDataDb;
-            var scopeActivationAcknowledged = false;
-            var mutationSubmissionStarted = false;
-            await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertMarketDataProjectionScopeMutationV3)}", MarketDataDbCql.InsertMarketDataProjectionScopeMutationV3)
-                .SetParameters(scopes.Select(scope => new InsertMarketDataProjectionScopeMutationV3(projectionName, scope, mutationId, DateTime.UtcNow)))
-                .ExecuteCommandAsync())
-                .ConfigureAwait(false);
-            try
-            {
-                async Task ActivateScopesAsync() => await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.BeginMarketDataProjectionScopeOperationV3)}", MarketDataDbCql.BeginMarketDataProjectionScopeOperationV3)
-                .SetParameters(scopes.Select(scope => new BeginMarketDataProjectionScopeOperationV3(projectionName, scope, mutationId, activeOperations)))
-                .ExecuteCommandAsync())
-                .ConfigureAwait(false);
-                if (context.MaintainedProjectionScopeActivationForTestingAsync is { } scopeActivation)
-                    await (scopeActivation(ActivateScopesAsync))
-                .ConfigureAwait(false);
-                else
-                    await (ActivateScopesAsync())
-                .ConfigureAwait(false);
-                scopeActivationAcknowledged = true;
-                mutationSubmissionStarted = true;
-                if (context.MaintainedProjectionMutationSubmittingForTestingAsync is { } mutationSubmitting)
-                    await (mutationSubmitting())
-                .ConfigureAwait(false);
-                await (mutation())
-                .ConfigureAwait(false);
-                var globalStillValid = globalGeneration.HasValue && await (context.IsProjectionReadGenerationValidAsync(projectionName, globalGeneration.Value))
-                .ConfigureAwait(false);
-                var scopesToEnd = new List<string>();
-                foreach (var scopeBatch in scopes.Chunk(MarketDataDbContext.ProjectionReadConcurrency))
-                {
-                    var completions = scopeBatch.Select(async scope =>
-                    {
-                        if (!globalStillValid || !restorableScopes.Contains(scope))
-                            return (Scope: scope, Completed: false);
-                        var completed = await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.CompleteMarketDataProjectionScopeOperationV3)}", MarketDataDbCql.CompleteMarketDataProjectionScopeOperationV3)
-                .SetParameters(new CompleteMarketDataProjectionScopeOperationV3(projectionName, scope, mutationId, activeOperations, DateTime.UtcNow, activeOperations))
-                .ExecuteSingleAsync(MarketDataDbContext.MapToBoolean))
-                .ConfigureAwait(false);
-                        return (Scope: scope, Completed: completed);
-                    }).ToArray();
-                    foreach (var completion in await (Task.WhenAll(completions))
-                .ConfigureAwait(false))
-                    {
-                        if (!completion.Completed)
-                            scopesToEnd.Add(completion.Scope);
-                    }
-                }
-
-                await (MarketDataDbContextExtensions.EndProjectionScopeOperationsAsync(db, projectionName, scopesToEnd, activeOperations))
-                .ConfigureAwait(false);
-                await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.DeleteMarketDataProjectionScopeMutationV3)}", MarketDataDbCql.DeleteMarketDataProjectionScopeMutationV3)
-                .SetParameters(scopes.Select(scope => new DeleteMarketDataProjectionScopeMutationV3(projectionName, scope, mutationId)))
-                .ExecuteCommandAsync())
-                .ConfigureAwait(false);
-            }
-            catch
-            {
-                if (!scopeActivationAcknowledged || mutationSubmissionStarted)
-                {
-                    // A Begin or target mutation may have reached Scylla even when its
-                    // response is a timeout. Keep the original nonfailed journals and
-                    // active data/guard IDs so only an explicit cutoff after writers are
-                    // drained can recover without racing delayed server-side application.
-                    throw;
-                }
-
-                try
-                {
-                    // A definitively acknowledged Begin can be classified without issuing
-                    // a racing End. The active ID remains paired with its failed journal
-                    // for exact removal by the next repair.
-                    await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.FailMarketDataProjectionScopeMutationV3)}", MarketDataDbCql.FailMarketDataProjectionScopeMutationV3)
-                .SetParameters(scopes.Select(scope => new FailMarketDataProjectionScopeMutationV3(projectionName, scope, mutationId, DateTime.UnixEpoch)))
-                .ExecuteCommandAsync())
-                .ConfigureAwait(false);
-                }
-                catch
-                {
-                // An unclassified in-flight marker is never cleared automatically.
-                }
-
-                throw;
-            }
-        }
-
-        /// <summary>
-        /// Performs the <c>ExecuteAtomicTickWriteAsync</c> operation for MarketDataDb persistence.
-        /// </summary>
-        /// <param name="scopeKey">The scope key used by this operation.</param>
-        /// <param name="canonicalRows">The canonical rows used by this operation.</param>
-        /// <param name="projectionRows">The projection rows used by this operation.</param>
-        /// <returns>The completion of the persistence operation.</returns>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal async Task ExecuteAtomicTickWriteAsync(string scopeKey, IReadOnlyCollection<InsertFuturesTickData> canonicalRows, IReadOnlyCollection<InsertFuturesTickDataByTime> projectionRows)
-        {
-            if (canonicalRows.Count == 0)
-                return;
-            if (canonicalRows.Count != projectionRows.Count || canonicalRows.Count > MarketDataDbContext.TickAtomicBatchRowCount)
-            {
-                throw new ArgumentOutOfRangeException(nameof(canonicalRows), canonicalRows.Count, $"Atomic tick writes require matching collections of at most {MarketDataDbContext.TickAtomicBatchRowCount} rows.");
-            }
-
-            await (context.ExecuteGuardedAtomicTickMutationAsync(scopeKey, db => [db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesTickData)}", MarketDataDbCql.InsertFuturesTickData)
-                .SetParameters(canonicalRows)
-                .QueueCommand(), db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesTickDataByTime)}", MarketDataDbCql.InsertFuturesTickDataByTime)
-                .SetParameters(projectionRows)
-                .QueueCommand(), db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.MarkMarketDataProjectionScopeAtomicWriteV3)}", MarketDataDbCql.MarkMarketDataProjectionScopeAtomicWriteV3)
-                .SetParameters(new MarkMarketDataProjectionScopeAtomicWriteV3(MarketDataDbContext.FuturesTickByTimeProjection, scopeKey, Guid.NewGuid()))
-                .QueueCommand(), ]))
-                .ConfigureAwait(false);
-        }
-
-        /// <summary>
-        /// Performs the <c>ExecuteGuardedAtomicTickMutationAsync</c> operation for MarketDataDb persistence.
-        /// </summary>
-        /// <param name="scopeKey">The scope key used by this operation.</param>
-        /// <param name="createDataCommands">The create data commands used by this operation.</param>
-        /// <returns>The completion of the persistence operation.</returns>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Retain the existing bounded persistence failure boundary: complete cleanup or report failure while preserving ambiguous commit/recovery evidence and the original cause.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep the transaction, resource ownership and failure ordering together during this provider migration; splitting it would obscure the atomic persistence boundary.")]
-        internal async Task ExecuteGuardedAtomicTickMutationAsync(string scopeKey, Func<IObjectRepository, List<object>> createDataCommands)
-        {
-            var db = context._dbFactory.MarketDataDb;
-            var guardScopeKey = MarketDataDbContextExtensions.GetProjectionGuardScopeKey(scopeKey);
-            var operationId = Guid.NewGuid();
-            var activeOperations = new HashSet<Guid>
-            {
-                operationId
-            };
-            // This registration is deliberately a separate request before the data batch.
-            // Set additions commute with a backfill claim, so an already-in-flight tick
-            // cannot be hidden by scalar last-write-wins timestamps on the guard row.
-            List<object> registrationCommands = [db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertMarketDataProjectionScopeMutationV3)}", MarketDataDbCql.InsertMarketDataProjectionScopeMutationV3)
-                .SetParameters(new InsertMarketDataProjectionScopeMutationV3(MarketDataDbContext.FuturesTickByTimeProjection, guardScopeKey, operationId, DateTime.UtcNow))
-                .QueueCommand(), db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.RegisterMarketDataProjectionGuardOperationV3)}", MarketDataDbCql.RegisterMarketDataProjectionGuardOperationV3)
-                .SetParameters(new RegisterMarketDataProjectionGuardOperationV3(MarketDataDbContext.FuturesTickByTimeProjection, guardScopeKey, activeOperations))
-                .QueueCommand(), ];
-            try
-            {
-                async Task RegisterGuardAsync() => await (db.ExecuteQueuedCommandsAsync(registrationCommands, useTransaction: true))
-                .ConfigureAwait(false);
-                if (context.TickProjectionGuardRegistrationForTestingAsync is { } registration)
-                    await (registration(RegisterGuardAsync))
-                .ConfigureAwait(false);
-                else
-                    await (RegisterGuardAsync())
-                .ConfigureAwait(false);
-            }
-            catch
-            {
-                // A timed-out logged registration batch may still be replayed server-side.
-                // Preserve its original journal timestamp so automatic recovery cannot
-                // remove the marker before a delayed guard activation is applied.
-                await (MarketDataDbContextExtensions.TryClassifyTickGuardOperationFailureAsync(db, guardScopeKey, operationId, TickProjectionGuardFailureStage.RegistrationResponseUnknown))
-                .ConfigureAwait(false);
-                throw;
-            }
-
-            if (context.TickProjectionGuardRegisteredForTestingAsync is { } guardRegistered)
-            {
-                try
-                {
-                    await (guardRegistered())
-                .ConfigureAwait(false);
-                }
-                catch
-                {
-                    // No data request has started, so this operation is safe for automatic
-                    // recovery even if its registration response was delayed.
-                    await (MarketDataDbContextExtensions.TryClassifyTickGuardOperationFailureAsync(db, guardScopeKey, operationId, TickProjectionGuardFailureStage.RegisteredBeforeDataSubmission))
-                .ConfigureAwait(false);
-                    throw;
-                }
-            }
-
-            try
-            {
-                await (db.ExecuteQueuedCommandsAsync(createDataCommands(db), useTransaction: true))
-                .ConfigureAwait(false);
-            }
-            catch
-            {
-                // A logged data batch timeout is ambiguous: batchlog replay can still apply
-                // canonical data after this catch. Keep the original nonfailed journal row
-                // and active guard ID. Only an explicit cutoff after writers are drained may
-                // reclaim it; automatic failed-operation recovery would reopen a race.
-                await (MarketDataDbContextExtensions.TryClassifyTickGuardOperationFailureAsync(db, guardScopeKey, operationId, TickProjectionGuardFailureStage.DataBatchResponseUnknown))
-                .ConfigureAwait(false);
-                throw;
-            }
-
-            bool guardCompleted;
-            try
-            {
-                guardCompleted = await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.CompleteMarketDataProjectionGuardOperationV3)}", MarketDataDbCql.CompleteMarketDataProjectionGuardOperationV3)
-                .SetParameters(new CompleteMarketDataProjectionGuardOperationV3(MarketDataDbContext.FuturesTickByTimeProjection, guardScopeKey, Guid.NewGuid(), activeOperations, DateTime.UtcNow, activeOperations))
-                .ExecuteSingleAsync(MarketDataDbContext.MapToBoolean))
-                .ConfigureAwait(false);
-            }
-            catch
-            {
-                await (MarketDataDbContextExtensions.TryClassifyTickGuardOperationFailureAsync(db, guardScopeKey, operationId, TickProjectionGuardFailureStage.AfterDataAcknowledged))
-                .ConfigureAwait(false);
-                throw;
-            }
-
-            if (guardCompleted)
-            {
-                try
-                {
-                    await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.DeleteMarketDataProjectionScopeMutationV3)}", MarketDataDbCql.DeleteMarketDataProjectionScopeMutationV3)
-                .SetParameters(new DeleteMarketDataProjectionScopeMutationV3(MarketDataDbContext.FuturesTickByTimeProjection, guardScopeKey, operationId))
-                .ExecuteCommandAsync())
-                .ConfigureAwait(false);
-                }
-                catch
-                {
-                    // The data and guard are committed. Retain a recoverable failed marker
-                    // instead of making the caller retry a successful tick write.
-                    await (MarketDataDbContextExtensions.TryClassifyTickGuardOperationFailureAsync(db, guardScopeKey, operationId, TickProjectionGuardFailureStage.AfterDataAcknowledged))
-                .ConfigureAwait(false);
-                }
-
-                return;
-            }
-
-            MarketDataProjectionScopeStateReadModel? guardState;
-            try
-            {
-                var states = await (context.GetProjectionScopeStatesAsync(MarketDataDbContext.FuturesTickByTimeProjection, new[] { guardScopeKey }))
-                .ConfigureAwait(false);
-                guardState = states[guardScopeKey];
-            }
-            catch
-            {
-                await (MarketDataDbContextExtensions.TryClassifyTickGuardOperationFailureAsync(db, guardScopeKey, operationId, TickProjectionGuardFailureStage.AfterDataAcknowledged))
-                .ConfigureAwait(false);
-                return;
-            }
-
-            if (guardState is { Blocked: true })
-            {
-                // Backfill owns the guard. Leaving this ID active makes its conditional
-                // release fail; the failed marker lets the next repair reclaim it exactly.
-                await (MarketDataDbContextExtensions.TryClassifyTickGuardOperationFailureAsync(db, guardScopeKey, operationId, TickProjectionGuardFailureStage.AfterDataAcknowledged))
-                .ConfigureAwait(false);
-                return;
-            }
-
-            // Another ordinary tick sharing this guard may have prevented the singleton
-            // LWT. Its own data-scope generation still protects readers, so remove only
-            // this operation and marker. Calls from one bulk write are serialized per guard
-            // to keep this uncommon cross-process path off the normal fast path.
-            try
-            {
-                List<object> cleanupCommands = [db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.RemoveMarketDataProjectionScopeOperationV3)}", MarketDataDbCql.RemoveMarketDataProjectionScopeOperationV3)
-                .SetParameters(new RemoveMarketDataProjectionScopeOperationV3(MarketDataDbContext.FuturesTickByTimeProjection, guardScopeKey, operationId))
-                .QueueCommand(), db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.DeleteMarketDataProjectionScopeMutationV3)}", MarketDataDbCql.DeleteMarketDataProjectionScopeMutationV3)
-                .SetParameters(new DeleteMarketDataProjectionScopeMutationV3(MarketDataDbContext.FuturesTickByTimeProjection, guardScopeKey, operationId))
-                .QueueCommand(), ];
-                await (db.ExecuteQueuedCommandsAsync(cleanupCommands, useTransaction: true))
-                .ConfigureAwait(false);
-            }
-            catch
-            {
-                await (MarketDataDbContextExtensions.TryClassifyTickGuardOperationFailureAsync(db, guardScopeKey, operationId, TickProjectionGuardFailureStage.AfterDataAcknowledged))
-                .ConfigureAwait(false);
-            }
-        }
-
-        /// <summary>
-        /// Performs the <c>UpsertFuturesEodProjectionAsync</c> operation for MarketDataDb persistence.
-        /// </summary>
-        /// <param name="e">The e used by this operation.</param>
-        /// <param name="openPrice">The open price used by this operation.</param>
-        /// <returns>The completion of the persistence operation.</returns>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal async Task UpsertFuturesEodProjectionAsync(FuturesEodDataV2ReadModel e, decimal openPrice)
-        {
-            var db = context._dbFactory.MarketDataDb;
-            var yearMonth = MarketDataDbContextExtensions.ToYearMonth(e.ValueDate);
-            List<object> commands = [db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesEodDataByMonth)}", MarketDataDbCql.InsertFuturesEodDataByMonth)
-                .SetParameters(MarketDataDbContextExtensions.CreateFuturesEodDataByMonthParameters(e, openPrice))
-                .QueueCommand(), db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertMarketDataProjectionMonth)}", MarketDataDbCql.InsertMarketDataProjectionMonth)
-                .SetParameters(new InsertMarketDataProjectionMonth(MarketDataDbContext.FuturesEodProjection, yearMonth))
-                .QueueCommand(), ];
-            await (db.ExecuteQueuedCommandsAsync(commands))
-                .ConfigureAwait(false);
-        }
-
-        /// <summary>
-        /// Performs the <c>UpsertVixFuturesContractIndexAsync</c> operation for MarketDataDb persistence.
-        /// </summary>
-        /// <param name="contractId">The contract id used by this operation.</param>
-        /// <returns>The completion of the persistence operation.</returns>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal async Task UpsertVixFuturesContractIndexAsync(string contractId) => await (context._dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertVixFuturesContractIndex)}", MarketDataDbCql.InsertVixFuturesContractIndex)
-                .SetParameters(new InsertVixFuturesContractIndex(MarketDataDbContextExtensions.GetVixContractBucket(contractId), contractId))
-                .ExecuteCommandAsync())
-                .ConfigureAwait(false);
-        /// <summary>
         /// Performs the <c>InsertFuturesEodBatchAsync</c> operation for MarketDataDb persistence.
         /// </summary>
         /// <param name="batch">The batch used by this operation.</param>
         /// <returns>The completion of the persistence operation.</returns>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal async Task InsertFuturesEodBatchAsync(ICollection<FuturesEodDataV2ReadModel> batch)
+        internal async Task InsertFuturesEodBatchAsync(IReadOnlyList<FuturesEodDataV2ReadModel> batch)
         {
             if (batch.Count == 0)
                 return;
                 await context.InsertNativeFuturesEodBatchAsync(batch)
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
                 return;
-        }
-
-        /// <summary>
-        /// Performs the <c>ReadLegacyCurrentFuturesEodDataAsync</c> operation for MarketDataDb persistence.
-        /// </summary>
-        /// <param name="valueDate">The value date used by this operation.</param>
-        /// <returns>The typed result of the market-data query or mutation.</returns>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal async Task<FuturesEodDataV2ReadModel?> ReadLegacyCurrentFuturesEodDataAsync(DateOnly valueDate)
-        {
-            FuturesEodDataV2ReadModel? latest = null;
-            await foreach (var row in (context._dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesEodDataAll)}", MarketDataDbCql.GetFuturesEodDataAll)
-            .ExecuteStreamAsync(MarketDataDbContext.MapToFuturesEodData!))
-                .ConfigureAwait(false))
-            {
-                if (row.ValueDate > valueDate)
-                    continue;
-                if (latest is null || row.ValueDate > latest.ValueDate || row.ValueDate == latest.ValueDate && string.CompareOrdinal(row.ContractId, latest.ContractId) < 0 || row.ValueDate == latest.ValueDate && string.Equals(row.ContractId, latest.ContractId, StringComparison.Ordinal) && string.CompareOrdinal(row.Symbol, latest.Symbol) < 0)
-                {
-                    latest = row;
-                }
-            }
-
-            return latest;
-        }
-
-        /// <summary>
-        /// Performs the <c>ReadLegacyFuturesEodDataByMonthsAsync</c> operation for MarketDataDb persistence.
-        /// </summary>
-        /// <param name="startDate">The start date used by this operation.</param>
-        /// <param name="endDate">The end date used by this operation.</param>
-        /// <param name="yearMonths">The year months used by this operation.</param>
-        /// <returns>The typed result of the market-data query or mutation.</returns>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal async Task<ICollection<FuturesEodDataV2ReadModel>> ReadLegacyFuturesEodDataByMonthsAsync(DateOnly startDate, DateOnly endDate, IReadOnlySet<int> yearMonths)
-        {
-            List<FuturesEodDataV2ReadModel> results = [];
-            await foreach (var row in (context._dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesEodDataAll)}", MarketDataDbCql.GetFuturesEodDataAll)
-            .ExecuteStreamAsync(MarketDataDbContext.MapToFuturesEodData!))
-                .ConfigureAwait(false))
-            {
-                if (row.ValueDate >= startDate && row.ValueDate <= endDate && yearMonths.Contains(MarketDataDbContextExtensions.ToYearMonth(row.ValueDate)))
-                    results.Add(row);
-            }
-
-            return results;
-        }
-
-        /// <summary>
-        /// Performs the <c>ReadLegacyVixFuturesEodDataByValueDateAsync</c> operation for MarketDataDb persistence.
-        /// </summary>
-        /// <param name="valueDate">The value date used by this operation.</param>
-        /// <returns>The typed result of the market-data query or mutation.</returns>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal async Task<ICollection<VixFuturesEodDataReadModel>> ReadLegacyVixFuturesEodDataByValueDateAsync(DateOnly valueDate)
-        {
-            List<VixFuturesEodDataReadModel> results = [];
-            await foreach (var row in (context._dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetVixFuturesEodDataAll)}", MarketDataDbCql.GetVixFuturesEodDataAll)
-            .ExecuteStreamAsync(MarketDataDbContext.MapToVixFuturesEodData))
-                .ConfigureAwait(false))
-            {
-                if (row.ValueDate <= valueDate)
-                    results.Add(row);
-            }
-
-            return[..results.OrderByDescending(static row => row.ValueDate).ThenBy(static row => row.ContractId, StringComparer.Ordinal), ];
-        }
-
-        /// <summary>
-        /// Performs the <c>ReadIndexedVixFuturesEodDataByValueDateAsync</c> operation for MarketDataDb persistence.
-        /// </summary>
-        /// <param name="valueDate">The value date used by this operation.</param>
-        /// <returns>The typed result of the market-data query or mutation.</returns>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal async Task<ICollection<VixFuturesEodDataReadModel>> ReadIndexedVixFuturesEodDataByValueDateAsync(DateOnly valueDate)
-        {
-            var db = context._dbFactory.MarketDataDb;
-            HashSet<string> contractIds = new(StringComparer.Ordinal);
-            for (var firstBucket = 0; firstBucket < MarketDataDbContext.VixContractBucketCount; firstBucket += MarketDataDbContext.ProjectionReadConcurrency)
-            {
-                var bucketCount = Math.Min(MarketDataDbContext.ProjectionReadConcurrency, MarketDataDbContext.VixContractBucketCount - firstBucket);
-                var bucketReads = Enumerable.Range(firstBucket, bucketCount).Select(async bucket => await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetVixFuturesContractIds)}", MarketDataDbCql.GetVixFuturesContractIds)
-                .SetParameters(new GetVixFuturesContractIds(bucket))
-                .ExecuteQueryAsync(MarketDataDbContext.MapToString))
-                .ConfigureAwait(false)).ToArray();
-                foreach (var bucket in await (Task.WhenAll(bucketReads))
-                .ConfigureAwait(false))
-                    contractIds.UnionWith(bucket);
-            }
-
-            List<VixFuturesEodDataReadModel> results = [];
-            var orderedContractIds = contractIds.Order(StringComparer.Ordinal).ToArray();
-            for (var offset = 0; offset < orderedContractIds.Length; offset += MarketDataDbContext.ProjectionReadConcurrency)
-            {
-                var count = Math.Min(MarketDataDbContext.ProjectionReadConcurrency, orderedContractIds.Length - offset);
-                var contractReads = orderedContractIds.AsSpan(offset, count).ToArray().Select(async contractId => await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetVixFuturesEodDataThroughDate)}", MarketDataDbCql.GetVixFuturesEodDataThroughDate)
-                .SetParameters(new GetVixFuturesEodDataThroughDate(contractId, valueDate))
-                .ExecuteQueryAsync(MarketDataDbContext.MapToVixFuturesEodData))
-                .ConfigureAwait(false)).ToArray();
-                foreach (var rows in await (Task.WhenAll(contractReads))
-                .ConfigureAwait(false))
-                    results.AddRange(rows);
-            }
-
-            return[..results.OrderByDescending(static row => row.ValueDate).ThenBy(static row => row.ContractId, StringComparer.Ordinal), ];
         }
 
         /// <summary>
         /// Performs the <c>GetYieldCurveRatesCoreAsync</c> operation for MarketDataDb persistence.
         /// </summary>
-        /// <param name="startDate">The start date used by this operation.</param>
-        /// <param name="endDate">The end date used by this operation.</param>
+        /// <param name="range">The caller-qualified yield-curve range.</param>
         /// <param name="cancellationToken">The token used to cancel the operation.</param>
         /// <returns>The typed result of the market-data query or mutation.</returns>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal async Task<ICollection<YieldCurveRateReadModel>> GetYieldCurveRatesCoreAsync(DateOnly startDate, DateOnly endDate, CancellationToken cancellationToken)
+        internal async Task<ICollection<YieldCurveRateReadModel>> GetYieldCurveRatesCoreAsync(YieldCurveReadRange range, CancellationToken cancellationToken)
         {
+            var startDate = range.StartDate;
+            var endDate = range.EndDate;
             if (endDate < startDate)
-                return[];
-            if (endDate.DayNumber - startDate.DayNumber + 1 > MarketDataDbContext.YieldCurveMaximumRangeDays)
-            {
-                throw new ArgumentOutOfRangeException(nameof(endDate), $"Yield-curve ranges may span at most {MarketDataDbContext.YieldCurveMaximumRangeDays} days.");
-            }
+                return [];
+        var preparedParameters3 = new GetYieldCurveRates(startDate, endDate);
 
-            return await context._dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetYieldCurveRates)}", MarketDataDbSql.GetYieldCurveRates)
-                .SetParameters(new GetYieldCurveRates(startDate, endDate))
-                .ExecuteQueryAsync(MarketDataDbContext.MapToYieldCurveRate, cancellationToken)
-                .ConfigureAwait(false);
+            return await context._dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbSql)}.GetYieldCurveRates", MarketDataDbSql.GetYieldCurveRates)
+            .SetParameters(preparedParameters3)
+            .ExecuteQueryAsync(MarketDataDbContext.MapToYieldCurveRate, cancellationToken)
+            .ConfigureAwait(false);
         }
 
         /// <summary>
@@ -784,10 +154,11 @@ public static class MarketDataDbContextExtensions
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         internal async Task<ICollection<FuturesItiSignalV2ReadModel>> ReadCanonicalFuturesItiSignalsAsync(IReadOnlyCollection<string> contractIds, DateOnly startDate, DateOnly endDate)
         {
+        var preparedParameters4 = new NativeItiRange(contractIds,startDate,endDate);
             return await context._dbFactory.MarketDataDb.Use("NativeIti.Range", MarketDataDbSql.GetNativeItiRange)
-                .SetParameters(new NativeItiRange(contractIds,startDate,endDate))
-                .ExecuteQueryAsync(MarketDataDbContext.MapToFuturesItiSignal!)
-                .ConfigureAwait(false);
+            .SetParameters(preparedParameters4)
+            .ExecuteQueryAsync(MarketDataDbContext.MapToFuturesItiSignal!)
+            .ConfigureAwait(false);
         }
 
         /// <summary>
@@ -801,7 +172,7 @@ public static class MarketDataDbContextExtensions
         internal async Task<ICollection<FuturesItiSignalV2ReadModel>> ReadFuturesItiSignalsByDateRangeAsync(IReadOnlyCollection<string> contractIds, DateOnly startDate, DateOnly endDate)
         {
             return await context.ReadCanonicalFuturesItiSignalsAsync(contractIds,startDate,endDate)
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
         }
 
         /// <summary>
@@ -816,10 +187,11 @@ public static class MarketDataDbContextExtensions
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         internal async Task<ICollection<FuturesItiSignalV2ReadModel>> ReadFuturesItiDayModeAsync(string contractId, DateOnly valueDate, IntrinsicTimeModeType intrinsicTimeMode, long? afterSequenceId = null, CancellationToken cancellationToken = default)
         {
+        var preparedParameters5 = new NativeItiDayMode(contractId,valueDate,intrinsicTimeMode.ToStringFast(),afterSequenceId ?? long.MinValue);
             return await context._dbFactory.MarketDataDb.Use("NativeIti.DayMode", MarketDataDbSql.GetNativeItiDayMode)
-                .SetParameters(new NativeItiDayMode(contractId,valueDate,intrinsicTimeMode.ToStringFast(),afterSequenceId ?? long.MinValue))
-                .ExecuteQueryAsync(MarketDataDbContext.MapToFuturesItiSignal!,cancellationToken)
-                .ConfigureAwait(false);
+            .SetParameters(preparedParameters5)
+            .ExecuteQueryAsync(MarketDataDbContext.MapToFuturesItiSignal!, cancellationToken)
+            .ConfigureAwait(false);
         }
 
         /// <summary>
@@ -833,7 +205,7 @@ public static class MarketDataDbContextExtensions
             var rows = await Task.WhenAll(
                 context.ReadFuturesItiDayModeAsync(contractId, valueDate, ordinaryMode, afterSequenceId, cancellationToken),
                 context.ReadFuturesItiDayModeAsync(contractId, valueDate, overshootMode, afterSequenceId, cancellationToken))
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
             return rows.SelectMany(static values => values).OrderByDescending(static row => row.SequenceId).FirstOrDefault();
         }
 
@@ -849,10 +221,11 @@ public static class MarketDataDbContextExtensions
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         internal async Task<FuturesItiSignalV2ReadModel?> ReadLastFuturesItiTrendModeAsync(string contractId, DateOnly valueDate, IntrinsicTimeTrendType intrinsicTimeTrend, IntrinsicTimeModeType intrinsicTimeMode, CancellationToken cancellationToken = default)
         {
+        var preparedParameters6 = new NativeItiLatestTrendMode(contractId,valueDate,intrinsicTimeTrend.ToStringFast(),intrinsicTimeMode.ToStringFast());
             return await context._dbFactory.MarketDataDb.Use("NativeIti.LatestTrendMode", MarketDataDbSql.GetNativeItiLatestTrendMode)
-                .SetParameters(new NativeItiLatestTrendMode(contractId,valueDate,intrinsicTimeTrend.ToStringFast(),intrinsicTimeMode.ToStringFast()))
-                .ExecuteSingleAsync(MarketDataDbContext.MapToFuturesItiSignal!,cancellationToken)
-                .ConfigureAwait(false);
+            .SetParameters(preparedParameters6)
+            .ExecuteSingleAsync(MarketDataDbContext.MapToFuturesItiSignal!, cancellationToken)
+            .ConfigureAwait(false);
         }
 
         /// <summary>
@@ -873,12 +246,12 @@ public static class MarketDataDbContextExtensions
         {
             var endOfValueDateUtc = valueDate.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Utc);
             var result = await context.ReadMonthAsync(seriesIdentity, valueDate, endOfValueDateUtc, configurationId, cql, operation, map, cancellationToken)
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
             if (result is not null)
                 return result;
             var previousMonth = valueDate.AddMonths(-1);
             return await context.ReadMonthAsync(seriesIdentity, previousMonth, endOfValueDateUtc, configurationId, cql, operation, map, cancellationToken)
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
         }
 
         /// <summary>
@@ -899,15 +272,10 @@ public static class MarketDataDbContextExtensions
         internal Task<T?> ReadMonthAsync<T>(MarketSeriesIdentity seriesIdentity, DateOnly partitionMonth, DateTime marketDataAsOf, string configurationId, string cql, string operation, Func<IObjectDataRecord, T> map, CancellationToken cancellationToken, TimeFrameType timeFrame = TimeFrameType.Daily)
             where T : class
         {
-            var statement = operation switch
-                {
-                    nameof(MarketDataDbCql.GetLatestFuturesEmaSignal) => MarketDataDbSql.GetLatestFuturesEmaSignal,
-                    nameof(MarketDataDbCql.GetLatestFuturesBollingerBandSignal) => MarketDataDbSql.GetLatestFuturesBollingerBandSignal,
-                    _ => cql
-                };
-            return context._dbFactory.MarketDataDb.Use($"MarketAnalytics.{operation}", statement)
-                .SetParameters(new GetLatestFuturesRegimeSignal(seriesIdentity.Format(), timeFrame.ToString(), configurationId, MarketDataDbContextExtensions.Bucket(partitionMonth), marketDataAsOf))
-                .ExecuteSingleAsync(map, cancellationToken);
+        var preparedParameters7 = new GetLatestFuturesRegimeSignal(seriesIdentity.Format(), timeFrame.ToString(), configurationId, MarketDataDbContextExtensions.Bucket(partitionMonth), marketDataAsOf);
+            return context._dbFactory.MarketDataDb.Use($"MarketAnalytics.{operation}", cql)
+            .SetParameters(preparedParameters7)
+            .ExecuteSingleAsync(map, cancellationToken);
         }
         /// <summary>
         /// Performs the <c>ReadObservationAsync</c> operation for MarketDataDb persistence.
@@ -918,9 +286,9 @@ public static class MarketDataDbContextExtensions
         /// <returns>The typed result of the market-data query or mutation.</returns>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         internal async Task<OptionIvObservation?> ReadObservationAsync(string environment, string id, CancellationToken token) => await context.Database.Use("OptionVolatility.Observation.Id.Read", MarketDataDbSql.SelectObservationById)
-                .SetParameters(new OptionVolatilityParameters([environment, id]))
-                .ExecuteSingleAsync(row => MarketDataDbContextExtensions.Deserialize<OptionIvObservation>(row.GetBytes(0)), token)
-                .ConfigureAwait(false);
+            .SetParameters(new OptionVolatilityParameters([environment, id]))
+            .ExecuteSingleAsync(MarketDataDbContext.MapToReadObservationRow1, token)
+            .ConfigureAwait(false);
         /// <summary>
         /// Performs the <c>ReadLatestAsync</c> operation for MarketDataDb persistence.
         /// </summary>
@@ -929,9 +297,9 @@ public static class MarketDataDbContextExtensions
         /// <returns>The typed result of the market-data query or mutation.</returns>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         internal async Task<OptionIvLatestPointer?> ReadLatestAsync(VolatilityStorageScope scope, CancellationToken token) => await context.Database.Use("OptionVolatility.Latest.Read", MarketDataDbSql.SelectLatest)
-                .SetParameters(new OptionVolatilityParameters([scope.Environment, scope.Series.SeriesId, scope.Series.MethodologyVersion, scope.MetricPolicyVersion, ]))
-                .ExecuteSingleAsync(row => new OptionIvLatestPointer(scope, row.GetString(0), row.GetString(1), row.GetLong(2), new DateTimeOffset(DateTime.SpecifyKind(row.GetDateTime(3), DateTimeKind.Utc))), token)
-                .ConfigureAwait(false);
+            .SetParameters(new OptionVolatilityParameters([scope.Environment, scope.Series.SeriesId, scope.Series.MethodologyVersion, scope.MetricPolicyVersion, ]))
+            .ExecuteSingleAsync((row) => MarketDataDbContext.MapToReadLatestRow2(row, scope), token)
+            .ConfigureAwait(false);
             /// <summary>Commits history, current snapshots, and lookup copies together without a business event append.</summary>
         /// <param name="rows">The rows used by this operation.</param>
         /// <returns>The completion of the persistence operation.</returns>
@@ -953,7 +321,7 @@ public static class MarketDataDbContextExtensions
             var commands = context.CreateNativeFuturesEodCommands(latest);
             if (history.Length > 0)
                 commands.Add(context.Use(nameof(MarketDataDbSql.InsertFuturesIntraDayData), MarketDataDbSql.InsertFuturesIntraDayData)
-                    .SetParameters(history)
+            .SetParameters(history)
             .QueueCommand());
             await context.ExecuteQueuedCommandsAsync(commands, useTransaction: true)
             .ConfigureAwait(false);
@@ -963,9 +331,8 @@ public static class MarketDataDbContextExtensions
         /// <summary>Atomically imports current EOD values and their lookup copies.</summary>
         /// <param name="rows">The rows used by this operation.</param>
         /// <returns>The completion of the persistence operation.</returns>
-        internal Task InsertNativeFuturesEodBatchAsync(ICollection<FuturesEodDataV2ReadModel> rows)
+        internal Task InsertNativeFuturesEodBatchAsync(IReadOnlyList<FuturesEodDataV2ReadModel> rows)
         {
-            MarketDataDbContextExtensions.EnsureDistinctFuturesEodWrites(rows);
             return context.ExecuteQueuedCommandsAsync(context.CreateNativeFuturesEodCommands(rows), useTransaction: true);
         }
 
@@ -976,13 +343,14 @@ public static class MarketDataDbContextExtensions
         /// <returns>The completion of the persistence operation.</returns>
         internal Task DeleteNativeFuturesEodAsync(string contractId, DateOnly valueDate)
         {
+        var preparedParameters8 = new DeleteFuturesEodData(contractId, valueDate);
             List<object> commands =
             [
                 context.Use(nameof(MarketDataDbSql.DeleteFuturesEodData), MarketDataDbSql.DeleteFuturesEodData)
-                    .SetParameters(new DeleteFuturesEodData(contractId, valueDate))
+            .SetParameters(preparedParameters8)
             .QueueCommand(),
                 context.Use(nameof(MarketDataDbSql.DeleteFuturesEodDataByMonth), MarketDataDbSql.DeleteFuturesEodDataByMonth)
-                    .SetParameters(new DeleteFuturesEodDataByMonth(MarketDataDbContextExtensions.ToYearMonth(valueDate), valueDate, contractId))
+            .SetParameters(new DeleteFuturesEodDataByMonth(MarketDataDbContextExtensions.ToYearMonth(valueDate), valueDate, contractId))
             .QueueCommand()
             ];
             return context.ExecuteQueuedCommandsAsync(commands, useTransaction: true);
@@ -992,18 +360,18 @@ public static class MarketDataDbContextExtensions
         /// <summary>Builds typed native commands; no CQL translation occurs at execution.</summary>
         /// <param name="rows">The rows used by this operation.</param>
         /// <returns>The typed result of the market-data query or mutation.</returns>
-        internal List<object> CreateNativeFuturesEodCommands(ICollection<FuturesEodDataV2ReadModel> rows)
+        internal List<object> CreateNativeFuturesEodCommands(IReadOnlyList<FuturesEodDataV2ReadModel> rows)
         {
             return
             [
                 context.Use(nameof(MarketDataDbSql.InsertFuturesEodData), MarketDataDbSql.InsertFuturesEodData)
-                    .SetParameters(rows.Select(e => MarketDataDbContextExtensions.CreateFuturesEodDataParameters(e, e.OpenPrice)))
+            .SetParameters(rows.Select(e => MarketDataDbContextExtensions.CreateFuturesEodDataParameters(e, e.OpenPrice)))
             .QueueCommand(),
                 context.Use(nameof(MarketDataDbSql.InsertFuturesEodDataByMonth), MarketDataDbSql.InsertFuturesEodDataByMonth)
-                    .SetParameters(rows.Select(e => MarketDataDbContextExtensions.CreateFuturesEodDataByMonthParameters(e, e.OpenPrice)))
+            .SetParameters(rows.Select(e => MarketDataDbContextExtensions.CreateFuturesEodDataByMonthParameters(e, e.OpenPrice)))
             .QueueCommand(),
                 context.Use(nameof(MarketDataDbSql.InsertFuturesEodDataIndex), MarketDataDbSql.InsertFuturesEodDataIndex)
-                    .SetParameters(rows.Select(e => new InsertFuturesEodDataIndex(e.ValueDate, e.ContractId)).Distinct())
+            .SetParameters(rows.Select(e => new InsertFuturesEodDataIndex(e.ValueDate, e.ContractId)).Distinct())
             .QueueCommand()
             ];
         }
@@ -1013,19 +381,16 @@ public static class MarketDataDbContextExtensions
         /// <param name="tick">The tick used by this operation.</param>
         /// <param name="statistics">The statistics used by this operation.</param>
         /// <returns>The completion of the persistence operation.</returns>
-        internal async Task InsertNativeVixTickAsync(FuturesTickDataV2ReadModel tick, FuturesSessionStatisticsSnapshot? statistics)
+        internal async Task InsertNativeVixTickAsync(VixTickObservation observation)
         {
-            ArgumentNullException.ThrowIfNull(tick);
-            if (statistics is { } supplied && (!string.Equals(supplied.ContractId,tick.ContractId,StringComparison.Ordinal) || supplied.ValueDate != tick.ValueDate))
-                throw new ArgumentException("Session statistics must match the tick contract and value date.", nameof(statistics));
             var transactions = new PostgresEventTransaction(new DbConnectionSettings()
                 .Add(EventSourceActorDbContext.EventSourceActorDbConnection,context.ConnectionString,"System.Data.Postgres"));
             await transactions.ExecuteOnceAsync(async (transaction, token) =>
             {
-                var value = await MarketDataDbContextExtensions.ResolveSnapshotAsync(transaction,tick,statistics,token)
+                var value = await MarketDataDbContextExtensions.ResolveSnapshotAsync(transaction, observation, token)
             .ConfigureAwait(false);
                 await transaction.ExecuteAsync(MarketDataDbSql.InsertVixFuturesEodData, [value.ContractId,value.ValueDate,value.OpenPrice,value.HighPrice,value.LowPrice,value.ClosePrice,value.Volume],token)
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
                 return true;
             })
             .ConfigureAwait(false);
@@ -1037,78 +402,57 @@ public static class MarketDataDbContextExtensions
             TimeFrameType frame, DateOnly valueDate, DateTimeOffset[] intervalEndsUtc, string sourceVersion,
             CancellationToken cancellationToken)
         {
-            ArgumentException.ThrowIfNullOrWhiteSpace(sourceVersion);
-            ArgumentNullException.ThrowIfNull(intervalEndsUtc);
-            ArgumentOutOfRangeException.ThrowIfGreaterThan(intervalEndsUtc.Length, 64);
             if (intervalEndsUtc.Length == 0) return [];
+        var preparedParameters10 = new IndicatorSeedCoverageKey(contractId, frame, valueDate, intervalEndsUtc, sourceVersion);
 
             return (await context.Database.Use(nameof(MarketDataDbSql.GetQualifiedIndicatorSeedBars), MarketDataDbSql.GetQualifiedIndicatorSeedBars)
-                .SetParameters(new IndicatorSeedCoverageKey(contractId, frame, valueDate, intervalEndsUtc, sourceVersion))
-                .ExecuteQueryAsync(row => row.IsNull(17) ? MarketDataDbContext.MapToStoredTradeSessionBar(row, contractId, frame, valueDate)
-                    : MarketDataDbContext.MapToCachedIndicatorSeedBar(row, contractId, frame, valueDate), cancellationToken)
-                .ConfigureAwait(false)).ToArray();
+            .SetParameters(preparedParameters10)
+            .ExecuteQueryAsync((row) => MarketDataDbContext.MapToReadQualifiedIndicatorSeedsCoreRow3(row, contractId, frame, valueDate), cancellationToken)
+            .ConfigureAwait(false)).ToArray();
         }
 
         /// <summary>Validates and executes the bounded seed or evidence persistence operation.</summary>
         internal async Task StoreQualifiedIndicatorSeedsCoreAsync(string sourceVersion, FuturesTradeSessionBarReadModel[] bars,
             CancellationToken cancellationToken)
         {
-            ArgumentException.ThrowIfNullOrWhiteSpace(sourceVersion);
-            ArgumentNullException.ThrowIfNull(bars);
-            ArgumentOutOfRangeException.ThrowIfGreaterThan(bars.Length, 64);
             if (bars.Length == 0) return;
-
-            var first = bars[0];
-            var ends = new HashSet<DateTimeOffset>();
-            foreach (var bar in bars)
-            {
-                if (!bar.IsComplete || !bar.IsValid || bar.ContractId != first.ContractId
-                    || bar.TimeFrame != first.TimeFrame || bar.ValueDate != first.ValueDate
-                    || bar.IntervalStartUtc >= bar.IntervalEndUtc || !ends.Add(bar.IntervalEndUtc))
-                    throw new ArgumentException("Seed coverage must contain unique qualified intervals of the same contract, timeframe and ValueDate.", nameof(bars));
-            }
+        var preparedParameters11 = new IndicatorSeedCoverageBatch(sourceVersion, bars);
 
             await context.Database.Use(nameof(MarketDataDbSql.StoreQualifiedIndicatorSeedBars), MarketDataDbSql.StoreQualifiedIndicatorSeedBars)
-                .SetParameters(new IndicatorSeedCoverageBatch(sourceVersion, bars))
-                .ExecuteCommandAsync(cancellationToken)
-                .ConfigureAwait(false);
+            .SetParameters(preparedParameters11)
+            .ExecuteCommandAsync(cancellationToken)
+            .ConfigureAwait(false);
         }
 
 
         /// <summary>Validates and executes the bounded seed or evidence persistence operation.</summary>
         internal async ValueTask<bool[]> WriteFirstBatchCoreAsync(IReadOnlyList<OptionTradeEvidence> evidence, CancellationToken cancellationToken)
         {
-            ArgumentNullException.ThrowIfNull(evidence);
-            if (evidence.Count is < 1 or > IOptionTradeEvidenceWriter.MaximumFirstWriteBatch)
-                throw new ArgumentOutOfRangeException(nameof(evidence));
             if (evidence.Count == 1)
                 return [await context.WriteFirstAsync(evidence[0], cancellationToken)
-                .ConfigureAwait(false)];
+            .ConfigureAwait(false)];
 
             var serializer = MessagePackBinarySerializer.Shared;
             var requests = new (EvidenceKey Key, string Digest, byte[] Payload)[evidence.Count];
             for (var index = 0; index < evidence.Count; index++)
             {
                 var item = evidence[index];
-                ArgumentNullException.ThrowIfNull(item);
-                item.Validate();
-                if (MessagePackBinarySerializer.MeasureContent(item) > 131072)
-                    throw new ArgumentException("Trade evidence exceeds its bounded payload.", nameof(evidence));
                 requests[index] = (EvidenceKey.From(item.Source), item.Source.SourceDigest, serializer.Serialize(item)!);
             }
 
             // Same-key requests within a window follow the first submitted attempt.
             // The database statement orders different keys before taking write locks.
             var first = requests.DistinctBy(static request => request.Key).ToArray();
+            var insert = new OptionEvidenceInsertBatchParameters(
+                first.Select(static r => r.Key.Contract).ToArray(),
+                first.Select(static r => r.Key.Date).ToArray(),
+                first.Select(static r => r.Key.Identity).ToArray(),
+                first.Select(static r => r.Digest).ToArray(),
+                first.Select(static r => r.Payload).ToArray());
             var accepted = await context.Database.Use("OptionTradeEvidence.InsertBatch", MarketDataDbSql.InsertOptionTradeEvidenceBatch)
-                .SetParameters((object)BindValues.Values(
-                    first.Select(static r => r.Key.Contract).ToArray(),
-                    first.Select(static r => r.Key.Date).ToArray(),
-                    first.Select(static r => r.Key.Identity).ToArray(),
-                    first.Select(static r => r.Digest).ToArray(),
-                    first.Select(static r => r.Payload).ToArray()))
-                .ExecuteQueryAsync(EvidenceKey.Read, cancellationToken)
-                .ConfigureAwait(false);
+                .SetParameters(insert)
+            .ExecuteQueryAsync(MarketDataDbContext.MapToEvidenceKey, cancellationToken)
+            .ConfigureAwait(false);
 
             var inserted = accepted.ToHashSet();
             var durable = first.Where(r => inserted.Contains(r.Key)).ToDictionary(static r => r.Key, static r => r.Payload);
@@ -1117,17 +461,14 @@ public static class MarketDataDbContextExtensions
             {
                 // A concurrent insert can win the unique-key lock after the insertion
                 // statement's snapshot. Read conflicts in a separate command.
+                var selection = new OptionEvidenceBatchSelectionParameters(
+                    conflicts.Select(static k => k.Contract).ToArray(),
+                    conflicts.Select(static k => k.Date).ToArray(),
+                    conflicts.Select(static k => k.Identity).ToArray());
                 var stored = await context.Database.Use("OptionTradeEvidence.ReadConflicts", MarketDataDbSql.GetOptionTradeEvidenceBatch)
-                    .SetParameters((object)BindValues.Values(
-                        conflicts.Select(static k => k.Contract).ToArray(),
-                        conflicts.Select(static k => k.Date).ToArray(),
-                        conflicts.Select(static k => k.Identity).ToArray()))
-                    .ExecuteQueryAsync(static (row) =>
-                    {
-                        var key = EvidenceKey.Read(row);
-                        return (Key: key, Value: MarketDataDbContext.MapToOptionTradeEvidence(key, row.GetString(3), row.GetBytes(4)));
-                    }, cancellationToken)
-                .ConfigureAwait(false);
+                    .SetParameters(selection)
+            .ExecuteQueryAsync(MarketDataDbContext.MapToWriteFirstBatchCoreRow4, cancellationToken)
+            .ConfigureAwait(false);
                 foreach (var row in stored)
                     durable.Add(row.Key, serializer.Serialize(row.Value)!);
                 if (stored.Count != conflicts.Length)
@@ -1141,23 +482,29 @@ public static class MarketDataDbContextExtensions
             /// <summary>Executes repository preparation under the owning context or caller transaction.</summary>
         internal async ValueTask<bool> TryInsertOptionTradeEvidenceAsync(OptionTradeEvidence evidence, CancellationToken cancellationToken)
         {
-            ArgumentNullException.ThrowIfNull(evidence);
-            evidence.Validate();
-            if (MessagePackBinarySerializer.MeasureContent(evidence) > 131072)
-                throw new ArgumentException("Trade evidence exceeds its bounded payload.",nameof(evidence));
             var source = evidence.Source;
-            return await context.Database.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertOptionTradeEvidence)}", MarketDataDbSql.InsertOptionTradeEvidence)
-                .SetParameters(new NativeOptionEvidenceWriteParameters(source.ContractId, source.ValueDate, source.Identity, source.SourceDigest, MessagePackBinarySerializer.Shared.Serialize(evidence)!))
-                .ExecuteSingleAsync(static row => row.GetBool(0), cancellationToken)
-                .ConfigureAwait(false);
+        var preparedParameters12 = new NativeOptionEvidenceWriteParameters(source.ContractId, source.ValueDate, source.Identity, source.SourceDigest, MessagePackBinarySerializer.Shared.Serialize(evidence)!);
+            return await context.Database.Use($"{nameof(MarketDataDbSql)}.InsertOptionTradeEvidence", MarketDataDbSql.InsertOptionTradeEvidence)
+            .SetParameters(preparedParameters12)
+            .ExecuteSingleAsync(MarketDataDbContext.MapToTryInsertOptionTradeEvidenceRow5, cancellationToken)
+            .ConfigureAwait(false);
         }
         /// <summary>Executes repository preparation under the owning context or caller transaction.</summary>
         internal async ValueTask<OptionTradeEvidence> ReadAcceptedOptionTradeEvidenceAsync(OptionTradeSource source, CancellationToken cancellationToken)
-            => await context.ReadAsync(source.ContractId, source.ValueDate, source.Identity, cancellationToken)
-                .ConfigureAwait(false) ?? throw new InvalidOperationException("Durable option trade evidence write not confirmed.");
+            => await context.ReadOptionTradeEvidenceCoreAsync(new(source.ContractId, source.ValueDate, source.Identity), cancellationToken)
+            .ConfigureAwait(false) ?? throw new InvalidOperationException("Durable option trade evidence write not confirmed.");
 
-
-    }
+        /// <summary>Reads an exact evidence row for a qualified query or write confirmation.</summary>
+        internal async Task<OptionTradeEvidence?> ReadOptionTradeEvidenceCoreAsync(MarketDataDbContext.EvidenceKey key, CancellationToken cancellationToken)
+        {
+            var parameters = new NativeOptionEvidenceReadParameters(key.Contract, key.Date, key.Identity);
+            var rows = await context.Database.Use($"{nameof(MarketDataDbSql)}.GetOptionTradeEvidence", MarketDataDbSql.GetOptionTradeEvidence)
+                .SetParameters(parameters)
+                .ExecuteQueryAsync(row => MarketDataDbContext.MapToOptionTradeEvidence(row, key), cancellationToken)
+                .ConfigureAwait(false);
+            return rows.SingleOrDefault();
+        }
+}
 
     extension(DateOnly valueDate)
     {
@@ -1223,32 +570,6 @@ public static class MarketDataDbContextExtensions
         internal string GetFuturesEodScopeKey() => yearMonth.ToString(System.Globalization.CultureInfo.InvariantCulture);
     }
 
-    extension(DateOnly startDate)
-    {
-        /// <summary>
-        /// Performs the <c>GetYearMonths</c> operation for MarketDataDb persistence.
-        /// </summary>
-        /// <param name="endDate">The end date used by this operation.</param>
-        /// <returns>The typed result of the market-data query or mutation.</returns>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S127", Justification = "The last supported calendar month exits before AddMonths to avoid overflow at DateOnly.MaxValue.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S4456", Justification = "Validation occurs on enumeration immediately before database access; callers consume this streaming contract asynchronously.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2208", Justification = "The named argument is the declared C# 14 extension receiver; its name is part of the caller contract.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3928", Justification = "The named argument is the declared C# 14 extension receiver; its name is part of the caller contract.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal IEnumerable<int> GetYearMonths(DateOnly endDate)
-        {
-            if (startDate > endDate)
-                throw new ArgumentOutOfRangeException(nameof(startDate), startDate, "Start date must be on or before end date.");
-            for (var month = new DateOnly(startDate.Year, startDate.Month, 1); month <= endDate;)
-            {
-                yield return MarketDataDbContextExtensions.ToYearMonth(month);
-                if (month.Year == DateOnly.MaxValue.Year && month.Month == DateOnly.MaxValue.Month)
-                    yield break;
-                month = month.AddMonths(1);
-            }
-        }
-    }
-
     extension(FuturesTickDataV2ReadModel row)
     {
         /// <summary>
@@ -1300,48 +621,6 @@ public static class MarketDataDbContextExtensions
             hash = MarketDataProjectionHash.Add(hash, row.WindowSize);
             hash = MarketDataProjectionHash.Add(hash, row.FiftyDMA);
             return MarketDataProjectionHash.Add(hash, row.TwoHundredDMA);
-        }
-    }
-
-    extension(ICollection<FuturesTickDataV2ReadModel> rows)
-    {
-        /// <summary>
-        /// Performs the <c>EnsureDistinctFuturesTickWrites</c> operation for MarketDataDb persistence.
-        /// </summary>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3267", Justification = "Retain sequential awaited database operations and explicit loops without allocating LINQ iterators on persistence paths.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3928", Justification = "This existing options validator reports the invalid configuration property by name; preserve its established exception type and diagnostic property name.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal void EnsureDistinctFuturesTickWrites()
-        {
-            var canonicalKeys = new HashSet<(string ContractId, DateOnly ValueDate, long TickId)>(rows.Count);
-            foreach (var row in rows)
-            {
-                if (!canonicalKeys.Add((row.ContractId, row.ValueDate, row.TickId)))
-                {
-                    throw new ArgumentException($"The futures-tick write contains duplicate canonical key " + $"('{row.ContractId}', '{row.ValueDate:yyyy-MM-dd}', {row.TickId}).", nameof(rows));
-                }
-            }
-        }
-    }
-
-    extension(ICollection<FuturesEodDataV2ReadModel> rows)
-    {
-        /// <summary>
-        /// Performs the <c>EnsureDistinctFuturesEodWrites</c> operation for MarketDataDb persistence.
-        /// </summary>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3267", Justification = "Retain sequential awaited database operations and explicit loops without allocating LINQ iterators on persistence paths.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3928", Justification = "This existing options validator reports the invalid configuration property by name; preserve its established exception type and diagnostic property name.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal void EnsureDistinctFuturesEodWrites()
-        {
-            var canonicalKeys = new HashSet<(string ContractId, DateOnly ValueDate, string Symbol)>(rows.Count);
-            foreach (var row in rows)
-            {
-                if (!canonicalKeys.Add((row.ContractId, row.ValueDate, row.Symbol)))
-                {
-                    throw new ArgumentException($"The futures-EOD write contains duplicate canonical key " + $"('{row.ContractId}', '{row.ValueDate:yyyy-MM-dd}', '{row.Symbol}').", nameof(rows));
-                }
-            }
         }
     }
 
@@ -1480,66 +759,6 @@ public static class MarketDataDbContextExtensions
 
     extension(IObjectRepository db)
     {
-        /// <summary>
-        /// Performs the <c>EndProjectionScopeOperationsAsync</c> operation for MarketDataDb persistence.
-        /// </summary>
-        /// <param name="projectionName">The projection name used by this operation.</param>
-        /// <param name="scopeKeys">The scope keys used by this operation.</param>
-        /// <param name="activeOperations">The active operations used by this operation.</param>
-        /// <param name="cancellationToken">The token used to cancel the operation.</param>
-        /// <returns>The typed result of the market-data query or mutation.</returns>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal Task<long[]> EndProjectionScopeOperationsAsync(string projectionName, IEnumerable<string> scopeKeys, HashSet<Guid> activeOperations, CancellationToken cancellationToken = default)
-        {
-            var scopes = scopeKeys as ICollection<string> ?? scopeKeys.ToArray();
-            return scopes.Count == 0 ? Task.FromResult(Array.Empty<long>()) : db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.EndMarketDataProjectionScopeOperationV3)}", MarketDataDbCql.EndMarketDataProjectionScopeOperationV3)
-                .SetParameters(scopes.Select(scope => new EndMarketDataProjectionScopeOperationV3(projectionName, scope, Guid.NewGuid(), activeOperations)))
-                .ExecuteCommandAsync(cancellationToken);
-        }
-
-        /// <summary>
-        /// Performs the <c>TryClassifyTickGuardOperationFailureAsync</c> operation for MarketDataDb persistence.
-        /// </summary>
-        /// <param name="guardScopeKey">The guard scope key used by this operation.</param>
-        /// <param name="operationId">The operation id used by this operation.</param>
-        /// <param name="stage">The stage used by this operation.</param>
-        /// <returns>The completion of the persistence operation.</returns>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal Task TryClassifyTickGuardOperationFailureAsync(string guardScopeKey, Guid operationId, TickProjectionGuardFailureStage stage) => MarketDataDbContextExtensions.IsTickGuardFailureAutomaticallyRecoverable(stage) ? MarketDataDbContextExtensions.TryFailTickGuardOperationAsync(db, guardScopeKey, operationId) : Task.CompletedTask;
-        /// <summary>
-        /// Performs the <c>TryFailTickGuardOperationAsync</c> operation for MarketDataDb persistence.
-        /// </summary>
-        /// <param name="guardScopeKey">The guard scope key used by this operation.</param>
-        /// <param name="operationId">The operation id used by this operation.</param>
-        /// <returns>The completion of the persistence operation.</returns>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Retain the existing bounded persistence failure boundary: complete cleanup or report failure while preserving ambiguous commit/recovery evidence and the original cause.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal async Task TryFailTickGuardOperationAsync(string guardScopeKey, Guid operationId)
-        {
-            try
-            {
-                await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertMarketDataProjectionScopeMutationV3)}", MarketDataDbCql.InsertMarketDataProjectionScopeMutationV3)
-                .SetParameters(new InsertMarketDataProjectionScopeMutationV3(MarketDataDbContext.FuturesTickByTimeProjection, guardScopeKey, operationId, DateTime.UnixEpoch))
-                .ExecuteCommandAsync())
-                .ConfigureAwait(false);
-            }
-            catch
-            {
-            // Never remove ambiguous recovery evidence after another storage failure.
-            }
-        }
-
-        /// <summary>
-        /// Performs the <c>EndProjectionOperationAsync</c> operation for MarketDataDb persistence.
-        /// </summary>
-        /// <param name="projectionName">The projection name used by this operation.</param>
-        /// <param name="activeOperations">The active operations used by this operation.</param>
-        /// <param name="cancellationToken">The token used to cancel the operation.</param>
-        /// <returns>The typed result of the market-data query or mutation.</returns>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal Task<long[]> EndProjectionOperationAsync(string projectionName, HashSet<Guid> activeOperations, CancellationToken cancellationToken = default) => db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.EndMarketDataProjectionOperation)}", MarketDataDbCql.EndMarketDataProjectionOperation)
-                .SetParameters(new EndMarketDataProjectionOperation(projectionName, Guid.NewGuid(), activeOperations))
-                .ExecuteCommandAsync(cancellationToken);
     }
 
     extension(TickProjectionGuardFailureStage stage)
@@ -1570,20 +789,6 @@ public static class MarketDataDbContextExtensions
         internal InsertFuturesEodDataByMonth CreateFuturesEodDataByMonthParameters(decimal openPrice) => new(yearMonth: MarketDataDbContextExtensions.ToYearMonth(e.ValueDate), contractId: e.ContractId, valueDate: e.ValueDate, symbol: e.Symbol, openPrice, highPrice: e.HighPrice, lowPrice: e.LowPrice, closePrice: e.ClosePrice, volume: e.Volume, dailyPercentChange: e.DailyPercentChange, dailyStdDev: e.DailyStdDev, dailyStdDevAmount: e.DailyStdDevAmount, upperBand: e.UpperBand, mean: e.Mean, lowerBand: e.LowerBand, marketDirection: e.MarketDirection.ToStringFast(), marketVolatility: e.MarketVolatility.ToStringFast(), priceDirection: e.PriceDirection.ToStringFast(), priceVolatility: e.PriceVolatility.ToStringFast(), marketDirectionIndicator: e.MarketDirectionIndicator, windowSize: e.WindowSize, fiftyDMA: e.FiftyDMA, twoHundredDMA: e.TwoHundredDMA);
     }
 
-    extension(MarketDataDownloadCursor cursor)
-    {
-        /// <summary>
-        /// Performs the <c>ValidateDownloadCursor</c> operation for MarketDataDb persistence.
-        /// </summary>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3928", Justification = "The named argument is the declared C# 14 extension receiver; its name is part of the caller contract.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal void ValidateDownloadCursor()
-        {
-            if (cursor.ImportCommandId == Guid.Empty || cursor.RequestedAtUtc == default || cursor.RequestedAtUtc != MarketDataDownloadOutcome.MillisecondUtc(cursor.RequestedAtUtc))
-                throw new ArgumentException("Invalid download attempt cursor.", nameof(cursor));
-        }
-    }
-
     extension(IObjectDataRecord row)
     {
         /// <summary>
@@ -1602,16 +807,7 @@ public static class MarketDataDbContextExtensions
         /// </summary>
         /// <returns>The typed result of the market-data query or mutation.</returns>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal DateTime NormalizeEconomicCalendarTimestamp()
-        {
-            var utc = value.Kind switch
-            {
-                DateTimeKind.Utc => value,
-                DateTimeKind.Local => value.ToUniversalTime(),
-                _ => DateTime.SpecifyKind(value, DateTimeKind.Utc),
-            };
-            return new DateTime(utc.Ticks - (utc.Ticks % TimeSpan.TicksPerMillisecond), DateTimeKind.Utc);
-        }
+        internal DateTime NormalizeEconomicCalendarTimestamp() => MarketDataImportBatch.NormalizeCalendarTimestamp(value);
 
         /// <summary>
         /// Performs the <c>EconomicCalendarMonthBucket</c> operation for MarketDataDb persistence.
@@ -1733,107 +929,6 @@ public static class MarketDataDbContextExtensions
                 throw new ArgumentException("The economic-calendar continuation token is invalid for this request.", nameof(token), ex);
             }
         }
-    }
-
-    extension(YieldCurveRateReadModel row)
-    {
-        /// <summary>
-        /// Performs the <c>GetYieldCurveProjectionIdentity</c> operation for MarketDataDb persistence.
-        /// </summary>
-        /// <returns>The typed result of the market-data query or mutation.</returns>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal ulong GetYieldCurveProjectionIdentity()
-        {
-            var hash = MarketDataProjectionHash.Add(MarketDataProjectionHash.Start(), row.ValueDate);
-            hash = MarketDataProjectionHash.Add(hash, row.OneMonth);
-            hash = MarketDataProjectionHash.Add(hash, row.TwoMonth);
-            hash = MarketDataProjectionHash.Add(hash, row.ThreeMonth);
-            hash = MarketDataProjectionHash.Add(hash, row.SixMonth);
-            hash = MarketDataProjectionHash.Add(hash, row.OneYear);
-            hash = MarketDataProjectionHash.Add(hash, row.TwoYear);
-            hash = MarketDataProjectionHash.Add(hash, row.ThreeYear);
-            hash = MarketDataProjectionHash.Add(hash, row.FiveYear);
-            hash = MarketDataProjectionHash.Add(hash, row.SevenYear);
-            hash = MarketDataProjectionHash.Add(hash, row.TenYear);
-            hash = MarketDataProjectionHash.Add(hash, row.TwentyYear);
-            return MarketDataProjectionHash.Add(hash, row.ThirtyYear);
-        }
-    }
-
-    extension(IEnumerable<int> values)
-    {
-        /// <summary>
-        /// Performs the <c>BuildIntegerSetIdentity</c> operation for MarketDataDb persistence.
-        /// </summary>
-        /// <returns>The typed result of the market-data query or mutation.</returns>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal ProjectionIdentity BuildIntegerSetIdentity()
-        {
-            var identity = new ProjectionIdentityBuilder();
-            foreach (var value in values)
-                identity.Add(MarketDataProjectionHash.Add(MarketDataProjectionHash.Start(), value));
-            return identity.Build();
-        }
-    }
-
-    extension(FuturesTradeSignalRepairRow candidate)
-    {
-        /// <summary>
-        /// Performs the <c>IsNewer</c> operation for MarketDataDb persistence.
-        /// </summary>
-        /// <param name="current">The current used by this operation.</param>
-        /// <returns>The typed result of the market-data query or mutation.</returns>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal bool IsNewer(FuturesTradeSignalRepairRow current) => (candidate.ValueDate.DayNumber, candidate.Timestamp.Ticks, candidate.SequenceId).CompareTo((current.ValueDate.DayNumber, current.Timestamp.Ticks, current.SequenceId)) > 0;
-    }
-
-    extension(string payload)
-    {
-        /// <summary>
-        /// Performs the <c>ParseFuturesTradeSignalRepairRow</c> operation for MarketDataDb persistence.
-        /// </summary>
-        /// <returns>The typed result of the market-data query or mutation.</returns>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep the transaction, resource ownership and failure ordering together during this provider migration; splitting it would obscure the atomic persistence boundary.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal FuturesTradeSignalRepairParseResult ParseFuturesTradeSignalRepairRow()
-        {
-            try
-            {
-                using var document = JsonDocument.Parse(payload);
-                var root = document.RootElement;
-                var contractId = MarketDataDbContextExtensions.GetString(root, "contractid");
-                var valueDateText = MarketDataDbContextExtensions.GetString(root, "valuedate");
-                var timePeriodText = MarketDataDbContextExtensions.GetString(root, "timeperiod");
-                var timestampText = MarketDataDbContextExtensions.GetString(root, "timestamp");
-                var sequenceId = MarketDataDbContextExtensions.GetInt64(root, "sequenceid");
-                List<string> errors = [];
-                if (string.IsNullOrWhiteSpace(contractId) || contractId.Contains(',', System.StringComparison.Ordinal))
-                    errors.Add("invalid contractId");
-                var hasValidDate = DateOnly.TryParseExact(valueDateText, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var valueDate);
-                if (!hasValidDate || valueDate == DateOnly.MinValue || valueDate == DateOnly.MaxValue)
-                    errors.Add("invalid valueDate");
-                if (!Enum.TryParse<TimeFrameType>(timePeriodText, true, out var timePeriod) || !Enum.IsDefined(timePeriod))
-                    errors.Add("invalid timePeriod");
-                if (!TimeOnly.TryParse(timestampText, CultureInfo.InvariantCulture, out var timestamp))
-                    errors.Add("invalid timestamp");
-                if (sequenceId < 0)
-                    errors.Add("invalid sequenceId");
-                if (errors.Count != 0)
-                    return new FuturesTradeSignalRepairParseResult(null, string.Join(", ", errors));
-                return new FuturesTradeSignalRepairParseResult(new FuturesTradeSignalRepairRow(contractId, valueDate, timePeriod.ToStringFast(), timestamp, sequenceId), null);
-            }
-            catch (JsonException exception)
-            {
-                return new FuturesTradeSignalRepairParseResult(null, $"invalid JSON: {exception.Message}");
-            }
-        }
-
-        /// <summary>
-        /// Performs the <c>Fingerprint</c> operation for MarketDataDb persistence.
-        /// </summary>
-        /// <returns>The typed result of the market-data query or mutation.</returns>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal string Fingerprint() => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(payload)));
     }
 
     extension<TDataRecord>(TDataRecord row)
@@ -2005,18 +1100,6 @@ public static class MarketDataDbContextExtensions
         /// <returns>The typed result of the market-data query or mutation.</returns>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         internal OptionVolatilityParameters HistoryValues(bool includePolicy) => includePolicy ? new([request.Scope.Environment, request.Scope.Series.SeriesId, request.Scope.Series.MethodologyVersion, request.Scope.MetricPolicyVersion, request.Bucket.Value, request.FromValueDate, request.ToValueDate, ]) : new([request.Scope.Environment, request.Scope.Series.SeriesId, request.Scope.Series.MethodologyVersion, request.Bucket.Value, request.FromValueDate, request.ToValueDate, ]);
-        /// <summary>
-        /// Performs the <c>ValidatePage</c> operation for MarketDataDb persistence.
-        /// </summary>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3928", Justification = "This existing options validator reports the invalid configuration property by name; preserve its established exception type and diagnostic property name.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal void ValidatePage()
-        {
-            ArgumentNullException.ThrowIfNull(request);
-            MarketDataDbContextExtensions.ValidateEnvironment(request.Scope.Environment);
-            if (request.PageSize is < 1 or > 500 || request.FromValueDate > request.ToValueDate || VolatilityCalendarBucket.From(request.FromValueDate) != request.Bucket || VolatilityCalendarBucket.From(request.ToValueDate) != request.Bucket || request.Mode == VolatilityHistoricalMode.AsKnown && request.KnownAtUtc is null || request.Mode == VolatilityHistoricalMode.Restated && request.KnownAtUtc is not null)
-                throw new ArgumentException("History query must be bounded to one calendar bucket.", nameof(request));
-        }
     }
 
     extension(OptionIvPublication publication)
@@ -2032,18 +1115,6 @@ public static class MarketDataDbContextExtensions
             return new(new(publication.Environment, snapshot.Series, snapshot.MetricPolicyVersion), snapshot.SnapshotId, snapshot.SnapshotDigest, publication.Metric.PublicationSequence, snapshot.AvailableAtUtc);
         }
 
-        /// <summary>
-        /// Performs the <c>ValidatePublication</c> operation for MarketDataDb persistence.
-        /// </summary>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3928", Justification = "This existing options validator reports the invalid configuration property by name; preserve its established exception type and diagnostic property name.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal void ValidatePublication()
-        {
-            ArgumentNullException.ThrowIfNull(publication);
-            MarketDataDbContextExtensions.ValidateEnvironment(publication.Environment);
-            if (publication.Metric.Revision < 1 || publication.Metric.PublicationSequence < 1 || (publication.Metric.Revision == 1) != (publication.Metric.SupersedesSnapshotId is null) || publication.SourceObservations.IsDefaultOrEmpty || !publication.Metric.Snapshot.SourceObservationIds.Order(StringComparer.Ordinal).SequenceEqual(publication.SourceObservations.Select(x => x.ObservationId).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal), StringComparer.Ordinal))
-                throw new ArgumentException("A complete immutable publication is required.", nameof(publication));
-        }
     }
 
     extension<T>(T value)
@@ -2057,7 +1128,7 @@ public static class MarketDataDbContextExtensions
         {
             var payload = MessagePackBinarySerializer.Shared.Serialize(value) ?? throw new InvalidDataException("Option volatility serialization returned no payload.");
             if (payload.Length is 0 or > MarketDataDbContext.MaximumPayloadBytes)
-                throw new ArgumentException("Option volatility payload exceeds its bounded size.");
+                throw new InvalidDataException("Option volatility payload exceeds its bounded size.");
             return payload;
         }
     }
@@ -2078,46 +1149,6 @@ public static class MarketDataDbContextExtensions
         }
     }
 
-    extension(OptionIvObservation observation)
-    {
-        /// <summary>
-        /// Performs the <c>ValidateObservation</c> operation for MarketDataDb persistence.
-        /// </summary>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3928", Justification = "The named argument is the declared C# 14 extension receiver; its name is part of the caller contract.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal void ValidateObservation()
-        {
-            ArgumentNullException.ThrowIfNull(observation);
-            if (observation.SchemaVersion != OptionIvObservation.CurrentSchemaVersion || string.IsNullOrWhiteSpace(observation.ObservationId) || observation.ExchangeValueDate == default || observation.Revision < 1 || (observation.Revision == 1) != (observation.SupersedesObservationId is null) || observation.RecordedAtUtc.Offset != TimeSpan.Zero || observation.AvailableAtUtc.Offset != TimeSpan.Zero)
-                throw new ArgumentException("Invalid option-IV observation.", nameof(observation));
-        }
-    }
-
-    extension(LatestVolatilityRequest request)
-    {
-        /// <summary>
-        /// Performs the <c>ValidateLatest</c> operation for MarketDataDb persistence.
-        /// </summary>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3928", Justification = "This existing options validator reports the invalid configuration property by name; preserve its established exception type and diagnostic property name.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal void ValidateLatest()
-        {
-            ArgumentNullException.ThrowIfNull(request);
-            MarketDataDbContextExtensions.ValidateEnvironment(request.Scope.Environment);
-            if (request.MaximumAge <= TimeSpan.Zero || request.RequestedAtUtc.Offset != TimeSpan.Zero)
-                throw new ArgumentException("A positive configured freshness requirement is required.", nameof(request));
-        }
-    }
-
-    extension(string environment)
-    {
-        /// <summary>
-        /// Performs the <c>ValidateEnvironment</c> operation for MarketDataDb persistence.
-        /// </summary>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal void ValidateEnvironment() => ArgumentException.ThrowIfNullOrWhiteSpace(environment);
-    }
-
     extension(DateOnly value)
     {
         /// <summary>
@@ -2130,35 +1161,49 @@ public static class MarketDataDbContextExtensions
 
     extension(IEnlistedPostgresTransaction transaction)
     {
+        /// <summary>Locks the canonical and indexed tables for the caller's offline baseline transaction.</summary>
+        public Task LockMarketDataBaselineAsync(CancellationToken token)
+            => transaction.ExecuteAsync(MarketDataDbSql.LockMarketDataBaseline, [], token);
+
+        /// <summary>Checks for a committed baseline stream without allocating metadata.</summary>
+        public async Task<bool> HasMarketDataBaselineAsync(string stream, CancellationToken token)
+            => await transaction.ScalarAsync(MarketDataDbSql.HasMarketDataBaseline, (object? [])new MarketDataBaselineStream(stream).Bind(), token)
+            .ConfigureAwait(false) is not null;
+
+        /// <summary>Reads canonical calendar rows under the selected baseline lock.</summary>
+        public Task<IReadOnlyList<EconomicCalendarReadModel>> ReadBaselineEconomicCalendarAsync(CancellationToken token)
+            => transaction.QueryAsync(MarketDataDbSql.ReadBaselineEconomicCalendar, [], MarketDataDbContext.MapToBaselineEconomicCalendar, token);
+
+        /// <summary>Reads canonical or indexed Treasury rows as requested by the reconciliation owner.</summary>
+        public Task<IReadOnlyList<YieldCurveRateReadModel>> ReadBaselineYieldCurvesAsync(bool indexed, CancellationToken token)
+        {
+            var query = indexed ? MarketDataDbSql.GetIndexedYieldCurvesForRebuild : MarketDataDbSql.GetCanonicalYieldCurvesForRebuild;
+            return transaction.QueryAsync(query, [], MarketDataDbContext.MapToBaselineYieldCurve, token);
+        }
+
+        /// <summary>Reads committed heads for the supplied command-stream prefix.</summary>
+        public Task<IReadOnlyList<TomasAI.IFM.Shared.EventSourcing.ViewModels.EventStreamRevisionReadModel>> ReadMarketDataBaselineHeadsAsync(string prefix, CancellationToken token)
+            => transaction.QueryAsync(MarketDataDbSql.ReadMarketDataBaselineHeads, (object? [])new MarketDataBaselineStream(prefix).Bind(), MarketDataDbContext.MapToBaselineStreamHead, token);
+
+
         /// <summary>Checks the usable indexes for the canonical PostgreSQL query paths.</summary>
         /// <param name="token">Cancels the database query.</param>
         /// <returns>Readiness of PostgreSQL queries, with raw tick ownership explicitly excluded.</returns>
         internal async Task<MarketDataProjectionReadinessReadModel> ReadCanonicalQueryReadinessAsync(CancellationToken token)
         {
-            var rows = await transaction.QueryAsync(MarketDataDbSql.GetCanonicalQueryReadiness, [], reader => new MarketDataProjectionReadinessReadModel(false, reader.GetBoolean(0), reader.GetBoolean(1), reader.GetBoolean(2)) { RawTicksManagedByTradeTickQuoteDb = true }, token)
-                .ConfigureAwait(false);
+            var rows = await transaction.QueryAsync(MarketDataDbSql.GetCanonicalQueryReadiness, [], MarketDataDbContext.MapToReadCanonicalQueryReadinessRow6, token)
+            .ConfigureAwait(false);
             return rows.Single();
         }
 
-        /// <summary>Rebuilds canonical indexes and reports the single-table query inventory in the same transaction.</summary>
-        /// <param name="token">Cancels maintenance and rolls back its index changes.</param>
-        /// <returns>The canonical inventory and readiness after rebuilding indexes.</returns>
-        internal async Task<MarketDataProjectionBackfillReadModel> RebuildCanonicalQueryIndexesAsync(CancellationToken token)
+        /// <summary>Applies the owned index statements and returns exact physical inventory rows.</summary>
+        internal async Task<IReadOnlyList<MarketDataProjectionInventoryRow>> RefreshCanonicalQueryIndexRowsAsync(CancellationToken token)
         {
             await transaction.ExecuteAsync(Schema.MarketDataSchemaSql.RebuildCanonicalQueryIndexes, [], token)
                 .ConfigureAwait(false);
-            var rows = await transaction.QueryAsync(MarketDataDbSql.GetCanonicalQueryInventory, [], reader => (Kind: reader.GetString(0), Count: reader.GetInt64(1), Fingerprint: reader.GetString(2)), token)
+            return await transaction.QueryAsync(MarketDataDbSql.GetCanonicalQueryInventory, [],
+                MarketDataDbContext.MapToProjectionInventory, token)
                 .ConfigureAwait(false);
-            var inventory = rows.ToDictionary(row => row.Kind);
-            var eod = inventory["eod"]; var vix = inventory["vix"]; var iti = inventory["iti"];
-            var readiness = await transaction.ReadCanonicalQueryReadinessAsync(token)
-                .ConfigureAwait(false);
-            return new(0, 0, "not-applicable:TradeTickQuoteDb", "not-applicable:TradeTickQuoteDb",
-                eod.Count, eod.Count, eod.Fingerprint, eod.Fingerprint,
-                inventory["vix_rows"].Count, vix.Count, vix.Count, vix.Fingerprint, vix.Fingerprint,
-                iti.Count, iti.Count, iti.Count, iti.Count,
-                iti.Fingerprint, iti.Fingerprint, iti.Fingerprint, iti.Fingerprint, readiness.IsReady)
-                { RawTicksManagedByTradeTickQuoteDb = true };
         }
 
     /// <summary>Resolves exact replacement facts while holding the owning transaction's contract/date lock.</summary>
@@ -2166,15 +1211,14 @@ public static class MarketDataDbContextExtensions
     /// <param name="statistics">The statistics used by this operation.</param>
     /// <param name="token">The token used by this operation.</param>
     /// <returns>The typed result of the market-data query or mutation.</returns>
-    public async Task<VixFuturesEodDataReadModel> ResolveSnapshotAsync(        FuturesTickDataV2ReadModel tick,FuturesSessionStatisticsSnapshot? statistics,CancellationToken token)
+    public async Task<VixFuturesEodDataReadModel> ResolveSnapshotAsync(VixTickObservation observation, CancellationToken token)
     {
-        ArgumentNullException.ThrowIfNull(tick);
-        if (statistics is { } supplied && (!string.Equals(supplied.ContractId,tick.ContractId,StringComparison.Ordinal) || supplied.ValueDate != tick.ValueDate))
-            throw new ArgumentException("Session statistics must match the tick contract and value date.",nameof(statistics));
+        var tick = observation.Tick;
+        var statistics = observation.Statistics;
         var key = string.Create(CultureInfo.InvariantCulture,$"market_data.vix:{tick.ContractId}:{tick.ValueDate:yyyyMMdd}");
         await transaction.ExecuteAsync(MarketDataDbSql.AcquireMarketDataIdentityLock,[key],token)
             .ConfigureAwait(false);
-        var rows = await transaction.QueryAsync(MarketDataDbSql.GetVixFuturesEodData,[tick.ContractId,tick.ValueDate], reader => new VixFuturesEodDataReadModel(reader.GetString(0),reader.GetFieldValue<DateOnly>(1),reader.GetDecimal(2), reader.GetDecimal(3),reader.GetDecimal(4),reader.GetDecimal(5),reader.GetInt64(6)),token)
+        var rows = await transaction.QueryAsync(MarketDataDbSql.GetVixFuturesEodData, [tick.ContractId, tick.ValueDate], MarketDataDbContext.MapToResolveSnapshotRow8, token)
             .ConfigureAwait(false);
         var old = rows.Count == 0 ? null : rows[0];
         var hasPrices = statistics is { HasPriceStatistics: true };
@@ -2187,127 +1231,100 @@ public static class MarketDataDbContextExtensions
 
 
         /// <summary>Writes accepted calendar rows and country lookups with command ownership checks.</summary>
-        /// <param name="rows">The rows used by the persistence operation.</param>
-        /// <param name="policy">The policy used by the persistence operation.</param>
-        /// <param name="commandId">The commandId used by the persistence operation.</param>
+        /// <param name="batch">The caller-qualified import rows and policy.</param>
         /// <param name="token">Cancels the operation.</param>
         /// <returns>The persistence operation result.</returns>
-        public async Task ImportEconomicCalendarsAsync(IReadOnlyList<EconomicCalendarReadModel> rows,
-            ImportDuplicatePolicy policy, Guid commandId, CancellationToken token = default)
+        public async Task ImportEconomicCalendarsAsync(MarketDataImportBatch<EconomicCalendarReadModel> batch, CancellationToken token = default)
         {
             ArgumentNullException.ThrowIfNull(transaction);
-            ArgumentNullException.ThrowIfNull(rows);
-            MarketDataDbContextExtensions.ValidateImportPolicy(policy,commandId);
-            var ordered = rows.OrderBy(row => row.CountryCode,StringComparer.Ordinal).ThenBy(row => row.EventDate).ThenBy(row => row.EventName,StringComparer.Ordinal).ToArray();
-            var identities = new HashSet<(string,DateTime,string)>();
-            foreach (var row in ordered)
+            foreach (var row in batch.Rows)
             {
-                var date = MarketDataDbContextExtensions.NormalizeEconomicCalendarTimestamp(row.EventDate);
+                var date = MarketDataImportBatch.NormalizeCalendarTimestamp(row.EventDate);
                 var month = MarketDataDbContextExtensions.EconomicCalendarMonthBucket(date);
-                if (!identities.Add((row.CountryCode,date,row.EventName)))
-                    throw new ArgumentException("An import batch contains duplicate economic-calendar identities.",nameof(rows));
                 var key = string.Create(CultureInfo.InvariantCulture,$"economic-calendar:{row.CountryCode.Length}:{row.CountryCode}:{date.Ticks}:{row.EventName}");
                 await transaction.ExecuteAsync(MarketDataDbSql.AcquireMarketDataIdentityLock,[key],token)
-                .ConfigureAwait(false);
-                if (policy == ImportDuplicatePolicy.Reject)
+            .ConfigureAwait(false);
+                if (batch.Policy == ImportDuplicatePolicy.Reject)
                 {
-                    var owners = await transaction.QueryAsync(MarketDataDbSql.GetEconomicCalendarV2CommandId, (object?[])new GetEconomicCalendarV2CommandId(row.CountryCode,month,date,row.EventName).Bind(),reader => reader.IsDBNull(0) ? Guid.Empty : reader.GetGuid(0),token)
-                .ConfigureAwait(false);
-                    if (owners.Count != 0 && owners[0] != commandId)
+                    var owners = await transaction.QueryAsync(MarketDataDbSql.GetEconomicCalendarV2CommandId, (object? [])new GetEconomicCalendarV2CommandId(row.CountryCode, month, date, row.EventName).Bind(), MarketDataDbContext.MapToImportEconomicCalendarsRow9, token)
+            .ConfigureAwait(false);
+                    if (owners.Count != 0 && owners[0] != batch.CommandId)
                         throw new MarketDataImportDuplicateException("Economic-calendar event is owned by another import command.");
                 }
                 var values = new InsertEconomicCalendarV2(row.CountryCode,month,date,row.EventName,row.Actual,row.Forecast,row.Prior,row.Impact,row.Unit,row.Change,row.ChangePercentage,
-                    MarketDataDbContextExtensions.NormalizeEconomicCalendarTimestamp(row.CreatedOn),row.CreatedBy,commandId);
+                    MarketDataDbContextExtensions.NormalizeEconomicCalendarTimestamp(row.CreatedOn),row.CreatedBy,batch.CommandId);
                 await transaction.ExecuteAsync(MarketDataDbSql.InsertEconomicCalendarV2,(object?[])values.Bind(),token)
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
                 await transaction.ExecuteAsync(MarketDataDbSql.InsertEconomicCalendarCountryCode, (object?[])new InsertEconomicCalendarCountryCode(MarketDataDbContext.EconomicCalendarLookupId,row.CountryCode).Bind(),token)
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
             }
         }
 
-        /// <summary>Rebuilds and verifies date/year lookups from canonical Treasury curves in one transaction.</summary>
-        /// <param name="token">Cancels the operation.</param>
-        /// <returns>The persistence operation result.</returns>
-        public async Task<FmpQueryProjectionBackfillReadModel> RebuildYieldCurveIndexesAsync(CancellationToken token = default)
+        /// <summary>Copies canonical Treasury rows to their date and year indexes under the original lock.</summary>
+        internal async Task<YieldCurveLookupInventory> RefreshYieldCurveLookupRowsAsync(CancellationToken token)
         {
-            ArgumentNullException.ThrowIfNull(transaction);
-            await transaction.ExecuteAsync(MarketDataDbSql.LockYieldCurveIndexes,[],token)
+            await transaction.ExecuteAsync(MarketDataDbSql.LockYieldCurveIndexes, [], token)
                 .ConfigureAwait(false);
-            var sourceRows = await transaction.QueryAsync(MarketDataDbSql.GetCanonicalYieldCurvesForRebuild,[], reader => MarketDataDbContext.MapToYieldCurveRate(new TomasAI.IFM.Framework.Storage.AdoNetDataRecord().SetReader(reader)),token)
+            var source = await transaction.QueryAsync(MarketDataDbSql.GetCanonicalYieldCurvesForRebuild, [],
+                MarketDataDbContext.MapToYieldCurveDbRow, token)
                 .ConfigureAwait(false);
-            await transaction.ExecuteAsync(MarketDataDbSql.ClearYieldCurveDateIndex,[],token)
+            await transaction.ExecuteAsync(MarketDataDbSql.ClearYieldCurveDateIndex, [], token)
                 .ConfigureAwait(false);
-            await transaction.ExecuteAsync(MarketDataDbSql.ClearYieldCurveYearIndex,[],token)
+            await transaction.ExecuteAsync(MarketDataDbSql.ClearYieldCurveYearIndex, [], token)
                 .ConfigureAwait(false);
-            await transaction.ExecuteAsync(MarketDataDbSql.RebuildYieldCurveDateIndex,[],token)
+            await transaction.ExecuteAsync(MarketDataDbSql.RebuildYieldCurveDateIndex, [], token)
                 .ConfigureAwait(false);
-            await transaction.ExecuteAsync(MarketDataDbSql.RebuildYieldCurveYearIndex,[],token)
+            await transaction.ExecuteAsync(MarketDataDbSql.RebuildYieldCurveYearIndex, [], token)
                 .ConfigureAwait(false);
-            var targetRows = await transaction.QueryAsync(MarketDataDbSql.GetIndexedYieldCurvesForRebuild,[], reader => MarketDataDbContext.MapToYieldCurveRate(new TomasAI.IFM.Framework.Storage.AdoNetDataRecord().SetReader(reader)),token)
+            var target = await transaction.QueryAsync(MarketDataDbSql.GetIndexedYieldCurvesForRebuild, [],
+                MarketDataDbContext.MapToYieldCurveDbRow, token)
                 .ConfigureAwait(false);
-            var targetYears = await transaction.QueryAsync(MarketDataDbSql.GetYieldCurveIndexYears,[],reader => reader.GetInt32(0),token)
+            var years = await transaction.QueryAsync(MarketDataDbSql.GetYieldCurveIndexYears, [],
+                MarketDataDbContext.MapToRebuildYieldCurveIndexesRow10, token)
                 .ConfigureAwait(false);
-            var sourceIdentity = new ProjectionIdentityBuilder();
-            var targetIdentity = new ProjectionIdentityBuilder();
-            foreach (var row in sourceRows) sourceIdentity.Add(MarketDataDbContextExtensions.GetYieldCurveProjectionIdentity(row));
-            foreach (var row in targetRows) targetIdentity.Add(MarketDataDbContextExtensions.GetYieldCurveProjectionIdentity(row));
-            var source = sourceIdentity.Build();
-            var target = targetIdentity.Build();
-            var sourceYears = sourceRows.Select(row => row.ValueDate.Year).Distinct().ToArray();
-            var sourceYearIdentity = MarketDataDbContextExtensions.BuildIntegerSetIdentity(sourceYears);
-            var targetYearIdentity = MarketDataDbContextExtensions.BuildIntegerSetIdentity(targetYears);
-            if (sourceRows.Count != targetRows.Count || !string.Equals(source.Fingerprint,target.Fingerprint,StringComparison.Ordinal) || !string.Equals(sourceYearIdentity.Fingerprint,targetYearIdentity.Fingerprint,StringComparison.Ordinal))
-                throw new InvalidDataException("Treasury index reconstruction failed verification; all index changes will roll back.");
-            return new(sourceRows.Count,targetRows.Count,source.Fingerprint,target.Fingerprint,sourceYears.Length,targetYears.Count,sourceYearIdentity.Fingerprint,targetYearIdentity.Fingerprint);
+            return new(source, target, years);
         }
 
         /// <summary>Writes accepted Treasury curves and their indexes while enforcing import ownership.</summary>
-        /// <param name="rows">The rows used by the persistence operation.</param>
-        /// <param name="policy">The policy used by the persistence operation.</param>
-        /// <param name="commandId">The commandId used by the persistence operation.</param>
+        /// <param name="batch">The caller-qualified import rows and policy.</param>
         /// <param name="acceptedAtUtc">The acceptedAtUtc used by the persistence operation.</param>
         /// <param name="token">Cancels the operation.</param>
         /// <returns>The persistence operation result.</returns>
-        public async Task ImportYieldCurvesAsync(IReadOnlyList<YieldCurveRateReadModel> rows,
-            ImportDuplicatePolicy policy, Guid commandId, DateTime acceptedAtUtc, CancellationToken token = default)
+        public async Task ImportYieldCurvesAsync(MarketDataImportBatch<YieldCurveRateReadModel> batch, DateTime acceptedAtUtc, CancellationToken token = default)
         {
             ArgumentNullException.ThrowIfNull(transaction);
-            ArgumentNullException.ThrowIfNull(rows);
-            MarketDataDbContextExtensions.ValidateImportPolicy(policy,commandId);
-            if (rows.Select(row => row.ValueDate).Distinct().Count() != rows.Count)
-                throw new ArgumentException("An import batch must contain one Treasury curve per value date.",nameof(rows));
             // Stable lock order includes empty dates and serializes overwrite imports with reject-policy imports.
-            foreach (var row in rows.OrderBy(row => row.ValueDate))
+            foreach (var row in batch.Rows)
             {
                 var key = row.ValueDate.ToString("yyyy-MM-dd",CultureInfo.InvariantCulture);
                 await transaction.ExecuteAsync(MarketDataDbSql.AcquireMarketDataIdentityLock,["market_data.treasury-curve:" + key],token)
-                .ConfigureAwait(false);
-                if (policy == ImportDuplicatePolicy.Reject)
+            .ConfigureAwait(false);
+                if (batch.Policy == ImportDuplicatePolicy.Reject)
                 {
-                    var owners = await transaction.QueryAsync(MarketDataDbSql.ReadMarketDataImportOwnership, ["treasury-curve",key],reader => (CommandId:reader.GetGuid(0),MayWrite:reader.GetBoolean(1)),token)
-                .ConfigureAwait(false);
+                    var owners = await transaction.QueryAsync(MarketDataDbSql.ReadMarketDataImportOwnership, ["treasury-curve", key], MarketDataDbContext.MapToImportYieldCurvesRow11, token)
+            .ConfigureAwait(false);
                     if (owners.Count > 0)
                     {
-                        if (owners[0].CommandId != commandId || !owners[0].MayWrite)
+                        if (owners[0].CommandId != batch.CommandId || !owners[0].MayWrite)
                             throw new MarketDataImportDuplicateException($"Treasury curve {key} is owned by another import command.");
                     }
                     else
                     {
-                        var exists = (bool)(await transaction.ScalarAsync(MarketDataDbSql.YieldCurveExists,[row.ValueDate],token)
-                .ConfigureAwait(false))!;
+                        var exists = (bool)(await transaction.ScalarAsync(MarketDataDbSql.YieldCurveExists, [row.ValueDate], token)
+            .ConfigureAwait(false))!;
                         if (exists) throw new MarketDataImportDuplicateException($"Treasury curve {key} already exists.");
-                        await transaction.ExecuteAsync(MarketDataDbSql.InsertMarketDataImportOwnership, [Text("treasury-curve"),Text(key),Uuid(commandId),Boolean(true),TimestampTz(acceptedAtUtc)],token)
-                .ConfigureAwait(false);
+                        await transaction.ExecuteAsync(MarketDataDbSql.InsertMarketDataImportOwnership, [Text("treasury-curve"),Text(key),Uuid(batch.CommandId),Boolean(true),TimestampTz(acceptedAtUtc)],token)
+            .ConfigureAwait(false);
                     }
                 }
                 var values = new InsertYieldCurveRate(1,row.ValueDate,row.OneMonth,row.TwoMonth,row.ThreeMonth,row.SixMonth,row.OneYear,
                     row.TwoYear,row.ThreeYear,row.FiveYear,row.SevenYear,row.TenYear,row.TwentyYear,row.ThirtyYear);
                 await transaction.ExecuteAsync(MarketDataDbSql.InsertYieldCurveRate,(object?[])values.Bind(),token)
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
                 await transaction.ExecuteAsync(MarketDataDbSql.InsertYieldCurveRateByDate,(object?[])values.Bind(),token)
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
                 await transaction.ExecuteAsync(MarketDataDbSql.InsertYieldCurveRateYear,[Integer(1),Integer(row.ValueDate.Year)],token)
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
             }
         }
 
@@ -2321,20 +1338,17 @@ public static class MarketDataDbContextExtensions
             long revision, bool published, CancellationToken cancellationToken = default)
         {
             ArgumentNullException.ThrowIfNull(transaction);
-            ArgumentNullException.ThrowIfNull(parameters);
-            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(revision);
-            parameters.Validate();
             await transaction.WriteTypedValueAsync(TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterSetValue.From(parameters),cancellationToken)
             .ConfigureAwait(false);
             var payload=parameters.Hash();
             await transaction.ExecuteAsync(MarketDataDbSql.InsertOptionChainParameterVersion, Values(Uuid(parameters.ParameterSetId), Integer(parameters.Version), Text(payload)), cancellationToken)
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
             var stored = await transaction.ScalarAsync(MarketDataDbSql.GetOptionChainParameterVersion, Values(Uuid(parameters.ParameterSetId), Integer(parameters.Version)), cancellationToken)
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
             if (stored is not string content || !string.Equals(content, parameters.Hash(), StringComparison.Ordinal))
                 throw new InvalidDataException("An immutable option-chain parameter version has conflicting content.");
             await transaction.ExecuteAsync(MarketDataDbSql.UpsertOptionChainParameterCurrent, Values(Text(parameters.Environment), Uuid(parameters.ParameterSetId), Integer(parameters.Version), Bigint(revision), Boolean(published), Text(payload)), cancellationToken)
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
         }
 
         /// <summary>Appends immutable volatility observation evidence and its dated history row.</summary>
@@ -2345,23 +1359,20 @@ public static class MarketDataDbContextExtensions
         public async Task AppendOptionIvObservationAsync(string environment, OptionIvObservation observation, CancellationToken token = default)
         {
             ArgumentNullException.ThrowIfNull(transaction);
-            ArgumentNullException.ThrowIfNull(observation);
-            MarketDataDbContextExtensions.ValidateEnvironment(environment);
-            MarketDataDbContextExtensions.ValidateObservation(observation);
             if (observation.Revision > 1)
             {
-                var previous = await transaction.QueryAsync(MarketDataDbSql.SelectObservationById,transaction.BindOptionVolatilityValues(environment,observation.SupersedesObservationId!), row => MarketDataDbContextExtensions.Deserialize<OptionIvObservation>(row.GetFieldValue<byte[]>(0)),token)
-                .ConfigureAwait(false);
+                var previous = await transaction.QueryAsync(MarketDataDbSql.SelectObservationById, transaction.BindOptionVolatilityValues(environment, observation.SupersedesObservationId!), MarketDataDbContext.MapToAppendOptionIvObservationRow12, token)
+            .ConfigureAwait(false);
                 if (previous.Count == 0 || previous[0].Series != observation.Series || previous[0].ExchangeValueDate != observation.ExchangeValueDate
                     || !string.Equals(previous[0].SamplingSlot,observation.SamplingSlot,StringComparison.Ordinal) || previous[0].Revision >= observation.Revision)
                     throw new InvalidOperationException("An observation revision must supersede accepted immutable evidence.");
             }
             var payload = MarketDataDbContextExtensions.Serialize(observation);
             await MarketDataDbContextExtensions.WriteImmutableVolatilityEvidenceAsync(transaction,MarketDataDbSql.InsertObservationById,transaction.BindOptionVolatilityValues(environment,observation.ObservationId,payload),token)
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
             await MarketDataDbContextExtensions.WriteImmutableVolatilityEvidenceAsync(transaction,MarketDataDbSql.InsertObservationHistory,transaction.BindOptionVolatilityValues(environment,observation.Series.SeriesId,observation.Series.MethodologyVersion,
                 VolatilityCalendarBucket.From(observation.ExchangeValueDate).Value,observation.ExchangeValueDate,observation.SamplingSlot,observation.Revision,observation.ObservationId,observation.AvailableAtUtc.UtcDateTime,payload),token)
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
         }
 
         /// <summary>Persists accepted volatility evidence, metric history and the monotonic latest pointer atomically.</summary>
@@ -2371,38 +1382,36 @@ public static class MarketDataDbContextExtensions
         public async Task PublishOptionIvAsync(OptionIvPublication publication, CancellationToken token = default)
         {
             ArgumentNullException.ThrowIfNull(transaction);
-            ArgumentNullException.ThrowIfNull(publication);
-            MarketDataDbContextExtensions.ValidatePublication(publication);
             var metric = publication.Metric;
             var snapshot = metric.Snapshot;
             var scope = string.Join(":",publication.Environment,snapshot.Series.SeriesId,snapshot.Series.MethodologyVersion,snapshot.MetricPolicyVersion);
             await transaction.ExecuteAsync(MarketDataDbSql.AcquireMarketDataIdentityLock,["option-volatility:"+scope],token)
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
             foreach(var observation in publication.SourceObservations.OrderBy(row => row.Revision).ThenBy(row => row.ObservationId,StringComparer.Ordinal))
                 await MarketDataDbContextExtensions.AppendOptionIvObservationAsync(transaction,publication.Environment,observation,token)
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
             if (metric.Revision > 1)
             {
-                var previous = await transaction.QueryAsync(MarketDataDbSql.SelectSnapshot,transaction.BindOptionVolatilityValues(publication.Environment,metric.SupersedesSnapshotId!), row => MarketDataDbContextExtensions.Deserialize<OptionIvMetricRevision>(row.GetFieldValue<byte[]>(2)),token)
-                .ConfigureAwait(false);
+                var previous = await transaction.QueryAsync(MarketDataDbSql.SelectSnapshot, transaction.BindOptionVolatilityValues(publication.Environment, metric.SupersedesSnapshotId!), MarketDataDbContext.MapToPublishOptionIvRow13, token)
+            .ConfigureAwait(false);
                 if (previous.Count == 0 || previous[0].Snapshot.Series != snapshot.Series
                     || !string.Equals(previous[0].Snapshot.MetricPolicyVersion,snapshot.MetricPolicyVersion,StringComparison.Ordinal) || previous[0].Revision >= metric.Revision)
                     throw new InvalidOperationException("A metric revision must supersede accepted evidence in the same policy.");
             }
             var payload = MarketDataDbContextExtensions.Serialize(metric);
             await MarketDataDbContextExtensions.WriteImmutableVolatilityEvidenceAsync(transaction,MarketDataDbSql.InsertSnapshot,transaction.BindOptionVolatilityValues(publication.Environment,snapshot.SnapshotId,snapshot.SnapshotDigest,metric.PublicationSequence,payload),token)
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
             await MarketDataDbContextExtensions.WriteImmutableVolatilityEvidenceAsync(transaction,MarketDataDbSql.InsertMetricHistory,transaction.BindOptionVolatilityValues(publication.Environment,snapshot.Series.SeriesId,snapshot.Series.MethodologyVersion,snapshot.MetricPolicyVersion,
                 VolatilityCalendarBucket.From(snapshot.ExchangeValueDate).Value,snapshot.ExchangeValueDate,snapshot.SamplingSlot,metric.Revision,snapshot.SnapshotId,snapshot.AvailableAtUtc.UtcDateTime,metric.PublicationSequence,payload),token)
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
             var pointer = MarketDataDbContextExtensions.Pointer(publication);
-            var existing = await transaction.QueryAsync(MarketDataDbSql.SelectLatest,transaction.BindOptionVolatilityValues(publication.Environment,snapshot.Series.SeriesId,snapshot.Series.MethodologyVersion,snapshot.MetricPolicyVersion), row => (Id:row.GetString(0),Digest:row.GetString(1),Sequence:row.GetInt64(2),Available:row.GetDateTime(3)),token)
-                .ConfigureAwait(false);
+            var existing = await transaction.QueryAsync(MarketDataDbSql.SelectLatest, transaction.BindOptionVolatilityValues(publication.Environment, snapshot.Series.SeriesId, snapshot.Series.MethodologyVersion, snapshot.MetricPolicyVersion), MarketDataDbContext.MapToPublishOptionIvRow14, token)
+            .ConfigureAwait(false);
             if (existing.Count != 0 && existing[0].Sequence == metric.PublicationSequence
                 && (!string.Equals(existing[0].Id,snapshot.SnapshotId,StringComparison.Ordinal) || !string.Equals(existing[0].Digest,snapshot.SnapshotDigest,StringComparison.Ordinal) || existing[0].Available != pointer.AvailableAtUtc.UtcDateTime))
                 throw new InvalidOperationException("Publication sequence conflicts with a different latest pointer.");
             await transaction.ExecuteAsync(MarketDataDbSql.InsertLatest,transaction.BindOptionVolatilityValues(publication.Environment,snapshot.Series.SeriesId,snapshot.Series.MethodologyVersion,snapshot.MetricPolicyVersion, snapshot.SnapshotId,snapshot.SnapshotDigest,metric.PublicationSequence,pointer.AvailableAtUtc.UtcDateTime),token)
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
         }
 
         /// <summary>Reads a bounded page of observation revisions eligible for the requested point in time.</summary>
@@ -2429,8 +1438,6 @@ public static class MarketDataDbContextExtensions
         internal async Task<VolatilityPage<T>> ReadOptionIvHistoryAsync<T>(VolatilityHistoryPageRequest request, bool metric, Func<byte[],T> decode, CancellationToken token)
         {
             ArgumentNullException.ThrowIfNull(transaction);
-            ArgumentNullException.ThrowIfNull(request);
-            MarketDataDbContextExtensions.ValidatePage(request);
             var fingerprint = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(request with { PagingState = null, PageSize = 0 })));
             VolatilityHistoryCursor? cursor = null;
             if (request.PagingState is not null)
@@ -2445,8 +1452,8 @@ public static class MarketDataDbContextExtensions
             values.AddRange([Integer(request.Bucket.Value),Date(request.FromValueDate),Date(request.ToValueDate),Text(request.SamplingSlot),TimestampTz(request.Mode == VolatilityHistoricalMode.AsKnown ? request.KnownAtUtc!.Value.UtcDateTime : null),Date(cursor?.Date),Text(cursor?.Slot),Integer(request.PageSize + 1)]);
             // Table and column fragments are fixed by the repository, never supplied by the caller.
             var sql = metric ? MarketDataDbSql.GetOptionIvMetricHistory : MarketDataDbSql.GetOptionIvObservationHistory;
-            var rows = await transaction.QueryAsync(sql,[..values],row => (Date:row.GetFieldValue<DateOnly>(0),Slot:row.GetString(1),Payload:row.GetFieldValue<byte[]>(2)),token)
-                .ConfigureAwait(false);
+            var rows = await transaction.QueryAsync(sql, [..values], MarketDataDbContext.MapToVolatilityHistoryRow, token)
+            .ConfigureAwait(false);
             var visible = rows.Take(request.PageSize).ToArray();
             var next = rows.Count > request.PageSize ? JsonSerializer.SerializeToUtf8Bytes(new VolatilityHistoryCursor(fingerprint,metric,visible[^1].Date,visible[^1].Slot)) : null;
             return new(visible.Select(row => decode(row.Payload)).ToImmutableArray(),next);
@@ -2459,48 +1466,40 @@ public static class MarketDataDbContextExtensions
         /// <returns>The persistence operation result.</returns>
         internal async Task WriteImmutableVolatilityEvidenceAsync(string sql, object?[] values, CancellationToken token)
         {
-            if (await transaction.ScalarAsync(sql,values,token)
-                .ConfigureAwait(false) is null)
+            if (await transaction.ScalarAsync(sql, values, token)
+            .ConfigureAwait(false) is null)
                 throw new InvalidOperationException("Volatility evidence identity conflicts with different immutable facts.");
         }
 
-        /// <summary>Rebuilds signal lookups and quarantines malformed identities without deleting source rows.</summary>
-        /// <param name="token">Cancels the operation.</param>
-        /// <returns>The persistence operation result.</returns>
-        public async Task<FuturesTradeSignalRepairReadModel> RebuildTradeSignalIndexesAsync(CancellationToken token = default)
+        /// <summary>Locks the source and lookup tables and returns the exact raw rows to qualify.</summary>
+        internal async Task<IReadOnlyList<string>> ReadLockedTradeSignalPayloadsAsync(CancellationToken token)
         {
-            ArgumentNullException.ThrowIfNull(transaction);
-            await transaction.ExecuteAsync(MarketDataDbSql.LockTradeSignalIndexes,[],token)
+            await transaction.ExecuteAsync(MarketDataDbSql.LockTradeSignalIndexes, [], token)
                 .ConfigureAwait(false);
-            var payloads = await transaction.QueryAsync(MarketDataDbSql.ReadTradeSignalRepairRows,[],reader => reader.GetString(0),token)
+            return await transaction.QueryAsync(MarketDataDbSql.ReadTradeSignalRepairRows, [],
+                MarketDataDbContext.MapToRebuildTradeSignalIndexesRow15, token)
                 .ConfigureAwait(false);
-            var latest = new Dictionary<string,FuturesTradeSignalRepairRow>(StringComparer.Ordinal);
-            var daily = new Dictionary<(string,DateOnly,string),FuturesTradeSignalRepairRow>();
-            long valid = 0,quarantined = 0;
-            foreach (var payload in payloads)
+        }
+
+        /// <summary>Persists a prepared quarantine row without deleting its source.</summary>
+        internal Task StoreTradeSignalQuarantineRowAsync(FuturesTradeSignalQuarantineRow row, CancellationToken token)
+        {
+            var values = new InsertFuturesTradeSignalQuarantine(row.Fingerprint, row.Payload, row.Reason, row.ObservedAtUtc);
+            return transaction.ExecuteAsync(MarketDataDbSql.InsertFuturesTradeSignalQuarantine, (object?[])values.Bind(), token);
+        }
+
+        /// <summary>Replaces lookup rows with the exact owner-prepared winners.</summary>
+        internal async Task ReplaceTradeSignalLookupRowsAsync(IReadOnlyList<FuturesTradeSignalLookupRow> rows, CancellationToken token)
+        {
+            await transaction.ExecuteAsync(MarketDataDbSql.ClearTradeSignalLookup, [], token)
+                .ConfigureAwait(false);
+            foreach (var row in rows)
             {
-                var parsed = MarketDataDbContextExtensions.ParseFuturesTradeSignalRepairRow(payload);
-                if (parsed.Row is not { } row)
-                {
-                    quarantined++;
-                    var values = new InsertFuturesTradeSignalQuarantine(MarketDataDbContextExtensions.Fingerprint(payload),payload,parsed.Error ?? "Malformed identity",DateTime.UtcNow);
-                    await transaction.ExecuteAsync(MarketDataDbSql.InsertFuturesTradeSignalQuarantine,(object?[])values.Bind(),token)
-                .ConfigureAwait(false);
-                    continue;
-                }
-                valid++;
-                if (!latest.TryGetValue(row.TimePeriod,out var current) || MarketDataDbContextExtensions.IsNewer(row,current)) latest[row.TimePeriod] = row;
-                var key = (row.TimePeriod,row.ValueDate,row.ContractId);
-                if (!daily.TryGetValue(key,out var dated) || MarketDataDbContextExtensions.IsNewer(row,dated)) daily[key] = row;
+                var values = new InsertFuturesTradeSignalIndex(row.Key, row.Scope, row.SequenceId, row.ContractId,
+                    row.ValueDate, row.TimePeriod);
+                await transaction.ExecuteAsync(MarketDataDbSql.InsertFuturesTradeSignalIndex, (object?[])values.Bind(), token)
+                    .ConfigureAwait(false);
             }
-            await transaction.ExecuteAsync(MarketDataDbSql.ClearTradeSignalLookup,[],token)
-                .ConfigureAwait(false);
-            var indexes = latest.Values.Select(row => new InsertFuturesTradeSignalIndex($"latest:{row.TimePeriod}","latest",row.SequenceId,row.ContractId,row.ValueDate,row.TimePeriod))
-                .Concat(daily.Values.Select(row => new InsertFuturesTradeSignalIndex($"date:{row.TimePeriod}:{row.ValueDate.DayNumber}",row.ContractId,row.SequenceId,row.ContractId,row.ValueDate,row.TimePeriod))).ToArray();
-            foreach (var index in indexes)
-                await transaction.ExecuteAsync(MarketDataDbSql.InsertFuturesTradeSignalIndex,(object?[])index.Bind(),token)
-                .ConfigureAwait(false);
-            return new(payloads.Count,valid,quarantined,indexes.Length);
         }
 
         /// <summary>Writes the accepted live-feed enabled state.</summary>
@@ -2511,7 +1510,7 @@ public static class MarketDataDbContextExtensions
         {
             var parameters = new InsertTradeLiveFeed(source.OrderId,source.TradeId,TradeLiveFeedStateType.On.ToStringFast());
             await transaction.ExecuteAsync(MarketDataDbSql.InsertTradeLiveFeed,(object?[])parameters.Bind(),token)
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
         }
 
         /// <summary>Removes the accepted live-feed subscription state.</summary>
@@ -2522,7 +1521,7 @@ public static class MarketDataDbContextExtensions
         {
             var parameters = new DeleteTradeLiveFeed(source.OrderId,source.TradeId);
             await transaction.ExecuteAsync(MarketDataDbSql.DeleteTradeLiveFeed,(object?[])parameters.Bind(),token)
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
         }
 
         /// <summary>Persists the raw EOD facts carried by the accepted source event.</summary>
@@ -2533,8 +1532,8 @@ public static class MarketDataDbContextExtensions
         {
             var value = source.RawObservation ?? throw new InvalidOperationException("This older EOD source lacks accepted session facts; use a verified baseline.");
             var parameters = new HistoricalRawEodParameter(value);
-            _ = await transaction.ScalarAsync(MarketDataDbSql.TryInsertRawEod,(object?[])parameters.Bind(),token)
-                .ConfigureAwait(false);
+            _ = await transaction.ScalarAsync(MarketDataDbSql.TryInsertRawEod, (object? [])parameters.Bind(), token)
+            .ConfigureAwait(false);
         }
 
         /// <summary>Persists the resolved VX snapshot carried by the accepted source event.</summary>
@@ -2546,7 +1545,7 @@ public static class MarketDataDbContextExtensions
             var value = source.AcceptedSnapshot ?? throw new InvalidOperationException("This older VX source lacks accepted replacement facts; use a verified baseline.");
             var parameters = new InsertVixFuturesEodData(value.ContractId,value.ValueDate,value.OpenPrice,value.HighPrice,value.LowPrice,value.ClosePrice,value.Volume);
             await transaction.ExecuteAsync(MarketDataDbSql.InsertVixFuturesEodData,(object?[])parameters.Bind(),token)
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
         }
 
         /// <summary>Writes an accepted futures bar.</summary>
@@ -2558,7 +1557,7 @@ public static class MarketDataDbContextExtensions
             var value = source.FuturesBarData;
             var parameters = new InsertFuturesBarData(value.ContractId,value.Symbol,value.ValueDate,value.BarDate,value.BarRateType.ToStringFast(),value.BarValue,value.UpTrendTrigger,value.DownTrendTrigger);
             await transaction.ExecuteAsync(MarketDataDbSql.InsertFuturesBarData,(object?[])parameters.Bind(),token)
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
         }
 
         /// <summary>Deletes the identified futures bar.</summary>
@@ -2570,7 +1569,7 @@ public static class MarketDataDbContextExtensions
             var value = source.BarDataId;
             var parameters = new DeleteFuturesBarData(value.ContractId,value.Symbol,value.ValueDate);
             await transaction.ExecuteAsync(MarketDataDbSql.DeleteFuturesBarData,(object?[])parameters.Bind(),token)
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
         }
 
         /// <summary>Writes an accepted session bar and its supplied daily EOD observation.</summary>
@@ -2581,12 +1580,12 @@ public static class MarketDataDbContextExtensions
         public async Task PersistSessionBarFactsAsync(FuturesTradeSessionBarReadModel bar, FuturesEodObservationReadModel? eod, CancellationToken token)
         {
             var parameters = new HistoricalObservationParameter(bar);
-            _ = await transaction.ScalarAsync(MarketDataDbSql.TryInsertObservation,(object?[])parameters.Bind(),token)
-                .ConfigureAwait(false);
+            _ = await transaction.ScalarAsync(MarketDataDbSql.TryInsertObservation, (object? [])parameters.Bind(), token)
+            .ConfigureAwait(false);
             if (eod is null) return;
             var raw = new HistoricalRawEodParameter(eod);
-            _ = await transaction.ScalarAsync(MarketDataDbSql.TryInsertRawEod,(object?[])raw.Bind(),token)
-                .ConfigureAwait(false);
+            _ = await transaction.ScalarAsync(MarketDataDbSql.TryInsertRawEod, (object? [])raw.Bind(), token)
+            .ConfigureAwait(false);
         }
 
         /// <summary>Writes the accepted dated closing price.</summary>
@@ -2598,7 +1597,7 @@ public static class MarketDataDbContextExtensions
             var closing = new InsertFuturesClosingPrice(accepted.FuturesClosingPriceId.ContractId, accepted.FuturesClosingPriceId.ValueDate,
                 accepted.ClosingPrice, accepted.CreatedOn, accepted.CreatedBy);
             await transaction.ExecuteAsync(MarketDataDbSql.InsertFuturesClosingPrice,(object?[])closing.Bind(),token)
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
         }
 
         /// <summary>Writes the accepted outlook snapshot with its source-event revision.</summary>
@@ -2608,14 +1607,13 @@ public static class MarketDataDbContextExtensions
         /// <returns>The persistence operation result.</returns>
         public async Task PersistAcceptedMarketOutlookAsync(MarketOutlookSnapshotInsertedEvent accepted, long eventId, CancellationToken token)
         {
-            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(eventId);
             var snapshot = accepted.MarketOutlook;
             var parameters = new UpsertMarketOutlookSnapshot(snapshot.ContractId, snapshot.ValueDate, eventId, snapshot.UpdatedAtUtc,
                 MessagePackSerializer.Serialize(snapshot.FuturesEodData,MarketDataDbContext.MarketOutlookSerializerOptions,cancellationToken:token),
                 snapshot.FuturesTradeSignal is null ? null : MessagePackSerializer.Serialize(snapshot.FuturesTradeSignal,MarketDataDbContext.MarketOutlookSerializerOptions,cancellationToken:token),
                 snapshot.MissingInputs,MessagePackSerializer.Serialize(snapshot,MarketDataDbContext.MarketOutlookSerializerOptions,cancellationToken:token));
             await transaction.ExecuteAsync(MarketDataDbSql.UpsertMarketOutlookSnapshot,(object?[])parameters.Bind(),token)
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
         }
 
         /// <summary>Writes accepted Adx signal values without recalculating them.</summary>
@@ -2624,10 +1622,9 @@ public static class MarketDataDbContextExtensions
         /// <returns>The persistence operation result.</returns>
         public async Task PersistAcceptedFuturesAdxSignalAsync(FuturesAdxSignalReadModel futuresAdxSignal, CancellationToken token)
         {
-            ArgumentNullException.ThrowIfNull(futuresAdxSignal);
             var parameters = new InsertFuturesAdxSignal(contractId: futuresAdxSignal.ContractId, valueDate: futuresAdxSignal.ValueDate, timePeriod: futuresAdxSignal.TimePeriod.ToStringFast(), periodLength: futuresAdxSignal.PeriodLength, timestamp: futuresAdxSignal.Timestamp, futuresPrice: futuresAdxSignal.FuturesPrice, plusDI: futuresAdxSignal.PlusDI, minusDI: futuresAdxSignal.MinusDI, adxValue: futuresAdxSignal.AdxValue, adx: futuresAdxSignal.ADX.ToStringFast(), adxStrength: futuresAdxSignal.ADXStrength.ToStringFast(), configurationId: futuresAdxSignal.Metadata?.CalculationConfigurationId, observationId: futuresAdxSignal.Metadata?.ObservationId.Value, marketDataAsOf: futuresAdxSignal.Metadata?.MarketDataAsOfUtc.UtcDateTime, sourceSequence: futuresAdxSignal.Metadata?.SourceSequence, calculationVersion: futuresAdxSignal.Metadata?.CalculationVersion, calculationMethod: futuresAdxSignal.Metadata?.CalculationMethod.ToString(), schemaVersion: futuresAdxSignal.Metadata is { } metadata ? metadata.SchemaVersion : null, isValid: futuresAdxSignal.Metadata?.IsValid, isWarm: futuresAdxSignal.IsWarm) { IncludeWarmState = true };
             await transaction.ExecuteAsync(MarketDataDbSql.InsertFuturesAdxSignal,(object?[])parameters.Bind(),token)
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
         }
 
         /// <summary>Writes accepted Atr signal values without recalculating them.</summary>
@@ -2636,10 +1633,9 @@ public static class MarketDataDbContextExtensions
         /// <returns>The persistence operation result.</returns>
         public async Task PersistAcceptedFuturesAtrSignalAsync(FuturesAtrSignalReadModel futuresAtrSignal, CancellationToken token)
         {
-            ArgumentNullException.ThrowIfNull(futuresAtrSignal);
             var parameters = new InsertFuturesAtrSignal(contractId: futuresAtrSignal.ContractId, valueDate: futuresAtrSignal.ValueDate, timePeriod: futuresAtrSignal.TimePeriod.ToStringFast(), periodLength: futuresAtrSignal.PeriodLength, timestamp: futuresAtrSignal.Timestamp, futuresPrice: futuresAtrSignal.FuturesPrice, atrValue: futuresAtrSignal.AtrValue, trueRange: futuresAtrSignal.TrueRange, atr: futuresAtrSignal.ATR.ToStringFast(), atrStrength: futuresAtrSignal.ATRStrength.ToStringFast(), configurationId: futuresAtrSignal.Metadata?.CalculationConfigurationId, observationId: futuresAtrSignal.Metadata?.ObservationId.Value, marketDataAsOf: futuresAtrSignal.Metadata?.MarketDataAsOfUtc.UtcDateTime, sourceSequence: futuresAtrSignal.Metadata?.SourceSequence, calculationVersion: futuresAtrSignal.Metadata?.CalculationVersion, calculationMethod: futuresAtrSignal.Metadata?.CalculationMethod.ToString(), schemaVersion: futuresAtrSignal.Metadata is { } atrMetadata ? atrMetadata.SchemaVersion : null, isValid: futuresAtrSignal.Metadata?.IsValid, previousAtrValue: futuresAtrSignal.PreviousAtrValue, atrBaseline: futuresAtrSignal.AtrBaseline, atrRatio: futuresAtrSignal.AtrRatio, isWarm: futuresAtrSignal.IsWarm);
             await transaction.ExecuteAsync(MarketDataDbSql.InsertFuturesAtrSignal,(object?[])parameters.Bind(),token)
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
         }
 
         /// <summary>Writes accepted Macd signal values without recalculating them.</summary>
@@ -2648,10 +1644,9 @@ public static class MarketDataDbContextExtensions
         /// <returns>The persistence operation result.</returns>
         public async Task PersistAcceptedFuturesMacdSignalAsync(FuturesMacdSignalReadModel futuresMacdSignal, CancellationToken token)
         {
-            ArgumentNullException.ThrowIfNull(futuresMacdSignal);
             var parameters = new InsertFuturesMacdSignal(contractId: futuresMacdSignal.ContractId, valueDate: futuresMacdSignal.ValueDate, timePeriod: futuresMacdSignal.TimePeriod.ToStringFast(), signalEmaPeriod: futuresMacdSignal.SignalEmaPeriod, fastEmaPeriod: futuresMacdSignal.FastEmaPeriod, slowEmaPeriod: futuresMacdSignal.SlowEmaPeriod, timestamp: futuresMacdSignal.Timestamp, futuresPrice: futuresMacdSignal.FuturesPrice, fastEma: futuresMacdSignal.FastEma, slowEma: futuresMacdSignal.SlowEma, macdLine: futuresMacdSignal.MacdLine, signalLine: futuresMacdSignal.SignalLine, histogram: futuresMacdSignal.Histogram, macd: futuresMacdSignal.MACD.ToStringFast(), macdStrength: futuresMacdSignal.MACDStrength.ToStringFast(), configurationId: futuresMacdSignal.Metadata?.CalculationConfigurationId, observationId: futuresMacdSignal.Metadata?.ObservationId.Value, marketDataAsOf: futuresMacdSignal.Metadata?.MarketDataAsOfUtc.UtcDateTime, sourceSequence: futuresMacdSignal.Metadata?.SourceSequence, calculationVersion: futuresMacdSignal.Metadata?.CalculationVersion, calculationMethod: futuresMacdSignal.Metadata?.CalculationMethod.ToString(), schemaVersion: futuresMacdSignal.Metadata is { } macdMetadata ? macdMetadata.SchemaVersion : null, isValid: futuresMacdSignal.Metadata?.IsValid, isWarm: futuresMacdSignal.IsWarm, observationCount: futuresMacdSignal.ObservationCount);
             await transaction.ExecuteAsync(MarketDataDbSql.InsertFuturesMacdSignal,(object?[])parameters.Bind(),token)
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
         }
 
         /// <summary>Writes accepted Rsi signal values without recalculating them.</summary>
@@ -2660,10 +1655,9 @@ public static class MarketDataDbContextExtensions
         /// <returns>The persistence operation result.</returns>
         public async Task PersistAcceptedFuturesRsiSignalAsync(FuturesRsiSignalReadModel e, CancellationToken token)
         {
-            ArgumentNullException.ThrowIfNull(e);
             var parameters = new InsertFuturesRsiSignal(e.ContractId, e.ValueDate, e.TimePeriod.ToStringFast(), e.PeriodLength, e.Timestamp, e.Price, e.PriceChange, e.PriceGain, e.PriceLoss, e.AveragePriceGain, e.AveragePriceLoss, e.RS, e.RSI, e.RSIAverage, e.RSISlope, e.SourceSequence, e.SourceEventTimestamp, e.Metadata?.CalculationConfigurationId, e.Metadata?.ObservationId.Value, e.Metadata?.MarketDataAsOfUtc.UtcDateTime, e.Metadata?.CalculationVersion, e.Metadata?.CalculationMethod.ToString(), e.Metadata is { } rsiMetadata ? rsiMetadata.SchemaVersion : null, e.Metadata?.IsValid, e.PreviousRsi, e.RegimeSlope, e.IsWarm);
             await transaction.ExecuteAsync(MarketDataDbSql.InsertFuturesRsiSignal,(object?[])parameters.Bind(),token)
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
         }
 
         /// <summary>Writes accepted Tdi signal values without recalculating them.</summary>
@@ -2672,10 +1666,9 @@ public static class MarketDataDbContextExtensions
         /// <returns>The persistence operation result.</returns>
         public async Task PersistAcceptedFuturesTdiSignalAsync(FuturesTdiSignalReadModel futuresTdiSignal, CancellationToken token)
         {
-            ArgumentNullException.ThrowIfNull(futuresTdiSignal);
             var parameters = new InsertFuturesTdiSignal(contractId: futuresTdiSignal.ContractId, timePeriod: futuresTdiSignal.TimePeriod.ToStringFast(), configurationId: futuresTdiSignal.ConfigurationId, valueDate: futuresTdiSignal.ValueDate, timestamp: futuresTdiSignal.Timestamp, schemaVersion: futuresTdiSignal.SchemaVersion, rsiPeriod: futuresTdiSignal.RsiPeriod, priceLinePeriod: futuresTdiSignal.PriceLinePeriod, signalLinePeriod: futuresTdiSignal.SignalLinePeriod, marketBasePeriod: futuresTdiSignal.MarketBasePeriod, volatilityBandPeriod: futuresTdiSignal.VolatilityBandPeriod, volatilityBandDeviation: futuresTdiSignal.VolatilityBandDeviation, price: futuresTdiSignal.Price, rsi: futuresTdiSignal.Rsi, priceLine: futuresTdiSignal.PriceLine, signalLine: futuresTdiSignal.SignalLine, marketBaseLine: futuresTdiSignal.MarketBaseLine, upperVolatilityBand: futuresTdiSignal.UpperVolatilityBand, lowerVolatilityBand: futuresTdiSignal.LowerVolatilityBand, bandWidth: futuresTdiSignal.BandWidth, priceSignalDivergence: futuresTdiSignal.PriceSignalDivergence, crossType: futuresTdiSignal.Cross.ToString(), marketState: futuresTdiSignal.MarketState.ToString(), trendDirection: futuresTdiSignal.TDI.ToStringFast(), trendStrength: futuresTdiSignal.TDIStrength.ToStringFast(), sourceSequence: futuresTdiSignal.SourceSequence, sourceEventTimestamp: futuresTdiSignal.SourceEventTimestamp);
             await transaction.ExecuteAsync(MarketDataDbSql.InsertFuturesTdiSignal,(object?[])parameters.Bind(),token)
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
         }
 
         /// <summary>Writes accepted Ema signal values without recalculating them.</summary>
@@ -2684,11 +1677,10 @@ public static class MarketDataDbContextExtensions
         /// <returns>The persistence operation result.</returns>
         public async Task PersistAcceptedFuturesEmaSignalAsync(FuturesEmaSignalReadModel signal, CancellationToken token)
         {
-            ArgumentNullException.ThrowIfNull(signal);
             var metadata = signal.Metadata;
             var parameters = new InsertFuturesEmaSignal(metadata.MarketSeriesIdentity.Format(), metadata.TimeFrame.ToString(), metadata.CalculationConfigurationId, MarketDataDbContextExtensions.Bucket(metadata.ValueDate), metadata.MarketDataAsOfUtc.UtcDateTime, metadata.ObservationId.Value, metadata.ContractId, metadata.ValueDate, signal.Price, signal.Ema10, signal.PreviousEma10, signal.Ema10Slope, signal.Ema20, signal.PreviousEma20, signal.Ema20Slope, signal.Ema50, signal.PreviousEma50, signal.Ema50Slope, signal.Ema200, signal.PreviousEma200, signal.Ema200Slope, signal.IsWarm, metadata.SourceSequence, metadata.CalculatedAtUtc.UtcDateTime, metadata.SchemaVersion, metadata.CalculationVersion, metadata.CalculationMethod.ToString(), metadata.IsValid);
             await transaction.ExecuteAsync(MarketDataDbSql.InsertFuturesEmaSignal,(object?[])parameters.Bind(),token)
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
         }
 
         /// <summary>Writes accepted Bb signal values without recalculating them.</summary>
@@ -2697,11 +1689,10 @@ public static class MarketDataDbContextExtensions
         /// <returns>The persistence operation result.</returns>
         public async Task PersistAcceptedFuturesBbSignalAsync(FuturesBbSignalReadModel signal, CancellationToken token)
         {
-            ArgumentNullException.ThrowIfNull(signal);
             var metadata = signal.Metadata;
             var parameters = new InsertFuturesBollingerBandSignal(metadata.MarketSeriesIdentity.Format(), metadata.TimeFrame.ToString(), metadata.CalculationConfigurationId, MarketDataDbContextExtensions.Bucket(metadata.ValueDate), metadata.MarketDataAsOfUtc.UtcDateTime, metadata.ObservationId.Value, metadata.ContractId, metadata.ValueDate, signal.Price, signal.Ema10Center, signal.StandardDeviation10, signal.Upper10, signal.Lower10, signal.Width10, signal.Position10, signal.Ema20Center, signal.StandardDeviation20, signal.Upper20, signal.Lower20, signal.Width20, signal.Position20, signal.Width20Baseline, signal.Width20Ratio, signal.IsWarm, metadata.SourceSequence, metadata.CalculatedAtUtc.UtcDateTime, metadata.SchemaVersion, metadata.CalculationVersion, metadata.CalculationMethod.ToString(), metadata.IsValid);
             await transaction.ExecuteAsync(MarketDataDbSql.InsertFuturesBollingerBandSignal,(object?[])parameters.Bind(),token)
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
         }
 
         /// <summary>Writes accepted Vwap signal values without recalculating them.</summary>
@@ -2710,10 +1701,9 @@ public static class MarketDataDbContextExtensions
         /// <returns>The persistence operation result.</returns>
         public async Task PersistAcceptedFuturesVwapSignalAsync(FuturesVwapSignalReadModel signal, CancellationToken token)
         {
-            ArgumentNullException.ThrowIfNull(signal);
             var parameters = new InsertFuturesVwapSignal(signal.ContractId, signal.ValueDate, signal.ConfigurationId, signal.AsOfUtc.UtcDateTime, signal.LastTradeOrdinal, signal.SessionStartUtc.UtcDateTime, signal.SessionEndUtc.UtcDateTime, signal.CumulativePriceVolume, signal.CumulativeVolume, signal.EligibleTradeCount, signal.RejectedTradeCount, signal.LastPrice, signal.Vwap, signal.PriceMinusVwap, signal.PriceToVwapPercent, signal.LastTradeSourceSequence, signal.StreamEpochId, signal.IsWarm, signal.IsValid, signal.InvalidReason.ToString(), signal.IsTickExact, signal.CalculationMethod.ToString(), signal.SchemaVersion, signal.CalculationVersion);
             await transaction.ExecuteAsync(MarketDataDbSql.InsertFuturesVwapSignal,(object?[])parameters.Bind(),token)
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
         }
 
         /// <summary>Writes accepted VxTermStructure signal values without recalculating them.</summary>
@@ -2722,10 +1712,9 @@ public static class MarketDataDbContextExtensions
         /// <returns>The persistence operation result.</returns>
         public async Task PersistAcceptedFuturesVxTermStructureSignalAsync(FuturesVxTermStructureSignalReadModel signal, CancellationToken token)
         {
-            ArgumentNullException.ThrowIfNull(signal);
             var parameters = new InsertFuturesVxTermStructureSignal(signal.ValueDate, signal.ConfigurationId, signal.CalculatedAtUtc.UtcDateTime, signal.FrontSourceSequence, signal.BackSourceSequence, signal.FrontVxContractId, signal.FrontExpiry, signal.FrontVxPrice, signal.BackVxContractId, signal.BackExpiry, signal.BackVxPrice, signal.FrontBackSpread, signal.FrontBackRatio, signal.TermStructurePercent, signal.TermStructureState.ToString(), signal.PriorFrontBackRatio, signal.PriorTermStructurePercent, signal.FrontSourceTimestampUtc.UtcDateTime, signal.BackSourceTimestampUtc.UtcDateTime, signal.IsWarm, signal.IsValid, signal.SchemaVersion, signal.CalculationVersion);
             await transaction.ExecuteAsync(MarketDataDbSql.InsertFuturesVxTermStructureSignal,(object?[])parameters.Bind(),token)
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
         }
 
         /// <summary>Writes accepted trade-signal facts and their current/date lookups.</summary>
@@ -2735,19 +1724,17 @@ public static class MarketDataDbContextExtensions
         /// <returns>The persistence operation result.</returns>
         public async Task PersistAcceptedFuturesTradeSignalAsync(FuturesTradeSignalV2ReadModel FuturesTradeSignalV2ReadModel, long eventId, CancellationToken token)
         {
-            ArgumentNullException.ThrowIfNull(FuturesTradeSignalV2ReadModel);
-            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(eventId);
             var sequenceId = eventId;
             var timePeriod = FuturesTradeSignalV2ReadModel.TimePeriod.ToStringFast();
             var parameters0 = new InsertFuturesTradeSignal(contractId: FuturesTradeSignalV2ReadModel.ContractId, valueDate: FuturesTradeSignalV2ReadModel.ValueDate, timePeriod, sequenceId, timestamp: FuturesTradeSignalV2ReadModel.Timestamp, mean: FuturesTradeSignalV2ReadModel.Mean, stdDev: FuturesTradeSignalV2ReadModel.StdDev, futuresPrice: FuturesTradeSignalV2ReadModel.FuturesPrice, priceChangePercent: FuturesTradeSignalV2ReadModel.PriceChangePercent, fundRiskPercent: FuturesTradeSignalV2ReadModel.FundRiskPercent, rsi: FuturesTradeSignalV2ReadModel.RSI, rsiSlope: FuturesTradeSignalV2ReadModel.RSISlope, trendType: FuturesTradeSignalV2ReadModel.TrendType.ToStringFast(), trendStrength: FuturesTradeSignalV2ReadModel.TrendStrength.ToStringFast(), tradeSignal: FuturesTradeSignalV2ReadModel.TradeSignal.ToStringFast(), tdi: FuturesTradeSignalV2ReadModel.TDI.ToStringFast(), tdiStrength: FuturesTradeSignalV2ReadModel.TDIStrength.ToStringFast(), mdi: FuturesTradeSignalV2ReadModel.MDI, mdiTrend: FuturesTradeSignalV2ReadModel.MDITrend.ToStringFast(), mdiUpTrendLimit: FuturesTradeSignalV2ReadModel.MDIUpTrendLimit, mdiDownTrendLimit: FuturesTradeSignalV2ReadModel.MDIDownTrendLimit, upTrendingTrigger: FuturesTradeSignalV2ReadModel.UpTrendingTrigger, downTrendingTrigger: FuturesTradeSignalV2ReadModel.DownTrendingTrigger, entryTrigger: FuturesTradeSignalV2ReadModel.EntryTrigger, exitTrigger: FuturesTradeSignalV2ReadModel.ExitTrigger, trendDelta: FuturesTradeSignalV2ReadModel.TrendDelta, trendExtreme: FuturesTradeSignalV2ReadModel.TrendExtreme, trendReversal: FuturesTradeSignalV2ReadModel.TrendReversal, fiftyDma: FuturesTradeSignalV2ReadModel.FiftyDMA, twoHundredDma: FuturesTradeSignalV2ReadModel.TwoHundredDMA, tradeExecuteState: FuturesTradeSignalV2ReadModel.TradeExecuteState.ToStringFast());
             await transaction.ExecuteAsync(MarketDataDbSql.InsertFuturesTradeSignal,(object?[])parameters0.Bind(),token)
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
             var parameters1 = new InsertFuturesTradeSignalIndex($"latest:{timePeriod}", "latest", sequenceId, FuturesTradeSignalV2ReadModel.ContractId, FuturesTradeSignalV2ReadModel.ValueDate, timePeriod);
             await transaction.ExecuteAsync(MarketDataDbSql.InsertFuturesTradeSignalIndex,(object?[])parameters1.Bind(),token)
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
             var parameters2 = new InsertFuturesTradeSignalIndex($"date:{timePeriod}:{FuturesTradeSignalV2ReadModel.ValueDate.DayNumber}", FuturesTradeSignalV2ReadModel.ContractId, sequenceId, FuturesTradeSignalV2ReadModel.ContractId, FuturesTradeSignalV2ReadModel.ValueDate, timePeriod);
             await transaction.ExecuteAsync(MarketDataDbSql.InsertFuturesTradeSignalIndex,(object?[])parameters2.Bind(),token)
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
         }
 
         /// <summary>Writes accepted ITI signal facts and the current time-frame state.</summary>
@@ -2757,15 +1744,13 @@ public static class MarketDataDbContextExtensions
         /// <returns>The persistence operation result.</returns>
         public async Task PersistAcceptedFuturesItiSignalAsync(FuturesItiSignalV2ReadModel signal, long eventId, CancellationToken token)
         {
-            ArgumentNullException.ThrowIfNull(signal);
-            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(eventId);
             var sequenceId = signal.SequenceId > 0 ? signal.SequenceId : eventId;
             var canonical = MarketDataDbContextExtensions.CreateFuturesItiSignalParameters(signal,sequenceId);
             var latest = MarketDataDbContextExtensions.CreateFuturesItiTimeFrameStateParameters(signal,sequenceId);
             await transaction.ExecuteAsync(MarketDataDbSql.InsertFuturesItiSignal,(object?[])canonical.Bind(),token)
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
             await transaction.ExecuteAsync(MarketDataDbSql.UpsertFuturesItiTimeFrameState,(object?[])latest.Bind(),token)
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
         }
 
         /// <summary>Binds immutable volatility evidence values to PostgreSQL parameters.</summary>
@@ -2773,7 +1758,7 @@ public static class MarketDataDbContextExtensions
         /// <returns>The typed PostgreSQL parameters.</returns>
         internal object?[] BindOptionVolatilityValues(params object?[] items)
             => (object?[])new OptionVolatilityParameters(items).Bind();
-    }
+}
 
 
 }
@@ -2806,24 +1791,6 @@ internal readonly record struct FuturesItiProjectionScopeData(
     DateOnly ValueDate,
     string IntrinsicTimeTrend,
     string IntrinsicTimeMode);
-
-/// <summary>The accepted trade-signal identity or a parsing error used by index maintenance.</summary>
-/// <param name="Row">The parsed identity, or null when the stored row is malformed.</param>
-/// <param name="Error">The parsing error, or null when the identity is accepted.</param>
-internal sealed record FuturesTradeSignalRepairParseResult(FuturesTradeSignalRepairRow? Row, string? Error);
-
-/// <summary>Stored trade-signal identity used to rebuild derived lookup entries.</summary>
-/// <param name="ContractId">The futures contract identifier.</param>
-/// <param name="ValueDate">The signal's value date.</param>
-/// <param name="TimePeriod">The persisted signal period.</param>
-/// <param name="Timestamp">The signal's time within its value date.</param>
-/// <param name="SequenceId">The sequence used to order signal identities.</param>
-internal sealed record FuturesTradeSignalRepairRow(
-    string ContractId,
-    DateOnly ValueDate,
-    string TimePeriod,
-    TimeOnly Timestamp,
-    long SequenceId);
 
 /// <summary>Stored ownership and write permission for an idempotent market-data import.</summary>
 /// <param name="CommandId">The command that owns the persisted identity.</param>

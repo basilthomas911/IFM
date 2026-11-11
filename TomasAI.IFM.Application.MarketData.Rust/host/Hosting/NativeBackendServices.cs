@@ -1,3 +1,8 @@
+using TomasAI.IFM.Application.MarketData.Rust.Host.OptionChains;
+using TomasAI.IFM.Domain.MarketData.Securities.Persistence;
+using TomasAI.IFM.Framework.Messaging.NatsJetStream;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using ISequenceIdDbContext = TomasAI.IFM.Shared.Identity.ISequenceIdDbContext;
 using TomasAI.IFM.Shared.Identity;
 using TomasAI.IFM.Framework.MarketData.FinancialModelingPrep;
 using System.Collections.Immutable;
@@ -75,7 +80,13 @@ public static class NativeBackendServices
             services.AddSingleton<IDbContextFactory, DbContextFactory>();
             services.AddSingleton<SequenceIdDbContext>();
             services.AddSingleton<ISequenceIdDbContext>(p => p.GetRequiredService<SequenceIdDbContext>());
-            services.AddSingleton<ISequenceIdGenerator, PostgresSequenceIdGenerator>();
+            services.AddSingleton<TomasAI.IFM.Application.Storage.SequenceIdDb.ISequenceIdDbContext>(provider =>
+            (TomasAI.IFM.Application.Storage.SequenceIdDb.ISequenceIdDbContext)provider.GetRequiredService<ISequenceIdDbContext>());
+        services.AddSingleton<TomasAI.IFM.Application.Storage.SequenceIdDb.ISequenceIdDbReadContext>(provider =>
+            provider.GetRequiredService<TomasAI.IFM.Application.Storage.SequenceIdDb.ISequenceIdDbContext>().DbReader);
+        services.AddSingleton<TomasAI.IFM.Application.Storage.SequenceIdDb.ISequenceIdDbWriteContext>(provider =>
+            provider.GetRequiredService<TomasAI.IFM.Application.Storage.SequenceIdDb.ISequenceIdDbContext>().DbWriter);
+        services.AddSingleton<ISequenceIdGenerator, PostgresSequenceIdGenerator>();
 
 
             services.AddSingleton<IJsonSerializer, SystemTextJsonSerializer>();
@@ -86,21 +97,37 @@ public static class NativeBackendServices
             services.AddSingleton<SecuritiesDbContext>();
             services.AddSingleton<TomasAI.IFM.Application.Storage.TradeDb.TradeDbContext>();
             services.AddSingleton<ISecuritiesDbContext>(p => p.GetRequiredService<SecuritiesDbContext>());
+            services.AddSingleton<ISecuritiesDbReadContext>(p => p.GetRequiredService<ISecuritiesDbContext>().DbReader);
+            services.AddSingleton<IActorProducer>(p => new NatsActorProducer(
+                new NatsProducerOptions { Url = config["MarketDataHost:NatsUrl"] ?? "nats://127.0.0.1:4222" },
+                p.GetRequiredService<ILogger<FuturesDefinitionPublisher>>(), p.GetRequiredService<NatsConnectionManager>(),
+                p.GetRequiredService<TimeProvider>()));
             services.AddSingleton<ReferenceDbContext>();
             services.AddSingleton<IReferenceDbContext>(p => p.GetRequiredService<ReferenceDbContext>());
             services.AddSingleton<ITradeStrategySymbolStore, OptionChains.TradeStrategySymbolStore>();
             services.AddSingleton<IInstrumentDefinitionStore, OptionChains.InstrumentDefinitionStore>();
             services.AddSingleton<MarketDataServiceDbContext>();
-            services.AddSingleton<IMarketDataServiceStore>(p => p.GetRequiredService<MarketDataServiceDbContext>());
+            services.AddSingleton<IMarketDataServiceStore>(provider =>
+            {
+                var context = provider.GetRequiredService<MarketDataServiceDbContext>();
+                return new DatabentoMarketDataServiceStore(context, context,
+                    provider.GetRequiredService<TomasAI.IFM.Shared.Identity.ISequenceIdDbContext>());
+            });
             services.AddSingleton<ICurrentFuturesContractCatalog>(p => p.GetRequiredService<SecuritiesDbContext>());
-            services.AddSingleton<IFuturesContractRolloverStore>(p => p.GetRequiredService<SecuritiesDbContext>());
+            services.AddSingleton<IFuturesContractRolloverStore, ActorFuturesRolloverStore>();
+            services.AddSingleton(p => new FuturesDefinitionPublisher(p.GetRequiredService<ISecuritiesDbContext>().DbReader,
+                p.GetRequiredService<IActorProducer>()));
             services.AddSingleton<IDatabentoContractAuthority, DatabentoContractAuthority>();
-            services.AddSingleton<IOptionPricingConventionStore>(p => p.GetRequiredService<SecuritiesDbContext>());
+            services.AddSingleton(p => new SecuritiesOptionDefinitionPublisher(p.GetRequiredService<ISecuritiesDbContext>().DbWriter,
+                p.GetRequiredService<TimeProvider>()));
+            services.AddSingleton(p => new SecuritiesOptionDefinitionReader(p.GetRequiredService<ISecuritiesDbContext>().DbReader));
+            services.AddSingleton(p => new SecuritiesReferenceReader(p.GetRequiredService<ISecuritiesDbContext>().DbReader));
+            services.AddSingleton<IOptionPricingConventionStore>(p => p.GetRequiredService<SecuritiesReferenceReader>());
             services.AddSingleton<ICompositionPreparationStore>(p => p.GetRequiredService<MarketDataDbContext>());
             services.AddSingleton<ICompositionRoutePlanStore>(p => p.GetRequiredService<MarketDataServiceDbContext>());
-            services.AddSingleton<IDurableSubscriptionIntentStore>(p => p.GetRequiredService<MarketDataServiceDbContext>());
+            services.AddSingleton<IDurableSubscriptionIntentStore>(p => new DurableSubscriptionIntentStore(p.GetRequiredService<MarketDataServiceDbContext>()));
             services.AddSingleton<IOptionChainStatisticsStore>(p => p.GetRequiredService<MarketDataDbContext>());
-            services.AddSingleton<IOptionTradeEvidenceWriter>(p => p.GetRequiredService<MarketDataDbContext>());
+            services.AddSingleton<IOptionTradeEvidenceWriter>(p => new QualifiedOptionTradeEvidenceWriter(p.GetRequiredService<MarketDataDbContext>()));
             services.AddSingleton<TomasAI.IFM.Application.MarketData.Rust.Persistence.NativeEvidenceStorage>();
             services.AddHostedService<NativeEvidenceStorageService>();
             services.AddSingleton<TomasAI.IFM.Application.MarketData.Rust.Persistence.INativeReferenceFacts, NativeReferenceFacts>();

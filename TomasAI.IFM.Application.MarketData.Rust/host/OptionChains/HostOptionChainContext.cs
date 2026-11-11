@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Securities.Persistence;
 // Application qualification policy adapted from the current Host; native provider only.
 ﻿using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
@@ -7,8 +8,9 @@ using TomasAI.IFM.Shared.MarketData.Contracts;
 namespace TomasAI.IFM.Application.MarketData.Rust.Host.OptionChains;
 internal sealed class HostOptionChainContext(IDbContextFactory databases, IMarketDataApi api,
     QualifiedCompositionDiscovery discovery, ICompositionMarketDataApi market, DatasetWorkerAdmissionRegistry admissions,
-    TreasuryPublicationPolicy publication, TreasuryRateConversionPolicy conversion, ILogger<HostOptionChainContext> logger, TimeProvider clock)
+    TreasuryPublicationPolicy publication, TreasuryRateConversionPolicy conversion, ILogger<HostOptionChainContext> logger, TimeProvider clock, SecuritiesOptionDefinitionReader definitions)
 {
+    internal SecuritiesOptionDefinitionReader Definitions => definitions;
     public IDbContextFactory DbFactory => databases;
     public IMarketDataApi MarketDataApi => api;
     public QualifiedCompositionDiscovery CompositionDiscovery => discovery;

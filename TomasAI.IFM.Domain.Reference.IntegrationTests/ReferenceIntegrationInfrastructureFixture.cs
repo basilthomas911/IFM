@@ -136,7 +136,7 @@ public sealed class ReferenceIntegrationInfrastructureFixture : IAsyncLifetime
         if (_host is not null)
             await Attempt(() => _host.DisposeAsync().AsTask());
         if (_source is not null)
-            await Attempt(() => _source.DisposeAsync().AsTask());
+            await Attempt(() => ((IAsyncDisposable)_source).DisposeAsync().AsTask());
         await Attempt(() => _infrastructure.DisposeAsync().AsTask());
         if (failures.Count != 0) throw new AggregateException("Reference integration fixture cleanup failed", failures);
     }

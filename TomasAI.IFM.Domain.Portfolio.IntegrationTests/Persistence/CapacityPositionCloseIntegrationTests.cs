@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.EventSourcing;
 using FluentAssertions;
 using TomasAI.IFM.Domain.Portfolio.Financial.Repository;
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
@@ -41,7 +42,7 @@ public sealed class CapacityPositionCloseIntegrationTests(PortfolioEventStoreFix
         current.ClosedUnits.Should().Be(10); current.FilledUnits.Should().Be(10);
     }
     static Task Reconcile(ChangeCapacityReservationCommand command, ReservePortfolioTradeRiskCommand reserve)
-        => Transactions().ExecuteAsync((db, ct) => db.AppendAsync($"IntegrationClose.{command.CommandId:N}", command.Body.Source.SourceEventId,
+        => Transactions().ExecuteAsync((db, ct) => db.AppendAsync(new EnlistedEventAppend($"IntegrationClose.{command.CommandId:N}", command.Body.Source.SourceEventId,
             new TestCapacityReconciliationEvent
             {
                 Id = Guid.NewGuid(),
@@ -62,5 +63,5 @@ public sealed class CapacityPositionCloseIntegrationTests(PortfolioEventStoreFix
                     ReconciliationReference = command.Body.RelatedPostingReference,
                     Environment = reserve.Body.ExecutionEnvironment
                 }
-            }, 0, ct));
+            }, 0), ct));
 }

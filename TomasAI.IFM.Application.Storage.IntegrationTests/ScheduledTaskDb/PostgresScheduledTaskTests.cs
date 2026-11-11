@@ -1,3 +1,5 @@
+using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Run.Query;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Contracts;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Run.Events;
 using TomasAI.IFM.Application.Storage.ScheduledTaskDb.Schema;
@@ -138,7 +140,7 @@ public sealed class PostgresScheduledTaskTests(TomasAI.IFM.Application.Storage.I
         };
         async Task Write() => await fixture.Transactions.ExecuteOnceAsync(async (transaction, token) =>
         {
-            await transaction.AppendAsync(stream, source.CommandId, source, 0, token);
+            await transaction.AppendAsync(new EnlistedEventAppend(stream, source.CommandId, source, 0), token);
             await store.ProjectAsync(transaction, run, token);
             if (failAfterProjection) await transaction.ExecuteAsync("SELECT 1/0;", [], token);
             return true;

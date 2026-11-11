@@ -69,7 +69,7 @@ public class FuturesBarDataStateRepository(
             {
                 IEvent fact = source;
                 
-                await transaction.AppendAsync(command.StreamId,command.CommandId,fact,version++,token).ConfigureAwait(false);
+                await transaction.AppendAsync(new EnlistedEventAppend(command.StreamId,command.CommandId,fact,version++),token).ConfigureAwait(false);
                 _ = await AcceptedMarketSignalProjection.TryProjectAsync(transaction,fact,token).ConfigureAwait(false);
                 accepted.Add(fact);
             }

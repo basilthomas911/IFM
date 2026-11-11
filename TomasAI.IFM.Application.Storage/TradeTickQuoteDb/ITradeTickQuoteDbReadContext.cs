@@ -5,20 +5,23 @@ using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 
 namespace TomasAI.IFM.Application.Storage.TradeTickQuoteDb;
 
-/// <summary>Optional raw-tick streaming capability; each provider page remains owned by its active enumerator.</summary>
-public interface IStreamingRawFuturesTradeReader
-{
-    IAsyncEnumerable<BootstrapTradeRow> StreamRawFuturesTradeWindowAsync(string contractId, DateOnly valueDate,
-        TimeOnly fromUtc, TimeOnly throughUtc, CancellationToken token = default);
-}
-
 /// <summary>Reads persisted futures and option ticks from their raw ScyllaDB owner.</summary>
-public interface ITradeTickQuoteDbReadContext
+public interface ITradeTickQuoteDbReadContext : IStreamingRawFuturesTradeReader
 {
     /// <summary>Reads original trades within one bounded UTC time segment of a trading-date partition for historical indicator initialization.</summary>
+    /// <param name="contractId">The exact futures contract.</param>
+    /// <param name="valueDate">The trading-date partition.</param>
+    /// <param name="fromUtc">The inclusive lower UTC time.</param>
+    /// <param name="throughUtc">The inclusive upper UTC time.</param>
+    /// <param name="token">Cancels the read.</param>
+    /// <returns>The original trades within the requested window in provider order.</returns>
     Task<IReadOnlyList<BootstrapTradeRow>> GetRawFuturesTradeWindowAsync(string contractId, DateOnly valueDate,
         TimeOnly fromUtc, TimeOnly throughUtc, CancellationToken token = default);
     /// <summary>Reads a bounded newest-first raw trade window, preserving source timestamps.</summary>
+    /// <param name="contractId">The exact futures contract.</param>
+    /// <param name="throughDate">The inclusive trading-date bound.</param>
+    /// <param name="token">Cancels the read.</param>
+    /// <returns>The selected newest-first raw trade rows.</returns>
     Task<IReadOnlyList<BootstrapTradeRow>> GetLatestRawFuturesTradesAsync(string contractId, DateOnly throughDate, CancellationToken token = default);
 
     /// <summary>Gets the futures tick with the specified persisted identity.</summary>

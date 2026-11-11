@@ -11,7 +11,15 @@ public static class TradeSchemaSql
             PRIMARY KEY (value_date, trade_id, contract_id)
         );
         """;
-    public const string Create = LiveFeedRecoveryCreate + StrategyExecutionHandoffSql.Create + """
+    public const string StrategyExecutionHandoffCreate = """
+        CREATE TABLE IF NOT EXISTS trade.strategy_execution_handoff (
+            handoff_id text PRIMARY KEY, workflow_id uuid NOT NULL, revision bigint NOT NULL,
+            phase integer NOT NULL, updated_at timestamptz NOT NULL, payload bytea NOT NULL);
+        CREATE INDEX IF NOT EXISTS strategy_execution_handoff_workflow ON trade.strategy_execution_handoff(workflow_id);
+        CREATE INDEX IF NOT EXISTS strategy_execution_handoff_pending ON trade.strategy_execution_handoff(handoff_id) WHERE phase<6;
+        """;
+    internal const string DropLiveFeedRecovery = "DROP TABLE IF EXISTS trade.live_feed_recovery;";
+    public const string Create = LiveFeedRecoveryCreate + StrategyExecutionHandoffCreate + """
 
         CREATE TABLE IF NOT EXISTS trade.broker_account_read_model (
         account_alias text, revision bigint, account_definition bytea, PRIMARY KEY (account_alias, revision)

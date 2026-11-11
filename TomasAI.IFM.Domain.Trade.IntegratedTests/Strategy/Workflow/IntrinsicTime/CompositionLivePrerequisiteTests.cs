@@ -11,6 +11,7 @@ using TomasAI.IFM.Application.MarketData.Host.Worker;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.SecuritiesDb;
 using TomasAI.IFM.Domain.MarketData.Securities.OptionPricing.Repository;
+using TomasAI.IFM.Domain.MarketData.Securities.Persistence;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Application.Storage.MarketDataDb.Schema;
 using TomasAI.IFM.Domain.Trade.Shared;
@@ -100,7 +101,7 @@ public sealed partial class CompositionBusinessProjectionTests
         Record(new { Stage = "WorkerStarted", started.ProcessId, started.GenerationId, bundle.BundleId, plan.PlanId, mid, strikes, At = DateTimeOffset.UtcNow });
         using var http = new HttpClient(); using var treasury = new UsTreasuryCurve(http);
         var pricing = new TreasuryPricingProvider(treasury);
-        await using var discovery = new QualifiedCompositionDiscovery(new(securitiesDb),
+        await using var discovery = new QualifiedCompositionDiscovery(new(new SecuritiesReferenceReader(securitiesDb)),
             new OptionPricingContextProvider(pricing), workers, routePlans: fixture.Plans, desired: desired);
         var acquired = await discovery.AcquireAsync(new(Guid.NewGuid(), started.GenerationId, valueDate, plan.MaturityDate,
             DateTimeOffset.UtcNow.AddSeconds(120), plan.Options, true, plan.Calendar!, plan.Publication!, plan.Conversion!), token, refreshAutomatically: false);

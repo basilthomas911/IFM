@@ -139,8 +139,8 @@ internal sealed partial class RedisRemovalFixture : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         if (connection is not null) await connection.DisposeAsync();
-        if (raw is not null) await raw.DisposeAsync();
-        if (Events is not null) await Events.DisposeAsync();
+        if (raw is not null) await ((IAsyncDisposable)raw).DisposeAsync();
+        if (Events is not null) await ((IAsyncDisposable)Events).DisposeAsync();
         await infrastructure.DisposeAsync();
     }
 

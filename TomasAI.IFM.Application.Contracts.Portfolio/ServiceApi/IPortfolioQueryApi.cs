@@ -13,6 +13,8 @@ public interface IPortfolioQueryApi
     Task<ServiceResult<PortfolioAggregateRevision>> GetPortfolioRevisionAsync(int portfolioId, CancellationToken cancellationToken = default);
     Task<ServiceResult<PortfolioPage<PortfolioReadModel>>> GetPortfoliosAsync(PortfolioOperatingState? state, int pageSize, string? pageToken = null, CancellationToken cancellationToken = default);
     Task<ServiceResult<FundMandateReadModel>> GetFundAsync(int portfolioId, int fundId, long? version = null, CancellationToken cancellationToken = default);
+    /// <summary>Reads Fund-owned contract defaults from projected Fund and Databento catalogs.</summary>
+    Task<ServiceResult<FundBaseContractsReadModel>> GetFundBaseContractsAsync(int portfolioId, int fundId, long? version = null, CancellationToken cancellationToken = default) => throw new NotSupportedException("Fund base contract resolution is unavailable.");
     Task<ServiceResult<PortfolioAggregateRevision>> GetFundRevisionAsync(int portfolioId, int fundId, CancellationToken cancellationToken = default);
     Task<ServiceResult<PortfolioPage<FundMandateReadModel>>> GetFundsAsync(int portfolioId, FundOperatingState? state, int pageSize, string? pageToken = null, CancellationToken cancellationToken = default);
     Task<ServiceResult<FundAllocationReadModel>> GetFundAllocationAsync(int portfolioId, int fundId, CancellationToken cancellationToken = default);

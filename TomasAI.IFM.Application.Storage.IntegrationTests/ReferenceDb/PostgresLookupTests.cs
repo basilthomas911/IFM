@@ -43,7 +43,7 @@ public sealed class PostgresLookupTests(PostgresTradePlanFixture fixture)
         }
         await fixture.Transactions.ExecuteOnceAsync(async(db,ct)=>{
             long revision=0;
-            foreach(var source in sources){await db.AppendAsync(name,source.CommandId,source,revision++,ct);await Apply(db,source,ct);}
+            foreach(var source in sources){await db.AppendAsync(new EnlistedEventAppend(name,source.CommandId,source,revision++),ct);await Apply(db,source,ct);}
             return true;
         });
         var original=await fixture.Transactions.ExecuteOnceAsync((db,ct)=>db.QueryAsync("SELECT row_to_json(t)::text FROM reference.lookup_type t WHERE lookupTypeName=$1 ORDER BY orderId;",[name],r=>r.GetString(0),ct));
@@ -69,7 +69,7 @@ public sealed class PostgresLookupTests(PostgresTradePlanFixture fixture)
         var source=new LookupTypeAddedEvent { Id=Guid.NewGuid(),CommandId=Guid.NewGuid(),EntityId=row.Id,LookupType=row,ReceivedOn=row.CreatedOn };
         async Task Save()=>await fixture.Transactions.ExecuteOnceAsync(async (db,ct)=>
         {
-            await db.AppendAsync(name,source.CommandId,source,0,ct);
+            await db.AppendAsync(new EnlistedEventAppend(name,source.CommandId,source,0),ct);
             await db.InsertLookupAsync(row,ct);
             if(fail) throw new InvalidOperationException("Injected source projection rollback");
             return true;

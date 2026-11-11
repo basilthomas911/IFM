@@ -84,8 +84,10 @@ public sealed class NativeFuturesSeedReplay(
             foreach (var group in windows.GroupBy(window => window.ValueDate))
             {
                 var expected = group.ToDictionary(window => window.EndUtc);
+                var ends = expected.Keys.ToArray();
+                IndicatorSeedRequestQualification.RequireSelection(sourceVersion, ends);
                 var bars = await cache.MarketDataDb.GetQualifiedIndicatorSeedBarsAsync(contractId, timeFrame,
-                    group.Key, expected.Keys.ToArray(), sourceVersion, token).ConfigureAwait(false);
+                    group.Key, ends, sourceVersion, token).ConfigureAwait(false);
                 foreach (var bar in bars)
                 {
                     if (expected.TryGetValue(bar.IntervalEndUtc, out var window)
@@ -327,7 +329,11 @@ public sealed class NativeFuturesSeedReplay(
     {
         if (cache is null || bars.Length == 0) return;
         foreach (var group in bars.GroupBy(bar => bar.ValueDate))
-            await cache.MarketDataDb.StoreQualifiedIndicatorSeedBarsAsync(sourceVersion, group.ToArray(), token).ConfigureAwait(false);
+        {
+            var batch = group.ToArray();
+            IndicatorSeedRequestQualification.RequireBatch(sourceVersion, batch);
+            await cache.MarketDataDb.StoreQualifiedIndicatorSeedBarsAsync(sourceVersion, batch, token).ConfigureAwait(false);
+        }
     }
 
     async Task<FuturesTradeSessionBarReadModel[][]> ReadReplayAsync(DatabentoContractRegistration registration,

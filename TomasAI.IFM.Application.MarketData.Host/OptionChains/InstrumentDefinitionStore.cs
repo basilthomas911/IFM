@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Reference.Repository;
 using TomasAI.IFM.Shared.MarketData.Definitions;
 
 using TomasAI.IFM.Application.Storage.ReferenceDb;
@@ -16,7 +17,7 @@ using TomasAI.IFM.Framework.MarketData.DataBento;
 namespace TomasAI.IFM.Application.MarketData.Host.OptionChains;
 
 /// <summary>Exact records and their query projection share an atomically published snapshot.</summary>
-public sealed class InstrumentDefinitionStore(IReferenceDbContext db, ITradeStrategySymbolStore symbols) : IInstrumentDefinitionStore
+public sealed class InstrumentDefinitionStore(IReferenceDbContext db, ITradeStrategySymbolStore symbols, TimeProvider? clock = null) : IInstrumentDefinitionStore
 {
     public const int BucketCount = 128;
     /// <inheritdoc />
@@ -47,7 +48,7 @@ public sealed class InstrumentDefinitionStore(IReferenceDbContext db, ITradeStra
         }).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         // Readers continue using the previous complete snapshot until every definition and product is durable.
-        await db.PublishInstrumentDefinitionSnapshotAsync(snapshot,cancellationToken).ConfigureAwait(false);
+        await InstrumentDefinitionCatalogPublisher.For(db, clock).PublishAsync(snapshot,cancellationToken).ConfigureAwait(false);
     }
     /// <inheritdoc />
     public Task<TradeStrategySymbolReadModel[]> GetSymbolsAsync(Guid snapshot, TradeStrategyFamilyType family, CancellationToken cancellationToken)

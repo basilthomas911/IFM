@@ -19,6 +19,7 @@ public static class GetMarketConditionAssessmentHistory
         {
             ArgumentNullException.ThrowIfNull(query);
             ArgumentNullException.ThrowIfNull(services);
+            MarketConditionHistorySelection.RequireAssessment(query.MarketProfileId, query.InstrumentRoot, query.TargetHorizon, query.BeforeUtc, query.PageSize);
             var values = await services.DbFactory.TradeDb.GetMarketConditionAssessmentHistoryAsync(query.MarketProfileId, query.InstrumentRoot, query.TargetHorizon, query.BeforeUtc, query.PageSize, cancellationToken).ConfigureAwait(false);
             return new ServiceResult<MarketConditionAssessmentCompletedEvent[]>(values.ToArray());
         }

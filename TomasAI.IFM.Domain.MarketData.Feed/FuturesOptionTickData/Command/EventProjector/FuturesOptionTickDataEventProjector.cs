@@ -28,6 +28,7 @@ public sealed class FuturesOptionTickDataEventProjector(
                 {
                     TickId = e.TickData.TickId > 0 ? e.TickData.TickId : context.EventId
                 };
+                RawTickRequestQualification.RequireScope(tick.ContractId, tick.ValueDate);
                 await (actorContext.DbFactory.MarketDataDb.InsertFuturesOptionTickDataAsync(tick)).ConfigureAwait(false);
                 // Enrichment is domain projection work; persistence receives the accepted quote facts.
                 if (tick.Vega == 0 && tick.UnderlyingPrice > 0)

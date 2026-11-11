@@ -14,7 +14,7 @@ namespace TomasAI.IFM.Application.Storage.TradeTickQuoteDb;
 /// <param name="settings">The named ScyllaDB connection settings.</param>
 /// <param name="logger">Provider diagnostics.</param>
 public sealed class TradeTickQuoteDbContext(IDbConnectionSettings settings, ILogger<DbProvider> logger)
-    : ObjectDataRepository<TradeTickQuoteDbContext>(settings[TradeTickQuoteDbConnection], logger), ITradeTickQuoteDbContext, IStreamingRawFuturesTradeReader
+    : ObjectDataRepository<TradeTickQuoteDbContext>(settings[TradeTickQuoteDbConnection], logger), ITradeTickQuoteDbContext
 {
     /// <summary>The named ScyllaDB connection setting.</summary>
     public const string TradeTickQuoteDbConnection = "TradeTickQuoteDbConnection";
@@ -30,11 +30,16 @@ public sealed class TradeTickQuoteDbContext(IDbConnectionSettings settings, ILog
 public Task InsertTickTradeDataAsync(FuturesTickTradeDataInsertedEvent e) => ScyllaTickWriteRetry.ExecuteAsync(() => this.InsertTickTradeDataAsyncCore(e));
 
     /// <summary>Writes a bounded quote segment as one native CQL nested-UDT-list value.</summary>
+    /// <param name="e">The accepted quote segment and its exact tick identity.</param>
+    /// <returns>Completion of the idempotent raw quote write.</returns>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2000", Justification = "InsertTickQuoteData transfers the encoded value through IScyllaOwnedBindValues.BindLifetime; the Scylla executor disposes it after binding/execution, including failure.")]
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
 public Task InsertTickQuoteDataAsync(FuturesTickQuoteDataInsertedEvent e) => ScyllaTickWriteRetry.ExecuteAsync(() => this.InsertTickQuoteDataAsyncCore(e));
 
+
+    /// <inheritdoc />
+    public bool SupportsRawFuturesTradeStreaming => true;
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<BootstrapTradeRow>> GetRawFuturesTradeWindowAsync(string contractId, DateOnly valueDate,
@@ -51,34 +56,38 @@ public Task InsertTickQuoteDataAsync(FuturesTickQuoteDataInsertedEvent e) => Scy
     public IAsyncEnumerable<BootstrapTradeRow> StreamRawFuturesTradeWindowAsync(string contractId, DateOnly valueDate,
         TimeOnly fromUtc, TimeOnly throughUtc, CancellationToken token = default)
     {
-        this.ValidateScope(contractId, valueDate);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(fromUtc, throughUtc);
+        var preparedParameters1 = new BootstrapTradeWindowParameters(contractId, valueDate, fromUtc, throughUtc);
         return this.Use(nameof(TradeTickQuoteDbCql.GetRawFuturesTradeWindow), TradeTickQuoteDbCql.GetRawFuturesTradeWindow)
-            .SetParameters(new BootstrapTradeWindowParameters(contractId, valueDate, fromUtc, throughUtc))
-            .ExecuteStreamAsync(row =>
-            {
-                var aggregationTicks = row.GetLong(10);
-                return new BootstrapTradeRow(row.GetDateOnly(0), row.GetDecimal(1), row.GetLong(2), row.GetLong(3),
-                    row.GetLong(4), row.GetLong(5), row.GetShort(6), row.GetShort(7), checked((uint)row.GetLong(8)), checked((ushort)row.GetInt(9)))
-                {
-                    // The CQL clustering time is written with millisecond precision.
-                    AggregationTimeUtc = aggregationTicks > 0
-                        ? new TimeOnly(aggregationTicks % TimeSpan.TicksPerDay / TimeSpan.TicksPerMillisecond * TimeSpan.TicksPerMillisecond)
-                        : null
-                };
-            }, token);
+            .SetParameters(preparedParameters1)
+            .ExecuteStreamAsync(MapToWindowTrade, token);
     }
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<BootstrapTradeRow>> GetLatestRawFuturesTradesAsync(string contractId, DateOnly throughDate, CancellationToken token = default)
     {
-        this.ValidateScope(contractId, throughDate);
+        var preparedParameters2 = new BootstrapTradeParameters(contractId, throughDate);
         var rows = await this.Use(nameof(TradeTickQuoteDbCql.GetLatestRawFuturesTrades), TradeTickQuoteDbCql.GetLatestRawFuturesTrades)
-            .SetParameters(new BootstrapTradeParameters(contractId, throughDate))
-            .ExecuteQueryAsync(row => new BootstrapTradeRow(row.GetDateOnly(0), row.GetDecimal(1), row.GetLong(2), row.GetLong(3),
-                row.GetLong(4), row.GetLong(5), row.GetShort(6), row.GetShort(7), checked((uint)row.GetLong(8)), checked((ushort)row.GetInt(9))), token)
+            .SetParameters(preparedParameters2)
+            .ExecuteQueryAsync(MapToBootstrapTrade, token)
             .ConfigureAwait(false);
         return rows.ToArray();
+    }
+
+    internal static BootstrapTradeRow MapToBootstrapTrade(IObjectDataRecord row)
+        => new(row.GetDateOnly(0), row.GetDecimal(1), row.GetLong(2), row.GetLong(3),
+            row.GetLong(4), row.GetLong(5), row.GetShort(6), row.GetShort(7), checked((uint)row.GetLong(8)), checked((ushort)row.GetInt(9)));
+
+    internal static BootstrapTradeRow MapToWindowTrade(IObjectDataRecord row)
+    {
+        var aggregationTicks = row.GetLong(10);
+        return new(row.GetDateOnly(0), row.GetDecimal(1), row.GetLong(2), row.GetLong(3),
+            row.GetLong(4), row.GetLong(5), row.GetShort(6), row.GetShort(7), checked((uint)row.GetLong(8)), checked((ushort)row.GetInt(9)))
+        {
+            // CQL clustering time was written with millisecond precision.
+            AggregationTimeUtc = aggregationTicks > 0
+                ? new TimeOnly(aggregationTicks % TimeSpan.TicksPerDay / TimeSpan.TicksPerMillisecond * TimeSpan.TicksPerMillisecond)
+                : null
+        };
     }
 
     internal static FuturesTickDataV2ReadModel MapToFuturesTickData<TDataRecord>(TDataRecord e)
@@ -99,72 +108,72 @@ public Task InsertTickQuoteDataAsync(FuturesTickQuoteDataInsertedEvent e) => Scy
     /// <inheritdoc />
     public Task<FuturesTickDataV2ReadModel?> GetFuturesTickDataAsync(FuturesTickDataId id)
     {
-        this.ValidateTickIdentity(id);
+        var preparedParameters3 = new TickIdentityParameters(id.ContractId, id.ValueDate, id.TickId);
         return this.Use(nameof(TradeTickQuoteDbCql.GetFuturesTickData), TradeTickQuoteDbCql.GetFuturesTickData)
-            .SetParameters(new TickIdentityParameters(id.ContractId, id.ValueDate, id.TickId))
+            .SetParameters(preparedParameters3)
             .ExecuteSingleAsync(MapToFuturesTickData!);
     }
 
     /// <inheritdoc />
     public Task<FuturesTickDataV2ReadModel?> GetLastFuturesTickDataAsync(string contractId, DateOnly valueDate)
     {
-        this.ValidateScope(contractId, valueDate);
+        var preparedParameters4 = new TickContractDateParameters(contractId, valueDate);
         return this.Use(nameof(TradeTickQuoteDbCql.GetLastFuturesTickData), TradeTickQuoteDbCql.GetLastFuturesTickData)
-            .SetParameters(new TickContractDateParameters(contractId, valueDate))
+            .SetParameters(preparedParameters4)
             .ExecuteSingleAsync(MapToFuturesTickData!);
     }
 
     /// <inheritdoc />
     public Task<FuturesTickDataId?> GetLastFuturesTickDataIdAsync(string contractId, DateOnly valueDate)
     {
-        this.ValidateScope(contractId, valueDate);
+        var preparedParameters5 = new TickContractDateParameters(contractId, valueDate);
         return this.Use(nameof(TradeTickQuoteDbCql.GetLastFuturesTickDataId), TradeTickQuoteDbCql.GetLastFuturesTickDataId)
-            .SetParameters(new TickContractDateParameters(contractId, valueDate))
+            .SetParameters(preparedParameters5)
             .ExecuteSingleAsync(MapToFuturesTickDataId!);
     }
 
     /// <inheritdoc />
     public Task<FuturesOptionTickDataId?> GetLastFuturesOptionTickDataIdAsync(string contractId, DateOnly valueDate)
     {
-        this.ValidateScope(contractId, valueDate);
+        var preparedParameters6 = new TickContractDateParameters(contractId, valueDate);
         return this.Use(nameof(TradeTickQuoteDbCql.GetLastFuturesOptionTickDataId), TradeTickQuoteDbCql.GetLastFuturesOptionTickDataId)
-            .SetParameters(new TickContractDateParameters(contractId, valueDate))
+            .SetParameters(preparedParameters6)
             .ExecuteSingleAsync(MapToFuturesOptionTickDataId!);
     }
 
     /// <inheritdoc />
     public Task<FuturesOptionTickDataV2ReadModel?> GetFuturesOptionTickDataAsync(FuturesOptionTickDataId id)
     {
-        this.ValidateOptionTickIdentity(id);
+        var preparedParameters7 = new TickIdentityParameters(id.ContractId, id.ValueDate, id.TickId);
         return this.Use(nameof(TradeTickQuoteDbCql.GetFuturesOptionTickData), TradeTickQuoteDbCql.GetFuturesOptionTickData)
-            .SetParameters(new TickIdentityParameters(id.ContractId, id.ValueDate, id.TickId))
+            .SetParameters(preparedParameters7)
             .ExecuteSingleAsync(MapToFuturesOptionTickData!);
     }
 
     /// <inheritdoc />
     public Task<FuturesOptionTickDataV2ReadModel?> GetLastFuturesOptionTickDataAsync(string contractId, DateOnly valueDate)
     {
-        this.ValidateScope(contractId, valueDate);
+        var preparedParameters8 = new TickContractDateParameters(contractId, valueDate);
         return this.Use(nameof(TradeTickQuoteDbCql.GetLastFuturesOptionTickData), TradeTickQuoteDbCql.GetLastFuturesOptionTickData)
-            .SetParameters(new TickContractDateParameters(contractId, valueDate))
+            .SetParameters(preparedParameters8)
             .ExecuteSingleAsync(MapToFuturesOptionTickData!);
     }
 
     /// <inheritdoc />
     public Task<FuturesTickHLVDataReadModel?> GetFuturesTickHLVDataAsync(FuturesDataId id)
     {
-        this.ValidateFuturesIdentity(id);
+        var preparedParameters9 = new TickContractDateParameters(id.ContractId, id.ValueDate);
         return this.Use(nameof(TradeTickQuoteDbCql.GetFuturesTickHLVData), TradeTickQuoteDbCql.GetFuturesTickHLVData)
-            .SetParameters(new TickContractDateParameters(id.ContractId, id.ValueDate))
+            .SetParameters(preparedParameters9)
             .ExecuteSingleAsync(MapToFuturesTickHLVData!);
     }
 
     /// <inheritdoc />
     public Task<FuturesTickDataV2ReadModel?> GetFuturesTickAtOrBeforeAsync(string contractId, DateOnly valueDate, TimeOnly tickTime, CancellationToken token = default)
     {
-        this.ValidateScope(contractId, valueDate);
+        var preparedParameters10 = new TickTimeParameters(contractId, valueDate, tickTime);
         return this.Use(nameof(TradeTickQuoteDbCql.GetFuturesTickAtOrBefore), TradeTickQuoteDbCql.GetFuturesTickAtOrBefore)
-            .SetParameters(new TickTimeParameters(contractId, valueDate, tickTime))
+            .SetParameters(preparedParameters10)
             .ExecuteSingleAsync(MapToFuturesTickData!, token);
     }
 
@@ -183,16 +192,15 @@ public Task InsertTickQuoteDataAsync(FuturesTickQuoteDataInsertedEvent e) => Scy
     /// <inheritdoc />
     public Task DeleteFuturesTickDataAsync(string contractId, DateOnly valueDate)
     {
-        this.ValidateScope(contractId, valueDate);
         var parameters = new TickContractDateParameters(contractId, valueDate);
         List<object> commands =
         [
             this.Use(nameof(TradeTickQuoteDbCql.DeleteFuturesTickData), TradeTickQuoteDbCql.DeleteFuturesTickData)
-                .SetParameters(parameters)
-                .QueueCommand(),
+            .SetParameters(parameters)
+            .QueueCommand(),
             this.Use(nameof(TradeTickQuoteDbCql.DeleteFuturesTickDataByTime), TradeTickQuoteDbCql.DeleteFuturesTickDataByTime)
-                .SetParameters(parameters)
-                .QueueCommand()
+            .SetParameters(parameters)
+            .QueueCommand()
         ];
         return this.ExecuteQueuedCommandsAsync(commands, useTransaction: true);
     }
@@ -200,9 +208,9 @@ public Task InsertTickQuoteDataAsync(FuturesTickQuoteDataInsertedEvent e) => Scy
     /// <inheritdoc />
     public Task DeleteFuturesOptionTickDataAsync(string contractId, DateOnly valueDate)
     {
-        this.ValidateScope(contractId, valueDate);
+        var preparedParameters11 = new TickContractDateParameters(contractId, valueDate);
         return this.Use(nameof(TradeTickQuoteDbCql.DeleteFuturesOptionTickData), TradeTickQuoteDbCql.DeleteFuturesOptionTickData)
-            .SetParameters(new TickContractDateParameters(contractId, valueDate))
-                .ExecuteCommandAsync();
+            .SetParameters(preparedParameters11)
+            .ExecuteCommandAsync();
     }
 }

@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Persistence;
 using TomasAI.IFM.Domain.Trade.Futures.Position.Query.Actor;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Futures.Position;
@@ -24,6 +25,7 @@ public static class GetFuturesTradePositionHistory
         {
             ArgumentNullException.ThrowIfNull(context);
             ArgumentNullException.ThrowIfNull(query);
+            TradeHistorySelection.RequirePosition(query.PositionId, query.FromUtc, query.ToUtc, query.PageSize);
             var page = await context.DbFactory.TradeDb.GetStrategyPositionHistoryAsync(query.PositionId, query.FromUtc, query.ToUtc, query.PageSize, query.PagingState, cancellationToken).ConfigureAwait(false);
             var positions = page.Items.Where(static position => position.StrategyKind == TradeStrategyKind.FuturesOutright).ToArray();
             return new ServiceResult<StrategyPositionSnapshot[]>(positions);

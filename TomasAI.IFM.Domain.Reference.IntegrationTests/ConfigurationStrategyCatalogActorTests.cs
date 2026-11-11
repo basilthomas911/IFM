@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.EventProjector.ReadModels;
 using TomasAI.IFM.Domain.Reference.Repository;
 using System.Reflection;
 using FluentAssertions;
@@ -74,13 +75,13 @@ public sealed class ConfigurationStrategyCatalogActorTests(ReferenceIntegrationI
         var key = new CatalogKey(StrategyCatalogKind.Family, Guid.NewGuid(), 1);
         var request = new CatalogCommandRequest(Guid.NewGuid(), CatalogCommandOperation.SaveDraft,
             new StrategyCatalogDefinition { Key = key, Code = $"Recover-{key.Id:N}", Name = "Catalog recovery" });
-        var source = await infrastructure.EventTransactions.ExecuteOnceAsync((transaction, token) =>
-            database.RecordStrategyCatalogTransitionAsync(transaction, request, "integration", token));
+        var source = await StrategyCatalogService.CommitAsync(database, infrastructure.EventTransactions,
+            request, "integration", StrategyCatalogLifecycleCommand.Address(key), TimeProvider.System);
         Assert.NotNull(source);
         Assert.Null(await database.GetStrategyCatalogAsync(key));
         Assert.Null(await database.GetProjectedParameterRevisionAsync());
         Assert.NotNull(await infrastructure.ActorEventSourceDb.GetEventProjectorExecutionStateAsync(
-            source.EventId, "StrategyCatalogEventProjector"));
+            new EventProjectorIdentity(source.EventId, "StrategyCatalogEventProjector")));
 
         Assert.True(await infrastructure.EventTransactions.ExecuteOnceAsync((transaction, token) =>
             database.ProjectStrategyCatalogSourceAsync(transaction, source, false, token)));
@@ -134,7 +135,7 @@ public sealed class ConfigurationStrategyCatalogActorTests(ReferenceIntegrationI
         };
         await context.InsertStrategyCatalogDraftAsync(legacy, 0, "legacy fixture");
         await infrastructure.EventTransactions.ExecuteOnceAsync((transaction, token) =>
-            context.CaptureStrategyCatalogBaselineAsync(transaction, token));
+            StrategyCatalogReconstruction.CaptureBaselineAsync(context, transaction, token));
         var legacyStream = await infrastructure.ActorEventSourceDb.GetEventStreamIdAsync(
             $"StrategyCatalog.{StrategyCatalogLifecycleCommand.Address(legacy.Key).Format()}");
         var legacyEvent = Assert.Single(await infrastructure.ActorEventSourceDb.GetEventsFromSnapshotAsync<StrategyCatalogSourceEvent>(legacyStream));
@@ -169,7 +170,7 @@ public sealed class ConfigurationStrategyCatalogActorTests(ReferenceIntegrationI
         Assert.Null(await rebuilt.GetStrategyCatalogAsync(definition.Key));
         await rebuildTransactions.ExecuteOnceAsync(async (transaction, token) =>
         {
-            await rebuilt.RebuildStrategyCatalogAsync(transaction, sourceHeads.Reverse().ToArray(), token);
+            await StrategyCatalogReconstruction.RebuildAsync(rebuilt, transaction, sourceHeads.Reverse().ToArray(), token);
             return true;
         });
         Assert.False(await rebuildService.ProjectAsync(fact, true, CancellationToken.None));

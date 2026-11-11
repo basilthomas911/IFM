@@ -14,10 +14,13 @@ public sealed class HistoricalDataLoaderStore(IDbContextFactory dbFactory) : IHi
         new(dbFactory.MarketDataDb.GetHistoricalDataLoadAsync(attemptId, cancellationToken));
 
     /// <inheritdoc />
-    public ValueTask<HistoricalDataLoaderState?> GetCompletedByRequestHashAsync(string requestSha256, CancellationToken cancellationToken) =>
-        new(dbFactory.MarketDataDb.GetCompletedHistoricalDataLoadAsync(requestSha256, cancellationToken));
+    public ValueTask<HistoricalDataLoaderState?> GetCompletedByRequestHashAsync(string requestSha256, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(requestSha256);
+        return new(dbFactory.MarketDataDb.GetCompletedHistoricalDataLoadAsync(requestSha256, cancellationToken));
+    }
 
     /// <inheritdoc />
     public ValueTask SaveAsync(HistoricalDataLoaderState state, CancellationToken cancellationToken) =>
-        new(dbFactory.MarketDataDb.SaveHistoricalDataLoadAsync(state, cancellationToken));
+        new(dbFactory.MarketDataDb.SaveHistoricalDataLoadAsync(state, HistoricalAnalyticsDiagnosticsProjection.From(state), cancellationToken));
 }

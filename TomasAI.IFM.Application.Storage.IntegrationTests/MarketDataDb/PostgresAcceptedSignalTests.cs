@@ -45,7 +45,7 @@ public sealed class PostgresAcceptedSignalTests(PostgresTradePlanFixture fixture
         var checkpoint = new FuturesVxTermStructureSignalUpdatedEvent { CommandId=Guid.NewGuid(),FuturesVxTermStructureCheckpoint=new() {Front=new(){ContractId=key,Expiry=date.AddDays(20),Price=20.25m,SourceSequence=1,SourceTimestampUtc=now,StreamEpochId=Guid.NewGuid()}} };
         await fixture.Transactions.ExecuteOnceAsync(async(db,ct)=>
         {
-            await db.AppendAsync(key,checkpoint.CommandId,checkpoint,0,ct);
+            await db.AppendAsync(new EnlistedEventAppend(key,checkpoint.CommandId,checkpoint,0),ct);
             Assert.True(await AcceptedMarketSignalProjection.TryProjectAsync(db,checkpoint,ct));return true;
         });
         var persisted=await fixture.Transactions.ExecuteOnceAsync((db,ct)=>db.QueryAsync("SELECT n.EventTypeName,l.EventVersion,l.EventPayload FROM event_log l JOIN event_name_id n ON n.EventNameId=l.EventNameId JOIN event_stream_id s ON s.EventStreamId=l.EventStreamId WHERE s.EventStream=$1 ORDER BY l.EventVersion;",[key],reader=>new EventStreamReadModel{EventTypeName=reader.GetString(0),EventVersion=reader.GetInt64(1),EventData=reader.GetFieldValue<byte[]>(2)}.ToDomainEvent(),ct));
@@ -56,7 +56,7 @@ public sealed class PostgresAcceptedSignalTests(PostgresTradePlanFixture fixture
         var paired=checkpoint with{CommandId=Guid.NewGuid(),FuturesVxTermStructureSignal=new(){ValueDate=date,ConfigurationId=key,FrontVxContractId=key,BackVxContractId=key+"back",FrontExpiry=date.AddDays(20),BackExpiry=date.AddDays(50),FrontVxPrice=20.25m,BackVxPrice=21.5m,FrontSourceTimestampUtc=now,BackSourceTimestampUtc=now,CalculatedAtUtc=now,IsValid=true}};
         await fixture.Transactions.ExecuteOnceAsync(async(db,ct)=>
         {
-            await db.AppendAsync(key,paired.CommandId,paired,1,ct);Assert.True(await AcceptedMarketSignalProjection.TryProjectAsync(db,paired,ct));
+            await db.AppendAsync(new EnlistedEventAppend(key,paired.CommandId,paired,1),ct);Assert.True(await AcceptedMarketSignalProjection.TryProjectAsync(db,paired,ct));
             Assert.True(await AcceptedMarketSignalProjection.TryProjectAsync(db,restored,ct));return true;
         });
         Assert.Equal(1,await CountAsync());
@@ -68,8 +68,8 @@ public sealed class PostgresAcceptedSignalTests(PostgresTradePlanFixture fixture
         var stream = "filtered-stream-metadata-" + Guid.NewGuid().ToString("N");
         await fixture.Transactions.ExecuteOnceAsync(async (transaction, token) =>
         {
-            await transaction.AppendAsync(stream, Guid.NewGuid(), new FuturesRsiSignalStartedEvent(), 0, token);
-            await transaction.AppendAsync(stream, Guid.NewGuid(), new FuturesRsiSignalStartedEvent(), 1, token);
+            await transaction.AppendAsync(new EnlistedEventAppend(stream, Guid.NewGuid(), new FuturesRsiSignalStartedEvent(), 0), token);
+            await transaction.AppendAsync(new EnlistedEventAppend(stream, Guid.NewGuid(), new FuturesRsiSignalStartedEvent(), 1), token);
             return true;
         });
         var id = Convert.ToInt64(await fixture.Transactions.ExecuteOnceAsync((transaction, token) =>
@@ -184,7 +184,7 @@ public sealed class PostgresAcceptedSignalTests(PostgresTradePlanFixture fixture
             {
                 var accepted = source is VixFuturesEodDataInsertedEvent vix
                     ? await AcceptedMarketSignalProjection.AcceptVixAsync(db,vix,ct) : source;
-                await db.AppendAsync(key+source.GetType().Name,source.CommandId,accepted,0,ct);
+                await db.AppendAsync(new EnlistedEventAppend(key+source.GetType().Name,source.CommandId,accepted,0),ct);
                 Assert.True(await AcceptedMarketSignalProjection.TryProjectAsync(db,accepted,ct));
             }
             throw new InvalidOperationException("Injected failure after every analytic materialization");
@@ -197,7 +197,7 @@ public sealed class PostgresAcceptedSignalTests(PostgresTradePlanFixture fixture
             {
                 var accepted = source is VixFuturesEodDataInsertedEvent vix
                     ? await AcceptedMarketSignalProjection.AcceptVixAsync(db,vix,ct) : source;
-                await db.AppendAsync(key+source.GetType().Name,source.CommandId,accepted,0,ct);
+                await db.AppendAsync(new EnlistedEventAppend(key+source.GetType().Name,source.CommandId,accepted,0),ct);
                 Assert.True(await AcceptedMarketSignalProjection.TryProjectAsync(db,accepted,ct));
             }
             return true;
@@ -235,7 +235,7 @@ public sealed class PostgresAcceptedSignalTests(PostgresTradePlanFixture fixture
             db.ScalarAsync("SELECT count(*) FROM market_data.trade_live_feed WHERE orderId=$1 AND tradeId=$1;",[id],ct)));
         async Task PersistAsync(IEvent source,long version,bool fail) => await fixture.Transactions.ExecuteOnceAsync(async(db,ct) =>
         {
-            await db.AppendAsync(key,source.CommandId,source,version,ct);
+            await db.AppendAsync(new EnlistedEventAppend(key,source.CommandId,source,version),ct);
             Assert.True(await AcceptedMarketSignalProjection.TryProjectAsync(db,source,ct));
             if (fail) throw new InvalidOperationException("Injected live-feed materialization failure");
             return true;

@@ -22,7 +22,7 @@ public sealed class ParameterStartupQueryTests
         var requested = CreateRun(Guid.NewGuid(), new DateTime(2026, 9, 16, 12, 1, 0, DateTimeKind.Utc));
         var context = Context();
         context.ConfigurationDb.GetActiveParameterStartupAsync(requested.RunId, CancellationToken.None)
-            .Returns(((ParameterStartupRun?)requested, (ParameterSignalStartupReport?)null));
+            .Returns(new ParameterStartupReadModel(requested, null));
         var query = MessagePackSerializer.Deserialize<GetParameterStartupRunQuery>(
             MessagePackSerializer.Serialize(new GetParameterStartupRunQuery
             {
@@ -79,6 +79,8 @@ public sealed class ParameterStartupQueryTests
     public async Task Missing_exact_run_fails_without_sending_a_reply()
     {
         var context = Context();
+        context.ConfigurationDb.GetActiveParameterStartupAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(new ParameterStartupReadModel(null, null));
         var query = new GetParameterStartupRunQuery
         {
             RunId = Guid.NewGuid(),

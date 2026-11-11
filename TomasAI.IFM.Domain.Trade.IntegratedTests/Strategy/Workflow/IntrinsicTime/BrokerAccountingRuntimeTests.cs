@@ -58,7 +58,7 @@ public sealed partial class TradeSelectionRuntimeTests
                 foreach (var stream in new[] { $"Portfolio.{portfolio}", $"PortfolioFund.{portfolio}.{fund}", $"PortfolioFinancialPolicy.{portfolio}.{portfolio + 2}" })
                 {
                     var id = Guid.NewGuid();
-                    await db.AppendAsync(stream, id, new PortfolioCreatedEvent(Guid.NewGuid(), id, 1, DateTime.UtcNow, "SyntheticAccountingQualification", new()), 0, token);
+                    await db.AppendAsync(new EnlistedEventAppend(stream, id, new PortfolioCreatedEvent(Guid.NewGuid(), id, 1, DateTime.UtcNow, "SyntheticAccountingQualification", new()), 0), token);
                 }
                 return true;
             }, deadline.Token);

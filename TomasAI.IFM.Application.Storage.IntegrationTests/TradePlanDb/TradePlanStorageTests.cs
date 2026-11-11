@@ -1,3 +1,7 @@
+using TomasAI.IFM.Domain.Trade.Persistence;
+using TomasAI.IFM.Domain.Trade.Model.Position.Query;
+using TomasAI.IFM.Application.Storage;
+using Microsoft.Extensions.Logging.Abstractions;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
@@ -55,8 +59,8 @@ public sealed class TradePlanStorageTests(TradePlanStorageFixture fixture)
             }
         };
         plan = plan with { ContentHash = TradePlanContractIdentity.PlanHash(plan) };
-        await fixture.TradePlanDb.ProjectMaterialAsync(plan);
-        await fixture.TradePlanDb.ProjectMaterialAsync(plan);
+        await TradePlanProjectionWriter.TryWriteDisposableAsync(fixture.TradePlanDb.DbWriter, plan, NullLogger.Instance);
+        await TradePlanProjectionWriter.TryWriteDisposableAsync(fixture.TradePlanDb.DbWriter, plan, NullLogger.Instance);
         var current = await fixture.TradePlanDb.GetCurrentAsync(plan.Position.Id, plan.Position.StrategyKind, plan.ValueDate);
         current.Should().BeEquivalentTo(plan);
         var scalar = await fixture.TradePlanDb.Database
@@ -79,7 +83,7 @@ public sealed class TradePlanStorageTests(TradePlanStorageFixture fixture)
             Currency = "USD", NetGamma = .001, PutForwardPrice = -20, CallForwardPrice = -15,
             StrategyRiskParameterSet = policy, RiskParameterSetHash = policy.Hash(), CalculationStatus = "Complete" } };
         plan = plan with { ContentHash = TradePlanContractIdentity.PlanHash(plan) };
-        await fixture.TradePlanDb.ProjectMaterialAsync(plan);
+        await TradePlanProjectionWriter.TryWriteDisposableAsync(fixture.TradePlanDb.DbWriter, plan, NullLogger.Instance);
         var restored = await fixture.TradePlanDb.GetCurrentAsync(plan.Position.Id, plan.Position.StrategyKind, plan.ValueDate);
         restored.Should().BeEquivalentTo(plan);
         var scalar = await fixture.TradePlanDb.Database
@@ -102,9 +106,9 @@ public sealed class TradePlanStorageTests(TradePlanStorageFixture fixture)
         var first = Plan(suffix, 1, 10m, material: true);
         var second = Plan(suffix, 2, 25m, material: true);
 
-        await fixture.TradePlanDb.ProjectMaterialAsync(first);
-        await fixture.TradePlanDb.ProjectMaterialAsync(first);
-        await fixture.TradePlanDb.ProjectMaterialAsync(second);
+        await TradePlanProjectionWriter.TryWriteDisposableAsync(fixture.TradePlanDb.DbWriter, first, NullLogger.Instance);
+        await TradePlanProjectionWriter.TryWriteDisposableAsync(fixture.TradePlanDb.DbWriter, first, NullLogger.Instance);
+        await TradePlanProjectionWriter.TryWriteDisposableAsync(fixture.TradePlanDb.DbWriter, second, NullLogger.Instance);
 
         var current = await fixture.TradePlanDb.GetCurrentAsync(
             first.Position.Id, first.Position.StrategyKind, first.ValueDate);
@@ -122,8 +126,8 @@ public sealed class TradePlanStorageTests(TradePlanStorageFixture fixture)
         var material = Plan(suffix, 1, 10m, material: true);
         var nonMaterial = Plan(suffix, 2, 11m, material: false);
 
-        await fixture.TradePlanDb.ProjectMaterialAsync(material);
-        await fixture.TradePlanDb.ProjectMaterialAsync(nonMaterial);
+        await TradePlanProjectionWriter.TryWriteDisposableAsync(fixture.TradePlanDb.DbWriter, material, NullLogger.Instance);
+        await TradePlanProjectionWriter.TryWriteDisposableAsync(fixture.TradePlanDb.DbWriter, nonMaterial, NullLogger.Instance);
 
         var current = await fixture.TradePlanDb.GetCurrentAsync(
             material.Position.Id, material.Position.StrategyKind, material.ValueDate);
@@ -139,10 +143,10 @@ public sealed class TradePlanStorageTests(TradePlanStorageFixture fixture)
     {
         var suffix = Random.Shared.Next(1_800_001, 2_600_000);
         var original = Plan(suffix, 1, 10m, material: true);
-        await fixture.TradePlanDb.ProjectMaterialAsync(original);
+        await TradePlanProjectionWriter.TryWriteDisposableAsync(fixture.TradePlanDb.DbWriter, original, NullLogger.Instance);
 
         var conflicting = original with { ContentHash = new string('F', 64) };
-        await fixture.TradePlanDb.ProjectMaterialAsync(conflicting);
+        await TradePlanProjectionWriter.TryWriteDisposableAsync(fixture.TradePlanDb.DbWriter, conflicting, NullLogger.Instance);
         var current = await fixture.TradePlanDb.GetCurrentAsync(
             original.Position.Id, original.Position.StrategyKind, original.ValueDate);
         current.Should().BeEquivalentTo(original);
@@ -152,8 +156,9 @@ public sealed class TradePlanStorageTests(TradePlanStorageFixture fixture)
     public async Task Invalid_history_page_size_is_rejected_before_database_access()
     {
         var plan = Plan(Random.Shared.Next(2_600_001, 3_400_000), 1, 10m, material: true);
-        var action = () => fixture.TradePlanDb.GetHistoryAsync(
-            plan.Position.Id, plan.Position.StrategyKind, plan.ValueDate, 0);
+        var databases = Substitute.For<IDbContextFactory>();
+        var action = () => StrategyTradePlanQueryExecution.ReadHistoryAsync(databases,
+            plan.Position.Id, plan.Position.StrategyKind, plan.ValueDate, 0, null, default).AsTask();
 
         await action.Should().ThrowAsync<ArgumentOutOfRangeException>();
     }
@@ -169,8 +174,8 @@ public sealed class TradePlanStorageTests(TradePlanStorageFixture fixture)
             RequiresExit = true
         };
         plan = plan with { ContentHash = TradePlanContractIdentity.PlanHash(plan) };
-        await fixture.TradePlanDb.ProjectMaterialAsync(plan);
-        await fixture.TradePlanDb.ProjectMaterialAsync(plan);
+        await TradePlanProjectionWriter.TryWriteDisposableAsync(fixture.TradePlanDb.DbWriter, plan, NullLogger.Instance);
+        await TradePlanProjectionWriter.TryWriteDisposableAsync(fixture.TradePlanDb.DbWriter, plan, NullLogger.Instance);
 
         var activity = await fixture.TradePlanDb.GetActivityAsync(plan.ValueDate, 500);
         activity.Items.Count(item =>

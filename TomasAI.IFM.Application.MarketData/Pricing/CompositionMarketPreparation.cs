@@ -77,6 +77,7 @@ public sealed class CompositionMarketPreparation(QualifiedCompositionDiscovery d
                         plan.Dataset, plan.ValueDate, plan.Futures.Select(x => x.ContractId));
                     var reconstruction = new CompositionRoutePlan(1, "", plan.Dataset, default, [],
                         plan.Futures.OrderBy(x => x.ContractId, StringComparer.Ordinal).ToImmutableArray(), routes, null, null, null).Seal();
+                    reconstruction.Validate();
                     await routePlans.SaveAsync(reconstruction, linked.Token).ConfigureAwait(false);
                     scope = reconstruction.PlanId;
                 }

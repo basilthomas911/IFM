@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Persistence;
 using TomasAI.IFM.Domain.MarketData.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.EconomicCalendar.Command.Actor;
 using TomasAI.IFM.Domain.MarketData.EconomicCalendar.Command;
@@ -76,8 +77,8 @@ public sealed class HistoricalMarketDataImportOrderingTests(EventSourceActorSnap
         // has no write-order receipt, so its projection could also run afterward.
         await transactions.ExecuteOnceAsync(async (transaction, token) =>
         {
-            await transaction.AppendAsync("historical-ordering-import", accepted.CommandId, accepted, 0, token);
-            await transaction.ImportEconomicCalendarsAsync(accepted.EconomicCalendars, accepted.DuplicatePolicy, accepted.CommandId, token);
+            await transaction.AppendAsync(new EnlistedEventAppend("historical-ordering-import", accepted.CommandId, accepted, 0), token);
+            await transaction.ImportEconomicCalendarsAsync(MarketDataImportBatch.Calendars(accepted.EconomicCalendars, accepted.DuplicatePolicy, accepted.CommandId), token);
             return true;
         });
         Assert.NotNull(await db.GetEconomicCalendarAsync(row.Id));
@@ -124,8 +125,8 @@ public sealed class HistoricalMarketDataImportOrderingTests(EventSourceActorSnap
 
         await transactions.ExecuteOnceAsync(async (transaction, token) =>
         {
-            await transaction.ImportEconomicCalendarsAsync([live], ImportDuplicatePolicy.Overwrite, Guid.NewGuid(), token);
-            await transaction.ImportYieldCurvesAsync([curve], ImportDuplicatePolicy.Overwrite, Guid.NewGuid(), at, token);
+            await transaction.ImportEconomicCalendarsAsync(MarketDataImportBatch.Calendars([live], ImportDuplicatePolicy.Overwrite, Guid.NewGuid()), token);
+            await transaction.ImportYieldCurvesAsync(MarketDataImportBatch.YieldCurves([curve], ImportDuplicatePolicy.Overwrite, Guid.NewGuid()), at, token);
             return true;
         });
 

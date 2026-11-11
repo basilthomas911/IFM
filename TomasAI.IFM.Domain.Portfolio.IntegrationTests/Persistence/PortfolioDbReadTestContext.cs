@@ -9,6 +9,8 @@ namespace TomasAI.IFM.Domain.Portfolio.IntegrationTests.Persistence;
 /// <summary>Test-only adapter for focused financial fixtures that do not boot the application DI container.</summary>
 internal sealed class PortfolioDbReadTestContext(PortfolioFinancialStore financial) : IPortfolioDbReadContext
 {
+    public Task<IReadOnlyList<FinancialWorkflowSourceRow>> ReadFinancialWorkflowSourcesAsync(long afterStreamId, string? exactStream = null, CancellationToken cancellationToken = default)
+        => Unsupported<IReadOnlyList<FinancialWorkflowSourceRow>>();
     public Task<T?> ReadOperationAsync<T>(int portfolioId, Guid operationId, string? inputHash = null, CancellationToken token = default)
         where T : class, IFinancialCompletedEvent => financial.ReadOperationAsync<T>(portfolioId, operationId, inputHash, token);
     public Task<FinancialBookConfiguration?> ReadBookAsync(int portfolioId, CancellationToken token = default) => financial.ReadBookAsync(portfolioId, token);

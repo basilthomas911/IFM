@@ -1,3 +1,7 @@
+using TomasAI.IFM.Domain.MarketData.Shared.QueryParameters;
+using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Domain.MarketData.DownloadLog.Query;
+using TomasAI.IFM.Domain.MarketData.Persistence;
 using TomasAI.IFM.Domain.Reference.Repository;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
@@ -152,7 +156,7 @@ public sealed class PostgresEodObservationTests
             .Add(EventSourceActorDbContext.EventSourceActorDbConnection, connectionString, "System.Data.Postgres"));
         await Assert.ThrowsAsync<InvalidOperationException>(() => owner.ExecuteAsync<int>(async (transaction, token) =>
         {
-            var result = await transaction.RebuildCanonicalQueryIndexesAsync(token);
+            var result = await MarketDataProjectionMaintenance.ApplyCanonicalIndexesAsync(db, transaction, token);
             Assert.True(result.CutoverCompleted);
             throw new InvalidOperationException("rollback probe");
         }, CancellationToken.None));
@@ -166,8 +170,8 @@ public sealed class PostgresEodObservationTests
         Assert.True((await db.GetQueryProjectionReadinessAsync()).IsReady);
         var repeated = await db.BackfillQueryProjectionsV2Async();
         Assert.Equal(repaired, repeated);
-        await db.InsertFuturesEodDataAsync(new[] { SampleData.FuturesEodData with
-            { ContractId = "MAINTENANCE", ValueDate = new DateOnly(2026, 10, 9), ClosePrice = 6000m } });
+        await db.InsertFuturesEodDataAsync(new FuturesEodBatch(new[] { SampleData.FuturesEodData with
+            { ContractId = "MAINTENANCE", ValueDate = new DateOnly(2026, 10, 9), ClosePrice = 6000m } }));
         Assert.True((await db.GetQueryProjectionReadinessAsync()).IsReady);
         var updated = await db.BackfillQueryProjectionsV2Async();
         Assert.True(updated.FuturesEodRowsSource > repaired.FuturesEodRowsSource);
@@ -272,15 +276,15 @@ public sealed class PostgresEodObservationTests
         await db.InsertFuturesOptionContractAsync(option with { ContractId = "ES20261120P6050",StrikePrice = 6050 });
         await db.InsertFuturesOptionContractAsync(option with { ContractId = "ES20261120P6100",StrikePrice = 6100 });
         var request = new TomasAI.IFM.Domain.MarketData.Shared.QueryParameters.GetFuturesOptionContractsPageParameter(first.Symbol,1);
-        var firstPage = await db.GetFuturesOptionContractsPageAsync(request);
+        var firstPage = await db.GetFuturesOptionContractsPageAsync(new(request));
         Assert.Equal(option.ContractId,firstPage.Items.Single().ContractId);
         Assert.True(firstPage.HasMore);
-        var secondPage = await db.GetFuturesOptionContractsPageAsync(request with { ContinuationToken = firstPage.ContinuationToken });
+        var secondPage = await db.GetFuturesOptionContractsPageAsync(new(request with { ContinuationToken = firstPage.ContinuationToken }));
         Assert.Equal("ES20261120P6050",secondPage.Items.Single().ContractId);
-        var thirdPage = await db.GetFuturesOptionContractsPageAsync(request with { ContinuationToken = secondPage.ContinuationToken });
+        var thirdPage = await db.GetFuturesOptionContractsPageAsync(new(request with { ContinuationToken = secondPage.ContinuationToken }));
         Assert.Equal("ES20261120P6100",thirdPage.Items.Single().ContractId);
         Assert.False(thirdPage.HasMore);
-        Func<Task> wrongCursor = () => db.GetFuturesOptionContractsPageAsync(request with { Symbol = "OTHER",ContinuationToken = firstPage.ContinuationToken });
+        Func<Task> wrongCursor = () => db.GetFuturesOptionContractsPageAsync(new(request with { Symbol = "OTHER",ContinuationToken = firstPage.ContinuationToken }));
         await wrongCursor.Should().ThrowAsync<ArgumentException>();
         await using var connection = new PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(connectionString);
         await connection.OpenAsync();
@@ -301,10 +305,10 @@ public sealed class PostgresEodObservationTests
         var stamp = new DateTime(2026,10,7,14,0,0,DateTimeKind.Utc);
         var first = new EconomicCalendarReadModel(stamp,"US","Employment",null,"100","90",stamp,"native-test");
         var commandId = Guid.NewGuid();
-        await db.InsertEconomicCalendarsAsync([first],ImportDuplicatePolicy.Reject,commandId);
-        await db.InsertEconomicCalendarsAsync([first],ImportDuplicatePolicy.Reject,commandId);
+        await db.InsertEconomicCalendarsAsync(MarketDataImportBatch.Calendars([first], ImportDuplicatePolicy.Reject, commandId));
+        await db.InsertEconomicCalendarsAsync(MarketDataImportBatch.Calendars([first], ImportDuplicatePolicy.Reject, commandId));
         (await db.GetEconomicCalendarAsync(first.Id)).Should().BeEquivalentTo(first);
-        Func<Task> conflict = () => db.InsertEconomicCalendarsAsync([first],ImportDuplicatePolicy.Reject,Guid.NewGuid());
+        Func<Task> conflict = () => db.InsertEconomicCalendarsAsync(MarketDataImportBatch.Calendars([first], ImportDuplicatePolicy.Reject, Guid.NewGuid()));
         await conflict.Should().ThrowAsync<MarketDataImportDuplicateException>();
         var page = await db.GetEconomicCalendarPageAsync(new TomasAI.IFM.Domain.MarketData.Shared.QueryParameters.EconomicCalendarPageRequest { StartDateUtc = stamp.AddDays(-1), EndDateUtc = stamp.AddDays(1), CountryCodes = ["US"], PageSize = 10 });
         page.Items.Should().ContainSingle().Which.Should().BeEquivalentTo(first);
@@ -442,7 +446,7 @@ public sealed class PostgresEodObservationTests
                 PayloadSha256 = row.ComputeHash(),ReceivedOn = requested };
             await transactions.ExecuteOnceAsync(async (transaction,token) =>
             {
-                await transaction.AppendAsync(stream,source.CommandId,source,0,token);
+                await transaction.AppendAsync(new EnlistedEventAppend(stream,source.CommandId,source,0),token);
                 await db.ProjectDownloadLogAsync(transaction,row,source.CommandId,source.PayloadSha256,token);
                 return true;
             });
@@ -477,10 +481,10 @@ public sealed class PostgresEodObservationTests
         { Id = Guid.NewGuid(),CommandId = Guid.NewGuid(),YieldCurveRates = [curve],ReceivedOn = requested,DuplicatePolicy = ImportDuplicatePolicy.Overwrite };
         await transactions.ExecuteOnceAsync(async (transaction,token) =>
         {
-            await transaction.AppendAsync("calendar-accepted-test",economicSource.CommandId,economicSource,0,token);
-            await Storage.MarketDataDb.MarketDataDbContextExtensions.ImportEconomicCalendarsAsync(transaction,[calendar],economicSource.DuplicatePolicy,economicSource.CommandId,token);
-            await transaction.AppendAsync("treasury-accepted-test",treasurySource.CommandId,treasurySource,0,token);
-            await Storage.MarketDataDb.MarketDataDbContextExtensions.ImportYieldCurvesAsync(transaction,[curve],treasurySource.DuplicatePolicy,treasurySource.CommandId,requested,token);
+            await transaction.AppendAsync(new EnlistedEventAppend("calendar-accepted-test",economicSource.CommandId,economicSource,0),token);
+            await Storage.MarketDataDb.MarketDataDbContextExtensions.ImportEconomicCalendarsAsync(transaction,MarketDataImportBatch.Calendars([calendar], economicSource.DuplicatePolicy, economicSource.CommandId),token);
+            await transaction.AppendAsync(new EnlistedEventAppend("treasury-accepted-test",treasurySource.CommandId,treasurySource,0),token);
+            await Storage.MarketDataDb.MarketDataDbContextExtensions.ImportYieldCurvesAsync(transaction,MarketDataImportBatch.YieldCurves([curve], treasurySource.DuplicatePolicy, treasurySource.CommandId),requested,token);
             return true;
         });
         var sources = new List<TomasAI.IFM.Shared.EventSourcing.IEvent>();
@@ -514,7 +518,6 @@ public sealed class PostgresEodObservationTests
         var factory = new DbContextFactory(new DbContextResolver(type => repositories[type]));
 
         var observationIds = Substitute.For<ISequenceIdGenerator>();
-        observationIds.GetSequenceIdAsync(SequenceName.FuturesOptionTickPriceData_TickId).Returns(100L, 101L);
         var db = new Storage.MarketDataDb.MarketDataDbContext(settings, factory,
             observationIds, NullLogger<DbProvider>.Instance);
         repositories.Add(typeof(IObjectRepository<Storage.MarketDataDb.MarketDataDbContext>), db);
@@ -553,7 +556,7 @@ public sealed class PostgresEodObservationTests
         Assert.All(history, row => Assert.Equal(0.125, row.MarketDirectionIndicator));
         await db.PersistRealtimeFuturesEodBatchAsync(rows);
         Assert.Equal(2, (await db.GetFuturesIntraDayDataAsync("ES", date)).Count);
-        await db.InsertFuturesEodDataAsync(new[] { first with { ValueDate = date.AddDays(-1) } });
+        await db.InsertFuturesEodDataAsync(new FuturesEodBatch(new[] { first with { ValueDate = date.AddDays(-1) } }));
         Assert.Equal(date.AddDays(-1), (await db.GetLastFuturesEodDataAsync("ES", date))!.ValueDate);
 
         Assert.Equal(new[] {date,date.AddDays(-1)},(await db.GetCurrentFuturesEodDataByDateRangeAsync(date.AddDays(-1),date)).Select(row => row.ValueDate));
@@ -865,10 +868,10 @@ public sealed class PostgresEodObservationTests
     {
         var first = SampleData.FuturesOptionTickData with
         {
-            ContractId = "CALCULATED", ValueDate = date, TickTime = new TimeOnly(12, 0),
+            ContractId = "CALCULATED", ValueDate = date, TickId = 100, TickTime = new TimeOnly(12, 0),
             OptionPrice = 12.125, BidPrice = 12.0, AskPrice = 12.25, Delta = -0.16, Gamma = 0.00125
         };
-        var second = first with { TickTime = new TimeOnly(12, 1), OptionPrice = 13.25 };
+        var second = first with { TickId = 101, TickTime = new TimeOnly(12, 1), OptionPrice = 13.25 };
         await db.InsertFuturesOptionTickPriceDataAsync(first);
         await db.InsertFuturesOptionTickPriceDataAsync(second);
         var stored = await db.GetFuturesOptionTickPriceDataAsync(new FuturesOptionTickDataId("CALCULATED", date, 100));
@@ -930,10 +933,10 @@ public sealed class PostgresEodObservationTests
         { Source = source with { Price = 13m } }, CancellationToken.None));
         Assert.False(await db.WriteFirstAsync(evidence with
         { Source = source with { ReceiveNanoseconds = source.ReceiveNanoseconds + 10 } }, CancellationToken.None));
-        (await db.ReadAsync(source.ContractId, date, source.Identity, CancellationToken.None)).Should().BeEquivalentTo(evidence);
+        (await db.ReadAsync(new OptionTradeEvidenceLookup(source.ContractId, date, source.Identity), CancellationToken.None)).Should().BeEquivalentTo(evidence);
         await Assert.ThrowsAsync<InvalidOperationException>(async () =>
             await db.WriteAsync(evidence with { Source = source with { Price = 13m } }, CancellationToken.None));
-        Assert.Equal(12.125m, (await db.ReadAsync(source.ContractId, date, source.Identity, CancellationToken.None))!.Source.Price);
+        Assert.Equal(12.125m, (await db.ReadAsync(new OptionTradeEvidenceLookup(source.ContractId, date, source.Identity), CancellationToken.None))!.Source.Price);
 
         var key = new CompositionPreparationKey(Guid.NewGuid(), 1, new string('a', 64));
         var service = new CompositionPreparationService(Substitute.For<ICompositionMarketDataApi>(), db);
@@ -967,7 +970,7 @@ public sealed class PostgresEodObservationTests
     static async Task VerifyReferenceRiskAndJobsAsync(ReferenceDbContext db, ISequenceIdGenerator ids, string connectionString)
     {
         var ratio = new MDIForwardLossRatioReadModel { MDI = 1, ForwardLossRatio = 0.25, CreatedBy = "fixture", UpdatedBy = "fixture" };
-        await db.InsertMDIForwardLossRatiosAsync(new[] { ratio with { MDI = 2 }, ratio });
+        await db.WriteMdiForwardLossRatiosAsync(new[] { ratio with { MDI = 2 }, ratio });
         var ratios = await db.GetMDIForwardLossRatiosAsync(ratio.TrendDirection, ratio.TradeType);
         Assert.Equal(new[] { 1, 2 }, ratios.Select(row => row.MDI));
         Assert.All(ratios, row => Assert.Null(row.CreatedOn));
@@ -978,8 +981,8 @@ public sealed class PostgresEodObservationTests
 
         ids.GetSequenceIdAsync(SequenceNameExtensions.ParseSequenceName("ScheduledJobId")).Returns(101L,102L,103L,104L);
         var first = TomasAI.IFM.Application.Storage.IntegrationTests.ReferenceDb.SampleData.ScheduledJob with { JobName = "NativeDaily", JobScheduleDate = DateTime.UtcNow };
-        await db.InsertScheduledJobAsync(first);
-        await db.InsertScheduledJobAsync(first with { JobName = "nativedaily" });
+        await db.InsertLegacyScheduledJobAsync(first, ids);
+        await db.InsertLegacyScheduledJobAsync(first with { JobName = "nativedaily" }, ids);
         Assert.Equal(101, await db.GetScheduledJobIdAsync("NativeDaily"));
         Assert.Equal(102, await db.GetScheduledJobIdAsync("nativedaily", CancellationToken.None));
         Assert.Equal(0, await db.GetScheduledJobIdAsync("NATIVEDAILY"));
@@ -987,11 +990,11 @@ public sealed class PostgresEodObservationTests
         Assert.Equal(new[] {101,102}, jobs.Select(row => row.JobId));
         Assert.All(jobs, row => Assert.Equal(row.JobId, row.DaysOfWeek!.JobId));
         Assert.True(jobs[0].DaysOfWeek!.Monday);
-        await Assert.ThrowsAnyAsync<Exception>(() => db.UpdateScheduledJobAsync(jobs[0] with { JobName = "nativedaily" }));
+        await Assert.ThrowsAnyAsync<Exception>(() => db.UpdateLegacyScheduledJobAsync(jobs[0] with { JobName = "nativedaily" }));
         Assert.Equal(101, await db.GetScheduledJobIdAsync("NativeDaily"));
-        await Assert.ThrowsAnyAsync<Exception>(() => db.InsertScheduledJobAsync(first));
+        await Assert.ThrowsAnyAsync<Exception>(() => db.InsertLegacyScheduledJobAsync(first, ids));
         Assert.Equal(2, (await db.GetScheduledJobsAsync()).Count);
-        await db.UpdateScheduledJobAsync(jobs[0] with { JobName = "Renamed", DaysOfWeek = null, TaskEnabled = false });
+        await db.UpdateLegacyScheduledJobAsync(jobs[0] with { JobName = "Renamed", DaysOfWeek = null, TaskEnabled = false });
         var renamed = (await db.GetScheduledJobsAsync(CancellationToken.None)).Single(row => row.JobId == 101);
         Assert.Null(renamed.DaysOfWeek);
         Assert.False(renamed.TaskEnabled);
@@ -1002,7 +1005,7 @@ public sealed class PostgresEodObservationTests
         await connection.OpenAsync();
         await using (var constraint = new NpgsqlCommand("ALTER TABLE reference.scheduled_job_days ADD CONSTRAINT reject_job_weekdays CHECK(jobId<>104);", connection))
             await constraint.ExecuteNonQueryAsync();
-        await Assert.ThrowsAnyAsync<Exception>(() => db.InsertScheduledJobAsync(first with { JobName = "RejectedWeekdays" }));
+        await Assert.ThrowsAnyAsync<Exception>(() => db.InsertLegacyScheduledJobAsync(first with { JobName = "RejectedWeekdays" }, ids));
         Assert.Equal(0, await db.GetScheduledJobIdAsync("RejectedWeekdays"));
         await db.DeleteScheduledJobAsync(102);
         await db.DeleteScheduledJobAsync(102);
@@ -1126,16 +1129,16 @@ public sealed class PostgresEodObservationTests
         await db.PersistRealtimeVixEodBatchAsync(new[] { row with { ValueDate = date.AddDays(-1), ClosePrice = 19m } });
         Assert.Equal(19m,(await db.GetLastVixFuturesEodDataAsync("VXA",date.AddDays(-1)))!.ClosePrice);
         var tick = SampleData.FuturesTickData with { ContractId = "VX-TICK", ValueDate = date, Price = 20.125m, Size = 2 };
-        await Task.WhenAll(Enumerable.Range(0,4).Select(_ => db.InsertVixFuturesEodDataAsync(tick)));
+        await Task.WhenAll(Enumerable.Range(0,4).Select(_ => db.InsertVixFuturesEodDataAsync(new VixTickObservation(tick))));
         Assert.Equal(8,(await db.GetVixFuturesEodDataAsync(tick.ContractId,date))!.Volume);
         var stats = new FuturesSessionStatisticsSnapshot(tick.ContractId,date,19m,22m,18m,1,1,50,FuturesSessionVolumeQuality.ObservedComplete);
-        await db.InsertVixFuturesEodDataAsync(tick,stats);
+        await db.InsertVixFuturesEodDataAsync(new VixTickObservation(tick,stats));
         var marked = (await db.GetVixFuturesEodDataAsync(tick.ContractId,date))!;
         Assert.Equal(50,marked.Volume);
         Assert.Equal(19m,marked.OpenPrice);
         Assert.Equal(22m,marked.HighPrice);
         Assert.Equal(18m,marked.LowPrice);
-        await Assert.ThrowsAsync<ArgumentException>(() => db.InsertVixFuturesEodDataAsync(tick,stats with { ContractId = "WRONG" }));
+        await Assert.ThrowsAsync<ArgumentException>(() => db.InsertVixFuturesEodDataAsync(new VixTickObservation(tick,stats with { ContractId = "WRONG" })));
         await using var connection = new PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(connectionString);
         await connection.OpenAsync();
         await using (var constraint = new NpgsqlCommand("ALTER TABLE market_data.vix_futures_eod_data ADD CONSTRAINT reject_vix_test CHECK(closePrice<>999);",connection))
@@ -1151,24 +1154,24 @@ public sealed class PostgresEodObservationTests
     {
         var row = SampleData.YieldCurveRate with { ValueDate = date };
         var next = row with { ValueDate = new DateOnly(2027,1,1), TenYear = 0.0425 };
-        await db.InsertYieldCurveRatesAsync(new[] {row,next});
+        await db.InsertYieldCurveRatesAsync(MarketDataImportBatch.YieldCurves(new[] {row,next}));
         (await db.GetYieldCurveRateAsync(date)).Should().BeEquivalentTo(row);
         (await db.GetLastYieldCurveRateAsync(CancellationToken.None)).Should().BeEquivalentTo(next);
         Assert.Equal(new[] {2027,2026},await db.GetYieldCurveRateYearsAsync());
-        Assert.Equal(new[] {next.ValueDate,date},(await db.GetYieldCurveRatesAsync(date,next.ValueDate)).Select(x => x.ValueDate));
+        Assert.Equal(new[] {next.ValueDate,date},(await db.GetYieldCurveRatesAsync(new YieldCurveReadRange(date, next.ValueDate))).Select(x => x.ValueDate));
         var command = Guid.NewGuid();
         var owned = row with { ValueDate = date.AddDays(1), TenYear = 0.05 };
-        await db.InsertYieldCurveRatesAsync(new[] {owned},ImportDuplicatePolicy.Reject,command);
-        await db.InsertYieldCurveRatesAsync(new[] {owned},ImportDuplicatePolicy.Reject,command);
-        await Assert.ThrowsAsync<MarketDataImportDuplicateException>(() => db.InsertYieldCurveRatesAsync(new[] {owned},ImportDuplicatePolicy.Reject,Guid.NewGuid()));
-        await Assert.ThrowsAsync<MarketDataImportDuplicateException>(() => db.InsertYieldCurveRatesAsync(new[] { row with { ValueDate = date.AddDays(-1) },owned },ImportDuplicatePolicy.Reject,Guid.NewGuid()));
+        await db.InsertYieldCurveRatesAsync(MarketDataImportBatch.YieldCurves(new[] {owned}, ImportDuplicatePolicy.Reject, command));
+        await db.InsertYieldCurveRatesAsync(MarketDataImportBatch.YieldCurves(new[] {owned}, ImportDuplicatePolicy.Reject, command));
+        await Assert.ThrowsAsync<MarketDataImportDuplicateException>(() => db.InsertYieldCurveRatesAsync(MarketDataImportBatch.YieldCurves(new[] {owned}, ImportDuplicatePolicy.Reject, Guid.NewGuid())));
+        await Assert.ThrowsAsync<MarketDataImportDuplicateException>(() => db.InsertYieldCurveRatesAsync(MarketDataImportBatch.YieldCurves(new[] { row with { ValueDate = date.AddDays(-1) },owned }, ImportDuplicatePolicy.Reject, Guid.NewGuid())));
         Assert.Null(await db.GetYieldCurveRateAsync(date.AddDays(-1)));
         await using var connection = new PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(connectionString);
         await connection.OpenAsync();
         await using (var constraint = new NpgsqlCommand("ALTER TABLE market_data.yield_curve_rate_by_date ADD CONSTRAINT reject_curve_test CHECK(oneMonth<>999);",connection))
             await constraint.ExecuteNonQueryAsync();
         var rejected = row with { ValueDate = date.AddDays(2), OneMonth = 999 };
-        await Assert.ThrowsAnyAsync<Exception>(() => db.InsertYieldCurveRatesAsync(new[] {rejected},ImportDuplicatePolicy.Reject,Guid.NewGuid()));
+        await Assert.ThrowsAnyAsync<Exception>(() => db.InsertYieldCurveRatesAsync(MarketDataImportBatch.YieldCurves(new[] {rejected}, ImportDuplicatePolicy.Reject, Guid.NewGuid())));
         Assert.Null(await db.GetYieldCurveRateAsync(rejected.ValueDate));
         await using var verify = new NpgsqlCommand("SELECT (SELECT count(*) FROM market_data.yield_curve_rates WHERE valueDate=@date)+(SELECT count(*) FROM market_data.market_data_import_ownership WHERE dataset='treasury-curve' AND logicalKey=@key);",connection);
         verify.Parameters.AddWithValue("date",rejected.ValueDate);

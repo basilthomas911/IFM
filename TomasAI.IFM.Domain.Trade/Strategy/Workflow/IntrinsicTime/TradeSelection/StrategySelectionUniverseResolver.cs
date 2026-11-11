@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.Strategy.StrategyCatalog;
 using TomasAI.IFM.Application.Storage.ConfigurationDb;
 using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.TradeSelection;
@@ -6,7 +7,7 @@ using static TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pip
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection;
 /// <summary>Freezes the portfolio-neutral catalog universe selected by a workflow activation.</summary>
-public sealed class StrategySelectionUniverseResolver(IConfigurationDbContext configuration)
+public sealed class StrategySelectionUniverseResolver(IConfigurationDbContext configuration, IStrategyDeploymentReader deployments)
 {
     public async Task<TradeSelectionBinding> ResolveAsync(TradeSelectionActivation activation, Guid workflowId, long workflowRevision, Guid correlationId, DateTime frozenAtUtc, DateTime workflowExpiresAtUtc, DateOnly tradeDate, CancellationToken cancellationToken = default)
     {
@@ -28,7 +29,7 @@ public sealed class StrategySelectionUniverseResolver(IConfigurationDbContext co
         {
             cancellationToken.ThrowIfCancellationRequested();
             var key = deploymentKeys[deploymentIndex];
-            var graph = await configuration.GetPublishedStrategyDeploymentAsync(key, frozenAtUtc, cancellationToken).ConfigureAwait(false);
+            var graph = await deployments.ReadPublishedAsync(configuration, key, frozenAtUtc, cancellationToken).ConfigureAwait(false);
             foreach (var source in graph.Definitions)
             {
                 var node = SelectionCatalogTransport.From(source);

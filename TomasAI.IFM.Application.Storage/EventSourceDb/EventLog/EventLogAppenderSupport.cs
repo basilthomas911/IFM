@@ -16,21 +16,14 @@ internal static class EventLogAppenderSupport
         EventLogMessagePackCodec codec,
         EventLogPersistenceOptions options)
     {
-        ArgumentNullException.ThrowIfNull(request);
-        ArgumentException.ThrowIfNullOrWhiteSpace(request.EventStream, nameof(request));
-        if (request.EventStreamId <= 0) throw new ArgumentOutOfRangeException(nameof(request));
-        if (request.CommandId == Guid.Empty) throw new ArgumentException("Command ID is required.", nameof(request));
         if (request.Events is null || request.Events.Count == 0) throw new ArgumentException("At least one event is required.", nameof(request));
         if (request.Events.Count > options.MaximumEventsPerCommand) throw new ArgumentException("Event command exceeds its configured event limit.", nameof(request));
-        if (request.ExpectedStreamVersion is < 0) throw new ArgumentOutOfRangeException(nameof(request));
 
         var prepared = new PreparedEventLogEntry[request.Events.Count];
         var totalBytes = 0;
         for (var index = 0; index < request.Events.Count; index++)
         {
             var item = request.Events[index] ?? throw new ArgumentException("Event entry cannot be null.", nameof(request));
-            if (item.EventNameId <= 0) throw new ArgumentOutOfRangeException(nameof(request));
-            ArgumentNullException.ThrowIfNull(item.DomainEvent, nameof(request));
             var payload = codec.Serialize(item.DomainEvent);
             if (payload.Length == 0 || payload.Length > options.MaximumEventPayloadBytes)
                 throw new ArgumentException("Event payload is outside its configured size limit.", nameof(request));
@@ -39,13 +32,7 @@ internal static class EventLogAppenderSupport
                 throw new ArgumentException("Event command exceeds its configured payload limit.", nameof(request));
             DurableProjectionRequirement? projection = null;
             if (item.DomainEvent is IRequireDurableProjection { RequiresDurableProjection: true } required)
-            {
                 projection = required.RequiredProjection;
-                ArgumentException.ThrowIfNullOrWhiteSpace(projection.ActorName, nameof(request));
-                ArgumentException.ThrowIfNullOrWhiteSpace(projection.ProjectorName, nameof(request));
-                if (projection.InitialStage is not (EventProjectorStageType.PublishProcessingEvent or EventProjectorStageType.ApplyProjection))
-                    throw new ArgumentException("Invalid initial durable projection stage.", nameof(request));
-            }
             prepared[index] = new PreparedEventLogEntry(item.EventNameId, item.DomainEvent, payload, projection,
                 TomasAI.IFM.Shared.EventModelActor.MessageOriginJson.Serialize(
                     TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Get(item.DomainEvent)));

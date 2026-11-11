@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Portfolio.Projection;
 using TomasAI.IFM.Application.Storage.EventSourceDb.Diagnostics;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.PortfolioDb;
@@ -89,7 +90,7 @@ public sealed class PortfolioAuthorityFence(IPostgresEventTransaction transactio
                 [portfolioId, terminal.OrderId], ct)).ConfigureAwait(false);
             Require(live is null, FinancialReasons.InvalidLifecycle, "Capacity remains reserved or consumed; terminal Fund synchronization awaits reconciliation.");
         }
-        await (db.AppendAsync(stream, domainEvent.CommandId, domainEvent, expectedRevision, ct)).ConfigureAwait(false);
+        await (db.AppendAsync(new EnlistedEventAppend(stream, domainEvent.CommandId, domainEvent, expectedRevision), ct)).ConfigureAwait(false);
         if (operation.Checkpoint is { } checkpoint)
             await db.AppendAggregateCheckpointAsync(stream, $"{stream}.Snapshot", checked(expectedRevision + 1), checkpoint, ct)
                 .ConfigureAwait(false);
@@ -120,7 +121,7 @@ public sealed class PortfolioAuthorityFence(IPostgresEventTransaction transactio
             AuthorityEpoch=value.Epoch,OperatingState=value.State,MigrationState=migration };
         var authorityStream=$"FinancialAuthoritySnapshot.{portfolioId}";
         var version=Convert.ToInt64(await (db.ScalarAsync(PortfolioDbSql.Financial.PortfolioDbFinancialSupport.Select05,[authorityStream],ct)).ConfigureAwait(false) ?? 0L,System.Globalization.CultureInfo.InvariantCulture);
-        await (db.AppendAsync(authorityStream,domainEvent.CommandId,snapshot,version,ct)).ConfigureAwait(false);
+        await (db.AppendAsync(new EnlistedEventAppend(authorityStream,domainEvent.CommandId,snapshot,version),ct)).ConfigureAwait(false);
         await (db.ExecuteAsync(PortfolioDbSql.Financial.LedgerFinancialProjection.InsertCheckpoint,
             [snapshot.Id,portfolioId,snapshot.EventId,snapshot.FinancialRevision],ct)).ConfigureAwait(false);
         return true;
@@ -133,7 +134,7 @@ public sealed class PortfolioAuthorityFence(IPostgresEventTransaction transactio
             TomasAI.IFM.Domain.Portfolio.Shared.FinancialPolicy.Events.IPortfolioFinancialPolicyDomainEvent policy => policy.ProjectionFacts,
             _ => null };
         if (projectionFacts is not null)
-            await PortfolioDbContextExtensions.PersistAcceptedPortfolioAsync(db,domainEvent,projectionFacts,ct).ConfigureAwait(false);
+            await AcceptedPortfolioProjection.PersistAcceptedPortfolioAsync(db,domainEvent,projectionFacts,ct).ConfigureAwait(false);
         else
             await PortfolioDbContextExtensions.ProjectFundRiskAuthorizationAsync(db, domainEvent, ct).ConfigureAwait(false);
     }

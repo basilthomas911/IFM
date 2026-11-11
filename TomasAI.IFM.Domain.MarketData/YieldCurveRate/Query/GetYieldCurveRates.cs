@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Shared.QueryParameters;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -19,7 +20,7 @@ public static class GetYieldCurveRates
             ArgumentNullException.ThrowIfNull(dbFactory);
             ArgumentNullException.ThrowIfNull(q);
             return [.. await dbFactory.MarketDataDb
-                    .GetYieldCurveRatesAsync(q.StartDate, q.EndDate, cancellationToken)
+                    .GetYieldCurveRatesAsync(new YieldCurveReadRange(q.StartDate, q.EndDate), cancellationToken)
                     .ConfigureAwait(false)];
         }
     }

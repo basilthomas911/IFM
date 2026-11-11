@@ -18,16 +18,20 @@ public sealed class ReferenceQueryContext :
         IActorSupervisor supervisor,
         IDbContextFactory dbFactory,
         ILogger<ReferenceQueryActor> logger,
-        TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi? marketDataApi = null)
+        TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi? marketDataApi = null,
+        TomasAI.IFM.Domain.Reference.StrategyCatalog.StrategyCatalogService? catalog = null)
         : base(supervisor, new ActorMailboxId(ActorType.Query, ReferenceQueryActor.ActorName))
     {
         DbFactory = IsArgumentNull.Set(dbFactory);
         Logger = IsArgumentNull.Set(logger);
         MarketDataApi = marketDataApi;
+        Catalog = catalog;
     }
     /// <inheritdoc/>
     public IDbContextFactory DbFactory { get; }
     /// <inheritdoc/>
     public ILogger<ReferenceQueryActor> Logger { get; }
+    /// <inheritdoc/>
+    public TomasAI.IFM.Domain.Reference.StrategyCatalog.StrategyCatalogService? Catalog { get; }
     public TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi? MarketDataApi { get; }
 }

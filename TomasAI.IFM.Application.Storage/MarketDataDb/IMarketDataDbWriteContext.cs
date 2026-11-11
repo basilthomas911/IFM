@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.HistoricalDataLoader;
 using TomasAI.IFM.Application.MarketData.Contracts.Historical;
 
@@ -19,8 +20,56 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility;
 
 namespace TomasAI.IFM.Application.Storage.MarketDataDb;
 
-public interface IMarketDataDbWriteContext
+/// <summary>Persists accepted Market Data projections and immutable evidence.</summary>
+public interface IMarketDataDbWriteContext : IOptionTradeEvidenceWriter,
+    TomasAI.IFM.Application.MarketData.Contracts.IStrategyOptionChainParameterWriteStore
 {
+    /// <summary>Applies the canonical index statements and returns the resulting physical inventory.</summary>
+    /// <param name="transaction">The existing PostgreSQL maintenance transaction.</param>
+    /// <param name="token">Cancels the database operation.</param>
+    /// <returns>The indexed row identities.</returns>
+    Task<IReadOnlyList<MarketDataProjectionInventoryRow>> RefreshCanonicalQueryIndexRowsAsync(IEnlistedPostgresTransaction transaction, CancellationToken token);
+
+    /// <summary>Reads index readiness under the supplied transaction.</summary>
+    /// <param name="transaction">The existing PostgreSQL maintenance transaction.</param>
+    /// <param name="token">Cancels the database operation.</param>
+    /// <returns>The physical readiness flags.</returns>
+    Task<MarketDataProjectionReadinessReadModel> ReadCanonicalQueryReadinessAsync(IEnlistedPostgresTransaction transaction, CancellationToken token);
+
+    /// <summary>Refreshes the Treasury date and year lookups.</summary>
+    /// <param name="transaction">The existing PostgreSQL maintenance transaction.</param>
+    /// <param name="token">Cancels the database operation.</param>
+    /// <returns>The canonical and copied row sets for owner verification.</returns>
+    Task<YieldCurveLookupInventory> RefreshYieldCurveLookupRowsAsync(IEnlistedPostgresTransaction transaction, CancellationToken token);
+
+    /// <summary>Locks and reads raw trade signal rows for owner qualification.</summary>
+    /// <param name="transaction">The existing PostgreSQL maintenance transaction.</param>
+    /// <param name="token">Cancels the database operation.</param>
+    /// <returns>The unmodified stored signal payloads.</returns>
+    Task<IReadOnlyList<string>> ReadLockedTradeSignalPayloadsAsync(IEnlistedPostgresTransaction transaction, CancellationToken token);
+
+    /// <summary>Writes a prepared quarantine row without deleting the source.</summary>
+    /// <param name="transaction">The existing PostgreSQL maintenance transaction.</param>
+    /// <param name="row">The owner-qualified malformed signal and its identity.</param>
+    /// <param name="token">Cancels the database operation.</param>
+    /// <returns>Completion of the idempotent write.</returns>
+    Task StoreTradeSignalQuarantineRowAsync(IEnlistedPostgresTransaction transaction, FuturesTradeSignalQuarantineRow row, CancellationToken token);
+
+    /// <summary>Replaces the derived lookup rows with the supplied exact winners.</summary>
+    /// <param name="transaction">The existing PostgreSQL maintenance transaction.</param>
+    /// <param name="rows">The owner-prepared lookup rows.</param>
+    /// <param name="token">Cancels the database operation.</param>
+    /// <returns>Completion of the atomic replacement.</returns>
+    Task ReplaceTradeSignalLookupRowsAsync(IEnlistedPostgresTransaction transaction, IReadOnlyList<FuturesTradeSignalLookupRow> rows, CancellationToken token);
+
+    /// <summary>Atomically retains independently qualified seed intervals for the same contract, date and timeframe.</summary>
+    /// <param name="sourceVersion">The source version supplied by the caller.</param>
+    /// <param name="bars">The bars supplied by the caller.</param>
+    /// <param name="cancellationToken">Cancels the database operation.</param>
+    /// <returns>Completion of the database operation.</returns>
+    Task StoreQualifiedIndicatorSeedBarsAsync(string sourceVersion, FuturesTradeSessionBarReadModel[] bars, CancellationToken cancellationToken);
+
+
     /// <summary>Materializes a committed download outcome on the caller-owned source-event transaction.</summary>
     /// <param name="transaction">The transaction used by this operation.</param>
     /// <param name="outcome">The outcome used by this operation.</param>
@@ -30,12 +79,6 @@ public interface IMarketDataDbWriteContext
     /// <returns>The completion of the persistence operation.</returns>
     Task ProjectDownloadLogAsync(TomasAI.IFM.Application.Storage.EventSourceDb.IEnlistedPostgresTransaction transaction,
         MarketDataDownloadOutcome outcome, Guid logCommandId, string payloadSha256, CancellationToken cancellationToken = default);
-
-    /// <summary>Preserves every buffered history row and coalesces current EOD snapshots.</summary>
-    /// <summary>Allocates stable retry IDs before the history outbox is submitted to storage.</summary>
-    /// <param name="rows">The rows used by this operation.</param>
-    /// <returns>The completion of the persistence operation.</returns>
-    Task PrepareRealtimeFuturesEodBatchAsync(IReadOnlyList<BufferedFuturesEodRow> rows);
 
     /// <summary>Persist Realtime Futures Eod Batch using the MarketDataDb persistence.</summary>
     /// <param name="rows">The rows used by this operation.</param>
@@ -57,7 +100,7 @@ public interface IMarketDataDbWriteContext
     /// <param name="evidence">The evidence used by this operation.</param>
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
     /// <returns>The completion of the persistence operation.</returns>
-    ValueTask WriteAsync(
+    new ValueTask WriteAsync(
         OptionTradeEvidence evidence,
         CancellationToken cancellationToken);
     /// <summary>Try Write Observation using the MarketDataDb persistence.</summary>
@@ -117,19 +160,10 @@ public interface IMarketDataDbWriteContext
     /// <param name="economicCalendar">The economic calendar used by this operation.</param>
     /// <returns>The completion of the persistence operation.</returns>
     Task InsertEconomicCalendarAsync(EconomicCalendarReadModel economicCalendar);
-    /// <summary>Insert Economic Calendars using the MarketDataDb persistence.</summary>
-    /// <param name="economicCalendars">The economic calendars used by this operation.</param>
-    /// <returns>The completion of the persistence operation.</returns>
-    Task InsertEconomicCalendarsAsync(EconomicCalendarReadModel[] economicCalendars);
-    /// <summary>Insert Economic Calendars using the MarketDataDb persistence.</summary>
-    /// <param name="economicCalendars">The economic calendars used by this operation.</param>
-    /// <param name="duplicatePolicy">The duplicate policy used by this operation.</param>
-    /// <param name="commandId">The originating command identifier.</param>
-    /// <returns>The completion of the persistence operation.</returns>
-    Task InsertEconomicCalendarsAsync(
-        EconomicCalendarReadModel[] economicCalendars,
-        ImportDuplicatePolicy duplicatePolicy,
-        Guid commandId);
+    /// <summary>Persists a caller-qualified batch of EconomicCalendarReadModel rows.</summary>
+    /// <param name="batch">The accepted rows, duplicate policy and source command identity.</param>
+    /// <returns>Completion of the persistence operation.</returns>
+    Task InsertEconomicCalendarsAsync(MarketDataImportBatch<EconomicCalendarReadModel> batch);
     /// <summary>Update Economic Calendar using the MarketDataDb persistence.</summary>
     /// <param name="id">The id used by this operation.</param>
     /// <param name="economicCalendar">The economic calendar used by this operation.</param>
@@ -143,34 +177,6 @@ public interface IMarketDataDbWriteContext
     /// <param name="e">The e used by this operation.</param>
     /// <returns>The completion of the persistence operation.</returns>
     Task InsertTickQuoteDataAsync(FuturesTickQuoteDataInsertedEvent e);
-    /// <summary>Rebuilds PostgreSQL canonical query indexes in one transaction without copying source rows.</summary>
-    /// <param name="batchSize">The maximum number of records to return or claim.</param>
-    /// <param name="cancellationToken">The token used to cancel the operation.</param>
-    /// <param name="staleOperationCutoffUtc">Compatibility argument, validated when supplied; PostgreSQL transactions replace Scylla operation journals.</param>
-    /// <returns>The typed result of the market-data query or mutation.</returns>
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1068", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
-    Task<MarketDataProjectionBackfillReadModel> BackfillQueryProjectionsV2Async(
-        int batchSize = 256,
-        CancellationToken cancellationToken = default,
-        DateTime? staleOperationCutoffUtc = null)
-        => throw new NotSupportedException();
-    /// <summary>Backfill Fmp Query Projections using the MarketDataDb persistence.</summary>
-    /// <param name="batchSize">The maximum number of records to return or claim.</param>
-    /// <param name="cancellationToken">The token used to cancel the operation.</param>
-    /// <returns>The typed result of the market-data query or mutation.</returns>
-    Task<FmpQueryProjectionBackfillReadModel> BackfillFmpQueryProjectionsAsync(
-        int batchSize = 256,
-        CancellationToken cancellationToken = default)
-        => throw new NotSupportedException();
-    /// <summary>Repair Futures Trade Signal Lookup using the MarketDataDb persistence.</summary>
-    /// <param name="batchSize">The maximum number of records to return or claim.</param>
-    /// <param name="cancellationToken">The token used to cancel the operation.</param>
-    /// <returns>The typed result of the market-data query or mutation.</returns>
-    Task<FuturesTradeSignalRepairReadModel> RepairFuturesTradeSignalLookupAsync(
-        int batchSize = 256,
-        CancellationToken cancellationToken = default)
-        => throw new NotSupportedException();
-
     /// <summary>Delete Futures Bar Data using the MarketDataDb persistence.</summary>
     /// <param name="e">The e used by this operation.</param>
     /// <returns>The completion of the persistence operation.</returns>
@@ -350,14 +356,6 @@ public interface IMarketDataDbWriteContext
     /// <returns>The completion of the persistence operation.</returns>
     Task UpsertMarketOutlookSnapshotAsync(MarketOutlookReadModel snapshot, long revision = 0,
         CancellationToken cancellationToken = default);
-    /// <summary>Insert Futures Trade Signals using the MarketDataDb persistence.</summary>
-    /// <param name="futuresTradeSignals">The futures trade signals used by this operation.</param>
-    /// <returns>The completion of the persistence operation.</returns>
-    Task InsertFuturesTradeSignalsAsync(ICollection<FuturesTradeSignalV2ReadModel> futuresTradeSignals);
-    /// <summary>Insert Futures Trade Signals using the MarketDataDb persistence.</summary>
-    /// <param name="futuresTradeSignals">The futures trade signals used by this operation.</param>
-    /// <returns>The typed result of the market-data query or mutation.</returns>
-    Task<long> InsertFuturesTradeSignalsAsync(IEnumerable<FuturesTradeSignalV2ReadModel> futuresTradeSignals);
     /// <summary>Insert Rate Of Return using the MarketDataDb persistence.</summary>
     /// <param name="e">The e used by this operation.</param>
     /// <returns>The completion of the persistence operation.</returns>
@@ -366,19 +364,10 @@ public interface IMarketDataDbWriteContext
     /// <param name="e">The e used by this operation.</param>
     /// <returns>The completion of the persistence operation.</returns>
     Task InsertYieldCurveRateAsync(YieldCurveRateReadModel e);
-    /// <summary>Insert Yield Curve Rates using the MarketDataDb persistence.</summary>
-    /// <param name="e">The e used by this operation.</param>
-    /// <returns>The completion of the persistence operation.</returns>
-    Task InsertYieldCurveRatesAsync(YieldCurveRateReadModel[] e);
-    /// <summary>Insert Yield Curve Rates using the MarketDataDb persistence.</summary>
-    /// <param name="e">The e used by this operation.</param>
-    /// <param name="duplicatePolicy">The duplicate policy used by this operation.</param>
-    /// <param name="commandId">The originating command identifier.</param>
-    /// <returns>The completion of the persistence operation.</returns>
-    Task InsertYieldCurveRatesAsync(
-        YieldCurveRateReadModel[] e,
-        ImportDuplicatePolicy duplicatePolicy,
-        Guid commandId);
+    /// <summary>Persists a caller-qualified batch of YieldCurveRateReadModel rows.</summary>
+    /// <param name="batch">The accepted rows, duplicate policy and source command identity.</param>
+    /// <returns>Completion of the persistence operation.</returns>
+    Task InsertYieldCurveRatesAsync(MarketDataImportBatch<YieldCurveRateReadModel> batch);
     /// <summary>Insert Market Holiday using the MarketDataDb persistence.</summary>
     /// <param name="e">The e used by this operation.</param>
     /// <returns>The completion of the persistence operation.</returns>
@@ -390,32 +379,37 @@ public interface IMarketDataDbWriteContext
 
     /// <summary>Insert Futures Eod Data using the MarketDataDb persistence.</summary>
     /// <param name="e">The e used by this operation.</param>
+    /// <param name="historySequenceId">The history identity assigned by the producer.</param>
     /// <returns>The completion of the persistence operation.</returns>
-    Task InsertFuturesEodDataAsync(FuturesEodDataV2ReadModel e);
-    /// <summary>Insert Futures Eod Data using the MarketDataDb persistence.</summary>
-    /// <param name="futuresEodData">The futures eod data used by this operation.</param>
-    /// <returns>The completion of the persistence operation.</returns>
-    Task InsertFuturesEodDataAsync(ICollection<FuturesEodDataV2ReadModel> futuresEodData);
-    /// <summary>Insert Futures Eod Data using the MarketDataDb persistence.</summary>
-    /// <param name="futuresEodData">The futures eod data used by this operation.</param>
-    /// <returns>The typed result of the market-data query or mutation.</returns>
-    Task<long> InsertFuturesEodDataAsync(IEnumerable<FuturesEodDataV2ReadModel> futuresEodData);
+    Task InsertFuturesEodDataAsync(FuturesEodDataV2ReadModel e, long historySequenceId);
+    /// <summary>Persists the caller-qualified batch of current futures EOD snapshots.</summary>
+    /// <param name="batch">The batch with unique canonical EOD keys.</param>
+    /// <returns>Completion of the persistence operation.</returns>
+    Task InsertFuturesEodDataAsync(FuturesEodBatch batch);
     /// <summary>Update Futures Eod Session Statistics using the MarketDataDb persistence.</summary>
     /// <param name="e">The e used by this operation.</param>
     /// <returns>The completion of the persistence operation.</returns>
     Task UpdateFuturesEodSessionStatisticsAsync(FuturesEodDataV2ReadModel e);
     /// <summary>Insert Vix Futures Eod Data using the MarketDataDb persistence.</summary>
-    /// <param name="e">The e used by this operation.</param>
-    /// <param name="sessionStatistics">The session statistics used by this operation.</param>
+    /// <param name="observation">The caller-qualified tick and optional statistics.</param>
     /// <returns>The completion of the persistence operation.</returns>
-    Task InsertVixFuturesEodDataAsync(
-        FuturesTickDataV2ReadModel e,
-        FuturesSessionStatisticsSnapshot? sessionStatistics = null);
+    Task InsertVixFuturesEodDataAsync(VixTickObservation observation);
     /// <summary>Atomically advances a historical-load checkpoint and inserts its immutable manifest.</summary>
     /// <param name="state">The supplied load state.</param>
     /// <param name="cancellationToken">Cancels the write.</param>
     /// <returns>Completion of persistence.</returns>
-    Task SaveHistoricalDataLoadAsync(HistoricalDataLoaderState state, CancellationToken cancellationToken = default);
+    /// <param name="diagnostics">The diagnostics supplied by the caller.</param>
+    Task SaveHistoricalDataLoadAsync(HistoricalDataLoaderState state, FuturesAnalyticsHistoricalDataLoaderDiagnosticsReadModel diagnostics, CancellationToken cancellationToken = default);
+
+    /// <summary>Inserts prepared diagnostics for a legacy checkpoint if no progress has been projected.</summary>
+    /// <param name="diagnostics">The legacy checkpoint projected by its owner.</param>
+    /// <param name="cancellationToken">Cancels the write.</param>
+    /// <returns>Completion of the idempotent insert.</returns>
+    Task BackfillHistoricalAnalyticsProgressAsync(FuturesAnalyticsHistoricalDataLoaderDiagnosticsReadModel diagnostics, CancellationToken cancellationToken);
     /// <summary>Writes the committed Analytics attempt projection.</summary>
+    /// <param name="diagnostics">The diagnostics supplied by the caller.</param>
+    /// <param name="eventId">The event id supplied by the caller.</param>
+    /// <param name="cancellationToken">Cancels the database operation.</param>
+    /// <returns>Completion of the database operation.</returns>
     Task UpsertHistoricalAnalyticsAttemptProjectionAsync(FuturesAnalyticsHistoricalDataLoaderDiagnosticsReadModel diagnostics, long eventId, CancellationToken cancellationToken = default);
 }

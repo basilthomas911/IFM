@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Application.Storage.IntegrationTests.TradePlanDb;
 using TomasAI.IFM.Domain.Trade.Order.Broker.Query;
 using TomasAI.IFM.Domain.Trade.Order.Broker.Query.Actor;
@@ -57,7 +58,7 @@ public sealed class PostgresBrokerOrderProjectionTests(PostgresTradePlanFixture 
                     AggregateId = id.Format(), ReceivedOn = DateTime.UtcNow,
                     BrokerOrderDefinition = new() { Id = id, Status = statuses[index], Revision = 1 }
                 };
-                await transaction.AppendAsync($"BrokerOrder.{id.Format()}", commandId, snapshot, index, token);
+                await transaction.AppendAsync(new EnlistedEventAppend($"BrokerOrder.{id.Format()}", commandId, snapshot, index), token);
             }
             return true;
         });

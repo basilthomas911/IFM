@@ -114,17 +114,16 @@ public sealed class EnlistedEventTransaction : IEnlistedPostgresTransaction
     public async Task<bool> AppendAggregateCheckpointAsync(string stream, string sidecar, long sourceRevision,
         IEvent snapshot, CancellationToken cancellationToken)
     {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(sourceRevision);
         var head = await ScalarAsync(EventSourceDbSql.LockAggregateCheckpointSource, [stream], cancellationToken)
             .ConfigureAwait(false);
-        if (head is not long committed || sourceRevision > committed)
+        if (head is not long committed || sourceRevision <= 0 || sourceRevision > committed)
             throw new InvalidOperationException("A checkpoint must identify a committed source revision.");
         if (await ScalarAsync(EventSourceDbSql.ReadAggregateCheckpointVersion, [stream, sourceRevision], cancellationToken)
             .ConfigureAwait(false) is not null)
             return false;
         var current = await ScalarAsync(EventSourceDbSql.ReadAggregateCheckpointHead, [sidecar], cancellationToken)
             .ConfigureAwait(false);
-        var checkpoint = await AppendAsync(sidecar, snapshot.CommandId, snapshot, current is long version ? version : 0,
+        var checkpoint = await AppendAsync(new EnlistedEventAppend(sidecar, snapshot.CommandId, snapshot, current is long version ? version : 0),
             cancellationToken)
             .ConfigureAwait(false);
         await ExecuteAsync(EventSourceDbSql.RegisterAggregateCheckpoint, [stream, sourceRevision, checkpoint], cancellationToken)
@@ -132,48 +131,42 @@ public sealed class EnlistedEventTransaction : IEnlistedPostgresTransaction
         return true;
     }
 
-    /// <summary>Appends to the existing event schema using its optimistic stream version and standard serialization.</summary>
-    /// <summary>Reserves the original command audit on this transaction, preserving existing payload-conflict and duplicate checks.</summary>
-    public async Task ReserveCommandAsync(ICommand command, CancellationToken cancellationToken = default)
+    /// <summary>Reserves a prepared audit envelope under the transaction and returns its technical receipt.</summary>
+    public async Task<CommandAudit.CommandAuditReservationOutcome> ReserveCommandAuditAsync(
+        CommandAudit.CommandAuditEnvelope envelope, CancellationToken cancellationToken = default)
     {
         RequireActive();
-        await ConfigureTimeoutAsync(null, cancellationToken)
+        await ConfigureTimeoutAsync(null, cancellationToken).ConfigureAwait(false);
+        var results = await CommandAudit.CommandAuditPostgres.ReserveAsync(connection, transaction, [envelope], cancellationToken)
             .ConfigureAwait(false);
-        var envelope=CommandAudit.CommandAuditEnvelope.Create(command,new CommandAudit.CommandAuditMessagePackCodec(), businessClock);
-        var results=await CommandAudit.CommandAuditPostgres.ReserveAsync(connection,transaction,[envelope],cancellationToken)
-            .ConfigureAwait(false);
-        if(results[0].PayloadConflict) throw new CommandAudit.CommandAuditPayloadConflictException(command.CommandId);
-        if (!results[0].Accepted)
-        {
-            if (command is IRecoverableCommandAudit)
-            {
-                // ReserveAsync already verified the exact retry payload. Serialize orphan recovery
-                // against another recovery attempt; committed events always remain duplicates.
-                await ScalarAsync("SELECT commandid FROM command_log WHERE commandid=$1 FOR UPDATE;", [command.CommandId], cancellationToken)
-            .ConfigureAwait(false);
-                var committed = await ScalarAsync("SELECT EXISTS(SELECT 1 FROM event_log WHERE commandid=$1);", [command.CommandId], cancellationToken)
-            .ConfigureAwait(false);
-                if (committed is false) return;
-            }
-            // An audit reservation alone is not proof of execution: old writers may have
-            // committed it separately. Only matching source facts can acknowledge a retry.
-            var hasCommittedEvents = await ScalarAsync(
-                "SELECT EXISTS(SELECT 1 FROM event_log l JOIN event_stream_id s ON l.eventstreamid=s.eventstreamid WHERE l.commandid=$1 AND s.eventstream=$2);",
-                [command.CommandId, command.StreamId], cancellationToken)
-            .ConfigureAwait(false);
-            throw new CommandAudit.CommandAuditDuplicateException(command.CommandId, hasCommittedEvents is true);
-        }
+        var result = results[0];
+        return result.PayloadConflict ? CommandAudit.CommandAuditReservationOutcome.PayloadConflict
+            : result.Accepted ? CommandAudit.CommandAuditReservationOutcome.Accepted
+            : CommandAudit.CommandAuditReservationOutcome.Existing;
     }
 
-    public async Task<long> AppendAsync(string stream, Guid commandId, IEvent domainEvent,
-        long expectedStreamVersion, CancellationToken cancellationToken)
+    /// <summary>Locks the existing command audit row and checks whether any event committed for that command.</summary>
+    public async Task<bool> HasCommittedAuditEventsUnderLockAsync(Guid commandId, CancellationToken cancellationToken)
+    {
+        _ = await ScalarAsync(EventSourceDbSql.EnlistedEventTransaction_ReserveCommandAsync_1, [commandId], cancellationToken)
+            .ConfigureAwait(false);
+        return await ScalarAsync(EventSourceDbSql.EnlistedEventTransaction_ReserveCommandAsync_2, [commandId], cancellationToken)
+            .ConfigureAwait(false) is true;
+    }
+
+    /// <summary>Checks for an event from this command on the requested stream.</summary>
+    public async Task<bool> HasCommittedCommandEventsAsync(Guid commandId, string streamId, CancellationToken cancellationToken)
+        => await ScalarAsync(EventSourceDbSql.EnlistedEventTransaction_ReserveCommandAsync_3, [commandId, streamId], cancellationToken)
+            .ConfigureAwait(false) is true;
+
+    /// <summary>Appends to the event stream using its optimistic version and standard serialization.</summary>
+    public async Task<long> AppendAsync(EnlistedEventAppend request, CancellationToken cancellationToken)
     {
         RequireActive();
         using var trace = FinancialTelemetry.ActivitySource.StartActivity("financial.event.append");
-        ArgumentException.ThrowIfNullOrWhiteSpace(stream);
-        ArgumentNullException.ThrowIfNull(domainEvent);
-        if (commandId == Guid.Empty || expectedStreamVersion < 0) throw new ArgumentException("Invalid event identity/version.",nameof(commandId));
-        var streamId = Convert.ToInt64(await ScalarAsync("SELECT eventstreamid FROM event_stream_id WHERE eventstream=$1;", [stream], cancellationToken)
+        var (stream, commandId, domainEvent, expectedStreamVersion) =
+            (request.Stream, request.CommandId, request.DomainEvent, request.ExpectedStreamVersion);
+        var streamId = Convert.ToInt64(await ScalarAsync(EventSourceDbSql.EnlistedEventTransaction_AppendAsync_1, [stream], cancellationToken)
             .ConfigureAwait(false)
             ?? await ScalarAsync(EventSourceDbSql.InsertEventStreamId, [stream], cancellationToken)
             .ConfigureAwait(false),System.Globalization.CultureInfo.InvariantCulture);
@@ -181,21 +174,19 @@ public sealed class EnlistedEventTransaction : IEnlistedPostgresTransaction
         var identity = EventWriteIdentityRegistry.Default.GetIdentity(type);
         // The existing upsert takes an UPDATE lock even when the registry row is unchanged.
         // Reading pre-registered metadata avoids serializing unrelated Portfolio transactions on an event name.
-        var nameId = (int)(await ScalarAsync("SELECT eventnameid FROM event_name_id WHERE eventname=$1 AND eventtypename=$2;",
-            [identity.EventName, identity.EventTypeName], cancellationToken)
+        var nameId = (int)(await ScalarAsync(EventSourceDbSql.EnlistedEventTransaction_AppendAsync_2, [identity.EventName, identity.EventTypeName], cancellationToken)
             .ConfigureAwait(false)
             ?? await ScalarAsync(EventSourceDbSql.InsertEventNameId, [identity.EventName, identity.EventTypeName], cancellationToken)
             .ConfigureAwait(false))!;
         using var serializeTrace = FinancialTelemetry.ActivitySource.StartActivity("financial.event.serialize");
         MessageOrigins.ForPublication(domainEvent, businessClock);
         var payloadBytes = eventLogCodec.Serialize(domainEvent);
-        var payload = BindValues.Bytea(payloadBytes);
         serializeTrace?.SetTag("event.payload.bytes", payloadBytes.Length);
         serializeTrace?.Stop();
         using var insertTrace = FinancialTelemetry.ActivitySource.StartActivity("financial.event.insert");
-        var eventId = await ScalarAsync(EventSourceDbSql.InsertEventLogExpectedVersion,
-            [streamId, nameId, payload, commandId, businessClock.GetUtcNow().UtcDateTime, expectedStreamVersion,
-                BindValues.Text(MessageOriginJson.Serialize(MessageOrigins.Get(domainEvent)))], cancellationToken)
+        var parameters = new InsertEventLogExpectedVersion(streamId, nameId, payloadBytes, commandId,
+            $"{businessClock.GetUtcNow().UtcDateTime:o}", expectedStreamVersion, MessageOriginJson.Serialize(MessageOrigins.Get(domainEvent)));
+        var eventId = await ScalarAsync(EventSourceDbSql.InsertEventLogExpectedVersion, (object?[])parameters.Bind(), cancellationToken)
             .ConfigureAwait(false);
         insertTrace?.Stop();
         if (eventId is not long id) throw new ConcurrencyException($"Event stream {stream} is not at expected version {expectedStreamVersion}.");
@@ -208,9 +199,7 @@ public sealed class EnlistedEventTransaction : IEnlistedPostgresTransaction
                 or TomasAI.IFM.Shared.EventProjector.EventProjectorStageType.ApplyProjection))
                 throw new ArgumentException("Invalid durable projection stage.", nameof(domainEvent));
             var now = DateTime.UtcNow;
-            var marker = await ScalarAsync(EventSourceDbSql.TryCreateEventProjectorExecutionState,
-                [id, rule.ActorName, rule.ProjectorName, false, 0, "Processing", rule.InitialStage.ToString(),
-                    string.Empty, $"{now:o}", $"{now:o}", now], cancellationToken)
+            var marker = await ScalarAsync(EventSourceDbSql.TryCreateEventProjectorExecutionState, [id, rule.ActorName, rule.ProjectorName, false, 0, "Processing", rule.InitialStage.ToString(), string.Empty, $"{now:o}", $"{now:o}", now], cancellationToken)
             .ConfigureAwait(false);
             if (marker is null) throw new InvalidOperationException("Required durable projection marker was not persisted.");
         }

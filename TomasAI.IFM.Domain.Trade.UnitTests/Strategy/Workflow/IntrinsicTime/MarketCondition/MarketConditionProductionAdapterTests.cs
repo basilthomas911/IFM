@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Shared.QueryParameters;
 using FluentAssertions;
 using NSubstitute;
 using TomasAI.IFM.Application.MarketData.Databento.Historical;
@@ -18,7 +19,7 @@ public sealed class MarketConditionProductionAdapterTests
     {
         var at = new DateTime(2026, 8, 28, 18, 0, 0, DateTimeKind.Utc);
         var db = Substitute.For<IMarketDataDbContext>();
-        db.GetEconomicCalendarsAsync(Arg.Any<DateTime>(), Arg.Any<DateTime>(), "US", Arg.Any<CancellationToken>())
+        db.GetEconomicCalendarsAsync(Arg.Is<EconomicCalendarDateRange>(range => range.CountryCode == "US"), Arg.Any<CancellationToken>())
             .Returns(new List<EconomicCalendarReadModel>
             {
                 new(at.AddMinutes(20), "US", "FOMC Rate Decision", null, null, null,
@@ -34,7 +35,7 @@ public sealed class MarketConditionProductionAdapterTests
         result.Status.Should().Be(MarketEventRiskStatus.Blocked);
         result.Category.Should().Be("RateDecision");
         result.EventId.Should().Contain("FOMC Rate Decision");
-        await db.Received(1).GetEconomicCalendarsAsync(Arg.Any<DateTime>(), Arg.Any<DateTime>(), "US",
+        await db.Received(1).GetEconomicCalendarsAsync(Arg.Is<EconomicCalendarDateRange>(range => range.CountryCode == "US"),
             Arg.Any<CancellationToken>());
     }
 

@@ -24,6 +24,8 @@ public static class GetFuturesTradePosition
         {
             ArgumentNullException.ThrowIfNull(context);
             ArgumentNullException.ThrowIfNull(query);
+            if (!query.PositionId.IsValid)
+                throw new ArgumentException("Valid position identity is required.", nameof(query));
             var position = await context.DbFactory.TradeDb.GetStrategyPositionAsync(query.PositionId, cancellationToken).ConfigureAwait(false);
             if (position?.StrategyKind != TradeStrategyKind.FuturesOutright)
                 position = null;

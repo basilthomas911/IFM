@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.EventSourcing;
 ﻿
 
 using System.Security.Cryptography;
@@ -47,8 +48,8 @@ public sealed class FinancialProjectionBaseline(IPostgresEventTransaction transa
             }
             var source=new FinancialProjectionBaselineEvent { Id=Guid.NewGuid(),CommandId=Guid.NewGuid(),ReceivedOn=db.BusinessTime.GetUtcNow().UtcDateTime,
                 SourceCut=cut,FinancialSchemaVersion=schema,Tables=images.ToArray(),SchemaVersion=includeComposition?4:3 };
-            await (db.AppendAsync("FinancialProjectionBaseline",source.CommandId,source,
-                Convert.ToInt64(await (db.ScalarAsync("SELECT COALESCE(max(e.streamversion),0) FROM event_log e JOIN event_stream_id s ON s.eventstreamid=e.eventstreamid WHERE s.eventstream=$1;",["FinancialProjectionBaseline"],ct)).ConfigureAwait(false),System.Globalization.CultureInfo.InvariantCulture),ct)).ConfigureAwait(false);
+            await (db.AppendAsync(new EnlistedEventAppend("FinancialProjectionBaseline",source.CommandId,source,
+                Convert.ToInt64(await (db.ScalarAsync("SELECT COALESCE(max(e.streamversion),0) FROM event_log e JOIN event_stream_id s ON s.eventstreamid=e.eventstreamid WHERE s.eventstream=$1;",["FinancialProjectionBaseline"],ct)).ConfigureAwait(false),System.Globalization.CultureInfo.InvariantCulture)),ct)).ConfigureAwait(false);
             await (FinancialOperationalEventPersistence.ClaimAsync(db,source,0,ct)).ConfigureAwait(false);
             return source;
         },token);

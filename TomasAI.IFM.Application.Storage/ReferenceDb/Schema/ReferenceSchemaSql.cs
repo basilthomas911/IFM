@@ -15,6 +15,16 @@ public static class ReferenceSchemaSql
                     PRIMARY KEY (snapshot_id,dataset,bucket,record_index)
         );
         
+        CREATE TABLE IF NOT EXISTS reference.product_description (
+            source text NOT NULL, exchange text NOT NULL, family int NOT NULL,
+            symbol text NOT NULL, contract text NOT NULL DEFAULT '', description text,
+            resolved boolean NOT NULL, source_uri text NOT NULL, source_sha256 text NOT NULL,
+            imported_utc timestamptz NOT NULL DEFAULT now(),
+            PRIMARY KEY(source,exchange,family,symbol,contract),
+            CHECK (family IN (1,2)), CHECK (length(source_sha256)=64),
+            CHECK (NOT resolved OR length(trim(description))>0)
+        );
+
         CREATE TABLE IF NOT EXISTS reference.instrument_definition_product (
         snapshot_id uuid, family int, symbol text, exchange text, currency text, symbol_id int,
                     PRIMARY KEY (snapshot_id,family,symbol,exchange,currency)

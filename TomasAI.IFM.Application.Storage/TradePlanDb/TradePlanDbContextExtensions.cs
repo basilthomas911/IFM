@@ -24,10 +24,7 @@ internal static class TradePlanDbContextExtensions
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the internal access contract.")]
     internal async Task ProjectMaterialAsyncCore(IEnlistedPostgresTransaction transaction, StrategyTradePlanSnapshot plan, CancellationToken token = default)
     {
-        ArgumentNullException.ThrowIfNull(plan);
         ArgumentNullException.ThrowIfNull(transaction);
-        plan.Position.Id.RequireTradePlanScope(plan.Position.StrategyKind, plan.ValueDate);
-        if (!plan.MaterialChange && plan.Position.StrategyKind != TradeStrategyKind.IronCondor) return;
         var id = plan.Position.Id.Trade;
         var table = "trade_plan." + plan.Position.StrategyKind.ToTradePlanTable();
         var payload = MessagePackBinarySerializer.Shared.Serialize(plan);
@@ -53,8 +50,6 @@ internal static class TradePlanDbContextExtensions
     internal async Task ProjectExitWorkflowAsyncCore(IEnlistedPostgresTransaction transaction, ExitPositionWorkflowProjection workflow, CancellationToken token = default)
     {
         ArgumentNullException.ThrowIfNull(transaction);
-        ArgumentNullException.ThrowIfNull(workflow);
-        workflow.RequireValidExitWorkflow();
         var id = workflow.WorkflowId.Position.Trade;
         var payload = MessagePackBinarySerializer.Shared.Serialize(workflow);
         object?[] values = [id.PortfolioId, id.FundId, id.OrderId, id.TradeId, workflow.WorkflowId.Position.PositionId, workflow.WorkflowId.ValueDate, workflow.UpdatedAtUtc, workflow.WorkflowId.ExitDecisionId, workflow.StageRevision, checked((short)workflow.StrategyKind), checked((short)workflow.State), workflow.SourcePlanEventId, payload];
@@ -75,29 +70,11 @@ internal static class TradePlanDbContextExtensions
     {
         var result = new Dictionary<DateOnly, decimal?>();
         if (dayEndsUtc.Count == 0) return result;
-        foreach (var day in dayEndsUtc)
-        {
-            position.RequireTradePlanScope(TradeStrategyKind.IronCondor, day.Key);
-            if (day.Value.Kind != DateTimeKind.Utc)
-                throw new ArgumentException("EOD chart boundaries must be UTC.", nameof(dayEndsUtc));
-        }
         var days = dayEndsUtc.OrderBy(day => day.Key).ToArray();
         await using var connection = new PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(context.ConnectionString);
         await connection.OpenAsync(token)
             .ConfigureAwait(false);
-        await using var command = new NpgsqlCommand("""
-            SELECT day.valueDate, observation.forwardSpread
-            FROM unnest($6::date[], $7::timestamptz[]) AS day(valueDate, endUtc)
-            CROSS JOIN LATERAL (
-                SELECT CASE WHEN calculationVersion = 'IronCondor/EntryCreditForwardPnl/v2'
-                    THEN -combinedForwardPrice ELSE combinedForwardPrice END AS forwardSpread
-                FROM trade_plan.iron_condor_trade_plan
-                WHERE portfolioId=$1 AND fundId=$2 AND orderId=$3 AND tradeId=$4 AND positionId=$5
-                    AND valueDate=day.valueDate AND calculatedAtUtc <= day.endUtc
-                ORDER BY calculatedAtUtc DESC, planRevision DESC
-                LIMIT 1
-            ) observation
-            """, connection);
+        await using var command = new NpgsqlCommand(TradePlanDbSql.TradePlanDbContextExtensions_ReadDailyForwardSpreadsAsync_1, connection);
         foreach (var value in new object[] { position.Trade.PortfolioId, position.Trade.FundId, position.Trade.OrderId,
             position.Trade.TradeId, position.PositionId })
             PostgresValueBinding.AddParameter(command, value);
@@ -114,23 +91,10 @@ internal static class TradePlanDbContextExtensions
     internal async Task<StrategyTradePlanChartSeries> ReadChartRangeAsync(StrategyPositionId position, DateOnly firstValueDate,
         DateOnly lastValueDate, DateTime startUtc, DateTime endUtc, CancellationToken token)
     {
-        position.RequireTradePlanScope(TradeStrategyKind.IronCondor, firstValueDate);
-        if (lastValueDate < firstValueDate || startUtc.Kind != DateTimeKind.Utc || endUtc.Kind != DateTimeKind.Utc
-            || endUtc < startUtc || endUtc - startUtc > TimeSpan.FromHours(25))
-            throw new ArgumentException("Chart history requires ordered trading dates and a UTC range of at most one trading session.");
         await using var connection = new PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(context.ConnectionString);
         await connection.OpenAsync(token)
             .ConfigureAwait(false);
-        await using var command = new NpgsqlCommand("""
-            SELECT DISTINCT ON (date_bin(interval '15 minutes',calculatedAtUtc,timestamptz '2000-01-01'))
-                calculatedAtUtc,combinedSpreadPrice,
-                CASE WHEN calculationVersion = 'IronCondor/EntryCreditForwardPnl/v2' THEN -combinedForwardPrice ELSE combinedForwardPrice END
-            FROM trade_plan.iron_condor_trade_plan
-            WHERE portfolioId=$1 AND fundId=$2 AND orderId=$3 AND tradeId=$4 AND positionId=$5
-                AND valueDate >= $6 AND valueDate <= $7 AND calculatedAtUtc >= $8 AND calculatedAtUtc <= $9
-                AND combinedSpreadPrice IS NOT NULL
-            ORDER BY date_bin(interval '15 minutes',calculatedAtUtc,timestamptz '2000-01-01'),calculatedAtUtc DESC,planRevision DESC
-            """, connection);
+        await using var command = new NpgsqlCommand(TradePlanDbSql.TradePlanDbContextExtensions_ReadChartRangeAsync_1, connection);
         foreach (var value in new object[] { position.Trade.PortfolioId,position.Trade.FundId,position.Trade.OrderId,
             position.Trade.TradeId,position.PositionId,firstValueDate,lastValueDate,startUtc,endUtc })
             PostgresValueBinding.AddParameter(command, value);
@@ -143,82 +107,20 @@ internal static class TradePlanDbContextExtensions
         return new(startUtc,endUtc,points.ToArray());
     }
 
-    internal async Task<StrategyTradePlanHistoryPage> ReadOffsetHistoryAsync(StrategyPositionId position, TradeStrategyKind strategy,
+    internal Task<ITradePlanOffsetReadSession> OpenOffsetHistoryCoreAsync(StrategyPositionId position, TradeStrategyKind strategy,
         DateOnly date, int offset, int size, long? maximumRevision, CancellationToken token)
     {
-        position.RequireTradePlanScope(strategy, date);
-        size.RequireTradePlanPageSize();
-        ArgumentOutOfRangeException.ThrowIfNegative(offset);
-        if (maximumRevision is < 0) throw new ArgumentOutOfRangeException(nameof(maximumRevision));
         var table = "trade_plan." + strategy.ToTradePlanTable();
-        var filter = TradePlanDbSql.PositionFilter + " AND ($7::bigint IS NULL OR planRevision <= $7)";
-        await using var connection = new PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(context.ConnectionString);
-        await connection.OpenAsync(token)
-            .ConfigureAwait(false);
-        await using var transaction = await connection.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead, token)
-            .ConfigureAwait(false);
-        object?[] scope = [position.Trade.PortfolioId, position.Trade.FundId, position.Trade.OrderId, position.Trade.TradeId, position.PositionId, date];
-        await using var count = new NpgsqlCommand($"SELECT count(*),coalesce(max(planRevision),0),max(calculatedAtUtc) FROM {table} WHERE {filter}", connection, transaction);
-        foreach (var value in scope) PostgresValueBinding.AddParameter(count, value);
-        PostgresValueBinding.AddParameter(count, TomasAI.IFM.Shared.Storage.BindValues.Bigint(maximumRevision));
-        long total, anchor;
-        DateTime? chartEnd;
-        await using (var reader = await count.ExecuteReaderAsync(token)
-            .ConfigureAwait(false))
-        {
-            await reader.ReadAsync(token)
-            .ConfigureAwait(false);
-            total = reader.GetInt64(0); anchor = maximumRevision ?? reader.GetInt64(1);
-            chartEnd = reader.IsDBNull(2) ? null : reader.GetDateTime(2);
-        }
-        await using var command = new NpgsqlCommand($"SELECT payload FROM {table} WHERE {filter} ORDER BY planRevision DESC OFFSET $8 LIMIT $9", connection, transaction);
-        foreach (var value in scope) PostgresValueBinding.AddParameter(command, value);
-        foreach (var value in new object[] { anchor, offset, size }) PostgresValueBinding.AddParameter(command, value);
-        var items = new List<StrategyTradePlanSnapshot>(size);
-        await using (var reader = await command.ExecuteReaderAsync(token)
-            .ConfigureAwait(false))
-            while (await reader.ReadAsync(token)
-            .ConfigureAwait(false))
-                items.Add(MessagePackBinarySerializer.Shared.Deserialize<StrategyTradePlanSnapshot>(reader.GetFieldValue<byte[]>(0)));
-        StrategyTradePlanChartPoint[] points = [];
-        if (offset == 0 && chartEnd is { } end)
-        {
-            // Cache for one minute at the resolved revision. A fresh live-start read must see new
-            // persisted plans immediately; pages pinned to an older revision retain that baseline.
-            var series = await TradePlanChartCache.ReadAsync(
-                (context.ConnectionString, position, strategy, date, anchor), async () =>
-            {
-                var samples = new List<StrategyTradePlanChartPoint>();
-                // Latest price-only sample per UTC minute (at most 361 buckets across six hours).
-                // No historical position/leg payload is fetched for the chart.
-                await using var chart = new NpgsqlCommand($"SELECT DISTINCT ON (date_bin(interval '1 minute',calculatedAtUtc,timestamptz '2000-01-01')) calculatedAtUtc,combinedSpreadPrice,CASE WHEN calculationVersion = 'IronCondor/EntryCreditForwardPnl/v2' THEN -combinedForwardPrice ELSE combinedForwardPrice END FROM {table} WHERE {filter} AND calculatedAtUtc >= $8 AND calculatedAtUtc <= $9 AND combinedSpreadPrice IS NOT NULL ORDER BY date_bin(interval '1 minute',calculatedAtUtc,timestamptz '2000-01-01'),calculatedAtUtc DESC,planRevision DESC", connection, transaction);
-                foreach (var value in scope) PostgresValueBinding.AddParameter(chart, value);
-                foreach (var value in new object[] { anchor, end.AddHours(-6), end }) PostgresValueBinding.AddParameter(chart, value);
-                await using var reader = await chart.ExecuteReaderAsync(token)
-            .ConfigureAwait(false);
-                while (await reader.ReadAsync(token)
-            .ConfigureAwait(false)) samples.Add(new(reader.GetDateTime(0),reader.GetDecimal(1)) { ForwardSpread = reader.IsDBNull(2) ? null : reader.GetDecimal(2) });
-                return new TradePlanChartCache.Series(end, samples.ToArray());
-            }, token)
-            .ConfigureAwait(false);
-            chartEnd = series.EndUtc;
-            points = series.Points;
-        }
-        await transaction.CommitAsync(token)
-            .ConfigureAwait(false);
-        return new(items.ToArray(), null) { Offset = offset, TotalCount = total, MaximumRevision = anchor,
-            ChartEndUtc = chartEnd, ChartPoints = points };
+        return PostgresTradePlanOffsetReadSession.OpenAsync(context.ConnectionString, table, position, date, offset, size, maximumRevision, token);
     }
 
     internal Task<QueryPage<StrategyTradePlanSnapshot>> GetHistoryAsyncCore(StrategyPositionId position, TradeStrategyKind strategy, DateOnly date, int size, byte[]? cursor = null, CancellationToken token = default)
     {
-        position.RequireTradePlanScope(strategy, date);
         return context.ReadPageAsync<StrategyTradePlanSnapshot>("trade_plan." + strategy.ToTradePlanTable(), TradePlanDbSql.PositionFilter, (object?[])new GetTradePlan(position.Trade.PortfolioId, position.Trade.FundId, position.Trade.OrderId, position.Trade.TradeId, position.PositionId, date).Bind(), TradePlanDbSql.PlanOrder, size, cursor, token);
     }
 
     internal Task<QueryPage<StrategyTradePlanSnapshot>> GetActivityAsyncCore(DateOnly date, int size, byte[]? cursor = null, CancellationToken token = default)
     {
-        date.RequireTradePlanValueDate();
         return context.ReadPageAsync<StrategyTradePlanSnapshot>("trade_plan.position_trade_plan_activity_by_date", "valueDate=$1", [date], TradePlanDbSql.ActivityOrder, size, cursor, token);
     }
 
@@ -231,20 +133,19 @@ internal static class TradePlanDbContextExtensions
 
     internal Task<QueryPage<ExitPositionWorkflowProjection>> GetExitWorkflowTimelineAsyncCore(StrategyPositionId position, DateOnly date, int size, byte[]? cursor = null, CancellationToken token = default)
     {
-        position.RequireValueDate(date);
         return context.ReadPageAsync<ExitPositionWorkflowProjection>("trade_plan.position_exit_workflow", TradePlanDbSql.PositionFilter, (object?[])new GetTradePlan(position.Trade.PortfolioId, position.Trade.FundId, position.Trade.OrderId, position.Trade.TradeId, position.PositionId, date).Bind(), TradePlanDbSql.WorkflowOrder, size, cursor, token);
     }
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2100", Justification = "This storage executor accepts application SQL from reviewed schema/query contracts; runtime values are sent as bound parameters rather than interpolated into SQL.")]
     async Task<QueryPage<T>> ReadPageAsync<T>(string table, string filter, object?[] scope, (string Name, string Type)[] order, int size, byte[]? cursor, CancellationToken token)
     {
-        size.RequireTradePlanPageSize();
         var scopeId = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(table + "|" + JsonSerializer.Serialize(scope))));
         var values = scope.ToList();
         if (cursor is not null)
         {
             var resume = JsonSerializer.Deserialize<TradePlanPageCursor>(cursor) ?? throw new ArgumentException("Invalid plan history cursor.", nameof(cursor));
-            if (!string.Equals(resume.Scope,scopeId,StringComparison.Ordinal) || resume.Keys.Length != order.Length) throw new ArgumentException("Plan history cursor belongs to a different query.", nameof(cursor));
+            if (!string.Equals(resume.Scope, scopeId, StringComparison.Ordinal) || resume.Keys.Length != order.Length)
+                throw new ArgumentException("Plan history cursor belongs to a different query.", nameof(cursor));
             var markers = new List<string>();
             for (var i = 0; i < order.Length; i++)
             {
@@ -284,9 +185,9 @@ internal static class TradePlanDbContextExtensions
         {
             ArgumentNullException.ThrowIfNull(transaction);
             await transaction.ExecuteAsync(TradePlanDbSql.LockExitWorkflowBaseline, [], token)
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
             var rows = await transaction.QueryAsync(TradePlanDbSql.ReadExitWorkflowBaseline, [], TradePlanDbContext.MapToExitWorkflow, token)
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
             return rows.ToArray();
         }
 
@@ -294,32 +195,22 @@ internal static class TradePlanDbContextExtensions
         internal PostgresEventTransaction StandaloneTransaction() => new(new DbConnectionSettings()
             .Add(EventSourceActorDbContext.EventSourceActorDbConnection, context.ConnectionString, "System.Data.Postgres"));
 
-        internal async Task ProjectMaterialAsyncCoreBinding(StrategyTradePlanSnapshot plan, CancellationToken cancellationToken = default)
-        {
-            ArgumentNullException.ThrowIfNull(plan);
-            try
+        internal Task ProjectMaterialAsyncCoreBinding(StrategyTradePlanSnapshot plan, CancellationToken cancellationToken = default) =>
+            context.StandaloneTransaction()
+            .ExecuteOnceAsync(async (transaction, token) =>
             {
-                await context.StandaloneTransaction().ExecuteOnceAsync(async (transaction, token) =>
-                {
-                    await context.ProjectMaterialAsyncCore(transaction, plan, token)
-                .ConfigureAwait(false);
-                    return true;
-                }, cancellationToken)
-                .ConfigureAwait(false);
-            }
-            catch (Exception exception)
-            {
-                StorageDiagnosticLog.PlanDropped(context.tradePlanLogger, exception, nameof(context.ProjectMaterialAsync), plan.Position.Id, plan.PlanRevision, plan.ValueDate);
-            }
-        }
+                await context.ProjectMaterialAsyncCore(transaction, plan, token)
+                    .ConfigureAwait(false);
+                return true;
+            }, cancellationToken);
 
         internal Task ProjectExitWorkflowAsyncCoreBinding(ExitPositionWorkflowProjection workflow, CancellationToken cancellationToken = default)
         {
-            ArgumentNullException.ThrowIfNull(workflow);
-            return context.StandaloneTransaction().ExecuteOnceAsync(async (transaction, token) =>
+            return context.StandaloneTransaction()
+            .ExecuteOnceAsync(async (transaction, token) =>
             {
                 await context.ProjectExitWorkflowAsyncCore(transaction, workflow, token)
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
                 return true;
             }, cancellationToken);
         }
@@ -344,84 +235,6 @@ internal static class TradePlanDbContextExtensions
         };
     }
 
-    extension(StrategyPositionId positionId)
-    {
-        /// <summary>
-        /// Requires a valid Trade Plan identity, supported strategy, and value date.
-        /// </summary>
-        /// <param name="strategy">The trade strategy.</param>
-        /// <param name="valueDate">The plan value date.</param>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2208", Justification = "The named argument is the declared C# 14 extension receiver; its name is part of the caller contract.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3928", Justification = "The named argument is the declared C# 14 extension receiver; its name is part of the caller contract.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal void RequireTradePlanScope(TradeStrategyKind strategy, DateOnly valueDate)
-        {
-            if (!positionId.IsValid
-                || valueDate == default
-                || strategy is not (
-                    TradeStrategyKind.IronCondor
-                    or TradeStrategyKind.VerticalSpread
-                    or TradeStrategyKind.FuturesOutright))
-            {
-                throw new ArgumentException(
-                    "Valid Trade Plan identity, strategy, and value date are required.",nameof(positionId));
-            }
-        }
-
-        /// <summary>
-        /// Requires a valid strategy-position identity and value date.
-        /// </summary>
-        /// <param name="valueDate">The plan or workflow value date.</param>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal void RequireValueDate(DateOnly valueDate)
-        {
-            if (!positionId.IsValid || valueDate == default)
-            {
-                throw new ArgumentException(                    "Valid strategy-position identity and value date are required.",nameof(valueDate));
-            }
-        }
-    }
-
-    extension(DateOnly valueDate)
-    {
-        /// <summary>
-        /// Requires a non-default Trade Plan value date.
-        /// </summary>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3928", Justification = "The named argument is the declared C# 14 extension receiver; its name is part of the caller contract.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal void RequireTradePlanValueDate()
-        {
-            if (valueDate == default)
-                throw new ArgumentException("A value date is required.", nameof(valueDate));
-        }
-    }
-
-    extension(int pageSize)
-    {
-        /// <summary>
-        /// Requires a Trade Plan page size between one and five hundred records.
-        /// </summary>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3928", Justification = "The named argument is the declared C# 14 extension receiver; its name is part of the caller contract.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal void RequireTradePlanPageSize()
-        {
-            if (pageSize is < 1 or > 500)
-                throw new ArgumentOutOfRangeException(nameof(pageSize));
-        }
-    }
-
-    extension(ExitPositionWorkflowProjection workflow)
-    {
-        /// <summary>
-        /// Requires a structurally valid exit-position workflow projection.
-        /// </summary>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3928", Justification = "This existing options validator reports the invalid configuration property by name; preserve its established exception type and diagnostic property name.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal void RequireValidExitWorkflow()
-        {
-            ExitWorkflowProjectionFacts.RequireValid(workflow);
-        }
-    }
 }
 
 internal sealed record TradePlanPageCursor(string Scope, string[] Keys);

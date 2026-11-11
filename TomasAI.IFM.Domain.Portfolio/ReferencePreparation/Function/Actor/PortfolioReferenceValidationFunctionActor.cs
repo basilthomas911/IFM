@@ -17,7 +17,8 @@ namespace TomasAI.IFM.Domain.Portfolio.ReferencePreparation.Function.Actor;
 public sealed class PortfolioReferenceValidationFunctionActor(
     IFunctionActorContext<PortfolioReferenceValidationFunctionActor> context,
     IEventSourceFunctionStateRepository<PortfolioReferenceValidationFunctionState, ValidatePortfolioReferenceCommand> repository,
-    IReferenceQueryApi references, IPortfolioOperationalGuard guard, ILogger<PortfolioReferenceValidationFunctionActor> logger, TimeProvider? timeProvider = null)
+    IReferenceQueryApi references, IPortfolioOperationalGuard guard, FundBaseContractPreparation baseContracts,
+    ILogger<PortfolioReferenceValidationFunctionActor> logger, TimeProvider? timeProvider = null)
     : BaseEventSourceFunctionActor<PortfolioReferenceValidationFunctionActor, ValidatePortfolioReferenceCommand, ActorEntityId, ActorEntityId,
         PortfolioReferenceValidationFunctionState, PortfolioReferenceValidationCompletedEvent, PortfolioReferenceValidationFailedEvent>(context, repository, null, logger)
 {
@@ -30,10 +31,10 @@ public sealed class PortfolioReferenceValidationFunctionActor(
             [ValidatePortfolioReferenceCommand.Verb] = message => message.AsCommand<ValidatePortfolioReferenceCommand>()!
         }.ToFrozenDictionary(StringComparer.Ordinal);
 
-    static readonly FrozenDictionary<Type, Func<ValidatePortfolioReferenceCommand, IReferenceQueryApi, IPortfolioOperationalGuard, TimeProvider, CancellationToken, ValueTask<PortfolioReferenceValidationCompletedEvent>>> _receiveMap =
-        new Dictionary<Type, Func<ValidatePortfolioReferenceCommand, IReferenceQueryApi, IPortfolioOperationalGuard, TimeProvider, CancellationToken, ValueTask<PortfolioReferenceValidationCompletedEvent>>>
+    static readonly FrozenDictionary<Type, Func<ValidatePortfolioReferenceCommand, IReferenceQueryApi, IPortfolioOperationalGuard, FundBaseContractPreparation, TimeProvider, CancellationToken, ValueTask<PortfolioReferenceValidationCompletedEvent>>> _receiveMap =
+        new Dictionary<Type, Func<ValidatePortfolioReferenceCommand, IReferenceQueryApi, IPortfolioOperationalGuard, FundBaseContractPreparation, TimeProvider, CancellationToken, ValueTask<PortfolioReferenceValidationCompletedEvent>>>
         {
-            [typeof(ValidatePortfolioReferenceCommand)] = static (request, referenceApi, operationalGuard, clock, token) => request.ExecuteAsync(referenceApi, operationalGuard, token, clock)
+            [typeof(ValidatePortfolioReferenceCommand)] = static (request, referenceApi, operationalGuard, preparation, clock, token) => request.ExecuteAsync(referenceApi, operationalGuard, token, clock, preparation)
         }.ToFrozenDictionary();
 
     static readonly FrozenDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
@@ -78,7 +79,7 @@ public sealed class PortfolioReferenceValidationFunctionActor(
         ValidatePortfolioReferenceCommand request, CancellationToken cancellationToken)
     {
         var receive = ResolveMappedFunctionHandler(request, _receiveMap);
-        var completed = await receive(request, references, guard, businessClock, cancellationToken).ConfigureAwait(false);
+        var completed = await receive(request, references, guard, baseContracts, businessClock, cancellationToken).ConfigureAwait(false);
         return FunctionResult<PortfolioReferenceValidationCompletedEvent, PortfolioReferenceValidationFailedEvent>.Complete(completed);
     }
 

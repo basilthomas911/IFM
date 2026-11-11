@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.EventSourcing.Persistence.Command;
 using Npgsql;
 using TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
@@ -33,7 +34,7 @@ public static class EventLogMarkerVerification
                 ProjectionName = name,
                 InitialStage = index == 3 ? EventProjectorStageType.PublishProcessingEvent : EventProjectorStageType.ApplyProjection
             })).ToArray();
-        var envelope = CommandAuditEnvelope.Create(new EventLogV2Benchmark.BenchmarkCommand
+        var envelope = CommandAuditPreparation.Create(new EventLogV2Benchmark.BenchmarkCommand
         { CommandId = commandId, StreamId = streamName, Value = 6 }, new CommandAuditMessagePackCodec());
         var request = new EventLogAppendRequest(streamName, streamId, commandId, entries, 0, DateTime.UtcNow,
             appender.WriteMode == EventLogWriteMode.BinaryCopy ? envelope : null);
@@ -71,14 +72,13 @@ public static class EventLogMarkerVerification
         var missingId = Guid.NewGuid();
         var invalid = request with
         {
-            CommandId = missingId,
-            ExpectedStreamVersion = 6,
+            Identity = new EventLogBatchIdentity(request.EventStream, request.EventStreamId, missingId, 6),
             Events = [
                 new EventLogAppendEntry(eventNameId, ((EventLogV2Benchmark.BenchmarkEvent)entries[0].DomainEvent)
                     with { EventId = 0, CommandId = missingId, Value = 7 }),
                 new EventLogAppendEntry(int.MaxValue, ((EventLogV2Benchmark.BenchmarkEvent)entries[1].DomainEvent)
                     with { EventId = 0, CommandId = missingId, Value = 8 })],
-            CommandAudit = request.CommandAudit is null ? null : CommandAuditEnvelope.Create(
+            CommandAudit = request.CommandAudit is null ? null : CommandAuditPreparation.Create(
                 new EventLogV2Benchmark.BenchmarkCommand { CommandId = missingId, StreamId = streamName, Value = 7 },
                 new CommandAuditMessagePackCodec())
         };

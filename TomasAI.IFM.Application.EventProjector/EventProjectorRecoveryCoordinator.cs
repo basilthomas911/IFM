@@ -86,18 +86,15 @@ public sealed class EventProjectorRecoveryCoordinator(
                             var executionToken = Guid.NewGuid();
                             var nowUtc = DateTime.UtcNow;
                             var claimed = await _eventSource.TryClaimEventProjectorExecutionAsync(
-                                item.State.EventId,
-                                projectorName,
-                                executionToken,
-                                nowUtc,
-                                _options.ClaimLeaseDuration,
+                                new EventProjectorLease(item.State.EventId, projectorName, executionToken,
+                                    nowUtc, _options.ClaimLeaseDuration),
                                 token).ConfigureAwait(false);
                             if (claimed is null)
                             {
                                 Interlocked.Increment(ref claimConflicts);
                                 continue;
                             }
-                            var terminal = await _eventSource.TryTerminalizeEventProjectorExecutionAsync(
+                            var terminal = await _eventSource.TerminalizeQualifiedExecutionAsync(
                                 new EventProjectorStateTransition(
                                     claimed.EventId,
                                     claimed.ProjectorName,

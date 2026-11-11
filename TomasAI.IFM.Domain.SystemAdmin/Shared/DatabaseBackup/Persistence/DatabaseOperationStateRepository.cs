@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.EventSourcing.Persistence.Command;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Projection;
 using TomasAI.IFM.Application.EventSourcing.Repository;
@@ -221,13 +222,13 @@ public abstract class DatabaseOperationStateRepository<TState, TActor>(
             {
                 if (source is not DatabaseBackupEventContract backup)
                     throw new InvalidDataException("Backup commands require complete backup source events.");
-                await transaction.AppendAsync(command.StreamId, command.CommandId, backup, version++, token).ConfigureAwait(false);
+                await transaction.AppendAsync(new EnlistedEventAppend(command.StreamId, command.CommandId, backup, version++), token).ConfigureAwait(false);
                 await target.ApplyDatabaseBackupSnapshotAsync(transaction, "DatabaseBackupEventProjector", DatabaseBackupProjectionFactory.Create(backup), token).ConfigureAwait(false);
                 if (DatabaseBackupExecutionEvents.ToExecutionEvent(backup) is not null)
                     await DatabaseBackupExecutionIntentRepository.EnqueueAsync(target, transaction, backup, token).ConfigureAwait(false);
             }
             if (snapshot is not null)
-                await transaction.AppendAsync(command.StreamId, command.CommandId, snapshot, version, token).ConfigureAwait(false);
+                await transaction.AppendAsync(new EnlistedEventAppend(command.StreamId, command.CommandId, snapshot, version), token).ConfigureAwait(false);
             return true;
         }, cancellationToken).ConfigureAwait(false);
         state.AcceptChanges();

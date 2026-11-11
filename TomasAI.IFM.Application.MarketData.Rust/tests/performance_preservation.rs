@@ -21,6 +21,7 @@ fn direct_envelopes_preserve_every_wire_byte_and_reject_invalid_identity() {
                 sequence: i64::MAX,
                 kind: 7,
                 payload: (0..length).map(|i| (i * 37) as u8).collect(),
+                origin_ticks: Some(1_794_341_104_548_000),
             };
             let expected = codec::encode(&frame.value().unwrap()).unwrap();
             assert_eq!(frame.content().unwrap(), expected);
@@ -36,6 +37,7 @@ fn direct_envelopes_preserve_every_wire_byte_and_reject_invalid_identity() {
         sequence: 1,
         kind: 1,
         payload: vec![1],
+        origin_ticks: None,
     };
     assert!(invalid.content().is_err());
 }

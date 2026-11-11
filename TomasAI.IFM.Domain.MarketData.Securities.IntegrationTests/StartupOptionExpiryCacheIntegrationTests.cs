@@ -1,3 +1,5 @@
+using TomasAI.IFM.Domain.MarketData.Shared.QueryParameters;
+using TomasAI.IFM.Domain.MarketData.Securities.Persistence;
 using TomasAI.IFM.Shared.MarketData.Definitions;
 using TomasAI.IFM.Domain.Reference.Repository;
 using TomasAI.IFM.Application.Api.Server.Core.MarketData.InstrumentDefinitions;
@@ -78,10 +80,10 @@ public sealed class StartupOptionExpiryCacheIntegrationTests(SecuritiesDatabaseF
             }));
         }
 
-        await fixture.Db.ReplaceOptionContractDefinitionsAsync(
+        await new SecuritiesOptionDefinitionPublisher(fixture.Db.DbWriter).PublishAsync(
             "ES", valueDate, secondMaturity, rows, CancellationToken.None);
         var actual = await fixture.Db.GetOptionContractExpiriesAsync(
-            "ES", valueDate, secondMaturity, CancellationToken.None);
+            new OptionDefinitionExpiryRange("ES", valueDate, secondMaturity), CancellationToken.None);
 
         actual.Should().NotBeEmpty();
         actual.Should().OnlyContain(row => row.ExpiryDate >= valueDate && row.ExpiryDate <= secondMaturity);
@@ -102,7 +104,7 @@ public sealed class StartupOptionExpiryCacheIntegrationTests(SecuritiesDatabaseF
 
 
         var overlappingHistoricalRequest = await fixture.Db.GetOptionContractExpiriesAsync(
-            "ES", valueDate.AddDays(-30), firstMaturity, CancellationToken.None);
+            new OptionDefinitionExpiryRange("ES", valueDate.AddDays(-30), firstMaturity), CancellationToken.None);
 
         overlappingHistoricalRequest.Should().NotBeEmpty();
         overlappingHistoricalRequest.Should().OnlyContain(row => row.ExpiryDate >= valueDate);

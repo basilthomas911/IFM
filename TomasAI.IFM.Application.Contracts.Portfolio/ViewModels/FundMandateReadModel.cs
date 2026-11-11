@@ -40,6 +40,10 @@ public sealed record FundMandateReadModel
     [Key(20)] public int? HistoricalSourceFundId { get; init; }
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public financial model contract.")]
     [Key(21)] public TomasAI.IFM.Domain.Reference.Shared.ViewModels.TradeStrategyFamilyReference[] PermittedTradeStrategyFamilies { get; init; } = [];
+    /// <summary>Fund-owned symbol rules; each follows the current contract plus its configured future cycles.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "MessagePack array contract; aggregate defensively copies all entries.")]
+    [Key(22)] public FundBaseContractRule[] BaseContracts { get => _baseContracts ?? []; init => _baseContracts = value; }
+    [IgnoreMember] readonly FundBaseContractRule[]? _baseContracts;
 
     public IReadOnlyList<string> Validate()
     {
@@ -57,6 +61,11 @@ public sealed record FundMandateReadModel
         if (string.IsNullOrWhiteSpace(DecisionHorizon)) errors.Add("DecisionHorizon is required.");
         if (string.IsNullOrWhiteSpace(Objective)) errors.Add("Objective is required.");
         if (UnderlyingUniverse.Length == 0 || UnderlyingUniverse.Any(string.IsNullOrWhiteSpace)) errors.Add("UnderlyingUniverse is required.");
+        if (BaseContracts is null || BaseContracts.Any(x => x is null || x.Validate().Count != 0) ||
+            BaseContracts.Select(x => x.Symbol).Distinct(StringComparer.Ordinal).Count() != BaseContracts.Length ||
+            BaseContracts.Any(x => !UnderlyingUniverse.Contains(x.Symbol, StringComparer.Ordinal)))
+            errors.Add("BaseContracts must contain distinct Futures symbols from the Fund underlying universe and zero to 120 forward cycles.");
+        if (SchemaVersion >= 4 && BaseContracts is not { Length: > 0 }) errors.Add("Select at least one Futures base contract symbol.");
         if (EligibleAssetTypes.Length == 0 || EligibleAssetTypes.Any(string.IsNullOrWhiteSpace)) errors.Add("EligibleAssetTypes is required.");
         // An unassigned Draft may also be disabled/retired. None of these states grants trading authority.
         var unassignedInactive = SchemaVersion >= 3 && OperatingState is FundOperatingState.Draft or FundOperatingState.Disabled or FundOperatingState.Retired
@@ -74,6 +83,7 @@ public sealed record FundMandateReadModel
 
     public FundMandateReadModel DefensiveCopy() => this with
     {
+        BaseContracts = BaseContracts.Select(x => x with { }).ToArray(),
         UnderlyingUniverse = [.. UnderlyingUniverse],
         EligibleAssetTypes = [.. EligibleAssetTypes],
         PermittedDirections = [.. PermittedDirections],

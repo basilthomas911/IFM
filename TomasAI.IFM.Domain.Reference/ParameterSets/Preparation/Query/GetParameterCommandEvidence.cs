@@ -108,7 +108,7 @@ public static class GetParameterCommandEvidence
         return Freeze(selected);
     }
 
-    static Task<(ParameterAssignmentRevision[] Assignments, ParameterSetVersion[] Versions)> ReadStartupInputsAsync(
+    static Task<ParameterStartupInputsReadModel> ReadStartupInputsAsync(
         IParameterPreparationQueryContext context, CancellationToken token)
     {
         var ids = ParameterStartupReader.SupportedScopes().Select(ParameterAssignmentPolicyModel.AssignmentId).ToArray();

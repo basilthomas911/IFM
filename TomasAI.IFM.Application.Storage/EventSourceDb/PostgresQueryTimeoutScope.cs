@@ -16,7 +16,7 @@ internal sealed class PostgresQueryTimeoutScope(NpgsqlConnection connection, Npg
         if (selected == activeTimeout) return;
         // The query owns the server timer. A second provider timer must not expire earlier.
         await using var configure = new NpgsqlCommand(
-            "SELECT set_config('statement_timeout',$1,true), set_config('lock_timeout',$2,true);", connection, transaction)
+            EventSourceDbSql.PostgresQueryTimeoutScope_ApplyAsync_1, connection, transaction)
             { CommandTimeout = 0 };
         PostgresValueBinding.AddParameter(configure, checked((int)Math.Ceiling(selected.StatementTimeout.TotalMilliseconds)).ToString(System.Globalization.CultureInfo.InvariantCulture));
         PostgresValueBinding.AddParameter(configure, checked((int)Math.Ceiling((selected.LockTimeout ?? selected.StatementTimeout).TotalMilliseconds)).ToString(System.Globalization.CultureInfo.InvariantCulture));

@@ -10,6 +10,8 @@ public interface IPortfolioFundCommandApi
 {
     Task<ServiceResult<Guid>> CreateFundMandateAsync(FundMandateReadModel mandate, Guid idempotencyKey, CancellationToken cancellationToken = default);
     Task<ServiceResult<Guid>> AddFundMandateVersionAsync(FundMandateReadModel mandate, long expectedVersion, CancellationToken cancellationToken = default);
+    /// <summary>Changes saved defaults without invalidating the current Fund mandate bindings.</summary>
+    Task<ServiceResult<Guid>> ConfigureFundBaseContractsAsync(FundMandateReadModel mandate, long expectedVersion, CancellationToken cancellationToken = default) => throw new NotSupportedException("Fund base contract configuration is unavailable.");
     Task<ServiceResult<Guid>> ChangeFundStateAsync(PortfolioFundId fundId, long expectedVersion, FundOperatingState state, string reason, CancellationToken cancellationToken = default);
     Task<ServiceResult<Guid>> AssignTradeTemplateAsync(FundTradeTemplateAssignmentReadModel assignment, long expectedVersion, CancellationToken cancellationToken = default);
     Task<ServiceResult<FundCompositionReservationResult>> ReserveCompositionAsync(ReserveFundOrderCompositionRequest request, PortfolioFundStrategySnapshot snapshot, CancellationToken cancellationToken = default);

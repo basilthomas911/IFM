@@ -184,3 +184,14 @@ internal readonly record struct VxPairParameter(
     /// <summary>Gets the ordered values for the SQL operation.</summary>
     public object Bind() => Values([.. Front.BindAssignment(FrontExpected), .. Second.BindAssignment(SecondExpected)]);
 }
+
+internal readonly record struct RecoveryLogInsertParameter(TomasAI.IFM.Domain.MarketData.Feed.Shared.Recovery.RecoveryLogRow Row) : IBindValue
+{
+    public object Bind() => Values(Row.RecordId, Row.OperationId, Row.Sequence, Row.ValueDate, Row.Role,
+        Row.Dataset, Row.Kind, Row.OccurredAtUtc, Row.ReceivedAtUtc, Row.Digest, Row.Payload, Row.SourceEventId);
+}
+
+internal readonly record struct RecoveryLogReadParameter(DateOnly ValueDate, string? Dataset, Guid? OperationId, int Limit) : IBindValue
+{
+    public object Bind() => Values(ValueDate, Text(Dataset), Uuid(OperationId), Limit);
+}

@@ -13,6 +13,7 @@ fn frame(sequence: i64, size: usize) -> Frame {
         sequence,
         kind: 3,
         payload: vec![0xc0; size],
+        origin_ticks: None,
     }
 }
 #[test]

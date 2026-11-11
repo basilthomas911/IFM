@@ -25,6 +25,8 @@ internal static class TradeSelectionQueryModel
     /// <summary>Reads an exact invocation and determines whether the workflow accepted it.</summary>
     internal static async Task<TradeSelectionProjection> ExactAsync(ITradeSelectionQueryContext services, SelectionQueryAccess access, StrategyWorkflowId workflowId, Guid invocationId, CancellationToken cancellationToken)
     {
+        if (workflowId.Value == Guid.Empty || invocationId == Guid.Empty)
+            throw new ArgumentException("Exact workflow and invocation identities are required.", nameof(workflowId));
         var completed = await (services.DbFactory.TradeDb.GetTradeSelectionInvocationAsync(workflowId, invocationId, cancellationToken)).ConfigureAwait(false) ?? throw new KeyNotFoundException("Exact selector invocation not found.");
         var result = TradeSelectionContracts.ReadResult(completed.Result);
         await (AuthorizeAsync(services, access, result.PortfolioId, result.FundId, cancellationToken)).ConfigureAwait(false);

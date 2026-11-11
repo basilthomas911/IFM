@@ -29,10 +29,17 @@ internal sealed partial class PortfolioResponder {
    case AddFundToPortfolioCommand c:
     if(Mode=="FundAttachReject"){Mode="FundCommands";return "Fixture attachment rejected";}
     if(createdFund is null||c.FundId.FundId!=300||c.ExpectedPortfolioVersion!=adminRevision)return "Incorrect Fund attachment";fundAttached=true;adminRevision++;return null;
+   case ConfigureFundBaseContractsCommand c:
+    DemandReferenceReceipt(c.CommandId,c.ReferencePreparationId);
+    var configuredPrior=FundRows().Last(p=>p.FundId==c.Mandate.FundId);
+    if(c.ExpectedVersion!=fundRevision||c.Mandate.FundMandateVersion!=configuredPrior.FundMandateVersion||c.Mandate.BaseContracts.Length==0||c.Mandate.SchemaVersion!=4)return "Incorrect Fund base contracts/revision";
+    if(fundVersions.Count==0)fundVersions.Add(EditableFund);
+    fundVersions.RemoveAll(p=>p.FundId==c.Mandate.FundId&&p.FundMandateVersion==c.Mandate.FundMandateVersion);
+    fundVersions.Add(c.Mandate);fundRevision++;return null;
    case AddFundMandateVersionCommand c:
     DemandReferenceReceipt(c.CommandId,c.ReferencePreparationId);
     var prior=FundRows().Last(p=>p.FundId==c.Mandate.FundId);
-    if(c.ExpectedVersion!=fundRevision||c.Mandate.FundMandateVersion!=prior.FundMandateVersion+1||c.Mandate.SchemaVersion!=3)return "Incorrect Fund version/revision";
+    if(c.ExpectedVersion!=fundRevision||c.Mandate.FundMandateVersion!=prior.FundMandateVersion+1||c.Mandate.SchemaVersion is not (3 or 4))return "Incorrect Fund version/revision";
     if(fundVersions.Count==0)fundVersions.Add(EditableFund);fundVersions.Add(c.Mandate);fundRevision++;return null;
    case DelegateFundAllocationCommand c:
     if(c.ExpectedPortfolioVersion!=adminRevision||c.Allocation.PortfolioId!=1||c.Allocation.FundId!=2||c.Allocation.AllocationVersion!=(fundAllocation?.AllocationVersion??0)+1||c.Allocation.SourcePolicyId!=11||c.Allocation.TargetWeight!=.5m||c.Allocation.AllocatedCapital!=10000m||!DesktopFixtureMode.Clock(c.Allocation.EffectiveFromUtc,StrategyFixtures.At))return "Incorrect delegated allocation";

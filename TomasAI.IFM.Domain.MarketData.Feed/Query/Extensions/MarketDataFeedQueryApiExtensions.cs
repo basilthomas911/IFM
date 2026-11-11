@@ -39,6 +39,7 @@ public static class MarketDataFeedQueryApiExtensions
         {
             try
             {
+                RawTickRequestQualification.RequireScope(contractId, valueDate);
                 FuturesTickDataV2ReadModel result =
                     (await (context.DbFactory.MarketDataDb.GetLastFuturesTickDataAsync(contractId, valueDate)).ConfigureAwait(false))!;
                 return new ServiceOk<FuturesTickDataV2ReadModel>(result);
@@ -83,6 +84,7 @@ public static class MarketDataFeedQueryApiExtensions
         {
             try
             {
+                RawTickRequestQualification.RequireScope(contractId, valueDate);
                 FuturesOptionTickDataV2ReadModel result =
                     (await (context.DbFactory.MarketDataDb.GetLastFuturesOptionTickDataAsync(contractId, valueDate)).ConfigureAwait(false))!;
                 return new ServiceOk<FuturesOptionTickDataV2ReadModel>(result);
@@ -327,6 +329,11 @@ public static class MarketDataFeedQueryApiExtensions
             try
             {
                 var db = context.DbFactory.MarketDataDb;
+                RawTickRequestQualification.RequireScope(underlyingContractId, valueDate);
+                RawTickRequestQualification.RequireScope(shortPutOptionContractId, valueDate);
+                RawTickRequestQualification.RequireScope(longPutOptionContractId, valueDate);
+                RawTickRequestQualification.RequireScope(shortCallOptionContractId, valueDate);
+                RawTickRequestQualification.RequireScope(longCallOptionContractId, valueDate);
                 var underlyingTask = db.GetLastFuturesTickDataAsync(underlyingContractId, valueDate);
                 var shortPutTask = db.GetLastFuturesOptionTickDataAsync(shortPutOptionContractId, valueDate);
                 var longPutTask = db.GetLastFuturesOptionTickDataAsync(longPutOptionContractId, valueDate);

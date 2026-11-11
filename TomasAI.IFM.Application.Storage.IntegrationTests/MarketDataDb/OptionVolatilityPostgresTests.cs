@@ -18,6 +18,28 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.MarketDataDb;
 public sealed class OptionVolatilityPostgresTests
 {
     [Fact]
+    public async Task Postgres_latest_volatility_preserves_source_time_and_excludes_the_closed_hour()
+    {
+        await using var infrastructure = new IsolatedIntegrationInfrastructure("option-volatility-session-age", includeCql: false);
+        await infrastructure.StartAsync();
+        var settings = new DbConnectionSettings().Add(MarketDataDbContext.MarketDataDbConnection,
+            infrastructure.PostgresConnectionString, "System.Data.Postgres");
+        await new MarketDataSchemaDb(settings, NullLogger<DbProvider>.Instance).CreateAsync(new[] { "market_data" });
+        var scope = new VolatilityStorageScope($"session-age-{Guid.NewGuid():N}", new("ES-ATM-30D", "method-v1"), "metric-v1");
+        var available = DateTimeOffset.Parse("2026-11-10T21:59:59Z");
+        var source = Observation("session-close", scope.Series, 1, null, available);
+        var publication = Publication(scope.Environment, "session-snapshot", 1, source, 1, null);
+        var repository = new MarketDataDbContext(settings, Substitute.For<IDbContextFactory>(), Substitute.For<ISequenceIdGenerator>(), NullLogger<DbProvider>.Instance);
+        await repository.PublishAsync(publication);
+        var afterOpen = DateTimeOffset.Parse("2026-11-10T23:00:30Z");
+        var fresh = await repository.GetLatestAsync(new(scope, afterOpen, TimeSpan.FromMinutes(1)));
+        fresh.FreshnessStatus.Should().Be(VolatilityFreshnessStatus.Accepted);
+        fresh.Metric!.Snapshot.AvailableAtUtc.Should().Be(available);
+        var stale = await repository.GetLatestAsync(new(scope, afterOpen.AddSeconds(31), TimeSpan.FromMinutes(1)));
+        stale.FreshnessStatus.Should().Be(VolatilityFreshnessStatus.Stale);
+    }
+
+    [Fact]
     public async Task Postgres_PreservesIdempotentAppendOnlyPointInTimePublicationSemantics()
     {
         await using var infrastructure = new IsolatedIntegrationInfrastructure("option-volatility-schema", includeCql: false);

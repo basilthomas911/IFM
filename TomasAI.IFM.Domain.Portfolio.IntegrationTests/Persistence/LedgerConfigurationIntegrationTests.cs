@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.EventSourcing;
 using FluentAssertions;
 using TomasAI.IFM.Domain.Portfolio.Financial.Repository;
 using TomasAI.IFM.Domain.Portfolio.GeneralLedger.Command;
@@ -24,7 +25,7 @@ public sealed class LedgerConfigurationIntegrationTests
             foreach (var stream in new[] { $"Portfolio.{id}", $"PortfolioFund.{id}.{id + 1}" })
             {
                 var command = Guid.NewGuid();
-                await db.AppendAsync(stream, command, new TomasAI.IFM.Domain.Portfolio.Shared.Events.PortfolioCreatedEvent(Guid.NewGuid(), command, 1, DateTime.UtcNow, "integration", new()), 0, ct);
+                await db.AppendAsync(new EnlistedEventAppend(stream, command, new TomasAI.IFM.Domain.Portfolio.Shared.Events.PortfolioCreatedEvent(Guid.NewGuid(), command, 1, DateTime.UtcNow, "integration", new()), 0), ct);
             }
             return true;
         });

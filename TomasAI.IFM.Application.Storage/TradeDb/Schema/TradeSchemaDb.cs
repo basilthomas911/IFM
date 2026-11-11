@@ -10,6 +10,6 @@ public sealed class TradeSchemaDb(IDbConnectionSettings connectionSettings, ILog
 {
     static readonly SchemaObjectDefinition[] Objects = [
         new("trade", TradeSchemaSql.Create, TradeSchemaSql.Drop),
-        new("live_feed_recovery", TradeSchemaSql.LiveFeedRecoveryCreate, "DROP TABLE IF EXISTS trade.live_feed_recovery;")];
+        new("live_feed_recovery", TradeSchemaSql.LiveFeedRecoveryCreate, TradeSchemaSql.DropLiveFeedRecovery)];
     protected override IReadOnlyList<SchemaObjectDefinition> Definitions => Objects;
 }

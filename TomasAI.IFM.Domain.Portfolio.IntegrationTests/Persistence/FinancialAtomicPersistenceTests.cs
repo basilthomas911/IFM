@@ -1,3 +1,5 @@
+using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Shared.EventProjector.ReadModels;
 using FluentAssertions;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Domain.Portfolio.Financial.Repository;
@@ -39,7 +41,7 @@ public sealed class FinancialAtomicPersistenceTests(PortfolioEventStoreFixture f
         {
             await InsertBook(db, id, source, token);
             if (failAt == 1) throw new InvalidOperationException("Before event append");
-            await db.AppendAsync(stream, commandId, domainEvent, 0, token);
+            await db.AppendAsync(new EnlistedEventAppend(stream, commandId, domainEvent, 0), token);
             if (failAt == 2) throw new InvalidOperationException("After event append before commit");
             return true;
         });
@@ -58,7 +60,7 @@ public sealed class FinancialAtomicPersistenceTests(PortfolioEventStoreFixture f
         if (failAt != 1)
         {
             var marker = await fixture.EventSourceDb.GetEventProjectorExecutionStateAsync(
-                domainEvent.EventId, "PortfolioEventProjector", CancellationToken.None);
+                new EventProjectorIdentity(domainEvent.EventId, "PortfolioEventProjector"), CancellationToken.None);
             if (failAt == 0)
                 marker!.Stage.Should().Be(EventProjectorStageType.PublishProcessingEvent);
             else
@@ -79,8 +81,8 @@ public sealed class FinancialAtomicPersistenceTests(PortfolioEventStoreFixture f
                 return await Transactions().ExecuteAsync(async (db, token) =>
                 {
                     await InsertBook(db, Random.Shared.Next(100000, int.MaxValue), source, token);
-                    await db.AppendAsync(stream, commandId,
-                        new PortfolioCreatedEvent(Guid.NewGuid(), commandId, 1, DateTime.UtcNow, "integration", new()), 0, token);
+                    await db.AppendAsync(new EnlistedEventAppend(stream, commandId,
+                        new PortfolioCreatedEvent(Guid.NewGuid(), commandId, 1, DateTime.UtcNow, "integration", new()), 0), token);
                     return true;
                 });
             }

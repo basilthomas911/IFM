@@ -3,7 +3,7 @@
 use crate::{
     backend::{contracts::*, schema::Registry, transport::Backend},
     services::{
-        actor_requests, business_context::BusinessContext, portfolio as portfolio_api,
+        business_context::BusinessContext, portfolio as portfolio_api,
         trade_orders as api,
     },
 };
@@ -49,6 +49,31 @@ fn id(registry: &Registry, item: &str, wire: &Value, name: &str) -> Result<i64, 
         .ok_or(format!("Missing {name}"))
 }
 impl TradeData {
+    /// Refreshes only the selected Fund's Databento-qualified contract list.
+    pub async fn refresh_contracts(&mut self, backend: &Backend, registry: &Registry) -> Result<(), String> {
+        let (Some(portfolio), Some(fund), Some(context)) = (self.portfolio, self.fund, self.context.as_ref()) else {
+            self.contracts.clear(); return Ok(());
+        };
+        let wire = crate::services::base_contracts::load(backend, registry, context, portfolio, fund,
+            tokio::time::Instant::now() + std::time::Duration::from_secs(30)).await?;
+        let kind = api::kind("FundBaseContractsReadModel");
+        if registry.wire_field(&kind, "PortfolioId", &wire)?.as_i64() != Some(portfolio) ||
+            registry.wire_field(&kind, "FundId", &wire)?.as_i64() != Some(fund) {
+            return Err("Base contracts crossed Fund scope".into());
+        }
+        self.contracts = registry.wire_field(&kind, "Contracts", &wire)?.as_array()
+            .filter(|rows| rows.len() <= 10_000).cloned().ok_or("Invalid Fund base contract list")?;
+        Ok(())
+    }
+
+
+    /// Preserves the server's current-first order for this Fund's saved defaults.
+    pub fn base_contract_choices(&self) -> Result<Vec<String>, String> {
+        use crate::models::{trade_contracts::FuturesContractV3ReadModel, wire_types::FromBackend};
+        if self.fund.is_none() { return Ok(vec![]); }
+        self.contracts.iter().map(|wire| FuturesContractV3ReadModel::from_backend(wire)
+            .and_then(|row| row.contract_id.ok_or("Missing Fund contract identity".into()))).collect()
+    }
     /// Loads trade data for trade data.
     pub async fn load(
         &mut self,
@@ -74,19 +99,6 @@ impl TradeData {
                     .ok_or("Trade range exceeds the backend calendar")?,
             );
         }
-        let contract_rows = actor_requests::query(
-            backend,
-            registry,
-            "TomasAI.IFM.Domain.MarketData.Shared.Queries.GetFuturesContractsQuery",
-            "none",
-            BTreeMap::new(),
-        )
-        .await?;
-        next.contracts = contract_rows
-            .as_array()
-            .filter(|v| v.len() <= 100_000)
-            .cloned()
-            .ok_or("Invalid futures contract list")?;
         next.portfolios = api::page(
             backend,
             registry,
@@ -241,6 +253,7 @@ impl TradeData {
         registry: &Registry,
         deadline: tokio::time::Instant,
     ) -> Result<(), String> {
+        self.refresh_contracts(backend, registry).await?;
         let context = self.context.as_ref().ok_or("Load API time first")?;
         let portfolio = self.portfolio.ok_or("Select a Portfolio")?;
         let fund = self.fund.ok_or("Select a Fund")?;

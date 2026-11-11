@@ -14,5 +14,8 @@ internal static class RegisterReferenceServices
         services.AddSingleton<ITradeStrategyFamilyCatalogStore, TradeStrategyFamilyCatalogStore>();
         services.AddSingleton<TomasAI.IFM.Domain.Reference.TradeStrategyFamilies.TradeStrategyFamilyCreationService>();
         services.AddSingleton<TomasAI.IFM.Domain.Reference.StrategyCatalog.StrategyCatalogService>();
+        services.AddSingleton<TomasAI.IFM.Application.Strategy.StrategyCatalog.StrategyCatalogQualification>();
+        services.AddSingleton<TomasAI.IFM.Application.Strategy.StrategyCatalog.IStrategyDeploymentReader>(provider =>
+            provider.GetRequiredService<TomasAI.IFM.Application.Strategy.StrategyCatalog.StrategyCatalogQualification>());
     }
 }

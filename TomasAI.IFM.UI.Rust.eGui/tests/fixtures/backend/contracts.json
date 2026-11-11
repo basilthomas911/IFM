@@ -58692,6 +58692,91 @@
     "verb": "ChangePortfolioOperatingState"
   },
   {
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.Commands.ConfigureFundBaseContractsCommand",
+    "isEnum": false,
+    "errorId": 34000,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "CommandId",
+        "index": 0,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "Subject",
+        "index": 1,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "PostEvents",
+        "index": 2,
+        "mapKey": null,
+        "type": "System.Boolean"
+      },
+      {
+        "name": "EntityId",
+        "index": 3,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Portfolio.Shared.Identities.PortfolioFundId"
+      },
+      {
+        "name": "ErrorCode",
+        "index": 4,
+        "mapKey": null,
+        "type": "System.Int32"
+      },
+      {
+        "name": "RouteTo",
+        "index": 5,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventSourcing.BoundedContextName"
+      },
+      {
+        "name": "Mandate",
+        "index": 6,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundMandateReadModel"
+      },
+      {
+        "name": "ExpectedVersion",
+        "index": 7,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "CorrelationId",
+        "index": 8,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "RequestedOnUtc",
+        "index": 9,
+        "mapKey": null,
+        "type": "System.DateTime"
+      },
+      {
+        "name": "Access",
+        "index": 10,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Portfolio.Shared.Common.PortfolioAccessContext"
+      },
+      {
+        "name": "ReferencePreparationId",
+        "index": 11,
+        "mapKey": null,
+        "type": "System.Nullable\u00601[System.Guid]"
+      }
+    ],
+    "actor": "PortfolioFundCommand",
+    "verb": "ConfigureFundBaseContracts"
+  },
+  {
     "type": "TomasAI.IFM.Domain.Portfolio.Shared.Commands.CreateFundMandateCommand",
     "isEnum": false,
     "errorId": 34000,
@@ -72892,6 +72977,115 @@
     "verb": "PortfolioFinancialPolicyVersionAddedEvent"
   },
   {
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events.FundBaseContractsConfiguredEvent",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "Subject",
+        "index": 0,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "Id",
+        "index": 1,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "EntityId",
+        "index": 2,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorEntityId"
+      },
+      {
+        "name": "EventId",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "CommandId",
+        "index": 4,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "AggregateId",
+        "index": 5,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "EventSource",
+        "index": 6,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "ReceivedOn",
+        "index": 7,
+        "mapKey": null,
+        "type": "System.DateTime"
+      },
+      {
+        "name": "Revision",
+        "index": 8,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "OccurredOnUtc",
+        "index": 9,
+        "mapKey": null,
+        "type": "System.DateTime"
+      },
+      {
+        "name": "Principal",
+        "index": 10,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "CorrelationId",
+        "index": 11,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "CausationId",
+        "index": 12,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "OriginatedOnUtc",
+        "index": 13,
+        "mapKey": null,
+        "type": "System.DateTime"
+      },
+      {
+        "name": "Mandate",
+        "index": 14,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundMandateReadModel"
+      },
+      {
+        "name": "ProjectionFacts",
+        "index": 15,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.PortfolioProjectionFacts"
+      }
+    ],
+    "actor": "PortfolioEvent",
+    "verb": "FundBaseContractsConfiguredEvent"
+  },
+  {
     "type": "TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events.FundCompositionReservedEvent",
     "isEnum": false,
     "errorId": null,
@@ -77021,6 +77215,67 @@
     "verb": "GetFundAllocation"
   },
   {
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetFundBaseContractsQuery",
+    "isEnum": false,
+    "errorId": 34101,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "Subject",
+        "index": 0,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "EntityId",
+        "index": 1,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorEntityId"
+      },
+      {
+        "name": "PortfolioId",
+        "index": 2,
+        "mapKey": null,
+        "type": "System.Int32"
+      },
+      {
+        "name": "FundId",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.Int32"
+      },
+      {
+        "name": "Version",
+        "index": 4,
+        "mapKey": null,
+        "type": "System.Nullable\u00601[System.Int64]"
+      },
+      {
+        "name": "CorrelationId",
+        "index": 5,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "RequestedOnUtc",
+        "index": 6,
+        "mapKey": null,
+        "type": "System.DateTime"
+      },
+      {
+        "name": "Access",
+        "index": 7,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Portfolio.Shared.Common.PortfolioAccessContext"
+      }
+    ],
+    "actor": "PortfolioFundQuery",
+    "verb": "GetFundBaseContracts"
+  },
+  {
     "type": "TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetFundCompositionByWorkflowQuery",
     "isEnum": false,
     "errorId": 34100,
@@ -78578,6 +78833,104 @@
     "verb": null
   },
   {
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundBaseContractRule",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "BaseAsset",
+        "index": 0,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "Symbol",
+        "index": 1,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "ForwardCycles",
+        "index": 2,
+        "mapKey": null,
+        "type": "System.Int32"
+      }
+    ],
+    "actor": null,
+    "verb": null
+  },
+  {
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundBaseContractsReadModel",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "PortfolioId",
+        "index": 0,
+        "mapKey": null,
+        "type": "System.Int32"
+      },
+      {
+        "name": "FundId",
+        "index": 1,
+        "mapKey": null,
+        "type": "System.Int32"
+      },
+      {
+        "name": "FundMandateVersion",
+        "index": 2,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "ValueDate",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.DateOnly"
+      },
+      {
+        "name": "DefinitionSnapshotId",
+        "index": 4,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "Defaults",
+        "index": 5,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundBaseContractRule[]"
+      },
+      {
+        "name": "Symbols",
+        "index": 6,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.TradeStrategySymbolReadModel[]"
+      },
+      {
+        "name": "Contracts",
+        "index": 7,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesContractV3ReadModel[]"
+      },
+      {
+        "name": "Status",
+        "index": 8,
+        "mapKey": null,
+        "type": "System.String"
+      }
+    ],
+    "actor": null,
+    "verb": null
+  },
+  {
     "type": "TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundCompositionWorkflowProjectionReadModel",
     "isEnum": false,
     "errorId": null,
@@ -78784,6 +79137,12 @@
         "index": 21,
         "mapKey": null,
         "type": "TomasAI.IFM.Domain.Reference.Shared.ViewModels.TradeStrategyFamilyReference[]"
+      },
+      {
+        "name": "BaseContracts",
+        "index": 22,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundBaseContractRule[]"
       }
     ],
     "actor": null,

@@ -12,8 +12,20 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb;
 public interface IEventSourceActorDbWriteContext
 {
     /// <summary>Atomically indexes a full-state sidecar checkpoint at the authoritative source revision.</summary>
+    /// <param name="stream">The exact event stream name.</param>
+    /// <param name="sidecar">The sidecar supplied by the caller.</param>
+    /// <param name="sourceRevision">The source revision supplied by the caller.</param>
+    /// <param name="snapshot">The snapshot supplied by the caller.</param>
+    /// <param name="cancellationToken">Cancels the database operation.</param>
+    /// <returns>True when the requested condition holds.</returns>
     Task<bool> SaveAggregateCheckpointAsync(string stream, string sidecar, long sourceRevision, IEvent snapshot, CancellationToken cancellationToken);
     /// <summary>Appends a source transition and full-state checkpoint under one optimistic source fence.</summary>
+    /// <param name="stream">The exact event stream name.</param>
+    /// <param name="expectedRevision">The expected revision supplied by the caller.</param>
+    /// <param name="source">The source supplied by the caller.</param>
+    /// <param name="checkpoint">The checkpoint supplied by the caller.</param>
+    /// <param name="cancellationToken">Cancels the database operation.</param>
+    /// <returns>True when the requested condition holds.</returns>
     Task<bool> SaveAggregateSourceWithCheckpointAsync(string stream, long expectedRevision, IEvent source, IEvent checkpoint, CancellationToken cancellationToken);
 
     /// <summary>Attempts a durable insertion of supplied command audit facts.</summary>
@@ -131,36 +143,18 @@ public interface IEventSourceActorDbWriteContext
         EventProjectorExecutionStateReadModel state,
         CancellationToken cancellationToken = default);
     /// <summary>Try Claim Event Projector Execution using the event-source persistence services.</summary>
-    /// <param name="eventId">The source event identifier.</param>
-    /// <param name="projectorName">The projector identity.</param>
-    /// <param name="executionToken">The token identifying the current execution lease owner.</param>
-    /// <param name="nowUtc">The current UTC timestamp.</param>
-    /// <param name="leaseDuration">The requested lease duration.</param>
+    /// <param name="lease">The execution lease prepared by the caller.</param>
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
     /// <returns>The typed result of the event-source operation.</returns>
     Task<EventProjectorExecutionStateReadModel?> TryClaimEventProjectorExecutionAsync(
-        long eventId,
-        string projectorName,
-        Guid executionToken,
-        DateTime nowUtc,
-        TimeSpan leaseDuration,
+        EventProjectorLease lease,
         CancellationToken cancellationToken = default);
     /// <summary>Try Renew Event Projector Execution using the event-source persistence services.</summary>
-    /// <param name="eventId">The source event identifier.</param>
-    /// <param name="projectorName">The projector identity.</param>
-    /// <param name="executionToken">The token identifying the current execution lease owner.</param>
-    /// <param name="expectedRevision">The expected revision used by this operation.</param>
-    /// <param name="nowUtc">The current UTC timestamp.</param>
-    /// <param name="leaseDuration">The requested lease duration.</param>
+    /// <param name="lease">The execution lease prepared by the caller.</param>
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
     /// <returns>The typed result of the event-source operation.</returns>
     Task<EventProjectorExecutionStateReadModel?> TryRenewEventProjectorExecutionAsync(
-        long eventId,
-        string projectorName,
-        Guid executionToken,
-        long expectedRevision,
-        DateTime nowUtc,
-        TimeSpan leaseDuration,
+        EventProjectorLease lease,
         CancellationToken cancellationToken = default);
     /// <summary>Try Release Event Projector Execution using the event-source persistence services.</summary>
     /// <param name="transition">The requested revision and lease-qualified projector transition.</param>
@@ -310,13 +304,13 @@ public interface IEventSourceActorDbWriteContext
         CancellationToken cancellationToken);
 
     /// <summary>Atomically reserves the uncompressed MessagePack command audit and appends its events.</summary>
-    /// <param name="command">The command being audited or committed.</param>
+    /// <param name="audit">The prepared command audit envelope.</param>
     /// <param name="domainEvents">The ordered events to persist.</param>
     /// <param name="expectedStreamVersion">The committed stream version required for optimistic concurrency.</param>
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
     /// <returns>The typed result of the event-source operation.</returns>
-    Task<DomainEventCollection> SaveCommandEventsAtomicallyAsync(
-        ICommand command,
+    Task<DomainEventCollection> PersistCommandEventBatchAsync(
+        TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit.CommandAuditEnvelope audit,
         DomainEventCollection domainEvents,
         long expectedStreamVersion,
         CancellationToken cancellationToken = default);

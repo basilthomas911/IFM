@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using TomasAI.IFM.Application.EventProjector.Contracts;
@@ -93,7 +94,7 @@ public sealed class IronCondorPositionLivePublicationTests
     public async Task Failed_source_commit_never_publishes_a_position_or_admits_history()
     {
         var fixture = new Fixture();
-        fixture.Database.SaveCommandEventsAtomicallyAsync(fixture.Command, fixture.Events, 7, Arg.Any<CancellationToken>())
+        fixture.Database.PersistCommandEventBatchAsync(Arg.Is<CommandAuditEnvelope>(audit => audit.CommandId == fixture.Command.CommandId), fixture.Events, 7, Arg.Any<CancellationToken>())
             .Returns(_ => Task.FromException<DomainEventCollection>(new InvalidOperationException("source unavailable")));
         await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Repository.SaveResidentEventsAsync(
             fixture.Context, fixture.Events, fixture.Command, 7, default).AsTask());
@@ -167,15 +168,21 @@ public sealed class IronCondorPositionLivePublicationTests
         public IEventSourceActorDbContext Database { get; } = Substitute.For<IEventSourceActorDbContext>();
         public IEventProjector<FuturesIronCondorTradePositionCommandActor> Projector { get; } = Substitute.For<IEventProjector<FuturesIronCondorTradePositionCommandActor>>();
         public ICommandActorContext Context { get; } = Substitute.For<ICommandActorContext>();
-        public ChangeTradeLegDataCommand Command { get; } = new() { CommandId = Guid.NewGuid() };
+        public ChangeTradeLegDataCommand Command { get; }
         public DomainEventCollection Events { get; }
         public IronCondorPositionStateRepository Repository { get; }
         public Fixture()
         {
             var id = StrategyPositionId.Create(new(101,701,1701,1101), TradeStrategyKind.IronCondor);
+            Command = new()
+            {
+                CommandId = Guid.NewGuid(), EntityId = id, TradeType = TradeStrategyKind.IronCondor,
+                Subject = new(ActorType.Command, FuturesIronCondorTradePositionCommandActor.ActorName,
+                    ChangeTradeLegDataCommand.Verb, id.Format())
+            };
             Events = new([new IronCondorPositionChangedEvent { Id = Guid.NewGuid(), CommandId = Command.CommandId,
                 EntityId = id, PositionSnapshot = new() { Id = id, PositionSequence = 8, Phase = StrategyPositionPhase.MarkToMarket } }]);
-            Database.SaveCommandEventsAtomicallyAsync(Command, Events, 7, Arg.Any<CancellationToken>())
+            Database.PersistCommandEventBatchAsync(Arg.Is<CommandAuditEnvelope>(audit => audit.CommandId == Command.CommandId), Events, 7, Arg.Any<CancellationToken>())
                 .Returns(_ => Task.FromResult(new DomainEventCollection([((IronCondorPositionChangedEvent)Events[0]) with { EventId = 123 }])));
             Repository = new(Substitute.For<IEventSourceActorStateFactory>(), Database,
                 Substitute.For<IActorService>(), Projector, NullLogger<IronCondorPositionStateRepository>.Instance);

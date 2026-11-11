@@ -26,19 +26,26 @@ public sealed class InstrumentDefinitionRefresh(IInstrumentDefinitionProvider pr
             {
                 var latest = new Dictionary<InstrumentKey, (ulong Received, ulong Event, bool Deleted, ContractDetail Detail, TomasAI.IFM.Domain.MarketData.Shared.ViewModels.InstrumentDefinitionSelection Selection)>();
                 List<Task> pending = [];
+                List<ExactInstrumentDefinition> batch = [];
+                var bulk = store as IInstrumentDefinitionBatchStore;
                 long count = 0;
                 try
                 {
                     await foreach (var row in provider.ReadLatestAsync(dataset, cancellationToken).ConfigureAwait(false))
                     {
                         var index = count++;
-                        pending.Add(store.InsertAsync(snapshot, index, row, cancellationToken));
+                        if (bulk is null) pending.Add(store.InsertAsync(snapshot, index, row, cancellationToken));
+                        else batch.Add(row);
                         var key = row.Summary.Instrument;
                         if ((row.Summary.ContractKind is ContractKind.Future or ContractKind.CallOption or ContractKind.PutOption || row.Deleted || latest.ContainsKey(key)) && (!latest.TryGetValue(key, out var old) || row.ReceivedNanoseconds > old.Received || (row.ReceivedNanoseconds == old.Received && row.EventNanoseconds >= old.Event)))
                         {
                             latest[key] = (row.ReceivedNanoseconds, row.EventNanoseconds, row.Deleted, row.Summary, InstrumentDefinitionSelectionMapper.Map(snapshot, index, row));
                         }
 
+                        if (batch.Count == 128) {
+                            await bulk!.InsertBatchAsync(snapshot, count-batch.Count, batch, cancellationToken).ConfigureAwait(false);
+                            batch.Clear();
+                        }
                         if (pending.Count >= 32)
                         {
                             await Task.WhenAll(pending).ConfigureAwait(false);
@@ -51,6 +58,7 @@ public sealed class InstrumentDefinitionRefresh(IInstrumentDefinitionProvider pr
                         }
                     }
 
+                    if (batch.Count > 0) await bulk!.InsertBatchAsync(snapshot, count-batch.Count, batch, cancellationToken).ConfigureAwait(false);
                     await Task.WhenAll(pending).ConfigureAwait(false);
                 }
                 catch

@@ -21,7 +21,12 @@ public static partial class MarketDataQueryExtensions
         public Task<ServiceResult<EconomicCalendarPageReadModel>> GetEconomicCalendarPageAsync(
             EconomicCalendarPageRequest request,
             CancellationToken cancellationToken)
-            => ExecuteAsync<EconomicCalendarPageReadModel>(GetEconomicCalendarPageQuery.ErrorId, async () => await (context.DbFactory.MarketDataDb.GetEconomicCalendarPageAsync(request, cancellationToken)).ConfigureAwait(false), cancellationToken);
+            => ExecuteAsync<EconomicCalendarPageReadModel>(GetEconomicCalendarPageQuery.ErrorId, async () =>
+            {
+                ArgumentNullException.ThrowIfNull(request);
+                request.Validate();
+                return await context.DbFactory.MarketDataDb.GetEconomicCalendarPageAsync(request, cancellationToken).ConfigureAwait(false);
+            }, cancellationToken);
 
         public Task<ServiceResult<EconomicCalendarReadModel[]>> GetEconomicCalendarsAsync(
             DateTime todaysDate, EconomicCalendarViewType calendarType, string countryCode)

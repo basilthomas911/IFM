@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Persistence;
 using System.Collections.Immutable;
 using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.EventProjector.Contracts;
@@ -50,7 +51,7 @@ public sealed class IronCondorPositionEventProjector : ConventionalEventProjecto
             // This mark was already delivered to the live view.
             // Recovery retains the history without changing the live view.
             if (!string.Equals(context.DbFactory.TradeDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
-                await context.DbFactory.TradeDb.UpsertStrategyPositionAsync(changed.PositionSnapshot).ConfigureAwait(false);
+                await PositionProjectionActions.WritePositionAsync(context.DbFactory, changed.PositionSnapshot).ConfigureAwait(false);
             return;
         }
 
@@ -61,6 +62,6 @@ public sealed class IronCondorPositionEventProjector : ConventionalEventProjecto
     /// <summary>Rebuilds accepted limit configuration from its recorded source facts; live PostgreSQL notification already skips this write.</summary>
     Task ProjectMonitoringLimitsAsync(IronCondorMonitoringInitializedEvent initialized) => context.DbFactory.TradeDb.ProjectMonitoringLimitsAsync(initialized.TradeLimits, initialized.SpreadLimits);
     Task ProjectTradePlanAsync(IronCondorTradePlanUpdatedEvent updated, CancellationToken cancellationToken) => string.Equals(context.DbFactory.TradePlanDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? Task.CompletedTask // Required rows already committed with the source event.
- : context.DbFactory.TradePlanDb.DbWriter.ProjectMaterialAsync(updated.Plan, cancellationToken);
+ : TradePlanProjectionWriter.TryWriteDisposableAsync(context.DbFactory.TradePlanDb.DbWriter, updated.Plan, context.Logger, cancellationToken);
     static IIronCondorPositionCommandContext Typed(ICommandActorContext<FuturesIronCondorTradePositionCommandActor> actorContext) => actorContext as IIronCondorPositionCommandContext ?? throw new ArgumentException("Typed Iron Condor position context required.", nameof(actorContext));
 }

@@ -135,7 +135,7 @@ public sealed class PostgresWorkflowSnapshotTests(PostgresTradePlanFixture fixtu
         var stream = "native-workflow-atomic-" + source.Id;
         async Task Save() => await fixture.Transactions.ExecuteOnceAsync(async (db, token) =>
         {
-            await db.AppendAsync(stream, commandId, source, 0, token);
+            await db.AppendAsync(new EnlistedEventAppend(stream, commandId, source, 0), token);
             await TradeDbContextExtensions.WorkflowProjectAsync(db, source, token);
             if (failAfterWrites) throw new InvalidOperationException("Injected after all workflow projections before commit.");
             return true;

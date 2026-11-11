@@ -17,6 +17,7 @@ public static class StrategyTradePlanQueryExecution
     public static async ValueTask<ServiceResult<StrategyTradePlanSnapshot?>> ReadCurrentAsync(IDbContextFactory dbFactory, StrategyPositionId positionId, TradeStrategyKind strategy, DateOnly valueDate, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(dbFactory);
+        TradePlanRequestQualification.RequireScope(positionId, strategy, valueDate);
         var result = await dbFactory.TradePlanDb.DbReader.GetCurrentAsync(positionId, strategy, valueDate, cancellationToken).ConfigureAwait(false);
         if (result is not null && strategy == TradeStrategyKind.IronCondor) {
             var trade = await dbFactory.TradeDb.GetEstablishedTradeAsync(positionId.Trade, cancellationToken).ConfigureAwait(false);
@@ -42,6 +43,8 @@ public static class StrategyTradePlanQueryExecution
     public static async ValueTask<ServiceResult<StrategyTradePlanHistoryPage>> ReadHistoryAsync(IDbContextFactory dbFactory, StrategyPositionId positionId, TradeStrategyKind strategy, DateOnly valueDate, int pageSize, byte[]? pagingState, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(dbFactory);
+        TradePlanRequestQualification.RequireScope(positionId, strategy, valueDate);
+        TradePlanRequestQualification.RequirePageSize(pageSize);
         var result = await dbFactory.TradePlanDb.DbReader.GetHistoryAsync(positionId, strategy, valueDate, pageSize, pagingState, cancellationToken).ConfigureAwait(false);
         StrategyTradePlanHistoryPage page = new(result.Items, result.PagingState);
         return new ServiceResult<StrategyTradePlanHistoryPage>(page);
@@ -56,6 +59,8 @@ public static class StrategyTradePlanQueryExecution
     {
         ArgumentNullException.ThrowIfNull(dbFactory);
         ArgumentNullException.ThrowIfNull(query);
+        TradePlanRequestQualification.RequireDate(query.ValueDate);
+        TradePlanRequestQualification.RequirePageSize(query.PageSize);
         var result = await dbFactory.TradePlanDb.DbReader.GetActivityAsync(query.ValueDate, query.PageSize, query.PagingState, cancellationToken).ConfigureAwait(false);
         StrategyTradePlanActivityPage page = new(result.Items, result.PagingState);
         return new ServiceResult<StrategyTradePlanActivityPage>(page);

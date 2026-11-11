@@ -1,3 +1,5 @@
+using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Application.EventSourcing.Persistence.Command;
 using TomasAI.IFM.Domain.Trade.Shared.Futures.Position;
 using System;
 using System.Collections.Generic;
@@ -50,7 +52,7 @@ public sealed class PostgresTradeFlowTests(PostgresTradePlanFixture fixture)
         var original=new TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position.IronCondorPositionChangedEvent {
             Id=Guid.NewGuid(),CommandId=Guid.NewGuid(),EntityId=id,PositionSnapshot=mark,ReceivedOn=at };
         await fixture.Transactions.ExecuteOnceAsync(async (db,ct)=> {
-            await db.AppendAsync(command.StreamId,original.CommandId,original,0,ct);
+            await db.AppendAsync(new EnlistedEventAppend(command.StreamId,original.CommandId,original,0),ct);
             await context.ProjectPositionAsync(db,mark,ct);
             await context.ProjectPositionAsync(db,current,ct);
             return true;
@@ -135,8 +137,8 @@ public sealed class PostgresTradeFlowTests(PostgresTradePlanFixture fixture)
         async Task Save(TradeOrderDefinition value) => await fixture.Transactions.ExecuteOnceAsync(async (db, ct) =>
         {
             var commandId = Guid.NewGuid();
-            await db.AppendAsync(stream, commandId, new TradeOrderChangedEvent
-            { Id = Guid.NewGuid(), EntityId = id, CommandId = commandId, TradeOrderDefinition = value, ReceivedOn = accepted }, version, ct);
+            await db.AppendAsync(new EnlistedEventAppend(stream, commandId, new TradeOrderChangedEvent
+            { Id = Guid.NewGuid(), EntityId = id, CommandId = commandId, TradeOrderDefinition = value, ReceivedOn = accepted }, version), ct);
             await db.TradeFlowProjectOrderLifecycleAsync(value, accepted, ct);
             return true;
         });
@@ -182,7 +184,7 @@ public sealed class PostgresTradeFlowTests(PostgresTradePlanFixture fixture)
         await fixture.Transactions.ExecuteOnceAsync(async (db, ct) =>
         {
             await db.ReserveCommandAsync(command, ct);
-            await db.AppendAsync(command.StreamId, command.CommandId, source, 0, ct);
+            await db.AppendAsync(new EnlistedEventAppend(command.StreamId, command.CommandId, source, 0), ct);
             return true;
         });
         var duplicate = () => fixture.Transactions.ExecuteOnceAsync(async (db, ct) =>
@@ -205,7 +207,7 @@ public sealed class PostgresTradeFlowTests(PostgresTradePlanFixture fixture)
 
         async Task Write()=>await fixture.Transactions.ExecuteOnceAsync(async(db,ct)=>
         {
-            await db.AppendAsync(stream,source.CommandId,source,0,ct);
+            await db.AppendAsync(new EnlistedEventAppend(stream,source.CommandId,source,0),ct);
             await TradeDbContextExtensions.TradeFlowProjectOrderAsync(db,order,source.ReceivedOn,ct);
             if(injectFailure) throw new InvalidOperationException("Injected after projection before commit.");
             return true;
@@ -379,7 +381,7 @@ public sealed class PostgresTradeFlowTests(PostgresTradePlanFixture fixture)
         async Task Save()=>await fixture.Transactions.ExecuteOnceAsync(async(db,ct)=>
         {
             await db.ReserveCommandAsync(command,ct);
-            await db.AppendAsync(command.StreamId,command.CommandId,source,0,ct);
+            await db.AppendAsync(new EnlistedEventAppend(command.StreamId,command.CommandId,source,0),ct);
             await TradeDbContextExtensions.TradeFlowProjectOrderAsync(db,order,now,ct);
             if(fail) throw new InvalidOperationException("Injected audit/source/material rollback");
             return true;
@@ -460,7 +462,7 @@ public sealed class PostgresTradeFlowTests(PostgresTradePlanFixture fixture)
             { Id = Guid.NewGuid(), EntityId = id, CommandId = commandId, ReceivedOn = now, State = trade };
         async Task Save(bool fail) => await fixture.Transactions.ExecuteOnceAsync(async (db,ct) =>
         {
-            await db.AppendAsync(stream,commandId,source,0,ct);
+            await db.AppendAsync(new EnlistedEventAppend(stream,commandId,source,0),ct);
             await db.TradeFlowProjectTradeAsync(trade,ct);
             if (fail) throw new InvalidOperationException("Injected failure after trade and limits");
             return true;

@@ -184,6 +184,7 @@ impl PortfolioController {
         let request = uuid::Uuid::parse_str(intent["requestId"].as_str().unwrap_or_default())
             .map_err(|_| "Invalid Fund request identity")?;
         let mut value = match view {
+            "base-contracts" => self.base_contract_mandate(registry, &original, intent, context)?,
             "new-fund" | "version-fund" => patch(
                 registry,
                 &model,
@@ -237,7 +238,9 @@ impl PortfolioController {
             _ => return Err("Unsupported Fund save".into()),
         };
         let mut changes = BTreeMap::new();
-        let name = if matches!(view, "new-fund" | "version-fund") {
+        let name = if view == "base-contracts" {
+            "ConfigureFundBaseContractsCommand"
+        } else if matches!(view, "new-fund" | "version-fund") {
             let row = registry.project(&kind(&model), &value)?;
             let strings = |key: &str| -> Result<Vec<String>, String> {
                 row[key]
@@ -294,7 +297,7 @@ impl PortfolioController {
                 }
             }
             changes.extend(BTreeMap::from([
-                ("SchemaVersion".into(), 3.into()),
+                ("SchemaVersion".into(), row["SchemaVersion"].as_i64().unwrap_or(3).max(3).into()),
                 (
                     "PermittedTradeStrategyFamilies".into(),
                     Value::Array(selected),
@@ -429,7 +432,7 @@ impl PortfolioController {
             .filter(|v| *v > 0)
             .ok_or("Invalid Fund identity")?;
         self.editing = Some((model, value.clone()));
-        let child = matches!(view, "new-fund" | "version-fund").then_some(fund_id);
+        let child = matches!(view, "new-fund" | "version-fund" | "base-contracts").then_some(fund_id);
         let mut command_id = request;
         let mut payload = BTreeMap::from([(
             if view == "allocation" {
@@ -450,13 +453,13 @@ impl PortfolioController {
             payload.insert("IdempotencyKey".into(), key.to_string().into());
         } else {
             payload.insert(
-                if view == "version-fund" {
+                if matches!(view, "version-fund" | "base-contracts") {
                     "ExpectedVersion"
                 } else {
                     "ExpectedPortfolioVersion"
                 }
                 .into(),
-                if view == "version-fund" {
+                if matches!(view, "version-fund" | "base-contracts") {
                     self.data.fund_revision
                 } else {
                     self.data.portfolio_revision
@@ -525,8 +528,10 @@ impl PortfolioController {
         self.data
             .refresh(backend, registry, &self.data.filter.clone(), deadline)
             .await?;
-        self.load_policies(backend, registry, deadline).await?;
-        self.load_metrics(backend, registry, deadline).await?;
+        if view != "base-contracts" {
+            self.load_policies(backend, registry, deadline).await?;
+            self.load_metrics(backend, registry, deadline).await?;
+        }
         self.message = self.data.status.clone();
         Ok("Fund command committed".into())
     }
@@ -557,6 +562,9 @@ impl PortfolioController {
             .map(|v| registry.project(&kind("FundMandateReadModel"), v))
             .transpose()?
             .unwrap_or(Json::Null);
+        if view == "base-contracts" {
+            return self.open_base_contracts(registry);
+        }
         match view {
             "new-fund" | "version-fund" => {
                 self.deployments =
@@ -654,7 +662,7 @@ impl PortfolioController {
                         };
                         family_choices.push(choice(
                             &key,
-                            &format!("Unavailable: {id} — uncheck to remove"),
+                            &format!("Unavailable: {id} \u{2014} uncheck to remove"),
                             true,
                         ));
                         selected.push(key);
@@ -668,7 +676,7 @@ impl PortfolioController {
                         let key = format!("unavailable:legacy:{}", text(legacy));
                         family_choices.push(choice(
                             &key,
-                            &format!("Unavailable: {} — uncheck to remove", text(legacy)),
+                            &format!("Unavailable: {} \u{2014} uncheck to remove", text(legacy)),
                             true,
                         ));
                         selected.push(key);

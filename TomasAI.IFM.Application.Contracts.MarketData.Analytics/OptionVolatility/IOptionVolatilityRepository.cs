@@ -16,6 +16,6 @@ public interface IOptionVolatilityRepository
         VolatilityHistoryPageRequest request, CancellationToken cancellationToken = default);
     Task<VolatilityPage<OptionIvMetricRevision>> GetMetricHistoryAsync(
         VolatilityHistoryPageRequest request, CancellationToken cancellationToken = default);
-    Task<IReadOnlyDictionary<VolatilityStorageScope, OptionIvLatestPointer>> RebuildLatestCacheAsync(
+    Task<IReadOnlyDictionary<VolatilityStorageScope, OptionIvLatestPointer>> ReadLatestVolatilityPointersAsync(
         IEnumerable<VolatilityStorageScope> scopes, CancellationToken cancellationToken = default);
 }

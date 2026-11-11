@@ -16,7 +16,7 @@ using TomasAI.IFM.Framework.MarketData.DataBento;
 namespace TomasAI.IFM.Domain.Reference.Repository;
 
 /// <summary>Exact records and their query projection share an atomically published snapshot.</summary>
-public sealed class InstrumentDefinitionStore(IReferenceDbContext db, ITradeStrategySymbolStore symbols) : IInstrumentDefinitionStore
+public sealed class InstrumentDefinitionStore(IReferenceDbContext db, ITradeStrategySymbolStore symbols, TimeProvider? clock = null) : IInstrumentDefinitionStore, IInstrumentDefinitionBatchStore
 {
     public const int BucketCount = 128;
     /// <inheritdoc />
@@ -26,6 +26,13 @@ public sealed class InstrumentDefinitionStore(IReferenceDbContext db, ITradeStra
         ArgumentNullException.ThrowIfNull(row);
         if (snapshot == Guid.Empty || index < 0) throw new ArgumentException("A snapshot and nonnegative record index are required.",nameof(snapshot));
         return db.InsertInstrumentDefinitionAsync(snapshot,index,row,cancellationToken);
+    }
+    /// <inheritdoc/>
+    public Task InsertBatchAsync(Guid snapshot, long firstIndex, IReadOnlyList<ExactInstrumentDefinition> definitions, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(definitions);
+        InstrumentDefinitionRequestQualification.RequireBatch(snapshot, firstIndex, definitions.Count);
+        return db.InsertInstrumentDefinitionsAsync(snapshot, firstIndex, definitions, cancellationToken);
     }
     /// <inheritdoc />
     public Task<InstrumentDefinitionSnapshot?> GetSnapshotAsync(CancellationToken cancellationToken)
@@ -47,7 +54,7 @@ public sealed class InstrumentDefinitionStore(IReferenceDbContext db, ITradeStra
         }).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         // Readers continue using the previous complete snapshot until every definition and product is durable.
-        await db.PublishInstrumentDefinitionSnapshotAsync(snapshot,cancellationToken).ConfigureAwait(false);
+        await InstrumentDefinitionCatalogPublisher.For(db, clock).PublishAsync(snapshot,cancellationToken).ConfigureAwait(false);
     }
     /// <inheritdoc />
     public Task<TradeStrategySymbolReadModel[]> GetSymbolsAsync(Guid snapshot, TradeStrategyFamilyType family, CancellationToken cancellationToken)

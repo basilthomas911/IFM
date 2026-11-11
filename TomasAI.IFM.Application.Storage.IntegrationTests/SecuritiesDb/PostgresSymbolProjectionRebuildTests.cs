@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Securities.Persistence;
 using TomasAI.IFM.Application.Storage.SecuritiesDb;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Shared.Storage;
@@ -15,11 +16,11 @@ public sealed class PostgresSymbolProjectionRebuildTests(SecuritiesDatabaseFixtu
         await fixture.Db.InsertFuturesContractAsync(row);
         await Sql("DELETE FROM securities.futures_contract_by_symbol WHERE contractId=$1", row.ContractId);
         Assert.Empty(await fixture.Db.GetFuturesContractsBySymbolAsync(row.Symbol));
-        await fixture.Db.BackfillSymbolProjectionsAsync();
+        await new SecuritiesSymbolProjectionMaintenance(fixture.Db.DbWriter).BackfillSymbolProjectionsAsync();
         Assert.Equal(row, Assert.Single(await fixture.Db.GetFuturesContractsBySymbolAsync(row.Symbol)));
         await Sql("DELETE FROM securities.futures_contract WHERE contractId=$1", row.ContractId);
         Assert.Single(await fixture.Db.GetFuturesContractsBySymbolAsync(row.Symbol));
-        await fixture.Db.BackfillSymbolProjectionsAsync();
+        await new SecuritiesSymbolProjectionMaintenance(fixture.Db.DbWriter).BackfillSymbolProjectionsAsync();
         Assert.Empty(await fixture.Db.GetFuturesContractsBySymbolAsync(row.Symbol));
         Assert.True((await fixture.Db.ReconcileSymbolProjectionsAsync()).IsConsistent);
         Assert.Null(await fixture.Db.GetFuturesContractAsync(row.ContractId));
@@ -39,12 +40,12 @@ public sealed class PostgresSymbolProjectionRebuildTests(SecuritiesDatabaseFixtu
             """, row.ContractId, otherSymbol);
         try
         {
-            await Assert.ThrowsAsync<InvalidDataException>(() => fixture.Db.BackfillSymbolProjectionsAsync());
+            await Assert.ThrowsAsync<InvalidDataException>(() => new SecuritiesSymbolProjectionMaintenance(fixture.Db.DbWriter).BackfillSymbolProjectionsAsync());
             Assert.Equal(row, Assert.Single(await fixture.Db.GetFuturesContractsBySymbolAsync(row.Symbol)));
             Assert.Empty(await fixture.Db.GetFuturesContractsBySymbolAsync(otherSymbol));
         }
         finally { await Sql("DELETE FROM securities.futures_contract WHERE contractId=$1 AND symbol=$2", row.ContractId, otherSymbol); }
-        await fixture.Db.BackfillSymbolProjectionsAsync();
+        await new SecuritiesSymbolProjectionMaintenance(fixture.Db.DbWriter).BackfillSymbolProjectionsAsync();
         Assert.Equal(row, Assert.Single(await fixture.Db.GetFuturesContractsBySymbolAsync(row.Symbol)));
     }
 
@@ -63,7 +64,7 @@ public sealed class PostgresSymbolProjectionRebuildTests(SecuritiesDatabaseFixtu
             """);
         try
         {
-            var error = await Assert.ThrowsAnyAsync<Exception>(() => fixture.Db.BackfillSymbolProjectionsAsync());
+            var error = await Assert.ThrowsAnyAsync<Exception>(() => new SecuritiesSymbolProjectionMaintenance(fixture.Db.DbWriter).BackfillSymbolProjectionsAsync());
             Assert.Contains("injected symbol rebuild failure", error.ToString(), StringComparison.Ordinal);
             Assert.Equal(row, Assert.Single(await fixture.Db.GetFuturesContractsBySymbolAsync(row.Symbol)));
             Assert.Equal(option, Assert.Single(await fixture.Db.GetFuturesOptionContractsAsync(row.Symbol)));
@@ -73,7 +74,7 @@ public sealed class PostgresSymbolProjectionRebuildTests(SecuritiesDatabaseFixtu
         {
             await Sql("DROP TRIGGER reject_rebuild_fixture ON securities.futures_option_contract_by_symbol; DROP FUNCTION securities.reject_rebuild_fixture();");
         }
-        await fixture.Db.BackfillSymbolProjectionsAsync();
+        await new SecuritiesSymbolProjectionMaintenance(fixture.Db.DbWriter).BackfillSymbolProjectionsAsync();
         Assert.True((await fixture.Db.ReconcileSymbolProjectionsAsync()).IsConsistent);
     }
 
@@ -82,7 +83,7 @@ public sealed class PostgresSymbolProjectionRebuildTests(SecuritiesDatabaseFixtu
     {
         var rows = Enumerable.Range(0, 8).Select(_ => Future()).ToArray();
         await Task.WhenAll(rows.Select(row => fixture.Db.InsertFuturesContractAsync(row))
-            .Append(fixture.Db.BackfillSymbolProjectionsAsync()));
+            .Append(new SecuritiesSymbolProjectionMaintenance(fixture.Db.DbWriter).BackfillSymbolProjectionsAsync()));
         foreach (var row in rows)
             Assert.Equal(row, Assert.Single(await fixture.Db.GetFuturesContractsBySymbolAsync(row.Symbol)));
     }

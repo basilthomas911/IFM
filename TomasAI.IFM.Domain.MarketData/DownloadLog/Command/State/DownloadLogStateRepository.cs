@@ -71,7 +71,8 @@ public sealed class DownloadLogStateRepository(
                 {
                     if (source is not MarketDataDownloadLogInsertedEvent inserted)
                         throw new InvalidOperationException("Unexpected DownloadLog source event.");
-                    await transaction.AppendAsync(command.StreamId,command.CommandId,source,version++,token).ConfigureAwait(false);
+                    MarketDataDownloadOutcome.VerifyProjection(inserted.Outcome, inserted.CommandId, inserted.PayloadSha256);
+                    await transaction.AppendAsync(new EnlistedEventAppend(command.StreamId,command.CommandId,source,version++),token).ConfigureAwait(false);
                     await database.ProjectDownloadLogAsync(transaction,inserted.Outcome,inserted.CommandId,inserted.PayloadSha256,token).ConfigureAwait(false);
                 }
                 return true;

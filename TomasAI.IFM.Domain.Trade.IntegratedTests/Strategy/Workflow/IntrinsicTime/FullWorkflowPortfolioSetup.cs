@@ -1,3 +1,5 @@
+using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Domain.Portfolio.Projection;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using TomasAI.IFM.Application.Storage.PortfolioDb;
@@ -82,11 +84,11 @@ public sealed partial class TradeSelectionRuntimeTests
                 AggregateId = $"{id}.{authority.PolicyId}",
                 ProjectionFacts = new() { Revision = 1, UpdatedAtUtc = committedAt, Policies = [source.FinancialPolicy with { AggregateRevision = 1 }] }
             };
-            await db.AppendAsync($"Portfolio.{portfolio.AggregateId}", portfolio.CommandId, portfolio, 0, ct);
+            await db.AppendAsync(new EnlistedEventAppend($"Portfolio.{portfolio.AggregateId}", portfolio.CommandId, portfolio, 0), ct);
             await db.PersistAcceptedPortfolioAsync(portfolio, portfolio.ProjectionFacts, ct);
-            await db.AppendAsync($"PortfolioFund.{fund.AggregateId}", fund.CommandId, fund, 0, ct);
+            await db.AppendAsync(new EnlistedEventAppend($"PortfolioFund.{fund.AggregateId}", fund.CommandId, fund, 0), ct);
             await db.PersistAcceptedPortfolioAsync(fund, fund.ProjectionFacts, ct);
-            await db.AppendAsync($"PortfolioFinancialPolicy.{policy.AggregateId}", policy.CommandId, policy, 0, ct);
+            await db.AppendAsync(new EnlistedEventAppend($"PortfolioFinancialPolicy.{policy.AggregateId}", policy.CommandId, policy, 0), ct);
             await db.PersistAcceptedPortfolioAsync(policy, policy.ProjectionFacts, ct);
             return true;
         });

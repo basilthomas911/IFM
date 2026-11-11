@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Persistence;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.Query.Actor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.Query.Model;
@@ -16,6 +17,7 @@ public static class GetTradeSelectionHistoryPage
             ArgumentNullException.ThrowIfNull(query);
             ArgumentNullException.ThrowIfNull(services);
             await (TradeSelectionQueryModel.AuthorizeAsync(services, query.Access, query.PortfolioId, query.FundId, cancellationToken)).ConfigureAwait(false);
+            TradeHistorySelection.RequireValueDate(query.PortfolioId, query.FundId, query.ValueDate, query.PageSize, 200, "Invalid history scope or page size.");
             var page = await (services.DbFactory.TradeDb.GetTradeSelectionHistoryAsync(query.PortfolioId, query.FundId, query.ValueDate, query.PageSize, TradeSelectionPaging.Decode(query.PortfolioId, query.FundId, query.ValueDate, query.PageSize, query.PagingState), cancellationToken)).ConfigureAwait(false);
             return new ServiceOk<TradeSelectionHistoryPage>(new(page.Items, TradeSelectionPaging.Encode(query.PortfolioId, query.FundId, query.ValueDate, query.PageSize, page.PagingState)));
         }

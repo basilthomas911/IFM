@@ -1,32 +1,25 @@
-using TomasAI.IFM.Shared.Identity;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.Recovery;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Application.MarketData.Pricing;
 using TomasAI.IFM.Application.MarketData.Subscriptions.Persistence;
-using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Framework.Storage;
-using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Shared.Storage;
 
 namespace TomasAI.IFM.Application.Storage.MarketDataServiceDb;
 
 /// <summary>Provides PostgreSQL persistence for current Databento contracts and ordered watchdog history.</summary>
 /// <param name="settings">The named database connection settings.</param>
-/// <param name="factory">The factory used to access related database contexts.</param>
-/// <param name="sequenceIds">The sequence service used to allocate watchdog identifiers.</param>
 /// <param name="logger">The database-provider logger.</param>
 public sealed class MarketDataServiceDbContext(
     IDbConnectionSettings settings,
-    IDbContextFactory factory,
-    ISequenceIdDbContext sequenceIds,
     ILogger<DbProvider> logger)
     : ObjectDataRepository<MarketDataServiceDbContext>(settings[MarketDataServiceDbConnection], logger),
       IMarketDataServiceDbContext
 {
     static readonly JsonSerializerOptions JsonOptions = new() { MaxDepth = 32 };
 
-    internal readonly ISequenceIdDbContext _sequenceIds = sequenceIds;
     internal readonly IDbConnectionSetting _connection = settings[MarketDataServiceDbConnection];
     internal readonly ILogger<DbProvider> _logger = logger;
     internal readonly TimeProvider _time = TimeProvider.System;
@@ -35,16 +28,33 @@ public sealed class MarketDataServiceDbContext(
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "The database provider owns this injected logger; retain its category and constructor contract while the context supplies structured component names.")]
     internal MarketDataServiceDbContext(
         IDbConnectionSettings settings,
-        IDbContextFactory factory,
-        ISequenceIdDbContext sequenceIds,
         ILogger<DbProvider> logger,
         TimeProvider? timeProvider,
         Action<DurableStoreWriteStage>? writeObserver)
-        : this(settings, factory, sequenceIds, logger)
+        : this(settings, logger)
     {
         _time = timeProvider ?? TimeProvider.System;
         _writeObserver = writeObserver;
     }
+
+    /// <inheritdoc/>
+    public Task AppendRecoveryLogAsync(RecoveryLogRow row, CancellationToken token = default)
+        => this.WriteRecoveryLogRowAsync(row, token);
+
+    /// <inheritdoc/>
+    public Task<IReadOnlyList<string>> ReadRecoveryLogAsync(DateOnly valueDate, string? dataset, Guid? operationId, int limit, CancellationToken token = default)
+        => this.ReadRecoveryLogRowsAsync(new RecoveryLogReadParameter(valueDate, dataset, operationId, limit), token);
+
+    internal static DurableExistsRow MapToDurableExists(IObjectDataRecord row) => new(row.GetBool(0));
+    internal static long MapToIncidentRowVersion(IObjectDataRecord row) => row.GetLong(0);
+    internal static DurableSubscriptionOutboxItem MapToDurableOutboxItem(IObjectDataRecord row)
+        => row.GetString(0).DeserializeDurable<DurableSubscriptionOutboxItem>(4096);
+    internal static DurableCurrentRow MapToDurableCurrentRow(IObjectDataRecord row)
+        => new(row.GetString(0), row.GetLong(1));
+    internal static DurableOperationRow MapToDurableOperation(IObjectDataRecord row)
+        => new(row.GetString(0), row.GetString(1).DeserializeDurable<DurableIntentResult>(4096));
+
+    internal static string MapToRecoveryLogPayload(System.Data.Common.DbDataReader reader) => reader.GetString(0);
 
     /// <summary>Gets the Market Data Service database connection name.</summary>
     public const string MarketDataServiceDbConnection = "MarketDataServiceDbConnection";
@@ -67,7 +77,9 @@ public sealed class MarketDataServiceDbContext(
         CancellationToken cancellationToken = default)
         => Database
             .Use("MarketDataService.GetAssignment", MarketDataServiceDbSql.GetAssignment)
+
             .SetParameters(new RoleParameter(role))
+
             .ExecuteSingleAsync<FuturesRolloverContractAssignment?>(MapToAssignment, cancellationToken);
 
     /// <summary>Gets all current Databento contract assignments.</summary>
@@ -77,7 +89,9 @@ public sealed class MarketDataServiceDbContext(
         CancellationToken cancellationToken = default)
         => [.. await Database
             .Use("MarketDataService.ListAssignments", MarketDataServiceDbSql.ListAssignments)
+
             .ExecuteQueryAsync(MapToAssignment, cancellationToken)
+
             .ConfigureAwait(false)];
 
     /// <summary>Inserts or updates a Databento contract assignment.</summary>
@@ -93,10 +107,13 @@ public sealed class MarketDataServiceDbContext(
         var sql = expectedRowVersion == 0
             ? MarketDataServiceDbSql.InsertAssignment
             : MarketDataServiceDbSql.UpdateAssignment;
+        var preparedParameters1 = new AssignmentParameter(assignment, expectedRowVersion);
         var saved = await Database
             .Use("MarketDataService.UpsertAssignment", sql)
-            .SetParameters(new AssignmentParameter(assignment, expectedRowVersion))
+
+            .SetParameters(preparedParameters1)
             .ExecuteSingleAsync<FuturesRolloverContractAssignment?>(MapToAssignment, cancellationToken)
+
             .ConfigureAwait(false);
         return saved ?? throw new InvalidOperationException("The assignment was concurrently changed or already exists.");
     }
@@ -113,10 +130,13 @@ public sealed class MarketDataServiceDbContext(
         string deletedBy,
         CancellationToken cancellationToken = default)
     {
+        var preparedParameters2 = new DeleteParameter(role, expectedRowVersion);
         var count = await Database
             .Use("MarketDataService.DeleteAssignment", MarketDataServiceDbSql.DeleteAssignment)
-            .SetParameters(new DeleteParameter(role, expectedRowVersion))
+
+            .SetParameters(preparedParameters2)
             .ExecuteCommandAsync(cancellationToken)
+
             .ConfigureAwait(false);
         if (count.Sum() != 1)
             throw new InvalidOperationException("The assignment was concurrently changed or does not exist.");
@@ -136,8 +156,6 @@ public sealed class MarketDataServiceDbContext(
         long expectedSecondVersion,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(front);
-        ArgumentNullException.ThrowIfNull(second);
         var transaction = BeginTransaction();
         try
         {
@@ -150,9 +168,12 @@ public sealed class MarketDataServiceDbContext(
                     expectedSecondVersion);
                 var deleted = await Database
                     .Use("MarketDataService.DeleteVxAssignments", MarketDataServiceDbSql.DeleteVxPair)
-                    .SetParameters(deleteParameters)
-                    .ExecuteCommandAsync(cancellationToken)
-                    .ConfigureAwait(false);
+
+            .SetParameters(deleteParameters)
+
+            .ExecuteCommandAsync(cancellationToken)
+
+            .ConfigureAwait(false);
                 if (deleted.Sum() != 2)
                     throw new InvalidOperationException("A VX assignment was concurrently changed; neither role was committed.");
             }
@@ -160,9 +181,12 @@ public sealed class MarketDataServiceDbContext(
             var insertParameters = new VxPairParameter(front, expectedFrontVersion, second, expectedSecondVersion);
             var inserted = await Database
                 .Use("MarketDataService.InsertVxAssignments", MarketDataServiceDbSql.InsertVxPair)
-                .SetParameters(insertParameters)
-                .ExecuteCommandAsync(cancellationToken)
-                .ConfigureAwait(false);
+
+            .SetParameters(insertParameters)
+
+            .ExecuteCommandAsync(cancellationToken)
+
+            .ConfigureAwait(false);
             if (inserted.Sum() != 2)
                 throw new InvalidOperationException("The complete VX assignment pair was not stored; neither role was committed.");
             transaction?.Commit();
@@ -174,37 +198,25 @@ public sealed class MarketDataServiceDbContext(
         }
 
         var savedFront = await GetAssignmentAsync(DatabentoContractRole.VxFrontMonth, cancellationToken)
+
             .ConfigureAwait(false);
         var savedSecond = await GetAssignmentAsync(DatabentoContractRole.VxSecondMonth, cancellationToken)
+
             .ConfigureAwait(false);
         return [savedFront!, savedSecond!];
     }
 
-    /// <summary>Appends a watchdog observation idempotently.</summary>
-    /// <param name="observation">The observation to append.</param>
-    /// <param name="cancellationToken">The token used to cancel the asynchronous operation.</param>
-    /// <returns>The persisted observation.</returns>
-    public async Task<DatabentoWatchdogObservation> AppendObservationAsync(
-        DatabentoWatchdogObservation observation,
-        CancellationToken cancellationToken = default)
+    /// <inheritdoc/>
+    public Task<DatabentoWatchdogObservation?> ReadWatchdogObservationAsync(Guid observationId, CancellationToken cancellationToken = default)
+        => this.GetObservationByIdentityAsync(observationId, cancellationToken);
+
+    /// <inheritdoc/>
+    public Task InsertWatchdogObservationAsync(DatabentoWatchdogObservation observation, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(observation);
-        var existing = await this.GetObservationByIdentityAsync(observation.ObservationId, cancellationToken)
-            .ConfigureAwait(false);
-        if (existing is not null)
-            return existing;
-        var id = await _sequenceIds
-            .GetNextSequenceIdAsync(SequenceName.MarketDataService_WatchdogStatusLogId, cancellationToken)
-            .ConfigureAwait(false);
-        var saved = observation with { WatchdogStatusLogId = id, RowVersion = 1 };
-        _ = await Database
-            .Use("MarketDataService.InsertObservation", MarketDataServiceDbSql.InsertObservation)
-            .SetParameters(new ObservationParameter(saved))
-            .ExecuteCommandAsync(cancellationToken)
-            .ConfigureAwait(false);
-        return await this.GetObservationByIdentityAsync(observation.ObservationId, cancellationToken)
-            .ConfigureAwait(false)
-            ?? throw new InvalidOperationException("The watchdog observation was not persisted.");
+        var parameters = new ObservationParameter(observation);
+        return Database.Use("MarketDataService.InsertObservation", MarketDataServiceDbSql.InsertObservation)
+            .SetParameters(parameters)
+            .ExecuteCommandAsync(cancellationToken);
     }
 
     /// <summary>Gets a watchdog observation by its storage identifier.</summary>
@@ -216,7 +228,9 @@ public sealed class MarketDataServiceDbContext(
         CancellationToken cancellationToken = default)
         => Database
             .Use("MarketDataService.GetObservation", MarketDataServiceDbSql.GetObservation)
+
             .SetParameters(new IdParameter(id))
+
             .ExecuteSingleAsync<DatabentoWatchdogObservation?>(MapToObservation, cancellationToken);
 
     /// <summary>Updates a watchdog observation.</summary>
@@ -234,8 +248,11 @@ public sealed class MarketDataServiceDbContext(
         var parameters = new ObservationUpdateParameter(observation, expectedRowVersion, changedBy);
         var saved = await Database
             .Use("MarketDataService.UpdateObservation", MarketDataServiceDbSql.UpdateObservation)
+
             .SetParameters(parameters)
+
             .ExecuteSingleAsync<DatabentoWatchdogObservation?>(MapToObservation, cancellationToken)
+
             .ConfigureAwait(false);
         return saved ?? throw new InvalidOperationException("The watchdog observation was concurrently changed or does not exist.");
     }
@@ -252,10 +269,13 @@ public sealed class MarketDataServiceDbContext(
         string deletedBy,
         CancellationToken cancellationToken = default)
     {
+        var preparedParameters4 = new ObservationDeleteParameter(id, expectedRowVersion);
         var count = await Database
             .Use("MarketDataService.DeleteObservation", MarketDataServiceDbSql.DeleteObservation)
-            .SetParameters(new ObservationDeleteParameter(id, expectedRowVersion))
+
+            .SetParameters(preparedParameters4)
             .ExecuteCommandAsync(cancellationToken)
+
             .ConfigureAwait(false);
         if (count.Sum() != 1)
             throw new InvalidOperationException("The watchdog observation was concurrently changed or does not exist.");
@@ -274,8 +294,11 @@ public sealed class MarketDataServiceDbContext(
         CancellationToken cancellationToken = default)
         => [.. await Database
             .Use("MarketDataService.ListObservations", MarketDataServiceDbSql.ListObservations)
+
             .SetParameters(new ObservationListParameter(valueDate, status, pageSize))
+
             .ExecuteQueryAsync(MapToObservation, cancellationToken)
+
             .ConfigureAwait(false)];
 
     /// <summary>Persists a dataset incident transition idempotently.</summary>
@@ -286,11 +309,13 @@ public sealed class MarketDataServiceDbContext(
         DatasetIncidentTransition transition,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(transition);
+        var preparedParameters5 = new IncidentParameter(transition);
         var version = await Database
             .Use("MarketDataService.PersistDatasetIncident", MarketDataServiceDbSql.PersistDatasetIncident)
-            .SetParameters(new IncidentParameter(transition))
-            .ExecuteScalarAsync(static row => row.GetLong(0), cancellationToken)
+
+            .SetParameters(preparedParameters5)
+            .ExecuteScalarAsync(MapToIncidentRowVersion, cancellationToken)
+
             .ConfigureAwait(false);
         return transition with { RowVersion = version == 0 ? transition.RowVersion : version };
     }
@@ -302,7 +327,9 @@ public sealed class MarketDataServiceDbContext(
         CancellationToken cancellationToken = default)
         => [.. await Database
             .Use("MarketDataService.ListOpenDatasetIncidents", MarketDataServiceDbSql.ListOpenDatasetIncidents)
+
             .ExecuteQueryAsync(MapToIncident, cancellationToken)
+
             .ConfigureAwait(false)];
 
     /// <summary>Gets an immutable composition route plan by content identity.</summary>
@@ -312,7 +339,9 @@ public sealed class MarketDataServiceDbContext(
     public Task<CompositionRoutePlan?> ReadAsync(string planId, CancellationToken cancellationToken)
         => Database
             .Use("MarketDataService.GetCompositionRoutePlan", MarketDataServiceDbSql.GetCompositionRoutePlan)
+
             .SetParameters(new CompositionRoutePlanIdParameter(planId))
+
             .ExecuteSingleAsync<CompositionRoutePlan?>(MapToCompositionRoutePlan, cancellationToken);
 
     /// <summary>Persists an immutable composition route plan idempotently.</summary>
@@ -321,14 +350,17 @@ public sealed class MarketDataServiceDbContext(
     /// <returns>A task representing the asynchronous persistence operation.</returns>
     public async Task SaveAsync(CompositionRoutePlan plan, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(plan);
         var payload = JsonSerializer.Serialize(plan, JsonOptions);
+        var preparedParameters6 = new CompositionRoutePlanParameter(plan, payload);
         _ = await Database
             .Use("MarketDataService.InsertCompositionRoutePlan", MarketDataServiceDbSql.InsertCompositionRoutePlan)
-            .SetParameters(new CompositionRoutePlanParameter(plan, payload))
+
+            .SetParameters(preparedParameters6)
             .ExecuteCommandAsync(cancellationToken)
+
             .ConfigureAwait(false);
         var saved = await ReadAsync(plan.PlanId, cancellationToken)
+
             .ConfigureAwait(false);
         if (saved is null || !string.Equals(saved.PlanId,plan.PlanId,StringComparison.Ordinal))
             throw new InvalidDataException("Route plan commit could not be verified.");
@@ -359,13 +391,13 @@ public sealed class MarketDataServiceDbContext(
         => this.FindDurableOperationAsync(scope, dataset, operationId, cancellationToken);
 
     /// <summary>Applies a durable subscription authority mutation.</summary>
-    /// <param name="mutation">The authority mutation to apply atomically.</param>
+    /// <param name="command">The authority mutation qualified by the application owner.</param>
     /// <param name="cancellationToken">The token used to cancel the asynchronous operation.</param>
     /// <returns>The durable mutation result.</returns>
-    public Task<DurableIntentResult> ApplyAsync(
-        DurableAuthorityMutation mutation,
+    public Task<DurableIntentResult> CommitAsync(
+        DurableSubscriptionCommand command,
         CancellationToken cancellationToken = default)
-        => this.ApplyDurableSubscriptionAsync(mutation, cancellationToken);
+        => this.ApplyDurableSubscriptionAsync(command, cancellationToken);
 
     /// <summary>Gets pending durable subscription outbox items.</summary>
     /// <param name="scope">The durable ownership scope.</param>

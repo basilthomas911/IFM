@@ -9,9 +9,16 @@ public interface IOptionTradeEvidenceWriter
 {
     const int MaximumFirstWriteBatch = 4;
 
+    /// <summary>Persists source evidence and its first immutable pricing attempt.</summary>
+    /// <param name="evidence">The qualified evidence and pricing attempt.</param>
+    /// <param name="cancellationToken">Cancels persistence.</param>
+    /// <returns>Completion after the attempt is durable.</returns>
     ValueTask WriteAsync(OptionTradeEvidence evidence, CancellationToken cancellationToken);
 
     /// <summary>Accepts the first attempt or its exact retry. Returns false when a different attempt already owns the source identity.</summary>
+    /// <param name="evidence">The qualified evidence and pricing attempt.</param>
+    /// <param name="cancellationToken">Cancels persistence.</param>
+    /// <returns>True for the accepted attempt or its exact retry.</returns>
     async ValueTask<bool> WriteFirstAsync(OptionTradeEvidence evidence, CancellationToken cancellationToken)
     {
         await WriteAsync(evidence, cancellationToken).ConfigureAwait(false);
@@ -19,6 +26,9 @@ public interface IOptionTradeEvidenceWriter
     }
 
     /// <summary>Confirms each durable first attempt or exact retry in request order.</summary>
+    /// <param name="evidence">The bounded batch of qualified attempts.</param>
+    /// <param name="cancellationToken">Cancels persistence.</param>
+    /// <returns>The acceptance flag for each input in order.</returns>
     async ValueTask<bool[]> WriteFirstBatchAsync(IReadOnlyList<OptionTradeEvidence> evidence, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(evidence);

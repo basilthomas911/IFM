@@ -1,4 +1,5 @@
-﻿using System;
+﻿using TomasAI.IFM.Application.EventSourcing.Persistence.Command;
+using System;
 using System.Collections.Concurrent;
 using System.Linq;
 using System.Threading;
@@ -198,7 +199,7 @@ public sealed partial class MarkerProjectorPipelineTests
                 Projector = request.Projector,
                 Value = request.ExpectedVersion + i
             }));
-            var saved = await db.SaveCommandEventsAtomicallyAsync(command, events, request.ExpectedVersion);
+            var saved = await AtomicCommandEventCommit.CommitAsync(db, command, events, request.ExpectedVersion);
             ((RuntimeState)state).Version = request.ExpectedVersion + saved.Count;
             // Deliberately omit this handoff in the recovery case to simulate its loss after durable commit.
             if (!omitHandoff)

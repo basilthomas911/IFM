@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.Strategy.StrategyCatalog;
 using System.Text.Json;
 using MessagePack;
 using NSubstitute;
@@ -164,7 +165,8 @@ internal static class TradeSelectionFixture
         var graph = new StrategyCatalogSnapshot(deployment.Key, at, source, SelectionCatalogTransport.GraphHash(deployment.Key, source));
         var config = Substitute.For<IConfigurationDbContext>();
         config.GetEffectiveTradeSelectionVersionAsync(common.ParameterSetId, 1, selectionRef.PayloadSha256, at, Arg.Any<CancellationToken>()).Returns(new ResolvedTradeSelectionParameterSet(common, selectionRef.PayloadSha256, ConfigurationParameterSetStatus.Published, at.AddDays(-1), null));
-        config.GetPublishedStrategyDeploymentAsync(deployment.Key, at, Arg.Any<CancellationToken>()).Returns(graph);
+        var deployments = Substitute.For<IStrategyDeploymentReader>();
+        deployments.ReadPublishedAsync(config, deployment.Key, at, Arg.Any<CancellationToken>()).Returns(graph);
         config.GetSelectionPipelinePolicyAsync(CatalogPipelineParameterKind.TradeSelection, common.ParameterSetId, 1, Arg.Any<CancellationToken>()).Returns(new SelectionPipelinePolicySnapshot { Kind = CatalogPipelineParameterKind.TradeSelection, Id = common.ParameterSetId, Version = 1, SchemaVersion = 1, PayloadJson = TradeSelectionPolicy.Serialize(common), PayloadSha256 = selectionRef.PayloadSha256, Status = CatalogLifecycleStatus.Published, EffectiveFromUtc = at.AddDays(-1) });
         config.GetSelectionPipelinePolicyAsync(CatalogPipelineParameterKind.OrderComposition, composition.ParameterSetId, 1, Arg.Any<CancellationToken>()).Returns(new SelectionPipelinePolicySnapshot { Kind = CatalogPipelineParameterKind.OrderComposition, Id = composition.ParameterSetId, Version = 1, SchemaVersion = composition.SchemaVersion, PayloadJson = composition.Serialize(), PayloadSha256 = composition.Hash(), Status = CatalogLifecycleStatus.Published, EffectiveFromUtc = at.AddDays(-1) });
         if (riskPolicy is not null)
@@ -237,7 +239,7 @@ internal static class TradeSelectionFixture
             ValidUntilUtc = at.AddMinutes(1)
         };
         authority = authority with { PayloadSha256 = PortfolioCanonicalHash.Compute(authority) };
-        var binding = await new TradeSelectionBindingResolver(config).ResolveAsync(authority, selectionRef, DateOnly.FromDateTime(assessmentCommand.TriggerEvent.CreatedOn));
+        var binding = await new TradeSelectionBindingResolver(config, deployments).ResolveAsync(authority, selectionRef, DateOnly.FromDateTime(assessmentCommand.TriggerEvent.CreatedOn));
         var view = assessmentCommand.WorkflowView with
         {
             FundId = scopeId,

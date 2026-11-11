@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.Strategy.StrategyCatalog;
 using TomasAI.IFM.Application.Storage.ConfigurationDb;
 using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
@@ -5,7 +6,7 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.T
 using static TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection.TradeSelectionContracts;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection;
-public sealed class TradeSelectionBindingResolver(IConfigurationDbContext configuration)
+public sealed class TradeSelectionBindingResolver(IConfigurationDbContext configuration, IStrategyDeploymentReader deployments)
 {
     public async Task<TradeSelectionBinding> ResolveAsync(PortfolioFundStrategySnapshot authority, SelectionPipelinePolicyReference common, DateOnly tradeDate, CancellationToken cancellationToken = default)
     {
@@ -33,7 +34,7 @@ public sealed class TradeSelectionBindingResolver(IConfigurationDbContext config
                 continue;
             }
 
-            var graph = await configuration.GetPublishedStrategyDeploymentAsync(key!, at, cancellationToken).ConfigureAwait(false);
+            var graph = await deployments.ReadPublishedAsync(configuration, key!, at, cancellationToken).ConfigureAwait(false);
             foreach (var source in graph.Definitions)
             {
                 var node = SelectionCatalogTransport.From(source);

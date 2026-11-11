@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.EventSourcing.Persistence.Command;
 using TomasAI.IFM.Shared.Diagnostics;
 using TomasAI.IFM.Application.EventSourcing.Repository;
 using Microsoft.Extensions.Logging;
@@ -109,7 +110,7 @@ public sealed class IronCondorPositionStateRepository(IEventSourceActorStateFact
                     }
                 };
                 await transaction.ReserveCommandAsync(command, ct).ConfigureAwait(false);
-                await transaction.AppendAsync(command.StreamId, command.CommandId, fact, command.ExpectedStreamVersion, ct)
+                await transaction.AppendAsync(new EnlistedEventAppend(command.StreamId, command.CommandId, fact, command.ExpectedStreamVersion), ct)
                     .ConfigureAwait(false);
                 await writer.ProjectPositionAsync(transaction, fact.PositionSnapshot, ct).ConfigureAwait(false);
                 return IronCondorCurrencyEvidenceReconciliation.Reconciled;
@@ -179,7 +180,7 @@ public sealed class IronCondorPositionStateRepository(IEventSourceActorStateFact
             committed = events;
         }
         else
-            committed = await EventSourceDb.SaveCommandEventsAtomicallyAsync(command, events, expectedStreamVersion, cancellationToken).ConfigureAwait(false);
+            committed = await AtomicCommandEventCommit.CommitAsync(EventSourceDb, command, events, expectedStreamVersion, cancellationToken).ConfigureAwait(false);
         commit.Complete();
         commit.Dispose();
         using (var publication = new OptionFeedTrace("option.position.publish_current_marks", logger, command.CommandId.ToString(), realtime: true))

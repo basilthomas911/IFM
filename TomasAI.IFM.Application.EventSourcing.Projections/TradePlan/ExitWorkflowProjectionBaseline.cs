@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.EventSourcing;
 ﻿using System.Globalization;
 using System.Security.Cryptography;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
@@ -29,7 +30,7 @@ public sealed class ExitWorkflowProjectionBaseline(IPostgresEventTransaction tra
                 ReceivedOn = DateTime.UtcNow, SourceCut = cut, Snapshots = snapshots, PayloadSha256 = Hash(snapshots) };
             var version = Convert.ToInt64(await transaction.ScalarAsync("SELECT COALESCE(max(l.streamversion),0) FROM event_log l JOIN event_stream_id s USING(eventstreamid) WHERE s.eventstream=$1;", [Stream], token)
                 .ConfigureAwait(false), CultureInfo.InvariantCulture);
-            await transaction.AppendAsync(Stream, source.CommandId, source, version, token)
+            await transaction.AppendAsync(new EnlistedEventAppend(Stream, source.CommandId, source, version), token)
                 .ConfigureAwait(false);
             return source;
         }, cancellationToken);

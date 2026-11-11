@@ -127,7 +127,7 @@ internal static class StoredOptionDefinitionRangeLoader
         }
 
         return options
-            .DistinctBy(static option => option.ContractId)
+            .DistinctBy(static option => (option.Dataset, option.PublisherId, option.InstrumentId))
             .OrderBy(static option => option.ContractMonth)
             .ThenBy(static option => option.StrikePriceDecimal)
             .ThenBy(static option => option.OptionType, StringComparer.Ordinal)

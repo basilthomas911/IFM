@@ -3,6 +3,7 @@ using NSubstitute;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.TradeDb;
 using TomasAI.IFM.Domain.Trade.Futures.Option.Position.Query.Actor;
+using TomasAI.IFM.Domain.Trade.Order.Execution.Query;
 using TomasAI.IFM.Domain.Trade.Order.Execution.Query.Actor;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position;
@@ -43,6 +44,16 @@ public sealed class TradeProjectionQueryActorTests
             Arg.Is<ServiceResult<OrderExecutionDefinition?>>(reply => reply.Success && reply.Value == projection));
     }
 
+    [Fact]
+    public async Task Order_execution_query_rejects_an_empty_attempt_before_the_projection_read()
+    {
+        var (_, tradeDb) = CreateProjectionStore();
+        var query = new GetOrderExecutionQuery { TradeOrderId = new(1, 2, 3) };
+
+        await Assert.ThrowsAsync<ArgumentException>(() => query.ExecuteAsync(tradeDb, CancellationToken.None));
+        Assert.Empty(tradeDb.ReceivedCalls());
+    }
+
     [Theory]
     [InlineData(TradeStrategyKind.IronCondor)]
     [InlineData(TradeStrategyKind.VerticalSpread)]
@@ -60,7 +71,13 @@ public sealed class TradeProjectionQueryActorTests
             {
                 Subject = new(ActorType.Query, FuturesOptionPositionQueryActor.ActorName, GetVerticalSpreadOptionTradePositionHistoryQuery.Verb, "position")
             };
-        query = query with { PositionId = new(default, Guid.NewGuid()), LoadAll = true };
+        query = query with
+        {
+            PositionId = new(default, Guid.NewGuid()),
+            FromUtc = new DateTime(2026, 10, 1, 0, 0, 0, DateTimeKind.Utc),
+            ToUtc = new DateTime(2026, 10, 31, 0, 0, 0, DateTimeKind.Utc),
+            LoadAll = true
+        };
         var expected = new StrategyPositionSnapshot { Id = query.PositionId, StrategyKind = kind };
         var wrongPosition = expected with { Id = new(default, Guid.NewGuid()) };
         var wrongStrategy = expected with { StrategyKind = kind == TradeStrategyKind.IronCondor ? TradeStrategyKind.VerticalSpread : TradeStrategyKind.IronCondor };

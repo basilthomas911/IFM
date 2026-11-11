@@ -19,7 +19,6 @@ public sealed class CommandAuditMessagePackCodec
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
     public CommandAuditPayload Serialize(ICommand command)
     {
-        ArgumentNullException.ThrowIfNull(command);
         var buffer = new ArrayBufferWriter<byte>();
         MessagePackSerializer.Serialize(command.GetType(), buffer, command, Options);
         var bytes = buffer.WrittenSpan.ToArray();
@@ -35,7 +34,6 @@ public sealed class CommandAuditMessagePackCodec
     public object Deserialize(Type commandType, ReadOnlyMemory<byte> payload, short format, int version,
         TomasAI.IFM.Shared.EventModelActor.MessageOrigin? origin = null)
     {
-        ArgumentNullException.ThrowIfNull(commandType);
         if (!typeof(ICommand).IsAssignableFrom(commandType))
             throw new ArgumentException("The requested type is not a command.", nameof(commandType));
         if (format != (short)CommandAuditPayloadFormat.MessagePack || version != CurrentVersion)

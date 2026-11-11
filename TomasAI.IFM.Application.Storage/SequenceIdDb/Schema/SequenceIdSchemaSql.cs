@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.Storage.SchemaDb;
 using TomasAI.IFM.Framework.SequenceId;
 
 namespace TomasAI.IFM.Application.Storage.SequenceIdDb.Schema;
@@ -32,4 +33,41 @@ internal static class SequenceIdSchemaSql
         END;
         $$ LANGUAGE plpgsql;
         """;
+    /// <summary>Verifies required sequence functions without allocating identifiers.</summary>
+    internal const string ValidateFunctions = """
+        SELECT to_regprocedure('public.fn_get_current_sequence_id(text)') IS NOT NULL
+        AND to_regprocedure('public.fn_get_next_sequence_id(text)') IS NOT NULL;
+        """;
+
+    /// <summary>Reads a sequence selected exclusively from the checked-in enum identities.</summary>
+    internal static string ReadSequenceValue(string persistedName) => $"SELECT last_value FROM public.{persistedName};";
+
+    internal static SchemaObjectDefinition[] BuildDefinitions()
+    {
+        var definitions = new List<SchemaObjectDefinition>
+        {
+            new(
+                "fn_get_current_sequence_id",
+                SequenceIdSchemaSql.CreateGetCurrentSequenceIdFunction,
+                "DROP FUNCTION IF EXISTS public.fn_get_current_sequence_id(TEXT);"),
+            new(
+                "fn_get_next_sequence_id",
+                SequenceIdSchemaSql.CreateGetNextSequenceIdFunction,
+                "DROP FUNCTION IF EXISTS public.fn_get_next_sequence_id(TEXT);")
+        };
+        definitions.AddRange(Enum.GetNames<SequenceName>().Select(sequenceName =>
+            new SchemaObjectDefinition(
+                sequenceName,
+                $"""
+                CREATE SEQUENCE IF NOT EXISTS public.{sequenceName}
+                START WITH 1
+                INCREMENT BY {SequenceIdSettings.AllocationSize}
+                NO MINVALUE
+                NO MAXVALUE
+                CACHE 1;
+                """,
+                $"DROP SEQUENCE IF EXISTS public.{sequenceName};")));
+        return definitions.ToArray();
+    }
+
 }

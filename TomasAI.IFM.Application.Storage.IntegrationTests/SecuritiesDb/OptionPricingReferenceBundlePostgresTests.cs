@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Securities.Persistence;
 using TomasAI.IFM.Shared.MarketData.Definitions;
 using System;
 using System.Collections.Generic;
@@ -71,17 +72,17 @@ public sealed class OptionPricingReferenceBundlePostgresTests(ITestOutputHelper 
                 EffectiveFromUtc = at.AddDays(-1),
                 EffectiveUntilUtc = at.AddDays(2)
             };
-            Assert.Null(await store.GetAsync(value.ContractId, value.MappingVersion, token));
+            Assert.Null(await new SecuritiesReferenceReader(store).GetAsync(value.ContractId, value.MappingVersion, token));
             await PublishAsync(store, value, token);
             await PublishAsync(store, value, token);
             var restarted = Open();
-            Assert.Equal(ReviewedOptionConvention.From(Definition(value)), await restarted.GetAsync(value.ContractId, value.MappingVersion, token));
-            Assert.Null(await restarted.GetAsync(value.ContractId, "missing-version", token));
+            Assert.Equal(ReviewedOptionConvention.From(Definition(value)), await new SecuritiesReferenceReader(restarted).GetAsync(value.ContractId, value.MappingVersion, token));
+            Assert.Null(await new SecuritiesReferenceReader(restarted).GetAsync(value.ContractId, "missing-version", token));
             await Assert.ThrowsAsync<InvalidOperationException>(() => PublishAsync(restarted, value with { Multiplier = 100 }, token));
-            Assert.Equal(ReviewedOptionConvention.From(Definition(value)), await restarted.GetAsync(value.ContractId, value.MappingVersion, token));
+            Assert.Equal(ReviewedOptionConvention.From(Definition(value)), await new SecuritiesReferenceReader(restarted).GetAsync(value.ContractId, value.MappingVersion, token));
             var newVersion = value with { MappingVersion = "fixture/v2", Multiplier = 100 };
             await PublishAsync(restarted, newVersion, token);
-            Assert.Equal(ReviewedOptionConvention.From(Definition(newVersion)), await restarted.GetAsync(value.ContractId, newVersion.MappingVersion, token));
+            Assert.Equal(ReviewedOptionConvention.From(Definition(newVersion)), await new SecuritiesReferenceReader(restarted).GetAsync(value.ContractId, newVersion.MappingVersion, token));
             var banded = value with
             {
                 SchemaVersion = 2,
@@ -92,7 +93,7 @@ public sealed class OptionPricingReferenceBundlePostgresTests(ITestOutputHelper 
             };
             await PublishAsync(restarted, banded, token);
             await PublishAsync(restarted, banded, token);
-            var reloaded = await Open()
+            var reloaded = await new SecuritiesReferenceReader(Open())
                 .GetAsync(banded.ContractId, banded.MappingVersion, token);
             Assert.Equal(ReviewedOptionConvention.From(Definition(banded)), reloaded);
             Assert.Equal(.10m, OptionPremiumTicks.GetIncrement(reloaded!, 15m));
@@ -105,7 +106,7 @@ public sealed class OptionPricingReferenceBundlePostgresTests(ITestOutputHelper 
                 await PublishAsync(store, value with { MappingVersion = identity.Version }, token);
             var pendingVersion = value with { MappingVersion = "batch/unpublished" };
             var pending = await store.StageReferenceVersionAsync(Definition(pendingVersion), token);
-            var reader = Open();
+            var reader = new SecuritiesReferenceReader(Open());
             var mixed = new[] { identities[^1], (value.ContractId, pendingVersion.MappingVersion),
                 identities[0], identities[^1], (value.ContractId, "missing") };
             var exactResults = await reader.GetManyAsync(mixed, token);
@@ -117,13 +118,13 @@ public sealed class OptionPricingReferenceBundlePostgresTests(ITestOutputHelper 
                 Assert.Single(await reader.GetManyAsync([(value.ContractId, pendingVersion.MappingVersion)], token)));
 
             var beforeWarm = Open();
-            var afterWarm = Open();
+            var afterWarm = new SecuritiesReferenceReader(Open());
             var expected = await SerialAsync(beforeWarm, identities);
             Assert.Equal(expected, await afterWarm.GetManyAsync(identities, token));
             var samples = new List<object>();
             for (var pair = 0; pair < 5; pair++)
             {
-                foreach (var (mode, before, after) in new[] { ("cold", Open(), Open()), ("warm", beforeWarm, afterWarm) })
+                foreach (var (mode, before, after) in new[] { ("cold", Open(), new SecuritiesReferenceReader(Open())), ("warm", beforeWarm, afterWarm) })
                 {
                     var reversed = pair % 2 == 1;
                     var firstMs = await TimeAsync(reversed ? () => after.GetManyAsync(identities, token) : () => SerialAsync(before, identities));
@@ -138,7 +139,7 @@ public sealed class OptionPricingReferenceBundlePostgresTests(ITestOutputHelper 
             {
                 var result = new List<OptionPricingConvention?>(requests.Count);
                 foreach (var (id, version) in requests)
-                    result.Add(await database.GetAsync(id, version, token));
+                    result.Add(await new SecuritiesReferenceReader(database).GetAsync(id, version, token));
                 return result;
             }
             async Task<double> TimeAsync(Func<Task<IReadOnlyList<OptionPricingConvention?>>> run)

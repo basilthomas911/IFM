@@ -30,6 +30,7 @@ public static class GetFuturesContract
         {
             ArgumentNullException.ThrowIfNull(dbFactory);
             ArgumentNullException.ThrowIfNull(q);
+            ArgumentNullException.ThrowIfNull(q.ContractId);
             return new(dbFactory.SecuritiesDb.GetFuturesContractAsync(q.ContractId, cancellationToken));
         }
     }

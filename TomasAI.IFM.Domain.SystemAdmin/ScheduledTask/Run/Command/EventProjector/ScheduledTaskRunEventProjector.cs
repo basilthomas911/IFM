@@ -57,7 +57,7 @@ public sealed class ScheduledTaskRunEventProjector : ConventionalEventProjector<
             async (domainEvent, execution) =>
             {
                 if (writer is not IScheduledTaskTransactionalProjectionWriter { ProviderName: "System.Data.Postgres" })
-                    await writer.ProjectAsync(((ScheduledTaskRunAdmissionRecordedEvent)domainEvent).ScheduledTaskRun!, execution.CancellationToken).ConfigureAwait(false);
+                    await writer.ProjectAsync(((ScheduledTaskRunAdmissionRecordedEvent)domainEvent).ScheduledTaskRun ?? throw new InvalidDataException("Missing committed ScheduledTaskRun source payload."), execution.CancellationToken).ConfigureAwait(false);
                 return new(EventProjectionApplyOutcome.Applied);
             }, domainEvent =>
             {
@@ -71,7 +71,7 @@ public sealed class ScheduledTaskRunEventProjector : ConventionalEventProjector<
             async (domainEvent, execution) =>
             {
                 if (writer is not IScheduledTaskTransactionalProjectionWriter { ProviderName: "System.Data.Postgres" })
-                    await writer.ProjectAsync(((ScheduledTaskRunStartedEvent)domainEvent).ScheduledTaskRun!, execution.CancellationToken).ConfigureAwait(false);
+                    await writer.ProjectAsync(((ScheduledTaskRunStartedEvent)domainEvent).ScheduledTaskRun ?? throw new InvalidDataException("Missing committed ScheduledTaskRun source payload."), execution.CancellationToken).ConfigureAwait(false);
                 return new(EventProjectionApplyOutcome.Applied);
             }, domainEvent =>
             {
@@ -85,7 +85,7 @@ public sealed class ScheduledTaskRunEventProjector : ConventionalEventProjector<
             async (domainEvent, execution) =>
             {
                 if (writer is not IScheduledTaskTransactionalProjectionWriter { ProviderName: "System.Data.Postgres" })
-                    await writer.ProjectAsync(((ScheduledTaskRunStageRecordedEvent)domainEvent).ScheduledTaskRun!, execution.CancellationToken).ConfigureAwait(false);
+                    await writer.ProjectAsync(((ScheduledTaskRunStageRecordedEvent)domainEvent).ScheduledTaskRun ?? throw new InvalidDataException("Missing committed ScheduledTaskRun source payload."), execution.CancellationToken).ConfigureAwait(false);
                 return new(EventProjectionApplyOutcome.Applied);
             }, domainEvent =>
             {
@@ -99,7 +99,7 @@ public sealed class ScheduledTaskRunEventProjector : ConventionalEventProjector<
             async (domainEvent, execution) =>
             {
                 if (writer is not IScheduledTaskTransactionalProjectionWriter { ProviderName: "System.Data.Postgres" })
-                    await writer.ProjectAsync(((ScheduledTaskRunCompletedEvent)domainEvent).ScheduledTaskRun!, execution.CancellationToken).ConfigureAwait(false);
+                    await writer.ProjectAsync(((ScheduledTaskRunCompletedEvent)domainEvent).ScheduledTaskRun ?? throw new InvalidDataException("Missing committed ScheduledTaskRun source payload."), execution.CancellationToken).ConfigureAwait(false);
                 return new(EventProjectionApplyOutcome.Applied);
             }, domainEvent =>
             {
@@ -113,7 +113,7 @@ public sealed class ScheduledTaskRunEventProjector : ConventionalEventProjector<
             async (domainEvent, execution) =>
             {
                 if (writer is not IScheduledTaskTransactionalProjectionWriter { ProviderName: "System.Data.Postgres" })
-                    await writer.ProjectAsync(((ScheduledTaskRunFailedEvent)domainEvent).ScheduledTaskRun!, execution.CancellationToken).ConfigureAwait(false);
+                    await writer.ProjectAsync(((ScheduledTaskRunFailedEvent)domainEvent).ScheduledTaskRun ?? throw new InvalidDataException("Missing committed ScheduledTaskRun source payload."), execution.CancellationToken).ConfigureAwait(false);
                 return new(EventProjectionApplyOutcome.Applied);
             }, domainEvent =>
             {
@@ -127,7 +127,7 @@ public sealed class ScheduledTaskRunEventProjector : ConventionalEventProjector<
             async (domainEvent, execution) =>
             {
                 if (writer is not IScheduledTaskTransactionalProjectionWriter { ProviderName: "System.Data.Postgres" })
-                    await writer.ProjectAsync(((ScheduledTaskRunUncertainRecordedEvent)domainEvent).ScheduledTaskRun!, execution.CancellationToken).ConfigureAwait(false);
+                    await writer.ProjectAsync(((ScheduledTaskRunUncertainRecordedEvent)domainEvent).ScheduledTaskRun ?? throw new InvalidDataException("Missing committed ScheduledTaskRun source payload."), execution.CancellationToken).ConfigureAwait(false);
                 return new(EventProjectionApplyOutcome.Applied);
             }, domainEvent =>
             {

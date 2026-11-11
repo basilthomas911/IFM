@@ -89,9 +89,9 @@ public sealed class ScheduledTaskSnapshotRepositoryTests(TradePlanDb.PostgresTra
         var disabled = enabled with { Revision = head + 1, DesiredRevision = head + 1, Enabled = false };
         await fixture.Transactions.ExecuteOnceAsync(async (transaction, token) =>
         {
-            await transaction.AppendAsync(command.StreamId, Guid.NewGuid(),
+            await transaction.AppendAsync(new EnlistedEventAppend(command.StreamId, Guid.NewGuid(),
                 new ScheduledTaskDisabledEvent { EntityId = id, ScheduledTaskDefinition = disabled },
-                restored.CommittedStreamVersion, token);
+                restored.CommittedStreamVersion), token);
             return true;
         });
         var reloaded = await repository.LoadStateAsync(command);
@@ -144,7 +144,7 @@ public sealed class ScheduledTaskSnapshotRepositoryTests(TradePlanDb.PostgresTra
         Assert.Equal(4, beforeOutcome.CommittedStreamVersion);
         await fixture.Transactions.ExecuteOnceAsync(async (transaction, token) =>
         {
-            await transaction.AppendAsync(command.StreamId, Guid.NewGuid(), terminalEvent, beforeOutcome.CommittedStreamVersion, token);
+            await transaction.AppendAsync(new EnlistedEventAppend(command.StreamId, Guid.NewGuid(), terminalEvent, beforeOutcome.CommittedStreamVersion), token);
             return true;
         }, deadline.Token);
 
@@ -200,9 +200,9 @@ public sealed class ScheduledTaskSnapshotRepositoryTests(TradePlanDb.PostgresTra
         var next = ready with { Revision = 5, Projects = [.. ready.Projects, new() { TaskKey = "third" }] };
         await fixture.Transactions.ExecuteOnceAsync(async (transaction, token) =>
         {
-            await transaction.AppendAsync(command.StreamId, Guid.NewGuid(),
+            await transaction.AppendAsync(new EnlistedEventAppend(command.StreamId, Guid.NewGuid(),
                 new ScheduledTaskCatalogProjectRegisteredEvent { EntityId = id, ScheduledTaskCatalog = next },
-                restored.CommittedStreamVersion, token);
+                restored.CommittedStreamVersion), token);
             return true;
         });
         var reloaded = await repository.LoadStateAsync(command);
@@ -295,7 +295,7 @@ public sealed class ScheduledTaskSnapshotRepositoryTests(TradePlanDb.PostgresTra
     private async Task Append(ICommand command, params IEvent[] events) => await fixture.Transactions.ExecuteOnceAsync(async (transaction, token) =>
     {
         for (var index = 0; index < events.Length; index++)
-            await transaction.AppendAsync(command.StreamId, Guid.NewGuid(), events[index], index, token);
+            await transaction.AppendAsync(new EnlistedEventAppend(command.StreamId, Guid.NewGuid(), events[index], index), token);
         return true;
     });
 

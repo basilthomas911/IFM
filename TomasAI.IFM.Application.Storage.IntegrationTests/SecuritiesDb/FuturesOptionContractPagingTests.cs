@@ -39,12 +39,12 @@ public sealed class FuturesOptionContractPagingTests
 
             // The legacy query remains available and performs its existing projection repair.
             var full = (await db.GetFuturesOptionContractsAsync("ES", token)).ToArray();
-            var first = await db.GetFuturesOptionContractsPageAsync(new("ES"), token);
+            var first = await db.GetFuturesOptionContractsPageAsync(new(new("ES")), token);
             Assert.Equal(200, first.Items.Length);
             Assert.True(first.HasMore);
-            var second = await db.GetFuturesOptionContractsPageAsync(new("ES", 200, first.ContinuationToken), token);
+            var second = await db.GetFuturesOptionContractsPageAsync(new(new("ES", 200, first.ContinuationToken)), token);
             Assert.Equal(200, second.Items.Length);
-            var last = await db.GetFuturesOptionContractsPageAsync(new("ES", 200, second.ContinuationToken), token);
+            var last = await db.GetFuturesOptionContractsPageAsync(new(new("ES", 200, second.ContinuationToken)), token);
             Assert.Equal(5, last.Items.Length);
             Assert.False(last.HasMore);
             var allPages = first.Items.Concat(second.Items).Concat(last.Items).ToArray();
@@ -53,20 +53,20 @@ public sealed class FuturesOptionContractPagingTests
             Assert.All(allPages, c => Assert.Equal("ES", c.Symbol));
 
             // Retained page tokens permit replay of an already visited page.
-            var replay = await db.GetFuturesOptionContractsPageAsync(new("ES", 200, first.ContinuationToken), token);
+            var replay = await db.GetFuturesOptionContractsPageAsync(new(new("ES", 200, first.ContinuationToken)), token);
             Assert.Equal(second.Items.Select(c => c.ContractId), replay.Items.Select(c => c.ContractId));
-            await Assert.ThrowsAsync<ArgumentException>(() => db.GetFuturesOptionContractsPageAsync(new("NQ", 200, first.ContinuationToken), token));
-            await Assert.ThrowsAsync<ArgumentException>(() => db.GetFuturesOptionContractsPageAsync(new("ES", 100, first.ContinuationToken), token));
-            await Assert.ThrowsAsync<ArgumentException>(() => db.GetFuturesOptionContractsPageAsync(new("ES", 200, "tampered"), token));
-            await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => db.GetFuturesOptionContractsPageAsync(new("ES", 0), token));
+            await Assert.ThrowsAsync<ArgumentException>(() => db.GetFuturesOptionContractsPageAsync(new(new("NQ", 200, first.ContinuationToken)), token));
+            await Assert.ThrowsAsync<ArgumentException>(() => db.GetFuturesOptionContractsPageAsync(new(new("ES", 100, first.ContinuationToken)), token));
+            await Assert.ThrowsAsync<ArgumentException>(() => db.GetFuturesOptionContractsPageAsync(new(new("ES", 200, "tampered")), token));
+            await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => db.GetFuturesOptionContractsPageAsync(new(new("ES", 0)), token));
             using var canceled = new CancellationTokenSource();
             canceled.Cancel();
-            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => db.GetFuturesOptionContractsPageAsync(new("ES"), canceled.Token));
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => db.GetFuturesOptionContractsPageAsync(new(new("ES")), canceled.Token));
 
             await db.InsertFuturesOptionContractAsync(Contract("ES", 999));
-            var continued = await db.GetFuturesOptionContractsPageAsync(new("ES", 200, first.ContinuationToken), token);
+            var continued = await db.GetFuturesOptionContractsPageAsync(new(new("ES", 200, first.ContinuationToken)), token);
             Assert.Equal(second.Items.Select(c => c.ContractId), continued.Items.Select(c => c.ContractId));
-            var empty = await db.GetFuturesOptionContractsPageAsync(new("EMPTY"), token);
+            var empty = await db.GetFuturesOptionContractsPageAsync(new(new("EMPTY")), token);
             Assert.Empty(empty.Items);
             Assert.False(empty.HasMore);
         }

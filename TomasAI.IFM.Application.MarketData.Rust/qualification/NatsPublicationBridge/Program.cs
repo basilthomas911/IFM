@@ -134,7 +134,8 @@ try{
     if(persisted is not null)
     {
         var evidence=writer.Value??throw new InvalidDataException("Native evidence was not acknowledged.");
-        var stored=await persisted.ReadAsync(evidence.Source.ContractId,evidence.Source.ValueDate,evidence.Source.Identity);
+        var stored=await persisted.ReadAsync(new TomasAI.IFM.Application.MarketData.Pricing.OptionTradeEvidenceLookup(
+            evidence.Source.ContractId, evidence.Source.ValueDate, evidence.Source.Identity));
         if(stored is null||!MessagePackBinarySerializer.Shared.Serialize(evidence)!.SequenceEqual(MessagePackBinarySerializer.Shared.Serialize(stored)!))
             throw new InvalidDataException("Actual PostgreSQL evidence differs from native captured/priced source.");
     }

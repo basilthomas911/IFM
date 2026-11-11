@@ -1,3 +1,5 @@
+using TomasAI.IFM.Shared.EventProjector;
+using TomasAI.IFM.Domain.MarketData.Securities.Persistence;
 using TomasAI.IFM.Application.Storage.SecuritiesDb;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -23,14 +25,18 @@ public sealed class FuturesContractEventProjector(
     readonly ImmutableArray<EventProjectionDescriptor> _descriptors =
     [
         Describe<FuturesContractAddedEvent, FuturesContractAddedCompleteEvent, FuturesContractAddedFailEvent, FuturesContractId>(
-            e => string.Equals(actorContext.DbFactory.SecuritiesDb.ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ? ValueTask.CompletedTask : new ValueTask(actorContext.DbFactory.SecuritiesDb.InsertFuturesContractAsync(e.Contract)))
+            e => string.Equals(actorContext.DbFactory.SecuritiesDb.ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ? ValueTask.CompletedTask : new ValueTask(actorContext.DbFactory.SecuritiesDb.InsertQualifiedFuturesContractAsync(e.Contract)))
             .WithReadModelRebuild((source,token) => RebuildAsync(actorContext,source,token)),
         Describe<FuturesContractChangedEvent, FuturesContractChangedCompleteEvent, FuturesContractChangedFailEvent, FuturesContractId>(
             e => string.Equals(actorContext.DbFactory.SecuritiesDb.ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ? ValueTask.CompletedTask : new ValueTask(actorContext.DbFactory.SecuritiesDb.UpdateFuturesContractAsync(e.OriginalContractId, e.Contract)))
             .WithReadModelRebuild((source,token) => RebuildAsync(actorContext,source,token)),
         Describe<FuturesContractRemovedEvent, FuturesContractRemovedCompleteEvent, FuturesContractRemovedFailEvent, FuturesContractId>(
             e => string.Equals(actorContext.DbFactory.SecuritiesDb.ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ? ValueTask.CompletedTask : new ValueTask(actorContext.DbFactory.SecuritiesDb.DeleteFuturesContractAsync(e.ContractId)))
-            .WithReadModelRebuild((source,token) => RebuildAsync(actorContext,source,token))
+            .WithReadModelRebuild((source,token) => RebuildAsync(actorContext,source,token)),
+        new EventProjectionDescriptor(typeof(FuturesContractRolloverSetReplacedEvent), EventProjectionIdempotencyStrategy.NaturalKeyMutation,
+            static (_, _) => ValueTask.FromResult(new EventProjectionApplyResult(EventProjectionApplyOutcome.Applied)),
+            static _ => null, static (_, _) => null, publishProcessingEvent: false, publishTerminalEvent: false)
+            .WithReadModelRebuild((source, token) => RebuildAsync(actorContext, source, token))
     ];
 
     static async Task RebuildAsync(ICommandActorContext<FuturesContractCommandActor> context, IEvent source, CancellationToken token)

@@ -80,7 +80,9 @@ public sealed class CommandLogBenchmarkProviderTests(CommandLogBenchmarkFixture 
 
 public sealed class CommandLogBenchmarkFixture : IAsyncLifetime
 {
-    readonly TomasAI.IFM.IntegrationTesting.IsolatedIntegrationInfrastructure infrastructure = new("storage-command-log");
+    // Preserve all 32 concurrent attempts on the single-CPU fixture without the default one-second CAS budget.
+    readonly TomasAI.IFM.IntegrationTesting.IsolatedIntegrationInfrastructure infrastructure =
+        new("storage-command-log", scyllaConditionalWriteTimeoutMilliseconds: 10_000);
     const string ScyllaConnectionVariable = "IFM_SCYLLA_TEST_CONNECTION";
     const string PostgresConnectionVariable = "IFM_POSTGRES_EVENTSOURCE_TEST_CONNECTION";
 

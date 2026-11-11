@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Query;
 using FluentAssertions;
 using TomasAI.IFM.Application.Storage.TradePlanDb;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan;

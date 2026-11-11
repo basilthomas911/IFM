@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
@@ -113,8 +114,8 @@ public sealed class PostgresAcceptedPortfolioTests(PostgresTradePlanFixture fixt
         async Task<string[]> RowsAsync(string table)=>(await fixture.Transactions.ExecuteOnceAsync((db,ct)=>db.QueryAsync("SELECT row_to_json(t)::text FROM portfolio."+table+" t WHERE portfolio_id=$1 ORDER BY 1;",[id],r=>r.GetString(0),ct))).ToArray();
         var stream="accepted-fund-"+Guid.NewGuid().ToString("N");
         await fixture.Transactions.ExecuteOnceAsync(async(db,ct)=>{
-            await db.AppendAsync(stream,source.CommandId,source,0,ct);
-            await PortfolioDbContextExtensions.PersistAcceptedPortfolioAsync(db,source,facts,ct);
+            await db.AppendAsync(new EnlistedEventAppend(stream,source.CommandId,source,0),ct);
+            await AcceptedPortfolioProjection.PersistAcceptedPortfolioAsync(db,source,facts,ct);
             return true;
         });
         var original=new System.Collections.Generic.Dictionary<string,string[]>();
@@ -122,8 +123,8 @@ public sealed class PostgresAcceptedPortfolioTests(PostgresTradePlanFixture fixt
         var accepted=await fixture.Transactions.ExecuteOnceAsync((db,ct)=>db.QueryAsync("SELECT n.EventTypeName,l.EventVersion,l.EventPayload FROM event_log l JOIN event_name_id n ON n.EventNameId=l.EventNameId JOIN event_stream_id s ON s.EventStreamId=l.EventStreamId WHERE s.EventStream=$1;",[stream],r=>(TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events.FundCompositionReservedEvent)new EventStreamReadModel {EventTypeName=r.GetString(0),EventVersion=r.GetInt64(1),EventData=r.GetFieldValue<byte[]>(2)}.ToDomainEvent(),ct));
         await fixture.Transactions.ExecuteOnceAsync(async(db,ct)=>{
             foreach(var table in tables) await db.ExecuteAsync("DELETE FROM portfolio."+table+" WHERE portfolio_id=$1;",[id],ct);
-            await PortfolioDbContextExtensions.PersistAcceptedPortfolioAsync(db,accepted.Single(),accepted.Single().ProjectionFacts!,ct);
-            await PortfolioDbContextExtensions.PersistAcceptedPortfolioAsync(db,accepted.Single(),accepted.Single().ProjectionFacts!,ct);
+            await AcceptedPortfolioProjection.PersistAcceptedPortfolioAsync(db,accepted.Single(),accepted.Single().ProjectionFacts!,ct);
+            await AcceptedPortfolioProjection.PersistAcceptedPortfolioAsync(db,accepted.Single(),accepted.Single().ProjectionFacts!,ct);
             return true;
         });
         foreach(var table in tables)(await RowsAsync(table)).Should().Equal(original[table],table);
@@ -165,7 +166,8 @@ public sealed class PostgresAcceptedPortfolioTests(PostgresTradePlanFixture fixt
             Portfolio=new PortfolioReadModel {PortfolioId=101,Name="accepted wire facts"},DeletedTradeIds=[123,456] };
         var types=typeof(IPortfolioDomainEvent).Assembly.GetTypes().Where(t=>!t.IsAbstract && typeof(IEvent).IsAssignableFrom(t)
             && t.GetProperty("ProjectionFacts")?.PropertyType == typeof(PortfolioProjectionFacts)).ToArray();
-        types.Should().HaveCount(22);
+        types.Should().Contain(typeof(FundBaseContractsConfiguredEvent));
+        types.Should().HaveCount(23);
         foreach (var type in types)
         {
             var source=Activator.CreateInstance(type)!;
@@ -211,16 +213,16 @@ public sealed class PostgresAcceptedPortfolioTests(PostgresTradePlanFixture fixt
         var stream="accepted-portfolio-"+Guid.NewGuid().ToString("N");
         async Task<string[]> RowsAsync()=> (await fixture.Transactions.ExecuteOnceAsync((db,ct)=>db.QueryAsync("SELECT row_to_json(t)::text FROM portfolio.portfolio_by_id t WHERE portfolio_id=$1 UNION ALL SELECT row_to_json(t)::text FROM portfolio.portfolio_by_state t WHERE portfolio_id=$1 ORDER BY 1;",[id],r=>r.GetString(0),ct))).ToArray();
         await FluentActions.Awaiting(()=>fixture.Transactions.ExecuteOnceAsync<bool>(async(db,ct)=>{
-            await db.AppendAsync(stream,source.CommandId,source,0,ct);
-            await PortfolioDbContextExtensions.PersistAcceptedPortfolioAsync(db,source,source.ProjectionFacts!,ct);
+            await db.AppendAsync(new EnlistedEventAppend(stream,source.CommandId,source,0),ct);
+            await AcceptedPortfolioProjection.PersistAcceptedPortfolioAsync(db,source,source.ProjectionFacts!,ct);
             await db.ExecuteAsync("SELECT 1/0;",[],ct);
             return true;
         })).Should().ThrowAsync<Npgsql.PostgresException>();
         (await fixture.EventCountAsync(stream)).Should().Be(0);
         (await RowsAsync()).Should().BeEmpty();
         await fixture.Transactions.ExecuteOnceAsync(async(db,ct)=>{
-            await db.AppendAsync(stream,source.CommandId,source,0,ct);
-            await PortfolioDbContextExtensions.PersistAcceptedPortfolioAsync(db,source,source.ProjectionFacts!,ct);
+            await db.AppendAsync(new EnlistedEventAppend(stream,source.CommandId,source,0),ct);
+            await AcceptedPortfolioProjection.PersistAcceptedPortfolioAsync(db,source,source.ProjectionFacts!,ct);
             return true;
         });
         var original=await RowsAsync();
@@ -231,8 +233,8 @@ public sealed class PostgresAcceptedPortfolioTests(PostgresTradePlanFixture fixt
         await fixture.Transactions.ExecuteOnceAsync(async(db,ct)=>{
             await db.ExecuteAsync("DELETE FROM portfolio.portfolio_by_state WHERE portfolio_id=$1;",[id],ct);
             await db.ExecuteAsync("DELETE FROM portfolio.portfolio_by_id WHERE portfolio_id=$1;",[id],ct);
-            await PortfolioDbContextExtensions.PersistAcceptedPortfolioAsync(db,accepted,accepted.ProjectionFacts!,ct);
-            await PortfolioDbContextExtensions.PersistAcceptedPortfolioAsync(db,accepted,accepted.ProjectionFacts!,ct);
+            await AcceptedPortfolioProjection.PersistAcceptedPortfolioAsync(db,accepted,accepted.ProjectionFacts!,ct);
+            await AcceptedPortfolioProjection.PersistAcceptedPortfolioAsync(db,accepted,accepted.ProjectionFacts!,ct);
             return true;
         });
         (await RowsAsync()).Should().Equal(original);

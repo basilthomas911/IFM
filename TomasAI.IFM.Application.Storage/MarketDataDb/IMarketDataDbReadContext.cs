@@ -20,13 +20,39 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility;
 
 namespace TomasAI.IFM.Application.Storage.MarketDataDb;
 
+/// <summary>Reads committed Market Data projections and immutable evidence.</summary>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1716", Justification = "Keep the published context interface and named argument contract; inherited capability members intentionally describe the same database operation.")]
-public interface IMarketDataDbReadContext
+public interface IMarketDataDbReadContext : TomasAI.IFM.Application.MarketData.Contracts.IOptionChainStatisticsStore,
+    TomasAI.IFM.Application.MarketData.Contracts.IStrategyOptionChainParameterReadStore
 {
+    /// <summary>Reads canonical observations and compatible persisted Native replay coverage in one bounded request.</summary>
+    /// <param name="contractId">The exact canonical contract identity.</param>
+    /// <param name="frame">The frame supplied by the caller.</param>
+    /// <param name="valueDate">The value date supplied by the caller.</param>
+    /// <param name="intervalEndsUtc">The interval ends utc supplied by the caller.</param>
+    /// <param name="sourceVersion">The source version supplied by the caller.</param>
+    /// <param name="cancellationToken">Cancels the database operation.</param>
+    /// <returns>The selected rows in the query's defined order.</returns>
+    Task<IReadOnlyList<FuturesTradeSessionBarReadModel>> GetQualifiedIndicatorSeedBarsAsync(string contractId, TimeFrameType frame,
+        DateOnly valueDate, DateTimeOffset[] intervalEndsUtc, string sourceVersion, CancellationToken cancellationToken);
+
+
     /// <summary>Reads one completed, immutable contract interval for indicator restart without reacquiring provider history.</summary>
+    /// <param name="contractId">The exact canonical contract identity.</param>
+    /// <param name="frame">The frame supplied by the caller.</param>
+    /// <param name="valueDate">The value date supplied by the caller.</param>
+    /// <param name="intervalEndUtc">The interval end utc supplied by the caller.</param>
+    /// <param name="cancellationToken">Cancels the database operation.</param>
+    /// <returns>The selected row, or null when no matching published row exists.</returns>
     Task<FuturesTradeSessionBarReadModel?> GetStoredTradeSessionBarAsync(string contractId, TimeFrameType frame,
         DateOnly valueDate, DateTimeOffset intervalEndUtc, CancellationToken cancellationToken = default);
     /// <summary>Reads the latest qualified bar for each requested interval end under one contract, date and timeframe.</summary>
+    /// <param name="contractId">The exact canonical contract identity.</param>
+    /// <param name="frame">The frame supplied by the caller.</param>
+    /// <param name="valueDate">The value date supplied by the caller.</param>
+    /// <param name="intervalEndsUtc">The interval ends utc supplied by the caller.</param>
+    /// <param name="cancellationToken">Cancels the database operation.</param>
+    /// <returns>The selected rows in the query's defined order.</returns>
     Task<IReadOnlyList<FuturesTradeSessionBarReadModel>> GetStoredTradeSessionBarsAsync(string contractId, TimeFrameType frame,
         DateOnly valueDate, DateTimeOffset[] intervalEndsUtc, CancellationToken cancellationToken = default);
     /// <summary>Checks usable PostgreSQL canonical query indexes; raw tick readiness belongs to TradeTickQuoteDb.</summary>
@@ -43,15 +69,11 @@ public interface IMarketDataDbReadContext
         CompositionPreparationKey key,
         CancellationToken cancellationToken);
     /// <summary>Read using the MarketDataDb persistence.</summary>
-    /// <param name="contract">The contract used by this operation.</param>
-    /// <param name="date">The date used by this operation.</param>
-    /// <param name="sourceId">The source id used by this operation.</param>
+    /// <param name="lookup">The exact caller-qualified trade source identity.</param>
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
     /// <returns>The typed result of the market-data query or mutation.</returns>
     Task<OptionTradeEvidence?> ReadAsync(
-        string contract,
-        DateOnly date,
-        string sourceId,
+        OptionTradeEvidenceLookup lookup,
         CancellationToken cancellationToken = default);
     /// <summary>Get Raw Eod using the MarketDataDb persistence.</summary>
     /// <param name="seriesIdentity">The series identity used by this operation.</param>
@@ -103,11 +125,11 @@ public interface IMarketDataDbReadContext
     Task<VolatilityPage<OptionIvMetricRevision>> GetMetricHistoryAsync(
         VolatilityHistoryPageRequest request,
         CancellationToken cancellationToken = default);
-    /// <summary>Rebuild Latest Cache using the MarketDataDb persistence.</summary>
+    /// <summary>Reads latest persisted volatility pointers.</summary>
     /// <param name="scopes">The scopes used by this operation.</param>
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
     /// <returns>The typed result of the market-data query or mutation.</returns>
-    Task<IReadOnlyDictionary<VolatilityStorageScope, OptionIvLatestPointer>> RebuildLatestCacheAsync(
+    Task<IReadOnlyDictionary<VolatilityStorageScope, OptionIvLatestPointer>> ReadLatestVolatilityPointersAsync(
         IEnumerable<VolatilityStorageScope> scopes,
         CancellationToken cancellationToken = default);
 
@@ -131,18 +153,6 @@ public interface IMarketDataDbReadContext
         int pageSize = 100,
         MarketDataDownloadCursor? cursor = null,
         CancellationToken cancellationToken = default);
-    /// <summary>Get Market Data Download Status using the MarketDataDb persistence.</summary>
-    /// <param name="partition">The partition used by this operation.</param>
-    /// <param name="requiredImportCommandId">The required import command id used by this operation.</param>
-    /// <param name="cursor">The cursor used by this operation.</param>
-    /// <param name="cancellationToken">The token used to cancel the operation.</param>
-    /// <returns>The typed result of the market-data query or mutation.</returns>
-    Task<MarketDataDownloadStatusResult> GetMarketDataDownloadStatusAsync(
-        MarketDataDownloadPartition partition,
-        Guid? requiredImportCommandId = null,
-        MarketDataDownloadCursor? cursor = null,
-        CancellationToken cancellationToken = default);
-
     /// <summary>Get Latest Futures Ema Signal using the MarketDataDb persistence.</summary>
     /// <param name="seriesIdentity">The series identity used by this operation.</param>
     /// <param name="valueDate">The value date used by this operation.</param>
@@ -217,19 +227,12 @@ public interface IMarketDataDbReadContext
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
     /// <returns>The typed result of the market-data query or mutation.</returns>
     Task<ICollection<EconomicCalendarReadModel>> GetEconomicCalendarsAsync(DateTime eventDate, string countryCode, CancellationToken cancellationToken);
-    /// <summary>Get Economic Calendars using the MarketDataDb persistence.</summary>
-    /// <param name="startDate">The start date used by this operation.</param>
-    /// <param name="endDate">The end date used by this operation.</param>
-    /// <param name="countryCode">The country code used by this operation.</param>
-    /// <returns>The typed result of the market-data query or mutation.</returns>
-    Task<ICollection<EconomicCalendarReadModel>> GetEconomicCalendarsAsync(DateTime startDate, DateTime endDate, string countryCode);
-    /// <summary>Get Economic Calendars using the MarketDataDb persistence.</summary>
-    /// <param name="startDate">The start date used by this operation.</param>
-    /// <param name="endDate">The end date used by this operation.</param>
-    /// <param name="countryCode">The country code used by this operation.</param>
-    /// <param name="cancellationToken">The token used to cancel the operation.</param>
-    /// <returns>The typed result of the market-data query or mutation.</returns>
-    Task<ICollection<EconomicCalendarReadModel>> GetEconomicCalendarsAsync(DateTime startDate, DateTime endDate, string countryCode, CancellationToken cancellationToken);
+    /// <summary>Reads an already-qualified single-country economic calendar range.</summary>
+    /// <param name="range">The normalized and bounded range supplied by the query owner.</param>
+    /// <param name="cancellationToken">Cancels the query.</param>
+    /// <returns>The matching calendar events.</returns>
+    Task<ICollection<EconomicCalendarReadModel>> GetEconomicCalendarsAsync(
+        EconomicCalendarDateRange range, CancellationToken cancellationToken = default);
     /// <summary>Get Economic Calendar Page using the MarketDataDb persistence.</summary>
     /// <param name="request">The request used by this operation.</param>
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
@@ -540,6 +543,12 @@ public interface IMarketDataDbReadContext
     Task<ICollection<FuturesOptionTickDataV2ReadModel>> GetFuturesOptionChainQuoteDataAsync(
         string underlyingContractId, DateOnly expiryDate, DateOnly valueDate, CancellationToken cancellationToken = default);
     /// <summary>Reads the latest single-session quote snapshot no later than the requested date and UTC cutoff.</summary>
+    /// <param name="underlyingContractId">The exact canonical underlying futures contract identity.</param>
+    /// <param name="expiryDate">The expiry date identifying the immutable partition.</param>
+    /// <param name="valueDate">The value date supplied by the caller.</param>
+    /// <param name="notAfterUtc">The not after utc supplied by the caller.</param>
+    /// <param name="cancellationToken">Cancels the database operation.</param>
+    /// <returns>The selected rows in the query's defined order.</returns>
     Task<ICollection<FuturesOptionTickDataV2ReadModel>> GetLatestFuturesOptionChainQuoteDataAsync(
         string underlyingContractId, DateOnly expiryDate, DateOnly valueDate, DateTimeOffset notAfterUtc,
         CancellationToken cancellationToken = default);
@@ -809,17 +818,12 @@ public interface IMarketDataDbReadContext
     /// <param name="valueDate">The value date used by this operation.</param>
     /// <returns>The typed result of the market-data query or mutation.</returns>
     Task<YieldCurveRateReadModel?> GetYieldCurveRateAsync(DateOnly valueDate);
-    /// <summary>Get Yield Curve Rates using the MarketDataDb persistence.</summary>
-    /// <param name="startDate">The start date used by this operation.</param>
-    /// <param name="endDate">The end date used by this operation.</param>
-    /// <returns>The typed result of the market-data query or mutation.</returns>
-    Task<ICollection<YieldCurveRateReadModel>> GetYieldCurveRatesAsync(DateOnly startDate, DateOnly endDate);
-    /// <summary>Get Yield Curve Rates using the MarketDataDb persistence.</summary>
-    /// <param name="startDate">The start date used by this operation.</param>
-    /// <param name="endDate">The end date used by this operation.</param>
-    /// <param name="cancellationToken">The token used to cancel the operation.</param>
-    /// <returns>The typed result of the market-data query or mutation.</returns>
-    Task<ICollection<YieldCurveRateReadModel>> GetYieldCurveRatesAsync(DateOnly startDate, DateOnly endDate, CancellationToken cancellationToken);
+    /// <summary>Reads the caller-qualified range of Treasury yield curves.</summary>
+    /// <param name="range">The inclusive range supplied by the query owner.</param>
+    /// <param name="cancellationToken">Cancels the database operation.</param>
+    /// <returns>The selected curves.</returns>
+    Task<ICollection<YieldCurveRateReadModel>> GetYieldCurveRatesAsync(
+        YieldCurveReadRange range, CancellationToken cancellationToken = default);
     /// <summary>Get Yield Curve Rate Years using the MarketDataDb persistence.</summary>
     /// <returns>The typed result of the market-data query or mutation.</returns>
     Task<ICollection<int>> GetYieldCurveRateYearsAsync();
@@ -927,5 +931,13 @@ public interface IMarketDataDbReadContext
     /// <returns>The completed attempt, or null.</returns>
     Task<HistoricalDataLoaderState?> GetCompletedHistoricalDataLoadAsync(string requestSha256, CancellationToken cancellationToken = default);
     /// <summary>Reads the committed Analytics attempt projection.</summary>
+    /// <param name="attemptId">The attempt id supplied by the caller.</param>
+    /// <param name="cancellationToken">Cancels the database operation.</param>
+    /// <returns>The selected row, or null when no matching published row exists.</returns>
     Task<FuturesAnalyticsHistoricalDataLoaderDiagnosticsReadModel?> GetHistoricalAnalyticsAttemptProjectionAsync(Guid attemptId, CancellationToken cancellationToken = default);
+
+    /// <summary>Reads one bounded page of legacy checkpoints lacking progress projections, for write-side reconciliation.</summary>
+    /// <param name="cancellationToken">Cancels the read.</param>
+    /// <returns>The persisted acquisition checkpoints with their optional manifests.</returns>
+    Task<ICollection<HistoricalDataLoaderState>> ReadUnprojectedHistoricalDataLoadsAsync(CancellationToken cancellationToken);
 }

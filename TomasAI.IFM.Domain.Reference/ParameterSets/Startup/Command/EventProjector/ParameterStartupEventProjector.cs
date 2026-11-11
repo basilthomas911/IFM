@@ -52,8 +52,12 @@ public sealed class ParameterStartupEventProjector : ConventionalEventProjector<
 
     Task RebuildAsync(IEvent fact, CancellationToken token)
     {
-        if (!IsPostgres) {
-return context.ConfigurationDb.ProjectParameterStartupAsync((ParameterStartupChangedEvent)fact, token);}
+        if (!IsPostgres)
+        {
+            var startup = (ParameterStartupChangedEvent)fact;
+            AcceptedParameterIdentity.RequireStartup(startup);
+            return context.ConfigurationDb.ProjectParameterStartupAsync(startup, token);
+        }
         var databases = context.Container.Resolve<IDbContextFactory>();
         return context.Container.Resolve<IPostgresEventTransaction>().ExecuteOnceAsync(async (transaction, cancellationToken) =>
         {

@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Securities.Persistence;
 using System;
 using System.Linq;
 using System.Collections.Immutable;
@@ -99,8 +100,8 @@ public sealed class FuturesReferenceMetadataStorageTests(PostgresTradePlanFixtur
             var restarted = Open();
             Assert.Equal(future, await restarted.GetFuturesContractAsync(future.ContractId, token));
             Assert.Equal(option, await restarted.GetFuturesOptionContractAsync(option.ContractId, token));
-            await restarted.BackfillSymbolProjectionsAsync(cancellationToken: token);
-            var page = await restarted.GetFuturesOptionContractsPageAsync(new("ES"), token);
+            await new SecuritiesSymbolProjectionMaintenance(restarted.DbWriter).BackfillSymbolProjectionsAsync(cancellationToken: token);
+            var page = await restarted.GetFuturesOptionContractsPageAsync(new(new("ES")), token);
             Assert.Equal(2, page.Items.Length);
             Assert.Equal(option, Assert.Single(page.Items, x => x.ContractId == option.ContractId));
             Assert.Equal(strike, Assert.Single(page.Items, x => x.ContractId == option.ContractId).GetExactStrikePrice());
@@ -149,11 +150,11 @@ public sealed class FuturesReferenceMetadataStorageTests(PostgresTradePlanFixtur
             };
             await db.UpdateFuturesOptionContractAsync(option.ContractId, reviewedOption);
             var versions = Open();
-            var first = await versions.GetReferenceVersionAsync(option.ContractId, "fixture/v1", token);
+            var first = await versions.GetReferenceVersionAsync(new ExactReferenceVersion(option.ContractId, "fixture/v1"), token);
             Assert.Equal(reviewedOption, first!.Option);
             Assert.Equal(strike, first.Convention!.Strike);
             Assert.Equal(TomasAI.IFM.Shared.MarketData.Contracts.Pricing.OptionExerciseStyle.American, first.Convention.ExerciseStyle);
-            IOptionPricingConventionStore conventionStore = versions;
+            IOptionPricingConventionStore conventionStore = new TomasAI.IFM.Domain.MarketData.Securities.Persistence.SecuritiesReferenceReader(versions);
             Assert.Equal(first.Convention, await conventionStore.GetAsync(option.ContractId, "fixture/v1", token));
             Assert.Null(await conventionStore.GetAsync(option.ContractId, "missing", token));
             // Given an imported American reference, retain a real full-Greek Trade-basis result and reopen it.
@@ -187,7 +188,7 @@ public sealed class FuturesReferenceMetadataStorageTests(PostgresTradePlanFixtur
             var evidenceStore = MarketDataDbContextTestFactory.Create(evidenceConnection);
             await evidenceStore.WriteAsync(evidence, token);
             var tradeCopy = await MarketDataDbContextTestFactory.Create(evidenceConnection)
-                .ReadAsync(option.ContractId, trade.ValueDate, evidence.Source.Identity, token);
+                .ReadAsync(new TomasAI.IFM.Application.MarketData.Pricing.OptionTradeEvidenceLookup(option.ContractId, trade.ValueDate, evidence.Source.Identity), token);
             Assert.Equal(evidence.Greeks, tradeCopy!.Greeks);
             Assert.Equal(nanos, tradeCopy.Source.EventNanoseconds);
             Assert.Equal(context.Contract, tradeCopy.Context!.Contract);
@@ -196,13 +197,14 @@ public sealed class FuturesReferenceMetadataStorageTests(PostgresTradePlanFixtur
             Assert.Equal(reviewedOption, await db.GetFuturesOptionContractAsync(option.ContractId, token));
             var second = reviewedOption with { MappingVersion = "fixture/v2", EvidenceId = "fixture/correction" };
             var staged = await versions.StageReferenceVersionAsync(second, token);
-            Assert.Null(await versions.GetReferenceVersionAsync(option.ContractId, "fixture/v2", token));
+            Assert.Null(await versions.GetReferenceVersionAsync(new ExactReferenceVersion(option.ContractId, "fixture/v2"), token));
             await db.UpdateFuturesOptionContractAsync(option.ContractId, second);
-            Assert.Equal(second, (await versions.GetReferenceVersionAsync(option.ContractId, "fixture/v2", token))!.Option);
-            Assert.Equal(reviewedOption, (await versions.GetReferenceVersionAsync(option.ContractId, "fixture/v1", token))!.Option);
-            Assert.Equal(reviewedOption, (await versions.GetEffectiveReferenceVersionAsync(option.ContractId, "fixture/v1", start, token))!.Option);
-            Assert.Null(await versions.GetEffectiveReferenceVersionAsync(option.ContractId, "fixture/v1", expiry, token));
-            Assert.Contains(await versions.ListReferenceVersionsAsync(option.ContractId, cancellationToken: token),
+            Assert.Equal(second, (await versions.GetReferenceVersionAsync(new ExactReferenceVersion(option.ContractId, "fixture/v2"), token))!.Option);
+            Assert.Equal(reviewedOption, (await versions.GetReferenceVersionAsync(new ExactReferenceVersion(option.ContractId, "fixture/v1"), token))!.Option);
+            var reader = new SecuritiesReferenceReader(versions);
+            Assert.Equal(reviewedOption, (await reader.GetEffectiveReferenceVersionAsync(option.ContractId, "fixture/v1", start, token))!.Option);
+            Assert.Null(await reader.GetEffectiveReferenceVersionAsync(option.ContractId, "fixture/v1", expiry, token));
+            Assert.Contains(await reader.ListReferenceVersionsAsync(option.ContractId, cancellationToken: token),
                 row => row.Version == "fixture/v1" && row.Published);
             await Assert.ThrowsAsync<InvalidOperationException>(() => db.UpdateFuturesOptionContractAsync(
                 option.ContractId, second with { MappingVersion = "wrong-underlying", UnderlyingInstrumentId = 999 }));
@@ -236,7 +238,7 @@ public sealed class FuturesReferenceMetadataStorageTests(PostgresTradePlanFixtur
             var repair = await versions.StageReferenceVersionAsync(reviewedFuture, token);
             await versions.CommitReferenceVersionAsync(repair, token);
             await db.UpdateFuturesOptionContractAsync(option.ContractId, second with { MappingVersion = "fixture/v3" });
-            Assert.NotNull(await versions.GetReferenceVersionAsync(option.ContractId, "fixture/v3", token));
+            Assert.NotNull(await versions.GetReferenceVersionAsync(new ExactReferenceVersion(option.ContractId, "fixture/v3"), token));
         }
         finally
         {

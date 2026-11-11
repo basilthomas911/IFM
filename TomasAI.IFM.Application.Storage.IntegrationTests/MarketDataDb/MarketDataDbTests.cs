@@ -1,3 +1,5 @@
+using TomasAI.IFM.Domain.MarketData.Shared.QueryParameters;
+using TomasAI.IFM.Domain.MarketData.Persistence;
 using FluentAssertions;
 using FluentAssertions.Extensions;
 using MessagePack;
@@ -95,7 +97,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
     {
         var db = TestFixture.DevDatabase;
         var row = SampleData.FuturesEodData with { ContractId = "REBUILD-ROLLBACK-" + Guid.NewGuid().ToString("N") };
-        await db.InsertFuturesEodDataAsync(row);
+        await db.InsertFuturesEodDataAsync(row, await TestFixture.SequenceIdGenerator.GetSequenceIdAsync(SequenceName.FuturesIntraDay_SequenceId));
         await db.Use("RebuildFailure.Setup", "DROP INDEX IF EXISTS market_data.futures_eod_data_ordered; DROP INDEX IF EXISTS market_data.futures_eod_value_date; CREATE TABLE market_data.futures_eod_data_ordered (blocker int);")
             .ExecuteCommandAsync();
         try
@@ -121,7 +123,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         var rows = Enumerable.Range(0, 3).Select(index => SampleData.FuturesEodData with
             { ContractId = "REBUILD-WRITE-" + Guid.NewGuid().ToString("N"), ClosePrice = 100 + index }).ToArray();
         foreach (var row in rows)
-            await Task.WhenAll(db.BackfillQueryProjectionsV2Async(), db.InsertFuturesEodDataAsync(row));
+            await Task.WhenAll(db.BackfillQueryProjectionsV2Async(), db.InsertFuturesEodDataAsync(row, await TestFixture.SequenceIdGenerator.GetSequenceIdAsync(SequenceName.FuturesIntraDay_SequenceId)));
         foreach (var row in rows)
             Assert.Equal(row.ClosePrice, (await db.GetFuturesEodDataAsync(row.ContractId, row.ValueDate))!.ClosePrice);
         Assert.True((await db.GetQueryProjectionReadinessAsync()).IsReady);
@@ -138,8 +140,8 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         };
         var rows = new[]
         {
-            new BufferedFuturesEodRow(row, true),
-            new BufferedFuturesEodRow(row with { ClosePrice = 101m }, true),
+            new BufferedFuturesEodRow(row, true) { HistorySequenceId = 1 },
+            new BufferedFuturesEodRow(row with { ClosePrice = 101m }, true) { HistorySequenceId = 2 },
             new BufferedFuturesEodRow(row with { ClosePrice = 102m }, false)
         };
         try
@@ -445,7 +447,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
     async Task DeleteFuturesItiSignalsAsync(string contractId, DateOnly? valueDate = null)
     {
         var rows = await TestFixture.DevDatabase
-            .Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbSql.GetFuturesItiSignalsCanonicalByContract)}", MarketDataDbSql.GetFuturesItiSignalsCanonicalByContract)
+            .Use($"{nameof(MarketDataDbSql)}.{nameof(MarketDataDbSql.GetFuturesItiSignalsCanonicalByContract)}", MarketDataDbSql.GetFuturesItiSignalsCanonicalByContract)
             .SetParameters(new GetFuturesItiSignalsCanonicalByContract(contractId))
             .ExecuteQueryAsync(record => (
                 ValueDate: record.GetDateOnly(1),
@@ -546,7 +548,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         await TestFixture.DevDatabase.InsertFuturesClosingPriceAsync(yesterdayClosingPrice);
 
         // Assert: Verify that the data was inserted by retrieving it and checking the values
-        await TestFixture.DevDatabase.InsertFuturesEodDataAsync(futuresEodData);
+        await TestFixture.DevDatabase.InsertFuturesEodDataAsync(futuresEodData, await TestFixture.SequenceIdGenerator.GetSequenceIdAsync(SequenceName.FuturesIntraDay_SequenceId));
         var retrievedData = await TestFixture.DevDatabase.GetFuturesEodDataAsync(futuresEodData.ContractId, futuresEodData.ValueDate);
         retrievedData.Should().NotBeNull();
         retrievedData.ContractId.Should().Be(futuresEodData.ContractId);
@@ -579,10 +581,10 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         await TestFixture.DevDatabase.InsertFuturesTickDataAsync(SampleData.FuturesTickData);
         await TestFixture.DevDatabase.InsertFuturesTickDataAsync(SampleData.FuturesTickDataHighPrice);
         await TestFixture.DevDatabase.InsertFuturesTickDataAsync(SampleData.FuturesTickDataLowPrice);
-        await TestFixture.DevDatabase.InsertFuturesEodDataAsync(futuresEodData);
+        await TestFixture.DevDatabase.InsertFuturesEodDataAsync(futuresEodData, await TestFixture.SequenceIdGenerator.GetSequenceIdAsync(SequenceName.FuturesIntraDay_SequenceId));
 
         // Act: Insert the FuturesClosingPriceReadModel into the database
-        await TestFixture.DevDatabase.InsertFuturesEodDataAsync(futuresEodData with { ClosePrice = 53.2m });
+        await TestFixture.DevDatabase.InsertFuturesEodDataAsync(futuresEodData with { ClosePrice = 53.2m }, await TestFixture.SequenceIdGenerator.GetSequenceIdAsync(SequenceName.FuturesIntraDay_SequenceId));
 
         // Assert: Verify that the data was inserted by retrieving it and checking the values
         var retrievedData = await TestFixture.DevDatabase.GetFuturesEodDataAsync(futuresEodData.ContractId, futuresEodData.ValueDate);
@@ -605,7 +607,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         await TestFixture.DevDatabase.DeleteFuturesEodDataAsync(
             original.ContractId,
             original.ValueDate);
-        await TestFixture.DevDatabase.InsertFuturesEodDataAsync(original);
+        await TestFixture.DevDatabase.InsertFuturesEodDataAsync(original, await TestFixture.SequenceIdGenerator.GetSequenceIdAsync(SequenceName.FuturesIntraDay_SequenceId));
         var beforeIntraday = await TestFixture.DevDatabase.GetFuturesIntraDayDataAsync(
             original.ContractId,
             original.ValueDate);
@@ -674,10 +676,9 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         await TestFixture.DevDatabase.DeleteVixFuturesEodDataAsync(contractId, valueDate);
         try
         {
-            await TestFixture.DevDatabase.InsertVixFuturesEodDataAsync(tick, statistics);
-            await TestFixture.DevDatabase.InsertVixFuturesEodDataAsync(
-                tick with { Price = 20.30m, Size = 0 },
-                statistics);
+            await TestFixture.DevDatabase.InsertVixFuturesEodDataAsync(new VixTickObservation(tick, statistics));
+            await TestFixture.DevDatabase.InsertVixFuturesEodDataAsync(new VixTickObservation(tick with { Price = 20.30m, Size = 0 },
+                statistics));
 
             var stored = await TestFixture.DevDatabase.GetVixFuturesEodDataAsync(
                 contractId,
@@ -709,7 +710,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         await TestFixture.DevDatabase.InsertFuturesTickDataAsync(SampleData.VixFuturesTickDataLowPrice);
 
         // Act: Insert the FuturesClosingPriceReadModel into the database
-        await TestFixture.DevDatabase.InsertVixFuturesEodDataAsync(futuresTickData);
+        await TestFixture.DevDatabase.InsertVixFuturesEodDataAsync(new VixTickObservation(futuresTickData));
 
         // Assert: Verify that the data was inserted by retrieving it and checking the values
         var retrievedData = await TestFixture.DevDatabase.GetVixFuturesEodDataAsync(futuresEodData.EntityId.ContractId, futuresEodData.EntityId.ValueDate);
@@ -741,13 +742,13 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
             TickId = futuresTickData.TickId + 2
         };
         await TestFixture.DevDatabase.UseTest($"delete from vix_futures_eod_data where contractId = '{futuresEodData.ContractId}' ").ExecuteCommandAsync();
-        await TestFixture.DevDatabase.InsertVixFuturesEodDataAsync(futuresTickData);
-        await TestFixture.DevDatabase.InsertVixFuturesEodDataAsync(highTickData);
-        await TestFixture.DevDatabase.InsertVixFuturesEodDataAsync(lowTickData);
+        await TestFixture.DevDatabase.InsertVixFuturesEodDataAsync(new VixTickObservation(futuresTickData));
+        await TestFixture.DevDatabase.InsertVixFuturesEodDataAsync(new VixTickObservation(highTickData));
+        await TestFixture.DevDatabase.InsertVixFuturesEodDataAsync(new VixTickObservation(lowTickData));
         var totalVolume = futuresTickData.Size + highTickData.Size + lowTickData.Size + 341;
 
         // Act: Insert the FuturesClosingPriceReadModel into the database
-        await TestFixture.DevDatabase.InsertVixFuturesEodDataAsync(futuresTickData with { Price = 77.50m, Size = 341 });
+        await TestFixture.DevDatabase.InsertVixFuturesEodDataAsync(new VixTickObservation(futuresTickData with { Price = 77.50m, Size = 341 }));
 
         // Assert: Verify that the data was inserted by retrieving it and checking the values
         var retrievedData = await TestFixture.DevDatabase.GetVixFuturesEodDataAsync(futuresEodData.EntityId.ContractId, futuresEodData.EntityId.ValueDate);
@@ -761,8 +762,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         retrievedData.Volume.Should().Be(totalVolume);
 
         // A quote midpoint advances the rolling VX price without manufacturing trade volume.
-        await TestFixture.DevDatabase.InsertVixFuturesEodDataAsync(
-            futuresTickData with { Price = 78.25m, Size = 0 });
+        await TestFixture.DevDatabase.InsertVixFuturesEodDataAsync(new VixTickObservation(futuresTickData with { Price = 78.25m, Size = 0 }));
         var quoteUpdated = await TestFixture.DevDatabase.GetVixFuturesEodDataAsync(
             futuresEodData.EntityId.ContractId,
             futuresEodData.EntityId.ValueDate);
@@ -852,7 +852,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         await TestFixture.DevDatabase.DeleteFuturesEodDataAsync(distractorContractId, priorDate);
         try
         {
-            await TestFixture.DevDatabase.InsertFuturesEodDataAsync(new[] { expected, distractor });
+            await TestFixture.DevDatabase.InsertFuturesEodDataAsync(new FuturesEodBatch(new[] { expected, distractor }));
 
             var result = await TestFixture.DevDatabase.GetFuturesEodDataAsync(expectedContractId, requestedDate);
 
@@ -903,7 +903,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
 
         try
         {
-            await TestFixture.DevDatabase.InsertFuturesEodDataAsync(new[] { january, february, distractor });
+            await TestFixture.DevDatabase.InsertFuturesEodDataAsync(new FuturesEodBatch(new[] { january, february, distractor }));
 
             var range = await TestFixture.DevDatabase.GetCurrentFuturesEodDataByDateRangeAsync(
                 januaryDate,
@@ -975,7 +975,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         try
         {
             foreach (var row in rows)
-                await TestFixture.DevDatabase.InsertVixFuturesEodDataAsync(row);
+                await TestFixture.DevDatabase.InsertVixFuturesEodDataAsync(new VixTickObservation(row));
 
             var result = await TestFixture.DevDatabase.GetVixFuturesEodDataByValueDateAsync(asOfDate);
             var matching = result.Where(e => e.ContractId == contractA || e.ContractId == contractB).ToArray();
@@ -1018,78 +1018,6 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         readiness.IsReady.Should().BeTrue();
     }
 
-
-    static async Task AssertProjectionScopesReadyAsync(
-        MarketDataDbContext db,
-        string projectionName,
-        IEnumerable<string> scopeKeys)
-    {
-        var expectedScopes = scopeKeys.Distinct(StringComparer.Ordinal).ToArray();
-        var states = await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetMarketDataProjectionScopeStatesV3)}", MarketDataDbCql.GetMarketDataProjectionScopeStatesV3)
-            .SetParameters(new GetMarketDataProjectionScopeStatesV3(projectionName, expectedScopes))
-            .ExecuteQueryAsync(record => (
-                ScopeKey: record.GetString(1),
-                IsReady: record.GetBool(3),
-                Blocked: record.GetBool(4),
-                ActiveOperationsEmpty: record.IsCollectionEmpty(5)));
-
-        states.Select(static state => state.ScopeKey)
-            .Should().BeEquivalentTo(expectedScopes);
-        states.Should().OnlyContain(static state =>
-            state.IsReady && !state.Blocked && state.ActiveOperationsEmpty);
-    }
-
-    static async Task AssertProjectionScopeStampAvailableAsync(
-        MarketDataDbContext db,
-        string projectionName,
-        string scopeKey)
-    {
-        var stamp = await db.GetProjectionScopeReadStampAsync(
-            projectionName,
-            new[] { scopeKey });
-        stamp.Should().NotBeNull();
-    }
-
-    static string GetTestTickScope(string contractId, DateOnly valueDate)
-        => $"{contractId.Length}:{contractId}:{valueDate.DayNumber}";
-
-    static DateOnly FindMonthWhoseGuardIsAbsentFromEarlierInventory(IEnumerable<int> indexedMonths)
-    {
-        var indexed = indexedMonths.ToHashSet();
-        var earlierInventoryGuards = new HashSet<int>();
-        for (var year = 1; year <= 9999; year++)
-        {
-            for (var month = 1; month <= 12; month++)
-            {
-                var yearMonth = year * 100 + month;
-                var scopeKey = yearMonth.ToString(System.Globalization.CultureInfo.InvariantCulture);
-                if (indexed.Contains(yearMonth))
-                {
-                    earlierInventoryGuards.Add(GetTestVixBucket(scopeKey));
-                    continue;
-                }
-
-                if (!earlierInventoryGuards.Contains(GetTestVixBucket(scopeKey)))
-                    return new DateOnly(year, month, 15);
-            }
-        }
-
-        throw new InvalidOperationException("No unindexed EOD month with an unstamped inventory guard was available.");
-    }
-
-    static int GetTestVixBucket(string contractId)
-    {
-        const ulong offsetBasis = 14695981039346656037UL;
-        const ulong prime = 1099511628211UL;
-        var hash = offsetBasis;
-        foreach (var character in contractId)
-        {
-            hash = unchecked((hash ^ (byte)character) * prime);
-            hash = unchecked((hash ^ (byte)(character >> 8)) * prime);
-        }
-        hash = unchecked((hash ^ 0xFF) * prime);
-        return (int)(hash % 32);
-    }
 
     [Fact]
     public async Task GetYesterdaysFuturesClosingPriceAsync_Ok()
@@ -1169,8 +1097,8 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
 
         try
         {
-            await TestFixture.DevDatabase.InsertFuturesEodDataAsync(expectedEodData);
-            await TestFixture.DevDatabase.InsertFuturesEodDataAsync(yesterdayEodData);
+            await TestFixture.DevDatabase.InsertFuturesEodDataAsync(expectedEodData, await TestFixture.SequenceIdGenerator.GetSequenceIdAsync(SequenceName.FuturesIntraDay_SequenceId));
+            await TestFixture.DevDatabase.InsertFuturesEodDataAsync(yesterdayEodData, await TestFixture.SequenceIdGenerator.GetSequenceIdAsync(SequenceName.FuturesIntraDay_SequenceId));
 
             // Act
             var result = await TestFixture.DevDatabase.GetCurrentFuturesEodDataAsync(valueDate);
@@ -1204,8 +1132,8 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         var endDate = SampleData.FuturesEodData.ValueDate;
         var futuresDataId = SampleData.FuturesEodData.DataId;
         await TestFixture.DevDatabase.UseTest($"delete from futures_eod_data where contractId = '{futuresDataId.ContractId}' ").ExecuteCommandAsync();
-        await TestFixture.DevDatabase.InsertFuturesEodDataAsync(SampleData.FuturesEodData);
-        await TestFixture.DevDatabase.InsertFuturesEodDataAsync(SampleData.YesterdaysFuturesEodData);
+        await TestFixture.DevDatabase.InsertFuturesEodDataAsync(SampleData.FuturesEodData, await TestFixture.SequenceIdGenerator.GetSequenceIdAsync(SequenceName.FuturesIntraDay_SequenceId));
+        await TestFixture.DevDatabase.InsertFuturesEodDataAsync(SampleData.YesterdaysFuturesEodData, await TestFixture.SequenceIdGenerator.GetSequenceIdAsync(SequenceName.FuturesIntraDay_SequenceId));
 
         // Act
         var result = await TestFixture.DevDatabase.GetCurrentFuturesEodDataByDateRangeAsync(startDate, endDate);
@@ -2118,7 +2046,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         await TestFixture.DevDatabase.InsertYieldCurveRateAsync(yieldCurveRate);
 
         // Act
-        var result = await TestFixture.DevDatabase.GetYieldCurveRatesAsync(startDate, endDate);
+        var result = await TestFixture.DevDatabase.GetYieldCurveRatesAsync(new YieldCurveReadRange(startDate, endDate));
 
         // Assert
         result.Should().NotBeNull();

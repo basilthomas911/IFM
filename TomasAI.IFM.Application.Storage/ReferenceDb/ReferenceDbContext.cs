@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.EventSourcing.ViewModels;
 using TomasAI.IFM.Shared.MarketData.Definitions;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
@@ -27,7 +28,7 @@ namespace TomasAI.IFM.Application.Storage.ReferenceDb;
 /// <summary>Provides typed PostgreSQL Reference queries and mutations. Domain services own publication and catalog policy.</summary>
 /// <param name="connectionSettings">The named PostgreSQL connection.</param>
 /// <param name="dbFactory">Retained for constructor compatibility with repository registration.</param>
-/// <param name="sequenceIdGenerator">The technical sequence allocator used by the existing seed capability.</param>
+/// <param name="sequenceIdGenerator">The source of the existing seed high-water read model.</param>
 /// <param name="logger">The storage logger.</param>
 public sealed class ReferenceDbContext(IDbConnectionSettings connectionSettings, IDbContextFactory dbFactory, ISequenceIdGenerator sequenceIdGenerator, ILogger<DbProvider> logger) : ObjectDataRepository<ReferenceDbContext>(connectionSettings["ReferenceDbConnection"], logger), IReferenceDbContext
 {
@@ -83,7 +84,6 @@ public sealed class ReferenceDbContext(IDbConnectionSettings connectionSettings,
     /// <inheritdoc/>
     public async Task DeleteLookupTypeAsync(LookupTypeId lookupTypeId)
     {
-        this.ValidateRequiredArgument(lookupTypeId);
         await (this.LookupTransaction().ExecuteOnceAsync(async (transaction, token) =>
         {
             await (ReferenceDbContextExtensions.DeleteLookupAsync(transaction, lookupTypeId, token))
@@ -109,12 +109,6 @@ public sealed class ReferenceDbContext(IDbConnectionSettings connectionSettings,
     }
 
     /// <inheritdoc/>
-    public async Task<int> GetNextSeedIdAsync(string seedType) => checked((int)await _sequenceIdGenerator.GetSequenceIdAsync(SequenceNameExtensions.ParseSequenceName(seedType))
-            .ConfigureAwait(false));
-    /// <inheritdoc/>
-    public async Task<int> GetNextSeedIdAsync(string seedType, CancellationToken cancellationToken) => checked((int)await _sequenceIdGenerator.GetSequenceIdAsync(SequenceNameExtensions.ParseSequenceName(seedType), cancellationToken)
-            .ConfigureAwait(false));
-    /// <inheritdoc/>
     public async Task<int> GetCurrentSeedIdAsync(string seedType) => checked((int)await _sequenceIdGenerator.GetHighWatermarkAsync(SequenceNameExtensions.ParseSequenceName(seedType))
             .ConfigureAwait(false));
     /// <inheritdoc/>
@@ -123,9 +117,9 @@ public sealed class ReferenceDbContext(IDbConnectionSettings connectionSettings,
     /// <inheritdoc/>
     public async Task<LookupTypeReadModel?> GetLookupTypeAsync(LookupTypeId lookupTypeId)
     {
-        this.ValidateRequiredArgument(lookupTypeId);
+        var preparedParameters1 = new GetLookupTypeById(lookupTypeId.LookupTypeName, lookupTypeId.OrderId);
         return await (this.Use($"{nameof(ReferenceDbSql)}.{nameof(ReferenceDbSql.GetLookupTypeById)}", ReferenceDbSql.GetLookupTypeById)
-            .SetParameters(new GetLookupTypeById(lookupTypeId.LookupTypeName, lookupTypeId.OrderId))
+            .SetParameters(preparedParameters1)
             .ExecuteSingleAsync(MapToLookupType!))
             .ConfigureAwait(false);
     }
@@ -133,9 +127,9 @@ public sealed class ReferenceDbContext(IDbConnectionSettings connectionSettings,
     /// <inheritdoc/>
     public async Task<LookupTypeReadModel?> GetLookupTypeAsync(LookupTypeId lookupTypeId, CancellationToken cancellationToken)
     {
-        this.ValidateRequiredArgument(lookupTypeId);
+        var preparedParameters2 = new GetLookupTypeById(lookupTypeId.LookupTypeName, lookupTypeId.OrderId);
         return await (this.Use($"{nameof(ReferenceDbSql)}.{nameof(ReferenceDbSql.GetLookupTypeById)}", ReferenceDbSql.GetLookupTypeById)
-            .SetParameters(new GetLookupTypeById(lookupTypeId.LookupTypeName, lookupTypeId.OrderId))
+            .SetParameters(preparedParameters2)
             .ExecuteSingleAsync(MapToLookupType!, cancellationToken))
             .ConfigureAwait(false);
     }
@@ -250,7 +244,6 @@ public sealed class ReferenceDbContext(IDbConnectionSettings connectionSettings,
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
     public async Task InsertLookupTypeAsync(LookupTypeReadModel e)
     {
-        this.ValidateRequiredArgument(e);
         await (this.LookupTransaction().ExecuteOnceAsync(async (transaction, token) =>
         {
             await (ReferenceDbContextExtensions.InsertLookupAsync(transaction, e, token))
@@ -266,12 +259,9 @@ public sealed class ReferenceDbContext(IDbConnectionSettings connectionSettings,
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
     public async Task InsertScheduledJobAsync(ScheduledJobReadModel e)
     {
-        this.ValidateRequiredArgument(e);
-        var id = await GetNextSeedIdAsync("ScheduledJobId")
-            .ConfigureAwait(false);
         await this.LookupTransaction().ExecuteOnceAsync(async (transaction, token) =>
         {
-            await transaction.InsertScheduledJobAsync(e with { JobId = id }, token)
+            await transaction.InsertScheduledJobAsync(e, token)
             .ConfigureAwait(false);
             return true;
         })
@@ -298,8 +288,6 @@ public sealed class ReferenceDbContext(IDbConnectionSettings connectionSettings,
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
     public async Task UpdateLookupTypeAsync(LookupTypeId id, LookupTypeReadModel e)
     {
-        this.ValidateRequiredArgument(e);
-        this.ValidateRequiredArgument(id);
         await (this.LookupTransaction().ExecuteOnceAsync(async (transaction, token) =>
         {
             await (ReferenceDbContextExtensions.UpdateLookupAsync(transaction, id, e, token))
@@ -314,9 +302,9 @@ public sealed class ReferenceDbContext(IDbConnectionSettings connectionSettings,
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
     public async Task InsertMDIForwardLossRatioAsync(MDIForwardLossRatioReadModel e)
     {
-        this.ValidateRequiredArgument(e);
+        var preparedParameters3 = new InsertMDIForwardLossRatio(e.MDI, e.TrendDirection.ToStringFast(), e.TradeType.ToStringFast(), e.ForwardLossRatio, e.CreatedBy, e.CreatedOn, e.UpdatedBy, e.UpdatedOn);
         await this.Use($"{nameof(ReferenceDbSql)}.{nameof(ReferenceDbSql.InsertMDIForwardLossRatio)}", ReferenceDbSql.InsertMDIForwardLossRatio)
-            .SetParameters(new InsertMDIForwardLossRatio(e.MDI, e.TrendDirection.ToStringFast(), e.TradeType.ToStringFast(), e.ForwardLossRatio, e.CreatedBy, e.CreatedOn, e.UpdatedBy, e.UpdatedOn))
+            .SetParameters(preparedParameters3)
             .ExecuteCommandAsync()
             .ConfigureAwait(false);
     }
@@ -324,8 +312,6 @@ public sealed class ReferenceDbContext(IDbConnectionSettings connectionSettings,
     /// <inheritdoc/>
     public async Task InsertMDIForwardLossRatiosAsync(ICollection<MDIForwardLossRatioReadModel> mdiForwardLossRatios)
     {
-        this.ValidateRequiredArgument(mdiForwardLossRatios);
-        this.ValidateMdiForwardLossRatioLogicalKeys(mdiForwardLossRatios);
         await (this.Use($"{nameof(ReferenceDbSql)}.{nameof(ReferenceDbSql.InsertMDIForwardLossRatio)}", ReferenceDbSql.InsertMDIForwardLossRatio)
             .SetParameters(mdiForwardLossRatios.Select(o => new InsertMDIForwardLossRatio(o.MDI, o.TrendDirection.ToStringFast(), o.TradeType.ToStringFast(), o.ForwardLossRatio, o.CreatedBy, o.CreatedOn, o.UpdatedBy, o.UpdatedOn)))
             .ExecuteCommandAsync())
@@ -340,29 +326,20 @@ public sealed class ReferenceDbContext(IDbConnectionSettings connectionSettings,
     /// <inheritdoc/>
     public async Task UpdateMDIForwardLossRatioAsync(MDIForwardLossRatioReadModel mdiForwardLossRatio)
     {
-        this.ValidateRequiredArgument(mdiForwardLossRatio);
         var queuedCommands = new List<object>();
         var db = this;
+        var preparedParameters4 = new DeleteMDIForwardLossRatio(mdiForwardLossRatio.TrendDirection.ToStringFast(), mdiForwardLossRatio.TradeType.ToStringFast());
         // Delete the existing record
         queuedCommands.Add(db.Use($"{nameof(ReferenceDbSql)}.{nameof(ReferenceDbSql.DeleteMDIForwardLossRatio)}", ReferenceDbSql.DeleteMDIForwardLossRatio)
-            .SetParameters(new DeleteMDIForwardLossRatio(mdiForwardLossRatio.TrendDirection.ToStringFast(), mdiForwardLossRatio.TradeType.ToStringFast()))
+            .SetParameters(preparedParameters4)
             .QueueCommand());
+        var preparedParameters5 = new InsertMDIForwardLossRatio(mdiForwardLossRatio.MDI, mdiForwardLossRatio.TrendDirection.ToStringFast(), mdiForwardLossRatio.TradeType.ToStringFast(), mdiForwardLossRatio.ForwardLossRatio, mdiForwardLossRatio.CreatedBy, mdiForwardLossRatio.CreatedOn, mdiForwardLossRatio.UpdatedBy, mdiForwardLossRatio.UpdatedOn);
         // Insert the updated record
         queuedCommands.Add(db.Use($"{nameof(ReferenceDbSql)}.{nameof(ReferenceDbSql.InsertMDIForwardLossRatio)}", ReferenceDbSql.InsertMDIForwardLossRatio)
-            .SetParameters(new InsertMDIForwardLossRatio(mdiForwardLossRatio.MDI, mdiForwardLossRatio.TrendDirection.ToStringFast(), mdiForwardLossRatio.TradeType.ToStringFast(), mdiForwardLossRatio.ForwardLossRatio, mdiForwardLossRatio.CreatedBy, mdiForwardLossRatio.CreatedOn, mdiForwardLossRatio.UpdatedBy, mdiForwardLossRatio.UpdatedOn))
+            .SetParameters(preparedParameters5)
             .QueueCommand());
         await (db.ExecuteQueuedCommandsAsync(queuedCommands))
             .ConfigureAwait(false);
-    }
-
-    /// <inheritdoc />
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep the transaction, resource ownership and failure ordering together during this provider migration; splitting it would obscure the atomic persistence boundary.")]
-    public async Task<ReferenceProjectionBackfillResult> BackfillQueryProjectionsV2Async(int batchSize = 256, CancellationToken cancellationToken = default, DateTime? staleOperationCutoffUtc = null)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        this.ValidatePositiveBatchSize(batchSize);
-        // Native exact-name reads use the canonical unique index; no shadow reservation table needs rebuilding.
-        return new ReferenceProjectionBackfillResult(0);
     }
 
     /// <inheritdoc/>
@@ -392,9 +369,9 @@ public sealed class ReferenceDbContext(IDbConnectionSettings connectionSettings,
     /// <inheritdoc/>
     public async Task InsertTradeStrategyFamilyAsync(TradeStrategyFamilyReadModel family, CancellationToken cancellationToken = default)
     {
-        this.ValidateRequiredArgument(family);
+        var preparedParameters6 = new InsertTradeStrategyFamily("V1", family.TradeStrategyFamilyId, family.DefinitionVersion, family.SystemKey, family.Family.ToString(), family.Strategy.ToString(), family.TimeFrame.ToString(), family.Symbol, family.Currency, family.Description, family.State.ToString(), family.CreatedOnUtc, family.CreatedBy);
         await (this.Use($"{nameof(ReferenceDbSql)}.{nameof(ReferenceDbSql.InsertTradeStrategyFamily)}", ReferenceDbSql.InsertTradeStrategyFamily)
-            .SetParameters(new InsertTradeStrategyFamily("V1", family.TradeStrategyFamilyId, family.DefinitionVersion, family.SystemKey, family.Family.ToString(), family.Strategy.ToString(), family.TimeFrame.ToString(), family.Symbol, family.Currency, family.Description, family.State.ToString(), family.CreatedOnUtc, family.CreatedBy))
+            .SetParameters(preparedParameters6)
             .ExecuteCommandAsync(cancellationToken))
             .ConfigureAwait(false);
     }
@@ -413,8 +390,33 @@ public sealed class ReferenceDbContext(IDbConnectionSettings connectionSettings,
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
     public async Task InsertInstrumentDefinitionAsync(Guid snapshot, long index, ExactInstrumentDefinition row, CancellationToken cancellationToken)
     {
+        var preparedParameters7 = new ReferenceParameters([Uuid(snapshot), Text(row.Dataset), Integer((int)(index % 128)), Bigint(index), Integer((int)row.PublisherId), Bigint((long)row.InstrumentId), Text(row.RawSymbol), Text(row.Asset), Text(row.InstrumentClass), Text(row.Currency), Text(row.Exchange), Text(row.Json)]);
         await this.Use("InstrumentDefinition.Insert", ReferenceDbSql.InsertInstrumentDefinition)
-            .SetParameters(new ReferenceParameters([Uuid(snapshot), Text(row.Dataset), Integer((int)(index % 128)), Bigint(index), Integer((int)row.PublisherId), Bigint((long)row.InstrumentId), Text(row.RawSymbol), Text(row.Asset), Text(row.InstrumentClass), Text(row.Currency), Text(row.Exchange), Text(row.Json)]))
+            .SetParameters(preparedParameters7)
+            .ExecuteCommandAsync(cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    static readonly System.Collections.Concurrent.ConcurrentDictionary<int,string> DefinitionBatchSql = new();
+    /// <inheritdoc/>
+    public async Task InsertInstrumentDefinitionsAsync(Guid snapshot, long firstIndex, IReadOnlyList<ExactInstrumentDefinition> rows, CancellationToken cancellationToken)
+    {
+        var sql = DefinitionBatchSql.GetOrAdd(rows.Count, static count => {
+            var template = ReferenceDbSql.InsertInstrumentDefinition;
+            var start = template.IndexOf("VALUES", StringComparison.Ordinal);
+            var end = template.IndexOf("ON CONFLICT", StringComparison.Ordinal);
+            return template[..start] + "VALUES " + string.Join(",", Enumerable.Range(0,count).Select(row => "(" + string.Join(",", Enumerable.Range(row*12+1,12).Select(index => "$"+index.ToString(System.Globalization.CultureInfo.InvariantCulture))) + ")")) + " " + template[end..];
+        });
+        var parameters = new object?[rows.Count*12];
+        for (var offset = 0; offset < rows.Count; offset++) {
+            var row = rows[offset];
+            var index = checked(firstIndex + offset);
+            object?[] values = [Uuid(snapshot), Text(row.Dataset), Integer((int)(index%128)), Bigint(index), Integer(row.PublisherId), Bigint(row.InstrumentId), Text(row.RawSymbol), Text(row.Asset), Text(row.InstrumentClass), Text(row.Currency), Text(row.Exchange), Text(row.Json)];
+            values.CopyTo(parameters, offset*12);
+        }
+        var preparedParameters8 = new ReferenceParameters(parameters);
+        await this.Use("InstrumentDefinition.InsertBatch", sql)
+            .SetParameters(preparedParameters8)
             .ExecuteCommandAsync(cancellationToken)
             .ConfigureAwait(false);
     }
@@ -426,21 +428,43 @@ public sealed class ReferenceDbContext(IDbConnectionSettings connectionSettings,
     /// <inheritdoc/>
     public async Task<TradeStrategySymbolReadModel[]> GetInstrumentDefinitionSymbolsAsync(Guid snapshot, TradeStrategyFamilyType family, CancellationToken cancellationToken)
     {
+        var preparedParameters9 = new ReferenceParameters([Uuid(snapshot), Integer((int)family)]);
         var rows = await this.Use("InstrumentDefinition.Symbols", ReferenceDbSql.GetInstrumentDefinitionSymbols)
-            .SetParameters(new ReferenceParameters([Uuid(snapshot), Integer((int)family)]))
-            .ExecuteQueryAsync(row => new TradeStrategyProduct(family, row.GetString(1), row.GetString(2), row.GetString(3)).WithId(row.GetInt(0)), cancellationToken)
+            .SetParameters(preparedParameters9)
+            .ExecuteQueryAsync((row) => MapToGetInstrumentDefinitionSymbolsRow1(row, family), cancellationToken)
             .ConfigureAwait(false);
         return rows.ToArray();
     }
 
     /// <inheritdoc/>
+    public async Task<IReadOnlyDictionary<string,string>> GetContractDescriptionsAsync(string exchange, string symbol, CancellationToken cancellationToken = default)
+    {
+        var preparedParameters10 = new ReferenceParameters([Text(exchange), Text(symbol)]);
+        var rows = await this.Use("InstrumentDefinition.ContractDescriptions", ReferenceDbSql.GetContractDescriptions)
+            .SetParameters(preparedParameters10)
+            .ExecuteQueryAsync(MapToGetContractDescriptionsRow2, cancellationToken)
+            .ConfigureAwait(false);
+        return rows.ToDictionary(row => row.Contract, row => row.Description, StringComparer.Ordinal);
+    }
+
+    /// <inheritdoc/>
     public IAsyncEnumerable<string> ReadInstrumentDefinitionJsonAsync(Guid snapshot, string dataset, int bucket, CancellationToken cancellationToken = default)
     {
-        if (bucket is < 0 or >= 128)
-            throw new ArgumentOutOfRangeException(nameof(bucket));
+        var preparedParameters11 = new ReferenceParameters([Uuid(snapshot), Text(dataset), Integer(bucket)]);
         return this.Use("InstrumentDefinition.ReadJson", ReferenceDbSql.ReadInstrumentDefinitionJson)
-            .SetParameters(new ReferenceParameters([Uuid(snapshot), Text(dataset), Integer(bucket)]))
+            .SetParameters(preparedParameters11)
             .ExecuteStreamAsync(MapToString, cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public async Task<string?> GetInstrumentDefinitionJsonAsync(Guid snapshot, string dataset, int bucket, long index, CancellationToken cancellationToken = default)
+    {
+        var preparedParameters12 = new ReferenceParameters([Uuid(snapshot), Text(dataset), Integer(bucket), Bigint(index)]);
+        var rows = await this.Use("InstrumentDefinition.GetJson", ReferenceDbSql.GetInstrumentDefinitionJson)
+            .SetParameters(preparedParameters12)
+            .ExecuteQueryAsync(MapToString, cancellationToken)
+            .ConfigureAwait(false);
+        return rows.SingleOrDefault();
     }
 
     /// <inheritdoc />
@@ -449,8 +473,9 @@ public sealed class ReferenceDbContext(IDbConnectionSettings connectionSettings,
     public async Task InsertInstrumentDefinitionSelectionAsync(InstrumentDefinitionSelection value, CancellationToken cancellationToken)
     {
         var key = string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{value.PublisherId:D5}:{value.InstrumentId:D10}");
+        var preparedParameters13 = new ReferenceParameters([Uuid(value.SnapshotId), Text(value.Dataset), Text(value.Root), Boolean(!string.Equals(value.InstrumentClass, "F", StringComparison.Ordinal)), Text(key), Bytea(MessagePackBinarySerializer.Shared.Serialize(value)!)]);
         await this.Use("InstrumentDefinition.IndexSelection", ReferenceDbSql.InsertInstrumentDefinitionSelection)
-            .SetParameters(new ReferenceParameters([Uuid(value.SnapshotId), Text(value.Dataset), Text(value.Root), Boolean(!string.Equals(value.InstrumentClass, "F", StringComparison.Ordinal)), Text(key), Bytea(MessagePackBinarySerializer.Shared.Serialize(value)!)]))
+            .SetParameters(preparedParameters13)
             .ExecuteCommandAsync(cancellationToken)
             .ConfigureAwait(false);
     }
@@ -460,10 +485,47 @@ public sealed class ReferenceDbContext(IDbConnectionSettings connectionSettings,
             .SetParameters(new ReferenceParameters(Values(Uuid(snapshot), Integer((int)family), Text(symbol.Symbol), Text(symbol.Exchange), Text(symbol.Currency), Integer(symbol.Id))))
             .ExecuteCommandAsync(cancellationToken);
     /// <inheritdoc/>
-    public Task PublishInstrumentDefinitionSnapshotAsync(InstrumentDefinitionSnapshot snapshot, CancellationToken cancellationToken = default)
-        => new InstrumentDefinitionCatalogPublisher(new PostgresEventTransaction(new DbConnectionSettings()
-            .Add(EventSourceActorDbContext.EventSourceActorDbConnection, ConnectionString, ProviderName)))
-            .PublishAsync(snapshot, cancellationToken);
+    public Task LockInstrumentCatalogAsync(IEnlistedPostgresTransaction transaction, string stream, CancellationToken token)
+        => transaction.ExecuteAsync(ReferenceDbSql.LockInstrumentCatalog, (object?[])new InstrumentCatalogStream(stream).Bind(), token);
+
+    /// <inheritdoc/>
+    public async Task<long> ReadInstrumentCatalogRevisionAsync(IEnlistedPostgresTransaction transaction, string stream, CancellationToken token)
+        => (await transaction.ScalarAsync(ReferenceDbSql.ReadInstrumentCatalogRevision, (object? [])new InstrumentCatalogStream(stream).Bind(), token)
+            .ConfigureAwait(false)) is long version ? version : 0;
+
+    /// <inheritdoc/>
+    public async Task<EventStreamReadModel?> ReadInstrumentCatalogEventAsync(IEnlistedPostgresTransaction transaction, string stream, long revision, CancellationToken token)
+        => (await transaction.QueryAsync(ReferenceDbSql.ReadInstrumentCatalogEvent, (object? [])new InstrumentCatalogEventSelection(stream, revision).Bind(), MapToInstrumentCatalogEvent, token)
+            .ConfigureAwait(false)).SingleOrDefault();
+
+    internal static EventStreamReadModel MapToInstrumentCatalogEvent(System.Data.Common.DbDataReader row)
+        => new() { EventTypeName = row.GetString(0), EventVersion = row.GetInt64(1), EventData = row.GetFieldValue<byte[]>(2) };
+
+    /// <inheritdoc/>
+    public async Task<DateTime?> ReadPreviousInstrumentCompletionAsync(IEnlistedPostgresTransaction transaction, CancellationToken token)
+        => await transaction.ScalarAsync(ReferenceDbSql.ReadPreviousInstrumentCompletion, [], token)
+            .ConfigureAwait(false) as DateTime?;
+
+    /// <inheritdoc/>
+    public async Task<bool> HasInstrumentCatalogReceiptAsync(IEnlistedPostgresTransaction transaction, string stream, Guid commandId, CancellationToken token)
+        => await transaction.ScalarAsync(ReferenceDbSql.HasInstrumentCatalogReceipt, (object? [])new InstrumentCatalogReceiptSelection(stream, commandId).Bind(), token)
+            .ConfigureAwait(false) is true;
+
+    /// <inheritdoc/>
+    public async Task<bool> HasInstrumentDefinitionSelectionAsync(IEnlistedPostgresTransaction transaction, Guid snapshot, CancellationToken token)
+        => await transaction.ScalarAsync(ReferenceDbSql.HasInstrumentDefinitionSelection, (object? [])new InstrumentCatalogSnapshotSelection(snapshot).Bind(), token)
+            .ConfigureAwait(false) is true;
+
+    /// <inheritdoc/>
+    public async Task WriteInstrumentCatalogPointerAsync(IEnlistedPostgresTransaction transaction, InstrumentDefinitionSnapshot snapshot, CancellationToken token)
+    {
+        await transaction.ExecuteAsync(ReferenceDbSql.CompleteInstrumentDefinitionSelection,
+            (object?[])new InstrumentCatalogSnapshotSelection(snapshot.Id).Bind(), token)
+            .ConfigureAwait(false);
+        var values = new InstrumentCatalogPointer(snapshot.Id, snapshot.CompletedUtc, snapshot.RecordCount, JsonSerializer.Serialize(snapshot.Datasets));
+        await transaction.ExecuteAsync(ReferenceDbSql.PublishInstrumentDefinitionSnapshot, (object?[])values.Bind(), token)
+            .ConfigureAwait(false);
+    }
 
     /// <inheritdoc/>
     public async Task<bool> IsInstrumentDefinitionSelectionCompleteAsync(Guid snapshot, CancellationToken cancellationToken = default) => (await this.Use("InstrumentDefinition.SelectionStatus", ReferenceDbSql.GetInstrumentDefinitionSelectionStatus)
@@ -471,7 +533,7 @@ public sealed class ReferenceDbContext(IDbConnectionSettings connectionSettings,
             .ExecuteQueryAsync(MapToBoolean, cancellationToken)
             .ConfigureAwait(false)).SingleOrDefault();
     /// <inheritdoc/>
-    public async Task<IReadOnlyList<(string Key, InstrumentDefinitionSelection Value)>> GetInstrumentDefinitionSelectionAsync(Guid snapshot, string dataset, string root, bool options, string after, int limit, CancellationToken cancellationToken = default) => (await this.Use("InstrumentDefinition.SelectionPage", ReferenceDbSql.GetInstrumentDefinitionSelectionPage)
+    public async Task<IReadOnlyList<InstrumentDefinitionSelectionRow>> GetInstrumentDefinitionSelectionAsync(Guid snapshot, string dataset, string root, bool options, string after, int limit, CancellationToken cancellationToken = default) => (await this.Use("InstrumentDefinition.SelectionPage", ReferenceDbSql.GetInstrumentDefinitionSelectionPage)
             .SetParameters(new ReferenceParameters(Values(Uuid(snapshot), Text(dataset), Text(root), Boolean(options), Text(after), Integer(limit))))
             .ExecuteQueryAsync(MapToInstrumentSelection, cancellationToken)
             .ConfigureAwait(false)).ToArray();
@@ -490,9 +552,9 @@ public sealed class ReferenceDbContext(IDbConnectionSettings connectionSettings,
             .SetParameters(new ReferenceParameters(Values(Integer((int)product.Family), Text(product.Exchange), Text(product.Symbol), Text(product.Currency), Integer(id))))
             .ExecuteCommandAsync(cancellationToken);
     /// <inheritdoc/>
-    public async Task<(long Revision, string Payload)?> GetTradeStrategyFamilyCatalogAsync(CancellationToken cancellationToken = default) => (await this.Use("TradeStrategyFamilyCatalog.Read", ReferenceDbSql.GetTradeStrategyFamilyCatalog)
+    public async Task<TradeStrategyFamilyCatalogReadModel?> GetTradeStrategyFamilyCatalogAsync(CancellationToken cancellationToken = default) => (await this.Use("TradeStrategyFamilyCatalog.Read", ReferenceDbSql.GetTradeStrategyFamilyCatalog)
             .SetParameters(new ReferenceParameters(Values(Text("V1"))))
-            .ExecuteQueryAsync(row => ((long Revision, string Payload)? )(row.GetLong(0), row.GetString(1)), cancellationToken)
+            .ExecuteQueryAsync(MapToStrategyFamilyCatalog, cancellationToken)
             .ConfigureAwait(false)).SingleOrDefault();
     /// <inheritdoc/>
     public Task InitializeTradeStrategyFamilyCatalogAsync(long revision, string payload, CancellationToken cancellationToken = default) => this.Use("TradeStrategyFamilyCatalog.Initialize", ReferenceDbSql.InitializeTradeStrategyFamilyCatalog)
@@ -505,7 +567,7 @@ public sealed class ReferenceDbContext(IDbConnectionSettings connectionSettings,
     /// <summary>Maps persisted Reference columns in query ordinal order.</summary>
     internal static TradeStrategySymbolReadModel MapToTradeStrategyProduct(TradeStrategyFamilyType family, IObjectDataRecord row) => new TradeStrategyProduct(family, row.GetString(1), row.GetString(2), row.GetString(3)).WithId(row.GetInt(0));
     /// <summary>Maps persisted Reference columns in query ordinal order.</summary>
-    internal static (string Key, InstrumentDefinitionSelection Value) MapToInstrumentSelection(IObjectDataRecord row) => (row.GetString(0), MessagePackBinarySerializer.Shared.Deserialize<InstrumentDefinitionSelection>(row.GetBytes(1))!);
+    internal static InstrumentDefinitionSelectionRow MapToInstrumentSelection(IObjectDataRecord row) => new(row.GetString(0), MessagePackBinarySerializer.Shared.Deserialize<InstrumentDefinitionSelection>(row.GetBytes(1))!);
     /// <summary>Maps a lookup from its native PostgreSQL ordinal columns.</summary>
     internal static LookupTypeReadModel MapToLookupReader(System.Data.Common.DbDataReader reader) => new(reader.GetString(0), reader.GetString(1), reader.GetInt32(2), reader.GetString(3), reader.GetDateTime(4), reader.GetString(5));
     /// <summary>Maps the published instrument snapshot metadata.</summary>
@@ -513,4 +575,15 @@ public sealed class ReferenceDbContext(IDbConnectionSettings connectionSettings,
         new(row.GetGuid(0),row.GetDateTime(1),row.GetLong(2),JsonSerializer.Deserialize<string[]>(row.GetString(3))!);
     /// <summary>Maps the catalog revision and preserved document payload.</summary>
     internal static (long Revision,string Payload)? MapToCatalogSnapshot(IObjectDataRecord row) => (row.GetLong(0),row.GetString(1));
+    private static TradeStrategyFamilyCatalogReadModel? MapToStrategyFamilyCatalog(IObjectDataRecord row) =>
+        new(row.GetLong(0), row.GetString(1));
+
+    /// <summary>Maps the selected database columns in their query ordinal order.</summary>
+    private static global::TomasAI.IFM.Domain.MarketData.Shared.ViewModels.TradeStrategySymbolReadModel MapToGetInstrumentDefinitionSymbolsRow1(global::TomasAI.IFM.Shared.Storage.IObjectDataRecord row, global::TomasAI.IFM.Domain.Reference.Shared.ViewModels.TradeStrategyFamilyType family) {
+                var product = new TradeStrategyProduct(family, row.GetString(1), row.GetString(2), row.GetString(3)).WithId(row.GetInt(0));
+                return string.IsNullOrWhiteSpace(row.GetString(4)) ? product : product with { Description = row.GetString(4) };
+            }
+
+    /// <summary>Maps the selected database columns in their query ordinal order.</summary>
+    private static (string Contract, string Description) MapToGetContractDescriptionsRow2(global::TomasAI.IFM.Shared.Storage.IObjectDataRecord row) => (Contract: row.GetString(0), Description: row.GetString(1));
 }

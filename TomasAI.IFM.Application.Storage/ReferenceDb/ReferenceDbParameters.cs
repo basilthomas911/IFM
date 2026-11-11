@@ -67,3 +67,28 @@ internal readonly record struct InsertTradeStrategyFamily(string catalog, int tr
 {
     public object Bind() => Values(Text(catalog), Integer(tradeStrategyFamilyId), Bigint(definitionVersion), Text(systemKey), Text(family), Text(strategy), Text(timeFrame), Text(symbol), Text(currency), Text(description), Text(state), TimestampTz(createdOnUtc), Text(createdBy));
 }
+
+internal readonly record struct InstrumentCatalogStream(string Stream) : IBindValue
+{
+    public object Bind() => Values(Text(Stream));
+}
+
+internal readonly record struct InstrumentCatalogEventSelection(string Stream, long Revision) : IBindValue
+{
+    public object Bind() => Values(Text(Stream), Bigint(Revision));
+}
+
+internal readonly record struct InstrumentCatalogReceiptSelection(string Stream, Guid CommandId) : IBindValue
+{
+    public object Bind() => Values(Text(Stream), Uuid(CommandId));
+}
+
+internal readonly record struct InstrumentCatalogSnapshotSelection(Guid SnapshotId) : IBindValue
+{
+    public object Bind() => Values(Uuid(SnapshotId));
+}
+
+internal readonly record struct InstrumentCatalogPointer(Guid SnapshotId, DateTime CompletedUtc, long Count, string DatasetJson) : IBindValue
+{
+    public object Bind() => Values(Uuid(SnapshotId), TimestampTz(CompletedUtc), Bigint(Count), Text(DatasetJson));
+}

@@ -139,12 +139,28 @@ public static class StrategyCatalogValidation
 
     /// <summary>Canonicalizes and hashes a strategy catalog definition whose validation is owned by the caller.</summary>
     public static string CanonicalContentHash(StrategyCatalogDefinition definition) => Sha(CanonicalJson(JsonSerializer.SerializeToElement(Canonicalize(definition), JsonOptions)));
+    /// <summary>Builds the stable content digest of a qualified deployment snapshot.</summary>
+    public static StrategyCatalogSnapshot CreateDeploymentSnapshot(CatalogKey root, DateTime asOfUtc,
+        StoredStrategyCatalogDefinition[] definitions)
+    {
+        var hash = Sha(CanonicalJson(JsonSerializer.SerializeToElement(new
+        {
+            SchemaVersion = 1, Deployment = root,
+            Definitions = definitions.Select(item => new { item.Definition.Key, item.ContentHash }).ToArray()
+        }, JsonOptions)));
+        return new(root, asOfUtc, definitions, hash);
+    }
+
     internal static string Sha(string text) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(text)));
-    internal static CatalogKey[] Dependencies(StrategyCatalogDefinition d) =>
+    /// <summary>Returns the exact catalog identities referenced by one definition.</summary>
+    /// <param name="d">The catalog definition whose dependencies are needed.</param>
+    /// <returns>The referenced immutable catalog versions.</returns>
+    public static CatalogKey[] Dependencies(StrategyCatalogDefinition d) =>
         (d.Parent is null ? Enumerable.Empty<CatalogKey>() : [d.Parent]).Concat(d.Families).Concat(d.Structures)
         .Concat(d.Variants).Concat(d.Parameters.Select(p => p.ParameterSet)).Distinct().ToArray();
 
-    internal static void ValidateForPublication(StrategyCatalogDefinition d, IReadOnlyDictionary<CatalogKey, StoredStrategyCatalogDefinition> graph)
+    /// <summary>Validates a definition against the exact, frozen versions in its graph.</summary>
+    public static void ValidateForPublication(StrategyCatalogDefinition d, IReadOnlyDictionary<CatalogKey, StoredStrategyCatalogDefinition> graph)
     {
         void Needs(string role) => Require(d.Capabilities.Any(x => string.Equals(x.Role,role,StringComparison.Ordinal)), $"A {d.Key.Kind} requires a {role} capability.");
         switch (d.Key.Kind)

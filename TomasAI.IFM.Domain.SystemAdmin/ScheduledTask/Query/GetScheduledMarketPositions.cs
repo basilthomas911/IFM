@@ -4,7 +4,7 @@ using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Queries;
 using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Query;
-/// <summary>Enumerates current open positions solely from persisted ScyllaDB routes and projections.</summary>
+/// <summary>Enumerates current open positions solely from persisted PostgreSQL routes and projections.</summary>
 public static class GetScheduledMarketPositions
 {
 
@@ -15,6 +15,8 @@ public static class GetScheduledMarketPositions
         {
             ArgumentNullException.ThrowIfNull(query);
             ArgumentNullException.ThrowIfNull(store);
+            if (query.PageSize is < 1 or > 500)
+                throw new ArgumentOutOfRangeException(nameof(query), "The route page must contain between 1 and 500 rows.");
             var page = await (store.GetOpenPositionRoutePageAsync(query.PageSize, query.PagingState, cancellationToken)).ConfigureAwait(false);
             var positions = new List<StrategyPositionSnapshot>();
             foreach (var route in page.Items.Select(item => item.Route).DistinctBy(item => item.StrategyPositionId))

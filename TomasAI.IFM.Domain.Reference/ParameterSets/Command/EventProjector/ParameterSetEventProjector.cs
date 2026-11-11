@@ -44,6 +44,7 @@ public sealed class ParameterSetEventProjector : ConventionalEventProjector<Para
     // Materialization only: records accepted configuration and its derived cache-parameter read model. No provider subscriptions.
     async Task ProjectAsync(IParameterSetFact parameterFact, CancellationToken token)
     {
+        AcceptedParameterIdentity.RequireSet(parameterFact);
         await (context.ConfigurationDb.ProjectParameterSetAsync(parameterFact, token)).ConfigureAwait(false);
         if (parameterFact is not (ParameterSetVersionPublishedEvent or ParameterSetVersionRetiredEvent)) {
 return;}
@@ -51,6 +52,7 @@ return;}
         if (!string.Equals(version.Reference.ComponentCode,ParameterSchemaRegistry.StrategyOptionChainCacheComponent,StringComparison.Ordinal)) {
 return;}
         var parameters = version.Values().Get<StrategyOptionChainParameterSet>();
+        parameters.Validate();
         if (parameters.ParameterSetId != version.Reference.SetId || parameters.Version != version.Reference.Version)
 {
 throw new InvalidDataException("Option-chain parameter event identity differs from its payload.");}

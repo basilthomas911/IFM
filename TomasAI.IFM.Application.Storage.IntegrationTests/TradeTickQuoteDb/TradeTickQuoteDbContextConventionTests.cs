@@ -24,6 +24,8 @@ public sealed class TradeTickQuoteDbContextConventionTests
             .IsAssignableFrom(typeof(ITradeTickQuoteDbContext)));
         Assert.True(typeof(ITradeTickQuoteDbContext)
             .IsAssignableFrom(typeof(TradeTickQuoteDbContext)));
+        Assert.True(typeof(IStreamingRawFuturesTradeReader)
+            .IsAssignableFrom(typeof(ITradeTickQuoteDbReadContext)));
     }
 
     [Fact]
@@ -171,7 +173,7 @@ public sealed class TradeTickQuoteDbContextConventionTests
     [Fact]
     public void Folder_has_one_helper_binding_catalog_and_scylla_schema()
     {
-        string[] expected = ["ITradeTickQuoteDbContext.cs", "ITradeTickQuoteDbReadContext.cs", "ITradeTickQuoteDbWriteContext.cs", "TradeTickQuoteDbContext.cs", "TradeTickQuoteDbContextExtensions.cs", "TradeTickQuoteDbParameters.cs", "TradeTickQuoteDbCql.cs", Path.Combine("Schema", "TradeTickQuoteSchemaDb.cs"), Path.Combine("Schema", "TradeTickQuoteSchemaCql.cs")];
+        string[] expected = ["ITradeTickQuoteDbContext.cs", "ITradeTickQuoteDbReadContext.cs", "IStreamingRawFuturesTradeReader.cs", "ITradeTickQuoteDbWriteContext.cs", "TradeTickQuoteDbContext.cs", "TradeTickQuoteDbContextExtensions.cs", "TradeTickQuoteDbParameters.cs", "TradeTickQuoteDbCql.cs", Path.Combine("Schema", "TradeTickQuoteSchemaDb.cs"), Path.Combine("Schema", "TradeTickQuoteSchemaCql.cs")];
         var folder = GetFolder();
         var actual = Directory.GetFiles(folder, "*.cs", SearchOption.AllDirectories).Select(p => Path.GetRelativePath(folder, p)).OrderBy(p => p).ToArray();
         Assert.Equal(expected.OrderBy(p => p).ToArray(), actual);

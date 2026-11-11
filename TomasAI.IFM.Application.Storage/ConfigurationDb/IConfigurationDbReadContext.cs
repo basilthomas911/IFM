@@ -17,6 +17,10 @@ namespace TomasAI.IFM.Application.Storage.ConfigurationDb;
 public interface IConfigurationDbReadContext
 {
     /// <summary>Gets one exact strategy position-risk version with validated payload identity and hash.</summary>
+    /// <param name="id">The id supplied by the caller.</param>
+    /// <param name="version">The exact immutable reference revision.</param>
+    /// <param name="cancellationToken">Cancels the database operation.</param>
+    /// <returns>The selected row, or null when no matching published row exists.</returns>
     Task<TomasAI.IFM.Domain.Trade.Shared.Strategy.Risk.ResolvedStrategyRiskParameterSet?> GetStrategyPositionRiskVersionAsync(Guid id, int version, CancellationToken cancellationToken = default);
     /// <summary>Gets one exact immutable Regime Discovery version.</summary>
     /// <param name = "parameterSetId">The parameter-set identifier.</param>
@@ -61,12 +65,23 @@ public interface IConfigurationDbReadContext
     /// <param name = "cancellationToken">The cancellation token.</param>
     /// <returns>The strategy-catalog summaries.</returns>
     Task<IReadOnlyList<StrategyCatalogSummary>> GetStrategyCatalogsAsync(StrategyCatalogKind kind, int limit = 50, string? afterCode = null, CancellationToken cancellationToken = default);
-    /// <summary>Gets a validated published strategy deployment snapshot.</summary>
-    /// <param name = "deployment">The deployment catalog key.</param>
-    /// <param name = "asOfUtc">The UTC selection timestamp.</param>
-    /// <param name = "cancellationToken">The cancellation token.</param>
-    /// <returns>The validated deployment snapshot.</returns>
-    Task<StrategyCatalogSnapshot> GetPublishedStrategyDeploymentAsync(CatalogKey deployment, DateTime asOfUtc, CancellationToken cancellationToken = default);
+
+    /// <summary>Reads the exact graph and policy rows needed by the catalog owner, in one PostgreSQL snapshot.</summary>
+    /// <param name="root">The exact root definition.</param>
+    /// <param name="asOfUtc">The effective timestamp.</param>
+    /// <param name="allowRootDraft">Allows a Draft root when qualifying publication.</param>
+    /// <param name="cancellationToken">Cancels the read.</param>
+    /// <returns>The stable set of persisted rows, with the database transaction closed.</returns>
+    Task<StrategyCatalogQualificationFacts> ReadStrategyCatalogQualificationAsync(CatalogKey root, DateTime asOfUtc,
+        bool allowRootDraft, CancellationToken cancellationToken = default);
+
+    /// <summary>Reads an exact accepted catalog command for idempotent command preparation.</summary>
+    /// <param name="stream">The owning catalog stream.</param>
+    /// <param name="operationId">The exact command identity.</param>
+    /// <param name="token">Cancels the read.</param>
+    /// <returns>The accepted source fact, or null if this command has not committed.</returns>
+    Task<StrategyCatalogSourceEvent?> ReadCommittedStrategyCatalogOperationAsync(string stream, Guid operationId, CancellationToken token = default);
+
     /// <summary>Gets one exact volatility-series definition.</summary>
     /// <param name = "identity">The definition identity.</param>
     /// <param name = "cancellationToken">The cancellation token.</param>
@@ -152,39 +167,97 @@ public interface IConfigurationDbReadContext
     Task<ParameterSetVersion[]> GetParameterSetsAsync(string componentCode, Guid? setId = null, CancellationToken cancellationToken = default, int limit = 100, string afterName = "", Guid? afterSetId = null, int afterVersion = 0);
 
     /// <summary>Lists active startup run identities in stable creation order, independently of actor caches.</summary>
+    /// <param name="limit">The maximum number of returned rows.</param>
+    /// <param name="afterCreatedAtUtc">The after created at utc supplied by the caller.</param>
+    /// <param name="afterRunId">The after run id supplied by the caller.</param>
+    /// <param name="cancellationToken">Cancels the database operation.</param>
+    /// <returns>The selected rows in the query's defined order.</returns>
     Task<Guid[]> GetParameterStartupRunIdsAsync(int limit, DateTime? afterCreatedAtUtc = null, Guid? afterRunId = null, CancellationToken cancellationToken = default);
 
-    Task<(ParameterStartupRun? Run, ParameterSignalStartupReport? Report)> GetActiveParameterStartupAsync(
+    /// <summary>Reads active parameter startup from the committed projection.</summary>
+    /// <param name="runId">The run id supplied by the caller.</param>
+    /// <param name="cancellationToken">Cancels the database operation.</param>
+    /// <returns>The selected row, or null when no matching published row exists.</returns>
+    Task<ParameterStartupReadModel> GetActiveParameterStartupAsync(
         Guid runId, CancellationToken cancellationToken = default);
 
+    /// <summary>Reads parameter set snapshot from the committed projection.</summary>
+    /// <param name="setId">The set id supplied by the caller.</param>
+    /// <param name="cancellationToken">Cancels the database operation.</param>
+    /// <returns>The selected rows in the query's defined order.</returns>
     Task<ParameterSetSnapshot> GetParameterSetSnapshotAsync(Guid setId, CancellationToken cancellationToken = default);
 
+    /// <summary>Reads parameter assignment snapshot from the committed projection.</summary>
+    /// <param name="identity">The identity supplied by the caller.</param>
+    /// <param name="scope">The exact owning application scope.</param>
+    /// <param name="cancellationToken">Cancels the database operation.</param>
+    /// <returns>The selected rows in the query's defined order.</returns>
     Task<ParameterAssignmentSnapshot> GetParameterAssignmentSnapshotAsync(
         ParameterAssignmentEntityId identity, ParameterAssignmentScope scope, CancellationToken cancellationToken = default);
 
-    Task<(ParameterAssignmentRevision[] Assignments, ParameterSetVersion[] Versions)> GetParameterStartupInputsAsync(
+    /// <summary>Reads parameter startup inputs from the committed projection.</summary>
+    /// <param name="assignmentIds">The assignment ids supplied by the caller.</param>
+    /// <param name="cancellationToken">Cancels the database operation.</param>
+    /// <returns>The selected rows in the query's defined order.</returns>
+    Task<ParameterStartupInputsReadModel> GetParameterStartupInputsAsync(
         Guid[] assignmentIds, CancellationToken cancellationToken = default);
 
+    /// <summary>Has parameter startup projection.</summary>
+    /// <param name="runId">The run id supplied by the caller.</param>
+    /// <param name="cancellationToken">Cancels the database operation.</param>
+    /// <returns>True when the requested condition holds.</returns>
     Task<bool> HasParameterStartupProjectionAsync(Guid runId, CancellationToken cancellationToken = default);
 
+    /// <summary>Reads active parameter startup page from the committed projection.</summary>
+    /// <param name="limit">The maximum number of returned rows.</param>
+    /// <param name="afterCreatedAtUtc">The after created at utc supplied by the caller.</param>
+    /// <param name="afterRunId">The after run id supplied by the caller.</param>
+    /// <param name="cancellationToken">Cancels the database operation.</param>
+    /// <returns>The selected rows in the query's defined order.</returns>
     Task<ParameterStartupRun[]> GetActiveParameterStartupPageAsync(
         int limit, DateTime? afterCreatedAtUtc, Guid? afterRunId, CancellationToken cancellationToken = default);
 
     /// <summary>Reads the concurrency fence for prepared parameter-command evidence.</summary>
+    /// <param name="cancellationToken">Cancels the database operation.</param>
+    /// <returns>The selected rows in the query's defined order.</returns>
     Task<long> GetParameterRevisionFenceAsync(CancellationToken cancellationToken = default);
 
     /// <summary>Gets the accepted revision when all accepted parameter facts have been projected.</summary>
+    /// <param name="cancellationToken">Cancels the database operation.</param>
+    /// <returns>The selected row, or null when no matching published row exists.</returns>
     Task<long?> GetProjectedParameterRevisionAsync(CancellationToken cancellationToken = default);
 
     /// <summary>Reads typed scalar/child rows in the caller's transaction and verifies their content fingerprint.</summary>
+    /// <param name="transaction">The caller's enlisted PostgreSQL transaction.</param>
+    /// <param name="setId">The set id supplied by the caller.</param>
+    /// <param name="version">The exact immutable reference revision.</param>
+    /// <param name="cancellationToken">Cancels the database operation.</param>
+    /// <returns>The selected row, or null when no matching published row exists.</returns>
     Task<ParameterSetValue?> GetTypedParameterValueAsync(IEnlistedPostgresTransaction transaction, Guid setId, int version, CancellationToken cancellationToken = default);
 
     /// <summary>Reads and verifies one immutable assignment projection revision.</summary>
+    /// <param name="transaction">The caller's enlisted PostgreSQL transaction.</param>
+    /// <param name="assignmentId">The assignment id supplied by the caller.</param>
+    /// <param name="revision">The revision supplied by the caller.</param>
+    /// <param name="cancellationToken">Cancels the database operation.</param>
+    /// <returns>The selected row, or null when no matching published row exists.</returns>
     Task<ParameterAssignmentRevision?> GetParameterAssignmentProjectionAsync(IEnlistedPostgresTransaction transaction, Guid assignmentId, long revision, CancellationToken cancellationToken = default);
     /// <summary>Reads and verifies the typed audit projection for an accepted operation.</summary>
+    /// <param name="transaction">The caller's enlisted PostgreSQL transaction.</param>
+    /// <param name="operationId">The operation id supplied by the caller.</param>
+    /// <param name="cancellationToken">Cancels the database operation.</param>
+    /// <returns>The selected row, or null when no matching published row exists.</returns>
     Task<ParameterAuditEntry?> GetParameterAuditProjectionAsync(IEnlistedPostgresTransaction transaction, Guid operationId, CancellationToken cancellationToken = default);
     /// <summary>Reads a frozen startup projection and its exact typed parameter versions.</summary>
+    /// <param name="transaction">The caller's enlisted PostgreSQL transaction.</param>
+    /// <param name="runId">The run id supplied by the caller.</param>
+    /// <param name="cancellationToken">Cancels the database operation.</param>
+    /// <returns>The selected row, or null when no matching published row exists.</returns>
     Task<ParameterStartupRun?> GetParameterStartupProjectionAsync(IEnlistedPostgresTransaction transaction, Guid runId, CancellationToken cancellationToken = default);
     /// <summary>Reads and verifies a startup preparation report projection.</summary>
+    /// <param name="transaction">The caller's enlisted PostgreSQL transaction.</param>
+    /// <param name="runId">The run id supplied by the caller.</param>
+    /// <param name="cancellationToken">Cancels the database operation.</param>
+    /// <returns>The selected row, or null when no matching published row exists.</returns>
     Task<ParameterSignalStartupReport?> GetParameterStartupReportProjectionAsync(IEnlistedPostgresTransaction transaction, Guid runId, CancellationToken cancellationToken = default);
 }

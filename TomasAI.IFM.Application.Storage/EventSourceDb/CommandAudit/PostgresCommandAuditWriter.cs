@@ -38,7 +38,6 @@ internal sealed class PostgresCommandAuditWriter : ICommandAuditWriter
         CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
-        ArgumentNullException.ThrowIfNull(envelope);
         if (envelope.PayloadBytes <= 0 || envelope.PayloadBytes > _options.MaximumCommandPayloadBytes)
             throw new ArgumentException("Command audit payload is outside its configured size limit.", nameof(envelope));
 
@@ -119,13 +118,13 @@ await                    deadlineCancellation.CancelAsync()
             var connection = await GetOpenConnectionAsync(cancellationToken)
             .ConfigureAwait(false);
             var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken)
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
         await using var transactionDisposal = transaction.ConfigureAwait(false);
             try
             {
                 var results = await CommandAuditPostgres.ReserveAsync(
                     connection, transaction, batch.Select(static item => item.Envelope).ToArray(), cancellationToken)
-                    .ConfigureAwait(false);
+            .ConfigureAwait(false);
                 await transaction.CommitAsync(cancellationToken)
             .ConfigureAwait(false);
                 for (var index = 0; index < batch.Count; index++)

@@ -121,6 +121,28 @@ public sealed class OptionRefreshAlgorithmsTests
         }
     }
 
+    [Fact]
+    public async Task Same_expiry_and_strike_on_distinct_underlying_futures_survive_loading_before_identity_resolution()
+    {
+        var snapshot = Guid.NewGuid();
+        var expiry = new DateTimeOffset(2026,12,18,21,0,0,TimeSpan.Zero);
+        var store = new DefinitionStore(snapshot,
+        [Definition(snapshot,10,"December C7500","C",expiry) with { Strike=7500 },
+         Definition(snapshot,20,"March C7500","C",expiry) with { Strike=7500,UnderlyingInstrumentId=200 }]);
+        var december = Contract("ES20261218",new(2026,12,18)) with { Dataset="GLBX.MDP3",PublisherId=1,InstrumentId=100 };
+        var march = Contract("ES20270319",new(2027,3,19)) with { Dataset="GLBX.MDP3",PublisherId=1,InstrumentId=200 };
+        var loaded = await StoredOptionDefinitionRangeLoader.LoadAsync(store,"ES","EW1",new(2026,12,18),new(2026,12,18),
+            [december,march],new(2026,11,10,15,0,0,TimeSpan.Zero),CancellationToken.None);
+        loaded.Should().HaveCount(2);
+        loaded.Select(x=>x.UnderlyingContractId).Should().BeEquivalentTo([december.ContractId,march.ContractId]);
+        var original = loaded.Single(x=>x.UnderlyingInstrumentId==100);
+        var identity = OptionReferenceIdentity.Serialize(original);
+        var resolved = OptionReferenceIdentity.Resolve(loaded,new Dictionary<string,string>
+            { ["ifm:"+original.ContractId]=identity,[OptionReferenceIdentity.ProviderKey(original)]=identity });
+        resolved.Select(x=>x.ContractId).Should().OnlyHaveUniqueItems();
+        resolved.Single(x=>x.UnderlyingInstrumentId==100).ContractId.Should().Be(original.ContractId);
+    }
+
     static InstrumentDefinitionSelection Definition(
         Guid snapshot,
         uint instrumentId,

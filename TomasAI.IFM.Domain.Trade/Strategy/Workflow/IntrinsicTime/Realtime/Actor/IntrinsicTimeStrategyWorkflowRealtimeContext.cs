@@ -61,6 +61,9 @@ public sealed class IntrinsicTimeStrategyWorkflowRealtimeContext : EventActorCon
     public RegimeDiscoveryExecutionOptions RegimeDiscoveryExecutionOptions { get; }
     /// <inheritdoc/>
     public TomasAI.IFM.Domain.Reference.Shared.ParameterSets.IParameterRuntimeSnapshot ParameterRuntime => Container.Resolve<TomasAI.IFM.Domain.Reference.Shared.ParameterSets.IParameterRuntimeSnapshot>();
+    /// <inheritdoc/>
+    public TomasAI.IFM.Application.Strategy.StrategyCatalog.IStrategyDeploymentReader CatalogDeployments =>
+        Container.Resolve<TomasAI.IFM.Application.Strategy.StrategyCatalog.IStrategyDeploymentReader>();
     public IConfigurationDbContext ConfigurationDb => _configurationDb.Value;
     /// <inheritdoc/>
     public IRegimeDiscoveryMarketSignalSnapshotProvider RegimeDiscoverySnapshotProvider => _regimeDiscoverySnapshotProvider.Value;

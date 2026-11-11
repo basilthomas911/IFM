@@ -53,7 +53,15 @@ public sealed class MarketDataHostNatsRecoveryIntegrationTests
             if (snapshot.OptionObservations?.Length > 0) break;
             await Task.Delay(50, deadline.Token);
         } while (true);
-        var frame = Assert.Single(snapshot.OptionObservations!);
+        // Quote and calculation updates have separate retained slots for the
+        // same contract; scheduling may legitimately expose both in this read.
+        var retained = snapshot.OptionObservations!.Select(frame => (Frame: frame,
+            Tick: MessagePack.MessagePackSerializer.Deserialize<TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events.FuturesTickTradeDataChangedEvent>(frame.Payload)
+                .OptionMarketPriceObservation!.OptionTickData)).ToArray();
+        Assert.NotEmpty(retained);
+        Assert.All(retained, observation => Assert.Equal(lease.Options[0].Pricing.Contract.ContractId, observation.Tick.ContractId));
+        Assert.Equal(retained.Length, retained.Select(observation => observation.Tick.IsPricingUpdate).Distinct().Count());
+        var frame = retained.MaxBy(observation => observation.Frame.PublicationSequence).Frame;
         var admissions = new DatasetWorkerAdmissionRegistry();
         var publisher = Substitute.For<TomasAI.IFM.Shared.MarketData.Contracts.TickAggregation.ITickAggregationEventPublisher>();
         var ingress = new DatasetPublicationIngress(admissions, publisher, Substitute.For<TomasAI.IFM.Application.MarketData.MarketOutlook.IMarketDataOperationsRecorder>());

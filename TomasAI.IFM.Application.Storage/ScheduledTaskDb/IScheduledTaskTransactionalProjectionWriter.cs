@@ -14,9 +14,21 @@ public interface IScheduledTaskTransactionalProjectionWriter
     string ConnectionString { get; }
 
     /// <summary>Applies an accepted snapshot on the caller-owned transaction without committing it.</summary>
+    /// <param name="transaction">The caller-owned transaction; this method does not commit it.</param>
+    /// <param name="value">The accepted complete snapshot from a committed source event.</param>
+    /// <param name="token">Cancels the enlisted persistence operation.</param>
+    /// <returns>Completion of the accepted projection write.</returns>
     Task ProjectAsync(IEnlistedPostgresTransaction transaction, ScheduledTaskDefinition value, CancellationToken token);
     /// <summary>Applies an accepted snapshot on the caller-owned transaction without committing it.</summary>
+    /// <param name="transaction">The caller-owned transaction; this method does not commit it.</param>
+    /// <param name="value">The accepted complete snapshot from a committed source event.</param>
+    /// <param name="token">Cancels the enlisted persistence operation.</param>
+    /// <returns>Completion of the accepted projection write.</returns>
     Task ProjectAsync(IEnlistedPostgresTransaction transaction, ScheduledTaskCatalog value, CancellationToken token);
     /// <summary>Applies an accepted snapshot on the caller-owned transaction without committing it.</summary>
+    /// <param name="transaction">The caller-owned transaction; this method does not commit it.</param>
+    /// <param name="value">The accepted complete snapshot from a committed source event.</param>
+    /// <param name="token">Cancels the enlisted persistence operation.</param>
+    /// <returns>Completion of the accepted projection write.</returns>
     Task ProjectAsync(IEnlistedPostgresTransaction transaction, ScheduledTaskRun value, CancellationToken token);
 }

@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Shared.QueryParameters;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using TomasAI.IFM.Application.MarketData.Contracts;
@@ -36,8 +37,7 @@ public sealed class EmulatorOptionChainRoutingTests
             AllowFrozenEmulatorPreview = true, FrozenEmulatorPreviewOnly = frozenOnly,
             StandardDeviationMultiplier = 2.5
         };
-        securities.GetCachedOptionContractDefinitionsAsync(query.UnderlyingSymbol, query.UnderlyingContractId,
-            query.ExpiryDate, query.ProviderRoots, Arg.Any<CancellationToken>()).Returns([
+        securities.GetCachedOptionContractDefinitionsAsync(new OptionDefinitionPartition(query.UnderlyingSymbol, query.UnderlyingContractId, query.ExpiryDate), query.ProviderRoots, Arg.Any<CancellationToken>()).Returns([
                 new CachedOptionContractDefinitionReadModel { Definition = new FuturesOptionContractReadModel {
                     ContractId = "ES-C-5000", StrikePrice = 5000, OptionType = "Call",
                     ExpirationUtc = new DateTimeOffset(2099, 12, 18, 0, 0, 0, TimeSpan.Zero), TickSize = 0.25m

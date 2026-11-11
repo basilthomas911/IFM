@@ -8,7 +8,7 @@ namespace TomasAI.IFM.Application.Storage.MarketDataServiceDb;
 
 /// <summary>Combines Market Data Service database read and write capabilities.</summary>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3444", Justification = "Keep the published context interface and named argument contract; inherited capability members intentionally describe the same database operation.")]
-public interface IMarketDataServiceDbContext : IObjectRepository<MarketDataServiceDbContext>, IMarketDataServiceDbReadContext, IMarketDataServiceDbWriteContext, IMarketDataServiceStore, ICompositionRoutePlanStore, IDurableSubscriptionIntentStore
+public interface IMarketDataServiceDbContext : IObjectRepository<MarketDataServiceDbContext>, IMarketDataServiceDbReadContext, IMarketDataServiceDbWriteContext, IMarketDataServiceStateStore, IWatchdogObservationPersistence, ICompositionRoutePlanStore, IDurableSubscriptionPersistence
 {
     /// <summary>Gets the Market Data Service database read capability.</summary>
     IMarketDataServiceDbReadContext DbReader { get; }

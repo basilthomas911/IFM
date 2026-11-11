@@ -34,7 +34,7 @@ public static class ApplyEconomicCalendarsImport
 
                 var heads = await MarketDataImportStreamFence.LockAsync(transaction, groups.Select(group => Stream(group.Key)),
                     "EconomicCalendarEventProjector", token).ConfigureAwait(false);
-                await transaction.ImportEconomicCalendarsAsync(rows, source.DuplicatePolicy, source.CommandId, token).ConfigureAwait(false);
+                await transaction.ImportEconomicCalendarsAsync(MarketDataImportBatch.Calendars(rows, source.DuplicatePolicy, source.CommandId), token).ConfigureAwait(false);
                 foreach (var group in groups)
                 {
                     var stream = Stream(group.Key);
@@ -48,10 +48,10 @@ public static class ApplyEconomicCalendarsImport
                             EventSource = command.EventSource, ReceivedOn = source.ReceivedOn, UpdatedOn = source.ReceivedOn,
                             UpdatedBy = command.EventSource, EconomicCalendar = row
                         };
-                        await transaction.AppendAsync(stream, command.CommandId, changed, version++, token).ConfigureAwait(false);
+                        await transaction.AppendAsync(new EnlistedEventAppend(stream, command.CommandId, changed, version++), token).ConfigureAwait(false);
                     }
                 }
-                await transaction.AppendAsync(acceptedStream, source.CommandId, source, 0, token).ConfigureAwait(false);
+                await transaction.AppendAsync(new EnlistedEventAppend(acceptedStream, source.CommandId, source, 0), token).ConfigureAwait(false);
                 return true;
             }).ConfigureAwait(false);
             return new ServiceOk<GuidResult>(new GuidResult(command.CommandId));

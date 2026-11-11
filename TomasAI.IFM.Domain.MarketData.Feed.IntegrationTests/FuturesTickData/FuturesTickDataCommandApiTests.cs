@@ -54,7 +54,7 @@ public class FuturesTickDataCommandApiTests(TomasAI.IFM.IntegrationTesting.Kestr
         var tickData = SampleData.UnderlyingFuturesTickData;
 
         await dbFixture.MarketDataDb.DeleteFuturesEodDataAsync(SampleData.FuturesEodData.ContractId, SampleData.FuturesEodData.ValueDate);
-        await dbFixture.MarketDataDb.InsertFuturesEodDataAsync(SampleData.FuturesEodData);
+        await dbFixture.MarketDataDb.InsertFuturesEodDataAsync(SampleData.FuturesEodData, 1);
         await dbFixture.MarketDataDb.DeleteFuturesTickDataAsync(SampleData.UnderlyingFuturesTickData.ContractId, SampleData.UnderlyingFuturesTickData.ValueDate);
         await dbFixture.MarketDataDb.InsertFuturesTickDataAsync(SampleData.UnderlyingFuturesTickData);
         var contractId = SampleData.FuturesContractId;
@@ -64,7 +64,7 @@ public class FuturesTickDataCommandApiTests(TomasAI.IFM.IntegrationTesting.Kestr
 
         foreach (var eodData in eodDataRange)
             await dbFixture.MarketDataDb.DeleteFuturesEodDataAsync(eodData.ContractId, eodData.ValueDate);
-        await dbFixture.MarketDataDb.InsertFuturesEodDataAsync(eodDataRange);
+        await dbFixture.MarketDataDb.InsertFuturesEodDataAsync(new FuturesEodBatch(eodDataRange));
 
         // act...
         var marketDataFeedApi = new MarketDataFeedCommandApi(_actorProducer);

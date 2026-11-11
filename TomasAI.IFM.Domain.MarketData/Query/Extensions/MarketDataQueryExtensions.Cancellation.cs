@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Shared.QueryParameters;
 #pragma warning disable CA1034 // C# 14 extension blocks generate nested metadata types; no public nested type is declared here.
 #pragma warning disable CA1708 // Extension-block metadata names are compiler generated; public methods have distinct signatures.
 using TomasAI.IFM.Domain.MarketData.Shared;
@@ -125,7 +126,7 @@ public static partial class MarketDataQueryExtensions
             CancellationToken cancellationToken)
             => ExecuteAsync<YieldCurveRateReadModel[]>(
                 GetYieldCurveRatesQuery.ErrorId, async () => [.. await (context.DbFactory.MarketDataDb
-                .GetYieldCurveRatesAsync(startDate, endDate, cancellationToken)).ConfigureAwait(false)], cancellationToken);
+                .GetYieldCurveRatesAsync(new YieldCurveReadRange(startDate, endDate), cancellationToken)).ConfigureAwait(false)], cancellationToken);
 
         public Task<ServiceResult<YieldCurveRateYearsReadModel>> GetYieldCurveRateYearsAsync(
             CancellationToken cancellationToken)

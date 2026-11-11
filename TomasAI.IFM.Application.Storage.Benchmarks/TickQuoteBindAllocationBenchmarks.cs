@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.Storage.TradeTickQuoteDb;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
 using TomasAI.IFM.Application.Storage.MarketDataDb;

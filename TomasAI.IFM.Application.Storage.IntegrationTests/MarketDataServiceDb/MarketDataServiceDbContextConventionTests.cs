@@ -21,9 +21,11 @@ public sealed class MarketDataServiceDbContextConventionTests
         Assert.True(typeof(IObjectRepository<MarketDataServiceDbContext>).IsAssignableFrom(typeof(IMarketDataServiceDbContext)));
         Assert.True(typeof(IMarketDataServiceDbReadContext).IsAssignableFrom(typeof(IMarketDataServiceDbContext)));
         Assert.True(typeof(IMarketDataServiceDbWriteContext).IsAssignableFrom(typeof(IMarketDataServiceDbContext)));
-        Assert.True(typeof(IMarketDataServiceStore).IsAssignableFrom(typeof(IMarketDataServiceDbContext)));
+        Assert.False(typeof(IMarketDataServiceStore).IsAssignableFrom(typeof(IMarketDataServiceDbContext)));
+        Assert.True(typeof(IMarketDataServiceStateStore).IsAssignableFrom(typeof(IMarketDataServiceDbContext)));
         Assert.True(typeof(ICompositionRoutePlanStore).IsAssignableFrom(typeof(IMarketDataServiceDbContext)));
-        Assert.True(typeof(IDurableSubscriptionIntentStore).IsAssignableFrom(typeof(IMarketDataServiceDbContext)));
+        Assert.False(typeof(IDurableSubscriptionIntentStore).IsAssignableFrom(typeof(IMarketDataServiceDbContext)));
+        Assert.True(typeof(IDurableSubscriptionPersistence).IsAssignableFrom(typeof(IMarketDataServiceDbContext)));
         Assert.True(typeof(IMarketDataServiceDbContext).IsAssignableFrom(typeof(MarketDataServiceDbContext)));
     }
 

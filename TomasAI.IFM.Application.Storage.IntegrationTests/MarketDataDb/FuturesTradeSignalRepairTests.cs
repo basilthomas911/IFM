@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Persistence;
 using System;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using Xunit;
@@ -13,7 +14,7 @@ public sealed class FuturesTradeSignalRepairTests
             {"contractid":"ES20260918","valuedate":"2026-08-21","timeperiod":"FifteenSeconds","timestamp":"14:30:01.250000000","sequenceid":42}
             """;
 
-        var result = MarketDataDbContextExtensions.ParseFuturesTradeSignalRepairRow(payload);
+        var result = MarketDataProjectionMaintenance.ParseFuturesTradeSignalRepairRow(payload);
 
         Assert.Null(result.Error);
         Assert.NotNull(result.Row);
@@ -30,7 +31,7 @@ public sealed class FuturesTradeSignalRepairTests
             {"contractid":"ES20250919,2025-08-21,FifteenSeconds,0,00:00:00","valuedate":"0001-01-01","timeperiod":null,"timestamp":"00:00:00","sequenceid":0}
             """;
 
-        var result = MarketDataDbContextExtensions.ParseFuturesTradeSignalRepairRow(payload);
+        var result = MarketDataProjectionMaintenance.ParseFuturesTradeSignalRepairRow(payload);
 
         Assert.Null(result.Row);
         Assert.Contains("invalid contractId", result.Error);
@@ -41,7 +42,7 @@ public sealed class FuturesTradeSignalRepairTests
     [Fact]
     public void ParseRepairRow_ReportsInvalidJsonWithoutThrowing()
     {
-        var result = MarketDataDbContextExtensions.ParseFuturesTradeSignalRepairRow("not-json");
+        var result = MarketDataProjectionMaintenance.ParseFuturesTradeSignalRepairRow("not-json");
 
         Assert.Null(result.Row);
         Assert.StartsWith("invalid JSON:", result.Error);

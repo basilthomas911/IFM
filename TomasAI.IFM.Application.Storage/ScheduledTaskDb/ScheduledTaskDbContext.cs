@@ -6,7 +6,6 @@ using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
-using TomasAI.IFM.Shared.Storage;
 
 namespace TomasAI.IFM.Application.Storage.ScheduledTaskDb;
 /// <summary>Typed PostgreSQL scheduled-task persistence; domain actors own scheduling and lifecycle policy.</summary>
@@ -18,6 +17,10 @@ public sealed class ScheduledTaskDbContext(IDbConnectionSettings settings, ILogg
     public const string ConnectionName = "ScheduledTaskDbConnection";
     /// <inheritdoc/>
     public override ScheduledTaskDbContext Database => this;
+    /// <summary>Gets the read capability of this repository.</summary>
+    public IScheduledTaskDbReadContext DbReader => this;
+    /// <summary>Gets the write capability of this repository.</summary>
+    public IScheduledTaskDbWriteContext DbWriter => this;
 
     /// <summary>Maps a persisted MessagePack snapshot from the payload column.</summary>
     internal static T MapToSnapshot<T>(IObjectDataRecord row) => MessagePackSerializer.Deserialize<T>(row.GetBytes(0));
@@ -26,29 +29,12 @@ public sealed class ScheduledTaskDbContext(IDbConnectionSettings settings, ILogg
     /// <inheritdoc/>
     public async ValueTask<DateOnly?> GetCompletedEndOfDayAsync(string environment, CancellationToken cancellationToken = default)
     {
+        var preparedParameters1 = new ScheduledTaskDbParameters([environment]);
         var rows = await Use("ScheduledTask.CompletedDate", ScheduledTaskDbSql.CompletedDate)
-            .SetParameters(new ScheduledTaskDbParameters([environment]))
+            .SetParameters(preparedParameters1)
             .ExecuteQueryAsync(MapToCompletedDate, cancellationToken)
             .ConfigureAwait(false);
         return rows.Count == 0 ? null : rows.First();
-    }
-
-    /// <inheritdoc/>
-    public async ValueTask<DateOnly?> GetCompletedMarketCloseAsync(string environment, CancellationToken cancellationToken = default)
-    {
-        var host = ScheduledTaskKeys.ApiMarketCloseHost;
-        var schedule = ScheduledTaskIdentities.Catalog(environment, host);
-        byte[]? cursor = null;
-        do
-        {
-            var page = await GetRunHistoryAsync(environment, host, schedule, 8, cursor, cancellationToken)
-                .ConfigureAwait(false);
-            foreach (var run in page.Runs)
-                if (run.GetCompletedMarketCloseDate() is { } completed)
-                    return completed;
-            cursor = page.PagingState;
-        } while (cursor is not null);
-        return null;
     }
 
     /// <inheritdoc/>
@@ -77,49 +63,40 @@ public sealed class ScheduledTaskDbContext(IDbConnectionSettings settings, ILogg
             .ExecuteQueryAsync(MapToSnapshot<ScheduledTaskRun>, cancellationToken)
             .ConfigureAwait(false)).ToArray();
     /// <inheritdoc/>
-    public ValueTask<ScheduledTaskRunPage> GetRunHistoryAsync(string environment, string hostId, ScheduledTaskId scheduleId, int pageSize, byte[]? pagingState, CancellationToken cancellationToken = default) => new(this.ReadHistoryAsync(environment, hostId, scheduleId, pageSize, pagingState, cancellationToken));
+    public ValueTask<ScheduledTaskRunPage> GetRunHistoryAsync(ScheduledTaskHistorySelection selection, CancellationToken cancellationToken = default) => new(this.ReadHistoryAsync(selection, cancellationToken));
     /// <inheritdoc/>
     public ValueTask ProjectAsync(ScheduledTaskDefinition definition, CancellationToken cancellationToken = default)
     {
-        this.ValidateSnapshot(definition);
         return new(this.WriteSnapshotAsync(transaction => transaction.ProjectScheduledTaskAsync(definition, cancellationToken), cancellationToken));
     }
 
     /// <inheritdoc/>
     public Task ProjectAsync(IEnlistedPostgresTransaction transaction, ScheduledTaskDefinition value, CancellationToken token)
     {
-        this.ValidateSnapshot(transaction);
-        this.ValidateSnapshot(value);
         return transaction.ProjectScheduledTaskAsync(value, token);
     }
 
     /// <inheritdoc/>
     public ValueTask ProjectAsync(ScheduledTaskCatalog catalog, CancellationToken cancellationToken = default)
     {
-        this.ValidateSnapshot(catalog);
         return new(this.WriteSnapshotAsync(transaction => transaction.ProjectScheduledTaskAsync(catalog, cancellationToken), cancellationToken));
     }
 
     /// <inheritdoc/>
     public Task ProjectAsync(IEnlistedPostgresTransaction transaction, ScheduledTaskCatalog value, CancellationToken token)
     {
-        this.ValidateSnapshot(transaction);
-        this.ValidateSnapshot(value);
         return transaction.ProjectScheduledTaskAsync(value, token);
     }
 
     /// <inheritdoc/>
     public ValueTask ProjectAsync(ScheduledTaskRun run, CancellationToken cancellationToken = default)
     {
-        this.ValidateSnapshot(run);
         return new(this.WriteSnapshotAsync(transaction => transaction.ProjectScheduledTaskAsync(run, cancellationToken), cancellationToken));
     }
 
     /// <inheritdoc/>
     public Task ProjectAsync(IEnlistedPostgresTransaction transaction, ScheduledTaskRun value, CancellationToken token)
     {
-        this.ValidateSnapshot(transaction);
-        this.ValidateSnapshot(value);
         return transaction.ProjectScheduledTaskAsync(value, token);
     }
 }

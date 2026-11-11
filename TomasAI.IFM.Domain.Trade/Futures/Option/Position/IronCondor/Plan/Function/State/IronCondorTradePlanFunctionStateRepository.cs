@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Persistence;
 using TomasAI.IFM.Application.EventSourcing.Repository;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.EventProjector.Contracts;
@@ -53,9 +54,9 @@ public sealed class IronCondorTradePlanFunctionStateRepository(IEventSourceActor
                     var version = state.CommittedStreamVersion;
                     foreach (var source in pending)
                     {
-                        await transaction.AppendAsync(request.StreamId, request.CommandId, source, version++, token).ConfigureAwait(false);
+                        await transaction.AppendAsync(new EnlistedEventAppend(request.StreamId, request.CommandId, source, version++), token).ConfigureAwait(false);
                         if (source is IronCondorTradePlanUpdatedEvent snapshot)
-                            await dbFactory.TradePlanDb.ProjectMaterialAsync(transaction, snapshot.Plan, token).ConfigureAwait(false);
+                            await TradePlanProjectionWriter.WriteAcceptedAsync(dbFactory.TradePlanDb.DbWriter, transaction, snapshot.Plan, token).ConfigureAwait(false);
                     }
 
                     return true;

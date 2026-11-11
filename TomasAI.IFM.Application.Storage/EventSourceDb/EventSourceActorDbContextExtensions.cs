@@ -29,10 +29,11 @@ internal static class EventSourceActorDbContextExtensions
         /// <summary>Uses indexed stream metadata; no event deserialization or second identity read is required.</summary>
         internal async Task<long> ReadCommittedStreamHeadAsync(string eventStream, CancellationToken cancellationToken)
         {
-            ArgumentException.ThrowIfNullOrWhiteSpace(eventStream);
+        var preparedParameters1 = new GetEventStreamId(eventStream);
             return await context.Database.Use(nameof(EventSourceDbSql.GetResidentStreamHead), EventSourceDbSql.GetResidentStreamHead)
-                .SetParameters(new GetEventStreamId(eventStream))
-                .ExecuteSingleAsync(static row => row.GetLong(0), cancellationToken).ConfigureAwait(false);
+            .SetParameters(preparedParameters1)
+            .ExecuteSingleAsync(EventSourceActorDbContext.MapToReadCommittedStreamHeadRow1, cancellationToken)
+            .ConfigureAwait(false);
         }
 
         /// <summary>Resolves the cached event stream identifier, creating the database entry on a cache miss.</summary>
@@ -41,82 +42,6 @@ internal static class EventSourceActorDbContextExtensions
         /// <returns>The typed result of the event-source operation.</returns>
         internal Task<long> ResolveEventStreamIdAsync(string eventStream, CancellationToken cancellationToken)
             => context._streamIdentities.GetAsync(eventStream, context._streamIdentityLoader, cancellationToken).AsTask();
-        /// <summary>Checks  batch size before the persistence operation.</summary>
-        /// <param name="batchSize">The maximum number of records to return or claim.</param>
-        internal void ValidateBatchSize(int batchSize)
-        {
-            if (batchSize is < 1 or > 2_048) throw new ArgumentOutOfRangeException(nameof(batchSize));
-        }
-        /// <summary>Checks  release transition before the persistence operation.</summary>
-        /// <param name="transition">The requested revision and lease-qualified projector transition.</param>
-        internal void ValidateReleaseTransition(EventProjectorStateTransition transition)
-        {
-            context.ValidateTransition(transition, terminal: false);
-            if (transition.Outcome != EventProjectorOutcomeType.Retrying)
-                throw new ArgumentOutOfRangeException(nameof(transition), "A released execution must be retryable.");
-            if (!transition.NextAttemptAtUtc.HasValue || !transition.LastErrorAtUtc.HasValue)
-                throw new ArgumentException("A released execution requires retry and error timestamps.", nameof(transition));
-        }
-        /// <summary>Checks  outbox release status before the persistence operation.</summary>
-        /// <param name="status">The requested projector or outbox status.</param>
-        internal void ValidateOutboxReleaseStatus(EventProjectorOutboxStatus status)
-        {
-            if (status is not EventProjectorOutboxStatus.Retrying and not EventProjectorOutboxStatus.Failed)
-                throw new ArgumentOutOfRangeException(nameof(status));
-        }
-        /// <summary>Checks  operational status before the persistence operation.</summary>
-        /// <param name="status">The requested projector or outbox status.</param>
-        internal void ValidateOperationalStatus(EventProjectorOperationalStatus status)
-        {
-            if (!Enum.IsDefined(status)) throw new ArgumentOutOfRangeException(nameof(status));
-        }
-        /// <summary>Checks  skip reason before the persistence operation.</summary>
-        /// <param name="reason">The operator supplied reason for skipping the event.</param>
-        internal void ValidateSkipReason(string reason)
-        {
-            context.ValidateTextArgument(reason, nameof(reason));
-            if (reason.Length > 2_000) throw new ArgumentOutOfRangeException(nameof(reason));
-        }
-        /// <summary>Checks  qualification writer before the persistence operation.</summary>
-        /// <param name="options">The event log persistence configuration.</param>
-        internal void ValidateQualificationWriter(EventLogPersistenceOptions options)
-        {
-            if (options.WriteMode != EventLogWriteMode.BinaryCopy)
-                throw new ArgumentException("Actor qualification requires the binary-copy writer.", nameof(options));
-        }
-
-        /// <summary>Checks  required argument before the persistence operation.</summary>
-        /// <param name="argument">The argument used by this operation.</param>
-        /// <param name="parameterName">The parameter name used by this operation.</param>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Argument validation belongs to the context extension API.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3236", Justification = "Forward the original operation parameter name rather than the helper parameter name.")]
-        internal void ValidateRequiredArgument([System.Diagnostics.CodeAnalysis.NotNull] object? argument, string parameterName)
-            => ArgumentNullException.ThrowIfNull(argument, parameterName);
-
-        /// <summary>Checks  text argument before the persistence operation.</summary>
-        /// <param name="argument">The argument used by this operation.</param>
-        /// <param name="parameterName">The parameter name used by this operation.</param>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Argument validation belongs to the context extension API.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3236", Justification = "Forward the original operation parameter name rather than the helper parameter name.")]
-        internal void ValidateTextArgument([System.Diagnostics.CodeAnalysis.NotNull] string? argument, string parameterName)
-            => ArgumentException.ThrowIfNullOrWhiteSpace(argument, parameterName);
-
-        /// <summary>Checks  nonnegative argument before the persistence operation.</summary>
-        /// <param name="argument">The argument used by this operation.</param>
-        /// <param name="parameterName">The parameter name used by this operation.</param>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Argument validation belongs to the context extension API.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3236", Justification = "Forward the original operation parameter name rather than the helper parameter name.")]
-        internal void ValidateNonnegativeArgument(long argument, string parameterName)
-            => ArgumentOutOfRangeException.ThrowIfLessThan(argument, 0, parameterName);
-
-        /// <summary>Checks  positive argument before the persistence operation.</summary>
-        /// <param name="argument">The argument used by this operation.</param>
-        /// <param name="parameterName">The parameter name used by this operation.</param>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Argument validation belongs to the context extension API.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3236", Justification = "Forward the original operation parameter name rather than the helper parameter name.")]
-        internal void ValidatePositiveArgument(long argument, string parameterName)
-            => ArgumentOutOfRangeException.ThrowIfNegativeOrZero(argument, parameterName);
-
         /// <summary>Event Log Sql using the event-source persistence services.</summary>
         /// <param name="sql">The sql used by this operation.</param>
         /// <returns>The typed result of the event-source operation.</returns>
@@ -137,117 +62,6 @@ internal static class EventSourceActorDbContextExtensions
                 _ => throw new ArgumentOutOfRangeException(nameof(options))
             };
         }
-
-        /// <summary>Checks  projector identity before the persistence operation.</summary>
-        /// <param name="eventId">The source event identifier.</param>
-        /// <param name="projectorName">The projector identity.</param>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Validation belongs to the context extension API.")]
-        internal void ValidateProjectorIdentity(long eventId, string projectorName)
-        {
-            if (eventId <= 0)
-                throw new ArgumentOutOfRangeException(nameof(eventId), eventId, "The event id must be positive.");
-            ArgumentException.ThrowIfNullOrWhiteSpace(projectorName);
-        }
-
-        /// <summary>Checks  execution token before the persistence operation.</summary>
-        /// <param name="executionToken">The token identifying the current execution lease owner.</param>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Validation belongs to the context extension API.")]
-        internal void ValidateExecutionToken(Guid executionToken)
-        {
-            if (executionToken == Guid.Empty)
-                throw new ArgumentException("The execution token cannot be empty.", nameof(executionToken));
-        }
-
-        /// <summary>Require Utc using the event-source persistence services.</summary>
-        /// <param name="value">The value used by this operation.</param>
-        /// <param name="parameterName">The parameter name used by this operation.</param>
-        /// <returns>The typed result of the event-source operation.</returns>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Validation belongs to the context extension API.")]
-        internal DateTime RequireUtc(DateTime value, string parameterName)
-        {
-            if (value.Kind != DateTimeKind.Utc)
-                throw new ArgumentException("The timestamp must use DateTimeKind.Utc.", parameterName);
-            return value;
-        }
-
-        /// <summary>Checks  optional utc before the persistence operation.</summary>
-        /// <param name="value">The value used by this operation.</param>
-        /// <param name="parameterName">The parameter name used by this operation.</param>
-        /// <returns>The typed result of the event-source operation.</returns>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Validation belongs to the context extension API.")]
-        internal DateTime? ValidateOptionalUtc(DateTime? value, string parameterName)
-            => value.HasValue ? context.RequireUtc(value.Value, parameterName) : null;
-
-        /// <summary>Get Lease Expiry using the event-source persistence services.</summary>
-        /// <param name="nowUtc">The current UTC timestamp.</param>
-        /// <param name="leaseDuration">The requested lease duration.</param>
-        /// <returns>The typed result of the event-source operation.</returns>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Validation belongs to the context extension API.")]
-        internal DateTime GetLeaseExpiry(DateTime nowUtc, TimeSpan leaseDuration)
-        {
-            context.RequireUtc(nowUtc, nameof(nowUtc));
-            if (leaseDuration <= TimeSpan.Zero)
-                throw new ArgumentOutOfRangeException(nameof(leaseDuration), leaseDuration, "The lease duration must be positive.");
-            return nowUtc.Add(leaseDuration);
-        }
-
-        /// <summary>Checks  transition before the persistence operation.</summary>
-        /// <param name="transition">The requested revision and lease-qualified projector transition.</param>
-        /// <param name="terminal">The terminal used by this operation.</param>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Validation belongs to the context extension API.")]
-        internal void ValidateTransition(EventProjectorStateTransition transition, bool terminal)
-        {
-            ArgumentNullException.ThrowIfNull(transition);
-            context.ValidateProjectorIdentity(transition.EventId, transition.ProjectorName);
-            context.ValidateExecutionToken(transition.ExecutionToken);
-            if (transition.ExpectedRevision < 0)
-                throw new ArgumentOutOfRangeException(nameof(transition));
-            if (transition.ExpectedStage == EventProjectorStageType.Completed)
-                throw new ArgumentOutOfRangeException(nameof(transition), "A completed execution cannot transition again.");
-            if (transition.RetryCount < 0)
-                throw new ArgumentOutOfRangeException(nameof(transition));
-
-            context.ValidateOptionalUtc(transition.NextAttemptAtUtc, nameof(transition.NextAttemptAtUtc));
-            context.ValidateOptionalUtc(transition.LastErrorAtUtc, nameof(transition.LastErrorAtUtc));
-
-            if (terminal)
-            {
-                if (transition.Outcome is EventProjectorOutcomeType.Processing or EventProjectorOutcomeType.Retrying)
-                    throw new ArgumentOutOfRangeException(nameof(transition), "A terminal transition requires a terminal outcome.");
-            }
-            else
-            {
-                if (transition.NextStage == EventProjectorStageType.Completed)
-                    throw new ArgumentOutOfRangeException(nameof(transition), "Use terminalization to complete an execution.");
-                if (transition.Outcome is not (EventProjectorOutcomeType.Processing or EventProjectorOutcomeType.Retrying))
-                    throw new ArgumentOutOfRangeException(nameof(transition), "A non-terminal transition requires an active outcome.");
-            }
-        }
-
-        /// <summary>Checks  outbox message before the persistence operation.</summary>
-        /// <param name="transition">The requested revision and lease-qualified projector transition.</param>
-        /// <param name="message">The persisted outbox message and its dispatch ownership.</param>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3236", Justification = "The validated member belongs to this public input argument; explicitly report its root parameter rather than exposing a member expression as the parameter name.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Validation belongs to the context extension API.")]
-        internal void ValidateOutboxMessage(
-            EventProjectorStateTransition transition,
-            EventProjectorOutboxMessage message)
-        {
-            ArgumentNullException.ThrowIfNull(message);
-            if (message.Identity.EventId != transition.EventId
-                || !string.Equals(message.Identity.ProjectorName, transition.ProjectorName, StringComparison.Ordinal))
-                throw new ArgumentException("The outbox identity must match the transitioned projection.", nameof(message));
-            if (message.Identity.EffectKind is not (
-                EventProjectorEffectKind.ProcessingPublication
-                or EventProjectorEffectKind.CompletedPublication
-                or EventProjectorEffectKind.FailedPublication))
-                throw new ArgumentOutOfRangeException(nameof(message), "Only publication effects can be staged in the outbox.");
-            ArgumentException.ThrowIfNullOrWhiteSpace(message.EventTypeName, nameof(message));
-            ArgumentNullException.ThrowIfNull(message.EventPayload, nameof(message));
-            if (message.EventPayload.Length == 0)
-                throw new ArgumentException("The outbox payload cannot be empty.", nameof(message));
-        }
-
 
         /// <summary>Apply Assignments using the event-source persistence services.</summary>
         /// <param name="domainEvents">The ordered events to persist.</param>
@@ -304,35 +118,8 @@ internal static class EventSourceActorDbContextExtensions
         }
 
 
-        /// <summary>Save Command Events Deduplicated using the event-source persistence services.</summary>
-        /// <param name="command">The command being audited or committed.</param>
-        /// <param name="domainEvents">The ordered events to persist.</param>
-        /// <param name="expectedStreamVersion">The committed stream version required for optimistic concurrency.</param>
-        /// <param name="cancellationToken">The token used to cancel the operation.</param>
-        /// <returns>The typed result of the event-source operation.</returns>
-        internal async Task<DomainEventCollection> SaveCommandEventsCoreAsync(
-            ICommand command,
-            DomainEventCollection domainEvents,
-            long expectedStreamVersion,
-            CancellationToken cancellationToken)
-        {
-            var envelope = CommandAuditEnvelope.Create(command, context._commandAuditCodec, context._businessClock);
-            if (domainEvents.Count == 0)
-            {
-                if (!await context.TryInsertCommandAuditAsync(envelope, cancellationToken)
-            .ConfigureAwait(false))
-                    throw new CommandAuditDuplicateException(command.CommandId);
-                return [];
-            }
-            var preparation = context.AcquireAtomicPreparation(command.StreamId);
-            return await context.PrepareAndSaveCommandEventsAtomicallyAsync(
-                preparation, command, domainEvents, expectedStreamVersion, envelope, cancellationToken)
-            .ConfigureAwait(false);
-        }
-
         /// <summary>Prepare And Save Command Events Atomically using the event-source persistence services.</summary>
         /// <param name="preparation">The preparation used by this operation.</param>
-        /// <param name="command">The command being audited or committed.</param>
         /// <param name="domainEvents">The ordered events to persist.</param>
         /// <param name="expectedStreamVersion">The committed stream version required for optimistic concurrency.</param>
         /// <param name="commandAudit">The command audit used by this operation.</param>
@@ -340,7 +127,6 @@ internal static class EventSourceActorDbContextExtensions
         /// <returns>The typed result of the event-source operation.</returns>
         internal async Task<DomainEventCollection> PrepareAndSaveCommandEventsAtomicallyAsync(
             AtomicPreparationLease preparation,
-            ICommand command,
             DomainEventCollection domainEvents,
             long expectedStreamVersion,
             CommandAuditEnvelope commandAudit,
@@ -351,7 +137,7 @@ internal static class EventSourceActorDbContextExtensions
             {
                 await preparation.Predecessor.WaitAsync(cancellationToken)
             .ConfigureAwait(false);
-                var streamId = await context.GetEventStreamIdAsync(command.StreamId, cancellationToken)
+                var streamId = await context.GetEventStreamIdAsync(commandAudit.StreamId, cancellationToken)
             .ConfigureAwait(false);
                 var entries = new List<EventLogAppendEntry>(domainEvents.Count);
                 foreach (var domainEvent in domainEvents)
@@ -363,9 +149,9 @@ internal static class EventSourceActorDbContextExtensions
                         domainEvent));
                 }
                 persistence = context._atomicCommandEventAppender.Value.AppendAsync(new EventLogAppendRequest(
-                    command.StreamId,
+                    commandAudit.StreamId,
                     streamId,
-                    command.CommandId,
+                    commandAudit.CommandId,
                     entries,
                     expectedStreamVersion,
                     context._businessClock.GetUtcNow().UtcDateTime,
@@ -373,7 +159,7 @@ internal static class EventSourceActorDbContextExtensions
             }
             finally
             {
-                context.ReleaseAtomicPreparation(command.StreamId, preparation);
+                context.ReleaseAtomicPreparation(commandAudit.StreamId, preparation);
             }
 
             var result = await persistence.ConfigureAwait(false);
@@ -392,17 +178,14 @@ internal static class EventSourceActorDbContextExtensions
             DateTime commandTimestamp,
             string commandData,
             CancellationToken cancellationToken)
-            => context._dbFactory.ActorEventSourceDb
+        {
+            var parameters = new InsertActorCommandLog(command.CommandId, command.StreamId, $"{command.RouteTo}",
+                command.CommandName, $"{commandTimestamp:o}", $"{CommandStatus.InProgress}", commandData);
+            return context._dbFactory.ActorEventSourceDb
                 .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.TryInsertCommandLog)}", EventSourceDbSql.TryInsertCommandLog)
-                .SetParameters(new InsertActorCommandLog(
-                    command.CommandId,
-                    command.StreamId,
-                    $"{command.RouteTo}",
-                    command.CommandName,
-                    $"{commandTimestamp:o}",
-                    $"{CommandStatus.InProgress}",
-                    commandData))
-                .ExecuteScalarAsync(static value => value.GetBool(0), cancellationToken);
+                .SetParameters(parameters)
+                .ExecuteScalarAsync(EventSourceActorDbContext.MapToInsertCommandLogCoreRow2, cancellationToken);
+        }
 
         /// <summary>
         /// Asynchronously retrieves the unique identifier for the specified event stream.
@@ -413,7 +196,8 @@ internal static class EventSourceActorDbContextExtensions
         /// <returns>A <see langword="long"/> representing the unique identifier of the specified event stream.</returns>
         internal async Task<long> GetEventStreamAsync(string eventStream)
         {
-            return await context.ResolveEventStreamIdAsync(eventStream, CancellationToken.None).ConfigureAwait(false);
+            return await context.ResolveEventStreamIdAsync(eventStream, CancellationToken.None)
+            .ConfigureAwait(false);
         }
 
         /// <summary>
@@ -429,8 +213,8 @@ internal static class EventSourceActorDbContextExtensions
         internal async ValueTask<ICollection<EventStreamReadModel>> GetEventStreamAsync(long eventStreamId)
             => await (context._dbFactory.ActorEventSourceDb
                     .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.GetEventLogByEventStreamId)}", context.EventLogSql(EventSourceDbSql.GetEventLogByEventStreamId))
-                    .SetParameters(new GetEventLogByEventStreamId(eventStreamId))
-                    .ExecuteQueryAsync<EventStreamReadModel>(EventSourceActorDbContext.MapToEventStream))
+            .SetParameters(new GetEventLogByEventStreamId(eventStreamId))
+            .ExecuteQueryAsync<EventStreamReadModel>(EventSourceActorDbContext.MapToEventStream))
             .ConfigureAwait(false);
 
         /// <summary>
@@ -450,18 +234,20 @@ internal static class EventSourceActorDbContextExtensions
         /// <returns>The typed result of the event-source operation.</returns>
         internal async Task<long> InsertEventStreamAsync(string eventStream, CancellationToken cancellationToken)
         {
+        var preparedParameters2 = new GetEventStreamId(eventStream);
             var eventStreamIdModel = await context._dbFactory.ActorEventSourceDb
                 .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.GetEventStreamId)}", EventSourceDbSql.GetEventStreamId)
-                .SetParameters(new GetEventStreamId(eventStream))
-                .ExecuteSingleAsync<EventStreamIdReadModel>(EventSourceActorDbContext.MapToEventStreamId, cancellationToken)
-                .ConfigureAwait(false);
+            .SetParameters(preparedParameters2)
+            .ExecuteSingleAsync<EventStreamIdReadModel>(EventSourceActorDbContext.MapToEventStreamId, cancellationToken)
+            .ConfigureAwait(false);
             if (eventStreamIdModel is not null)
                 return eventStreamIdModel.EventStreamId;
+        var preparedParameters3 = new InsertEventStreamId(eventStream);
 
             return await (context._dbFactory.ActorEventSourceDb
                 .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.InsertEventStreamId)}", EventSourceDbSql.InsertEventStreamId)
-                .SetParameters(new InsertEventStreamId(eventStream))
-                .ExecuteScalarAsync(EventSourceActorDbContext.MapToLong, cancellationToken))
+            .SetParameters(preparedParameters3)
+            .ExecuteScalarAsync(EventSourceActorDbContext.MapToLong, cancellationToken))
             .ConfigureAwait(false);
         }
 
@@ -520,10 +306,11 @@ internal static class EventSourceActorDbContextExtensions
             .ConfigureAwait(false);
                 if (eventNameIdModel.IsValid)
                     return eventNameIdModel;
+        var preparedParameters4 = new InsertEventNameId(eventName, eventTypeName);
                 var eventNameId = await (context._dbFactory.ActorEventSourceDb
                       .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.InsertEventNameId)}", EventSourceDbSql.InsertEventNameId)
-                      .SetParameters(new InsertEventNameId(eventName, eventTypeName))
-                      .ExecuteScalarAsync(EventSourceActorDbContext.MapToInt, cancellationToken))
+            .SetParameters(preparedParameters4)
+            .ExecuteScalarAsync(EventSourceActorDbContext.MapToInt, cancellationToken))
             .ConfigureAwait(false);
                 return new EventNameIdReadModel(eventNameId, eventName, eventTypeName);
             }
@@ -554,8 +341,8 @@ internal static class EventSourceActorDbContextExtensions
             CancellationToken cancellationToken)
             => await (context._dbFactory.ActorEventSourceDb
                 .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.GetEventNameId)}", EventSourceDbSql.GetEventNameId)
-                .SetParameters(new GetEventNameId(eventName, eventTypeName))
-                .ExecuteSingleAsync<EventNameIdReadModel>(EventSourceActorDbContext.MapToEventNameId, cancellationToken))
+            .SetParameters(new GetEventNameId(eventName, eventTypeName))
+            .ExecuteSingleAsync<EventNameIdReadModel>(EventSourceActorDbContext.MapToEventNameId, cancellationToken))
             .ConfigureAwait(false);
 
         /// <summary>
@@ -569,10 +356,11 @@ internal static class EventSourceActorDbContextExtensions
         /// event version. Returns an empty collection if no events are found.</returns>
         internal async ValueTask<ICollection<EventStreamReadModel>> GetEventsLastNRangeAsync(long eventStreamId, int lastNRange)
         {
+        var preparedParameters5 = new GetEventLogLastNRange(eventStreamId);
             var eventLogRange = await (context._dbFactory.ActorEventSourceDb
                 .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.GetEventLogLastNRange)}", context.EventLogSql(EventSourceDbSql.GetEventLogLastNRange))
-                .SetParameters(new GetEventLogLastNRange(eventStreamId))
-                .ExecuteQueryAsync<EventStreamReadModel>(EventSourceActorDbContext.MapToEventStream))
+            .SetParameters(preparedParameters5)
+            .ExecuteQueryAsync<EventStreamReadModel>(EventSourceActorDbContext.MapToEventStream))
             .ConfigureAwait(false);
             return (eventLogRange is null || eventLogRange.Count == 0)
                 ? [] : [.. eventLogRange.Take(lastNRange).OrderBy(e => e.EventVersion)];
@@ -584,7 +372,6 @@ internal static class EventSourceActorDbContextExtensions
             CancellationToken cancellationToken, bool stateless = false, bool components = false,
             string[]? checkpointIdentities = null)
         {
-            ArgumentNullException.ThrowIfNull(reducerAction);
             cancellationToken.ThrowIfCancellationRequested();
             long head = 0;
             long replayedVersion = 0;
@@ -604,9 +391,8 @@ internal static class EventSourceActorDbContextExtensions
                 query.SetParameters(new GetEventLogByEventStreamId(eventStreamId));
             else
                 query.SetParameters(new GetMaxEventVersion(eventStreamId, checkpointNames));
-            await query.ExecuteMapReduceAsync(MapCreationRow,
-                    ReduceAndValidate, cancellationToken)
-                .ConfigureAwait(false);
+            await query.ExecuteMapReduceAsync(MapCreationRow, ReduceAndValidate, cancellationToken)
+            .ConfigureAwait(false);
             if (replayedVersion != head)
                 throw new InvalidDataException($"Creation snapshot replay for stream {eventStreamId} ended at {replayedVersion}, expected {head}.");
 
@@ -654,17 +440,34 @@ internal static class EventSourceActorDbContextExtensions
         {
             var type = typeof(TEvent);
             var current = await context.GetEventNameIdFromTypeAsync(type, cancellationToken)
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
             var registry = EventTypeRegistry.Default;
+        var preparedParameters6 = new GetCompatibleEventNameIds(type.Name, registry.GetReadIdentities(type));
             // Do not cache the alias row IDs: metadata may gain a new registered
             // spelling while the process is running. Match resolved type, not a short-name guess.
             var candidates = await context._dbFactory.ActorEventSourceDb
                 .Use(nameof(EventSourceDbSql.GetCompatibleEventNameIds), EventSourceDbSql.GetCompatibleEventNameIds)
-                .SetParameters(new GetCompatibleEventNameIds(type.Name, registry.GetReadIdentities(type)))
-                .ExecuteQueryAsync<EventNameIdReadModel>(EventSourceActorDbContext.MapToEventNameId, cancellationToken)
-                .ConfigureAwait(false);
+            .SetParameters(preparedParameters6)
+            .ExecuteQueryAsync<EventNameIdReadModel>(EventSourceActorDbContext.MapToEventNameId, cancellationToken)
+            .ConfigureAwait(false);
             return candidates.Where(row => registry.Resolve(row.EventTypeName) == type)
                 .Select(row => row.EventNameId).Append(current).Distinct().ToArray();
         }
+}
+    extension(IEnlistedPostgresTransaction transaction)
+    {
+        /// <summary>Reads explicitly selected source streams without choosing replay policy.</summary>
+        internal Task<IReadOnlyList<EventStreamSourceReadModel>> ReadMaintenanceSourcesAsync(string[] exactStreams, string[] prefixes, CancellationToken token)
+            => transaction.QueryAsync(EventSourceDbSql.ReadMaintenanceSourceEvents, (object? [])new MaintenanceSourceStreams(exactStreams, prefixes).Bind(), EventSourceActorDbContext.MapToMaintenanceSource, token);
+
+        /// <summary>Checks for committed history matching the supplied prefixes and exclusions.</summary>
+        internal async Task<bool> HasCommittedStreamWithPrefixAsync(string[] excludedStreams, string[] prefixes, CancellationToken token)
+            => await transaction.ScalarAsync(EventSourceDbSql.HasCommittedStreamWithPrefix, (object? [])new MaintenanceSourceStreams(excludedStreams, prefixes).Bind(), token)
+            .ConfigureAwait(false) is true;
+
+        /// <summary>Reports whether a stream has committed source history without creating metadata.</summary>
+        internal async Task<bool> HasCommittedMaintenanceStreamAsync(string stream, CancellationToken token)
+            => await transaction.ScalarAsync(EventSourceDbSql.HasCommittedMaintenanceStream, (object? [])new MaintenanceSourceStream(stream).Bind(), token)
+            .ConfigureAwait(false) is not null;
     }
 }

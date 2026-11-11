@@ -8,6 +8,7 @@ using TomasAI.IFM.Application.Storage.SecuritiesDb;
 using TomasAI.IFM.Application.MarketData.Rust.Host;
 using TomasAI.IFM.Application.MarketData.Rust.Publication;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared.QueryParameters;
 var fixture=JsonDocument.Parse(await File.ReadAllTextAsync(args[0])).RootElement[0];
 var model=MessagePackSerializer.Deserialize<FuturesOptionContractReadModel>(fixture.GetProperty("content").GetBytesFromBase64());
 var count=100000;var overlap=false;var hold=false;object?[]? lastDefinitionQuery=null;var expiryReads=0;var entered=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -15,20 +16,26 @@ var release=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchr
 var securities=Proxy.Create<ISecuritiesDbContext>((method,input)=>method.Name switch{
     "GetOptionContractExpiriesAsync"=>ReadExpiries(),
     "ReadPublishedOptionDefinitionsAsync"=>ReadRange(input),
-    "GetCachedOptionContractDefinitionsAsync"=>Read(input),
+    "GetCachedOptionContractDefinitionsAsync"=>ReadPartition(input),
     _=>throw new InvalidDataException("Unexpected storage operation: "+method.Name)
 });
 Task<IReadOnlyList<OptionContractExpiryReadModel>> ReadExpiries(){expiryReads++;return Task.FromResult<IReadOnlyList<OptionContractExpiryReadModel>>(overlap
     ?[new(){Symbol="ES",ContractId="ES20261218",ExpiryDate=new(2026,11,10)},new(){Symbol="ES",ContractId="ES20261218",ExpiryDate=new(2026,11,11)}]
     :[new(){Symbol="ES",ContractId="ES20261218",ExpiryDate=new(2026,11,10)}]);}
 async Task<IReadOnlyList<CachedOptionContractDefinitionReadModel>> Read(object?[]? input){lastDefinitionQuery=input;if(hold){entered.TrySetResult();await release.Task;}return new Rows(overlap && input?[2] is DateOnly expiry && expiry.Day==11 ? model with{StrikePrice=model.StrikePrice+1}:model,count);}
+Task<IReadOnlyList<CachedOptionContractDefinitionReadModel>> ReadPartition(object?[]? input)
+{
+    var partition = (OptionDefinitionPartition)input![0]!;
+    return Read([partition.Symbol, partition.UnderlyingContractId, partition.ExpiryDate, input[1], input[2]]);
+}
 async IAsyncEnumerable<CachedOptionContractDefinitionReadModel> ReadRange(object?[]? input)
 {
-    var token = (CancellationToken)input![5]!;
+    var range = (OptionDefinitionExpiryRange)input![0]!;
+    var token = (CancellationToken)input[2]!;
     foreach (var expiry in await ReadExpiries())
     {
         token.ThrowIfCancellationRequested();
-        foreach (var row in await Read([input[0], expiry.ContractId, expiry.ExpiryDate, input[4], token]))
+        foreach (var row in await Read([range.Symbol, expiry.ContractId, expiry.ExpiryDate, input[1], token]))
             yield return row;
     }
 }

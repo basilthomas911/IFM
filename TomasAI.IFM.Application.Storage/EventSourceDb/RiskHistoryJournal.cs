@@ -19,17 +19,11 @@ public sealed class RiskHistoryJournal(IPostgresEventTransaction transactions)
         {
             await (db.ExecuteAsync(Schema.EventSourceSchemaSql.CreateRiskHistoryJournal, [], ct))
             .ConfigureAwait(false);
-            var value = await (db.ScalarAsync("SELECT after_event_version FROM risk_history_projection_progress WHERE projection_name=$1;", [projectionName], ct))
+            var value = await (db.ScalarAsync(EventSourceDbSql.RiskHistoryJournal_LoadCursorAsync_1, [projectionName], ct))
             .ConfigureAwait(false);
             var cursor = value is null ? 0 : Convert.ToInt64(value,System.Globalization.CultureInfo.InvariantCulture);
             // Compatible migration: the old cursor proves these events were previously projected.
-            await (db.ExecuteAsync("""
-                INSERT INTO risk_history_projection_receipt(projection_name,event_id)
-                SELECT $1,e.eventversion
-                FROM event_log e JOIN event_name_id n ON n.eventnameid=e.eventnameid
-                WHERE n.eventname='WorkflowStrategyStateUpdatedEvent' AND e.eventversion<=$2
-                ON CONFLICT DO NOTHING;
-                """, [projectionName, cursor], ct))
+            await (db.ExecuteAsync(EventSourceDbSql.RiskHistoryJournal_LoadCursorAsync_2, [projectionName, cursor], ct))
             .ConfigureAwait(false);
             return cursor;
         }, token);
@@ -38,11 +32,7 @@ public sealed class RiskHistoryJournal(IPostgresEventTransaction transactions)
     public Task SaveCursorAsync(long after, CancellationToken token = default, string projectionName = HistoryProjection)
         => transactions.ExecuteAsync(async (db, ct) =>
         {
-            await (db.ExecuteAsync("""
-                INSERT INTO risk_history_projection_progress(projection_name,after_event_version) VALUES($2,$1)
-                ON CONFLICT(projection_name) DO UPDATE
-                SET after_event_version=GREATEST(risk_history_projection_progress.after_event_version,EXCLUDED.after_event_version);
-                """, [after, projectionName], ct))
+            await (db.ExecuteAsync(EventSourceDbSql.RiskHistoryJournal_SaveCursorAsync_1, [after, projectionName], ct))
             .ConfigureAwait(false);
             return true;
         }, token);
@@ -52,15 +42,7 @@ public sealed class RiskHistoryJournal(IPostgresEventTransaction transactions)
         string projectionName = HistoryProjection)
         => transactions.ExecuteAsync(async (db, ct) =>
         {
-            var rows = await (db.QueryAsync("""
-                SELECT e.eventstreamid,n.eventname,n.eventtypename,e.eventversion,e.EventPayload,e.commandid,e.eventtimestamp::text,e.streamversion
-                FROM event_log e JOIN event_name_id n ON n.eventnameid=e.eventnameid
-                WHERE n.eventname='WorkflowStrategyStateUpdatedEvent'
-                  AND NOT EXISTS(
-                    SELECT 1 FROM risk_history_projection_receipt r
-                    WHERE r.projection_name=$1 AND r.event_id=e.eventversion)
-                ORDER BY e.eventversion LIMIT 32;
-                """, [projectionName], Read, ct))
+            var rows = await (db.QueryAsync(EventSourceDbSql.RiskHistoryJournal_PageAsync_1, [projectionName], Read, ct))
             .ConfigureAwait(false);
             return (IReadOnlyList<WorkflowStrategyStateUpdatedEvent>)rows.Select(x => (WorkflowStrategyStateUpdatedEvent)x.ToDomainEvent()).ToArray();
         }, token);
@@ -68,7 +50,7 @@ public sealed class RiskHistoryJournal(IPostgresEventTransaction transactions)
     public Task AcknowledgeAsync(string projectionName, long eventId, CancellationToken token = default)
         => transactions.ExecuteAsync(async (db, ct) =>
         {
-            await (db.ExecuteAsync("INSERT INTO risk_history_projection_receipt(projection_name,event_id) VALUES($1,$2) ON CONFLICT DO NOTHING;", [projectionName, eventId], ct))
+            await (db.ExecuteAsync(EventSourceDbSql.RiskHistoryJournal_AcknowledgeAsync_1, [projectionName, eventId], ct))
             .ConfigureAwait(false);
             return true;
         }, token);
@@ -79,15 +61,10 @@ public sealed class RiskHistoryJournal(IPostgresEventTransaction transactions)
         {
             if (result.Disposition != RiskHistoryProjectionDisposition.Conflict || result.WorkflowId == Guid.Empty || result.InvocationId == Guid.Empty)
                 throw new ArgumentException("A complete Risk history conflict result is required.", nameof(result));
-            await (db.ExecuteAsync("""
-                INSERT INTO risk_history_projection_issue(
-                  projection_name,event_id,workflow_id,invocation_id,source_revision,issue_code,stored_hash,incoming_hash)
-                VALUES($1,$2,$3,$4,$5,'ImmutableRevisionConflict',$6,$7)
-                ON CONFLICT DO NOTHING;
-                """, [HistoryProjection, eventId, result.WorkflowId, result.InvocationId, result.Revision, result.StoredHash!, result.IncomingHash!], ct))
+            await (db.ExecuteAsync(EventSourceDbSql.RiskHistoryJournal_QuarantineConflictAsync_1, [HistoryProjection, eventId, result.WorkflowId, result.InvocationId, result.Revision, result.StoredHash!, result.IncomingHash!], ct))
             .ConfigureAwait(false);
             await (db.ExecuteAsync(
-                "INSERT INTO risk_history_projection_receipt(projection_name,event_id) VALUES($1,$2) ON CONFLICT DO NOTHING;",
+                EventSourceDbSql.RiskHistoryJournal_AcknowledgeAsync_1,
                 [HistoryProjection, eventId], ct))
             .ConfigureAwait(false);
             return true;
@@ -97,15 +74,7 @@ public sealed class RiskHistoryJournal(IPostgresEventTransaction transactions)
         => transactions.ExecuteAsync(async (db, ct) =>
         {
             const string projection = "risk-completion-v1";
-            var rows = await db.QueryAsync("""
-                SELECT e.eventstreamid,n.eventname,n.eventtypename,e.eventversion,e.EventPayload,e.commandid,e.eventtimestamp::text,e.streamversion
-                FROM event_log e JOIN event_name_id n ON n.eventnameid=e.eventnameid
-                WHERE n.eventname=$1
-                  AND NOT EXISTS(
-                    SELECT 1 FROM risk_history_projection_receipt r
-                    WHERE r.projection_name=$2 AND r.event_id=e.eventversion)
-                ORDER BY e.eventversion LIMIT 32;
-                """, [nameof(RiskManagementFunctionCompletedEvent), projection], Read, ct)
+            var rows = await db.QueryAsync(EventSourceDbSql.RiskHistoryJournal_ProjectCompletionPageAsync_1, [nameof(RiskManagementFunctionCompletedEvent), projection], Read, ct)
             .ConfigureAwait(false);
             foreach (var row in rows)
             {
@@ -115,7 +84,7 @@ public sealed class RiskHistoryJournal(IPostgresEventTransaction transactions)
                 await RiskCompletionProjection.WriteAsync(db, completed, ct)
             .ConfigureAwait(false);
                 await db.ExecuteAsync(
-                    "INSERT INTO risk_history_projection_receipt(projection_name,event_id) VALUES($1,$2) ON CONFLICT DO NOTHING;",
+                    EventSourceDbSql.RiskHistoryJournal_AcknowledgeAsync_1,
                     [projection, completed.EventId], ct)
             .ConfigureAwait(false);
             }

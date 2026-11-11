@@ -1,3 +1,5 @@
+using TomasAI.IFM.Shared.EventProjector.ReadModels;
+using TomasAI.IFM.Domain.MarketData.DownloadLog.Query;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using TomasAI.IFM.Application.EventProjector;
@@ -91,7 +93,7 @@ public sealed class DownloadLogRecoveryTests(MarketDataFixture fixture) : IClass
         var command = new InsertMarketDataDownloadLogCommand(outcome); var state = new DownloadLogCommandState(); command.Execute(state);
         var events = await fixture.ActorEventSourceDb.SaveEventsAsync(command.StreamId, command.CommandId, state.Events, 0, CancellationToken.None);
         var inserted = Assert.IsType<MarketDataDownloadLogInsertedEvent>(Assert.Single(events));
-        Assert.NotNull(await fixture.ActorEventSourceDb.GetEventProjectorExecutionStateAsync(inserted.EventId, "DownloadLogEventProjector", CancellationToken.None));
+        Assert.NotNull(await fixture.ActorEventSourceDb.GetEventProjectorExecutionStateAsync(new EventProjectorIdentity(inserted.EventId, "DownloadLogEventProjector"), CancellationToken.None));
         var partition = new MarketDataDownloadPartition(outcome.Dataset, "FMP", "US", outcome.ValueDate);
         Assert.False((await fixture.MarketDataDb.GetMarketDataDownloadStatusAsync(partition, outcome.ImportCommandId)).CompletionConfirmed);
         var scope = "downloadlog_recovery_" + Guid.NewGuid().ToString("N");
@@ -127,7 +129,7 @@ public sealed class DownloadLogRecoveryTests(MarketDataFixture fixture) : IClass
             try { await attempted.Task.WaitAsync(TimeSpan.FromSeconds(20)); }
             catch (TimeoutException)
             {
-                var stalled = await fixture.ActorEventSourceDb.GetEventProjectorExecutionStateAsync(inserted.EventId, first.ProjectorName, CancellationToken.None);
+                var stalled = await fixture.ActorEventSourceDb.GetEventProjectorExecutionStateAsync(new EventProjectorIdentity(inserted.EventId, first.ProjectorName), CancellationToken.None);
                 await first.StopAsync();
                 throw new InvalidOperationException("Recovery stalled: " + System.Text.Json.JsonSerializer.Serialize(stalled));
             }
@@ -142,7 +144,7 @@ public sealed class DownloadLogRecoveryTests(MarketDataFixture fixture) : IClass
                 using var exhaustedTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
                 while (true)
                 {
-                    var execution = await fixture.ActorEventSourceDb.GetEventProjectorExecutionStateAsync(inserted.EventId, first.ProjectorName, exhaustedTimeout.Token);
+                    var execution = await fixture.ActorEventSourceDb.GetEventProjectorExecutionStateAsync(new EventProjectorIdentity(inserted.EventId, first.ProjectorName), exhaustedTimeout.Token);
                     if (execution?.Outcome == EventProjectorOutcomeType.Failed) break;
                     await Task.Delay(100, exhaustedTimeout.Token);
                 }
@@ -167,7 +169,7 @@ public sealed class DownloadLogRecoveryTests(MarketDataFixture fixture) : IClass
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
             while (true)
             {
-                var execution = await fixture.ActorEventSourceDb.GetEventProjectorExecutionStateAsync(inserted.EventId, restarted.ProjectorName, timeout.Token);
+                var execution = await fixture.ActorEventSourceDb.GetEventProjectorExecutionStateAsync(new EventProjectorIdentity(inserted.EventId, restarted.ProjectorName), timeout.Token);
                 if (execution?.Outcome == EventProjectorOutcomeType.Completed) break;
                 await Task.Delay(100, timeout.Token);
             }

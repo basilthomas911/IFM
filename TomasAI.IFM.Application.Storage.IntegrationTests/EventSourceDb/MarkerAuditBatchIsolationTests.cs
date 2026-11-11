@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.EventSourcing.Persistence.Command;
 using System;
 using System.Diagnostics.Metrics;
 using System.Threading;
@@ -33,7 +34,7 @@ public sealed partial class MarkerProjectorPipelineTests
         EventLogAppendRequest Request(ProbeCommand command, long streamId) => new(
             command.StreamId, streamId, command.CommandId,
             [new(eventName, new ProbeEvent { AggregateId = command.StreamId, CommandId = command.CommandId, Value = 1, Projector = name })],
-            0, DateTime.UtcNow, CommandAuditEnvelope.Create(command, codec));
+            0, DateTime.UtcNow, CommandAuditPreparation.Create(command, codec));
         var rejected = Request(conflicting ? original with { Value = 2 } : original, seed.Id);
         var accepted = Request(fresh, freshId);
         long failures = 0, depth = 0, committed = 0;

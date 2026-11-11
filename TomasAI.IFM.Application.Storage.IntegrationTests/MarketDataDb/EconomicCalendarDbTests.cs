@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Shared;
 using FluentAssertions;
 using System;
 using System.Linq;
@@ -24,7 +25,7 @@ public sealed class EconomicCalendarDbTests(MarketDataFixture fixture)
             .ToArray();
         try
         {
-            await db.InsertEconomicCalendarsAsync(calendars);
+            await db.InsertEconomicCalendarsAsync(MarketDataImportBatch.Calendars(calendars));
             var request = new EconomicCalendarPageRequest
             {
                 StartDateUtc = start,
@@ -77,7 +78,7 @@ public sealed class EconomicCalendarDbTests(MarketDataFixture fixture)
             await db.InsertEconomicCalendarAsync(original);
 
             (await db.GetEconomicCalendarAsync(original.Id)).Should().BeEquivalentTo(original);
-            (await db.GetEconomicCalendarsAsync(eventDate.Date, eventDate.Date.AddDays(1).AddTicks(-1), "US"))
+            (await db.GetEconomicCalendarsAsync(new EconomicCalendarDateRange(eventDate.Date, eventDate.Date.AddDays(1).AddTicks(-1), "US")))
                 .Should().ContainSingle(row => row.Id == original.Id);
 
             var updated = original with { Actual = "2" };
@@ -105,8 +106,8 @@ public sealed class EconomicCalendarDbTests(MarketDataFixture fixture)
 
         try
         {
-            await db.InsertEconomicCalendarsAsync(calendars);
-            var rows = await db.GetEconomicCalendarsAsync(calendars[0].EventDate, calendars[1].EventDate, "CA");
+            await db.InsertEconomicCalendarsAsync(MarketDataImportBatch.Calendars(calendars));
+            var rows = await db.GetEconomicCalendarsAsync(new EconomicCalendarDateRange(calendars[0].EventDate, calendars[1].EventDate, "CA"));
             rows.Where(row => row.EventName.EndsWith(runId, StringComparison.Ordinal))
                 .Should().HaveCount(2);
         }

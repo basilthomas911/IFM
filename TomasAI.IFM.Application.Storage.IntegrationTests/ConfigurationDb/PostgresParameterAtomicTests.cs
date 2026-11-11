@@ -104,7 +104,7 @@ public sealed class PostgresParameterAtomicTests(PostgresTradePlanFixture fixtur
             long sequence=0;
             foreach(var fact in sources)
             {
-                await tx.AppendAsync(stream,fact.CommandId,fact,sequence++,token);
+                await tx.AppendAsync(new EnlistedEventAppend(stream,fact.CommandId,fact,sequence++),token);
                 await ApplyAsync(tx,fact,token);
             }
             if(fail) await tx.ExecuteAsync("SELECT 1/0;",[],token);

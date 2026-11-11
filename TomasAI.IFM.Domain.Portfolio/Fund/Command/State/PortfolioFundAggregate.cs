@@ -82,6 +82,31 @@ public sealed class PortfolioFundAggregate
         return new FundMandateVersionAddedCompute(Guid.NewGuid(), commandId, Revision + 1, nowUtc, principal, replacement.DefensiveCopy());
     }
 
+    /// <summary>Changes saved base contracts while retaining mandate-version assignments, financial bindings and operating state.</summary>
+    public IPortfolioFundDomainEvent ConfigureBaseContracts(Guid commandId, long expectedRevision,
+        FundMandateReadModel configured, DateTime nowUtc, string principal) =>
+        ApplyAndReturn(PortfolioComputedEvents.Create(ComputeConfigureBaseContracts(commandId,expectedRevision,configured,default,nowUtc,principal)));
+
+    /// <summary>Allows only Databento symbol defaults, their underlying-universe union and the additive schema upgrade.</summary>
+    internal IPortfolioFundChange ComputeConfigureBaseContracts(Guid commandId, long expectedRevision,
+        FundMandateReadModel configured, FundActivationContext activation, DateTime nowUtc, string principal)
+    {
+        RequireCurrent(expectedRevision);
+        ValidateCommand(commandId,nowUtc,principal);
+        ArgumentNullException.ThrowIfNull(configured);
+        if (FundMandate!.OperatingState == FundOperatingState.Retired) throw new InvalidOperationException("A retired Fund cannot be configured.");
+        var normalized = configured with { BaseContracts=FundMandate.BaseContracts,
+            UnderlyingUniverse=FundMandate.UnderlyingUniverse, SchemaVersion=FundMandate.SchemaVersion };
+        if (TomasAI.IFM.Domain.Portfolio.Workflow.PortfolioCanonicalHash.Compute(normalized) !=
+            TomasAI.IFM.Domain.Portfolio.Workflow.PortfolioCanonicalHash.Compute(FundMandate))
+            throw new ArgumentException("Base Contracts cannot change mandate identity, permissions, audit fields or operating state.",nameof(configured));
+        ThrowIfInvalid(configured.Validate());
+        var expectedUniverse=FundMandate.UnderlyingUniverse.Concat(configured.BaseContracts.Select(x=>x.Symbol)).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal);
+        if (!configured.UnderlyingUniverse.Order(StringComparer.Ordinal).SequenceEqual(expectedUniverse,StringComparer.Ordinal) || configured.SchemaVersion != Math.Max(4,FundMandate.SchemaVersion))
+            throw new ArgumentException("Base Contracts must preserve the Fund universe and use the current configuration schema.",nameof(configured));
+        return new FundBaseContractsConfiguredCompute(Guid.NewGuid(),commandId,Revision+1,nowUtc,principal,configured.DefensiveCopy());
+    }
+
     public IPortfolioFundDomainEvent ChangeState(
         Guid commandId,
         long expectedRevision,
@@ -494,6 +519,9 @@ public sealed class PortfolioFundAggregate
             case FundMandateCreatedEvent created:
                 if (FundMandate is not null) throw new InvalidOperationException("Fund create event is duplicated.");
                 FundMandate = created.Mandate.DefensiveCopy();
+                break;
+            case FundBaseContractsConfiguredEvent configured:
+                FundMandate = configured.Mandate.DefensiveCopy();
                 break;
             case FundMandateVersionAddedEvent versioned:
                 FundMandate = versioned.Mandate.DefensiveCopy();

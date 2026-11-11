@@ -1,4 +1,4 @@
-// Application persistence/reference policy adapted from the current Host.
+﻿// Application persistence/reference policy adapted from the current Host.
 // Provider acquisition is supplied by the native IMarketDataApi composition.
 ﻿
 using System.Globalization;
@@ -129,7 +129,7 @@ internal static class StoredOptionDefinitionRangeLoader
         }
 
         return options
-            .DistinctBy(static option => option.ContractId)
+            .DistinctBy(static option => (option.Dataset, option.PublisherId, option.InstrumentId))
             .OrderBy(static option => option.ContractMonth)
             .ThenBy(static option => option.StrikePriceDecimal)
             .ThenBy(static option => option.OptionType, StringComparer.Ordinal)

@@ -48,7 +48,17 @@ public sealed partial class ApiServerLifecycle
 
         var preflightFailures = new System.Collections.Concurrent.ConcurrentQueue<Exception>();
         var configurationReady = false;
+        // PostgreSQL can race on CREATE SCHEMA IF NOT EXISTS when the namespace
+        // does not exist yet. Only these table steps share the prerequisite.
+        var marketDataNamespace = RunPreflightAsync("Market Data namespace", async () =>
+        {
+            using var deadline = CancellationTokenSource.CreateLinkedTokenSource(app.Lifetime.ApplicationStopping);
+            deadline.CancelAfter(TimeSpan.FromSeconds(30));
+            await app.Services.GetRequiredService<MarketDataSchemaDb>().EnsureNamespaceAsync(deadline.Token)
+                .ConfigureAwait(false);
+        });
         await Task.WhenAll(
+            marketDataNamespace,
 
             RunPreflightAsync("Aggregate checkpoint schema", async () =>
             {
@@ -75,6 +85,14 @@ public sealed partial class ApiServerLifecycle
                     await app.Services.GetRequiredService<TomasAI.IFM.Application.Storage.TradeDb.Schema.TradeSchemaDb>()
                         .CreateAsync(["live_feed_recovery"], recoverySchemaDeadline.Token);
             }),
+            RunPreflightAsync("Market Data recovery log schema", async () =>
+            {
+                using var deadline = CancellationTokenSource.CreateLinkedTokenSource(app.Lifetime.ApplicationStopping);
+                deadline.CancelAfter(TimeSpan.FromSeconds(30));
+                await app.Services.GetRequiredService<TomasAI.IFM.Application.Storage.MarketDataServiceDb.Schema.MarketDataServiceSchemaDb>()
+                    .CreateAsync(["market_data_service", "marketdata_recovery_log"], deadline.Token)
+                    .ConfigureAwait(false);
+            }),
             RunPreflightAsync("Scheduler schema", async () =>
             {
                 if (app.Services.GetService<TomasAI.IFM.Application.Storage.ScheduledTaskDb.Schema.ScheduledTaskSchemaDb>() is { } scheduledTaskSchema)
@@ -89,19 +107,25 @@ public sealed partial class ApiServerLifecycle
                 using (var cacheSchemaDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(30)))
                 await app.Services.GetRequiredService<MarketDataSchemaDb>().CreateAsync(
                 ["strategy_option_chain_parameter_version", "strategy_option_chain_parameter_current"], cacheSchemaDeadline.Token);
-            }),
+            }, marketDataNamespace),
             RunPreflightAsync("Historical analytics diagnostics schema", async () =>
             {
                 using var schemaDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
                 await app.Services.GetRequiredService<MarketDataSchemaDb>().CreateAsync(
                     ["historical_data_loader", "historical_analytics_attempt_projection"], schemaDeadline.Token);
+                var storage = app.Services.GetRequiredService<TomasAI.IFM.Application.Storage.IDbContextFactory>().MarketDataDb;
+                while (await storage.ReadUnprojectedHistoricalDataLoadsAsync(schemaDeadline.Token) is { Count: > 0 } legacy)
+                    foreach (var checkpoint in legacy)
+                        await storage.BackfillHistoricalAnalyticsProgressAsync(
+                            TomasAI.IFM.Application.MarketData.Contracts.Historical.HistoricalAnalyticsDiagnosticsProjection.From(checkpoint),
+                            schemaDeadline.Token);
             }),
             RunPreflightAsync("Indicator seed coverage schema", async () =>
             {
                 using var schemaDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
                 await app.Services.GetRequiredService<MarketDataSchemaDb>().CreateAsync(
                     ["indicator_seed_coverage"], schemaDeadline.Token);
-            }),
+            }, marketDataNamespace),
             RunPreflightAsync("Configuration schema and parameter migration", async () =>
             {
                 await new TomasAI.IFM.Application.Storage.ConfigurationDb.Schema.ConfigurationSchemaDb(
@@ -148,17 +172,24 @@ public sealed partial class ApiServerLifecycle
             throw new AggregateException("API startup prerequisites failed.", preflightFailures);
         }
 
-        async Task RunPreflightAsync(string step, Func<Task> operation)
+        async Task<bool> RunPreflightAsync(string step, Func<Task> operation, Task<bool>? prerequisite = null)
         {
+            if (prerequisite is not null && !await prerequisite.ConfigureAwait(false))
+            {
+                logger.LogWarning("API startup step {Step} blocked by Market Data namespace initialization.", step);
+                return false;
+            }
             try
             {
                 await operation().ConfigureAwait(false);
                 logger.LogInformation("API startup step {Step} completed.", step);
+                return true;
             }
             catch (Exception error) when (!app.Lifetime.ApplicationStopping.IsCancellationRequested)
             {
                 logger.LogError(error, "API startup step {Step} failed.", step);
                 preflightFailures.Enqueue(new InvalidOperationException($"Startup step '{step}' failed: {error.Message}", error));
+                return false;
             }
         }
         app.EnableServerManagerStandardInputShutdown(args, logger);

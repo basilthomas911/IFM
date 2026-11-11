@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.Recovery;
 using Microsoft.Extensions.Logging;
 using System.Text;
 using System.Text.Json;
@@ -17,6 +18,36 @@ internal static class MarketDataServiceDbContextExtensions
 
     extension(MarketDataServiceDbContext context)
     {
+        /// <summary>Writes an accepted recovery row under its immutable record and digest fence.</summary>
+        internal async Task WriteRecoveryLogRowAsync(RecoveryLogRow row, CancellationToken token)
+        {
+            await using var connection = new PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(context.ConnectionString);
+            await connection.OpenAsync(token)
+            .ConfigureAwait(false);
+            await using var command = new NpgsqlCommand(MarketDataServiceDbSql.InsertRecoveryLog, connection) { CommandTimeout = 120 };
+            PostgresValueBinding.AddParameters(command, (object?[])new RecoveryLogInsertParameter(row).Bind());
+            if (await command.ExecuteScalarAsync(token)
+            .ConfigureAwait(false) is null)
+                throw new InvalidDataException("Recovery projection RecordId/digest conflict.");
+        }
+
+        /// <summary>Reads one ordered page of committed recovery payloads.</summary>
+        internal async Task<IReadOnlyList<string>> ReadRecoveryLogRowsAsync(RecoveryLogReadParameter selection, CancellationToken token)
+        {
+            await using var connection = new PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(context.ConnectionString);
+            await connection.OpenAsync(token)
+            .ConfigureAwait(false);
+            await using var command = new NpgsqlCommand(MarketDataServiceDbSql.ReadRecoveryLog, connection) { CommandTimeout = 120 };
+            PostgresValueBinding.AddParameters(command, (object?[])selection.Bind());
+            var rows = new List<string>();
+            await using var reader = await command.ExecuteReaderAsync(token)
+            .ConfigureAwait(false);
+            while (await reader.ReadAsync(token)
+            .ConfigureAwait(false))
+                rows.Add(MarketDataServiceDbContext.MapToRecoveryLogPayload(reader));
+            return rows;
+        }
+
         /// <summary>Gets a watchdog observation by its durable identity.</summary>
         /// <param name="id">The observation identity.</param>
         /// <param name="cancellationToken">The token used to cancel the asynchronous query.</param>
@@ -25,8 +56,8 @@ internal static class MarketDataServiceDbContextExtensions
         internal Task<DatabentoWatchdogObservation?> GetObservationByIdentityAsync(Guid id, CancellationToken cancellationToken)
             => context.Database
                 .Use("MarketDataService.GetObservationByIdentity", MarketDataServiceDbSql.GetObservationByIdentity)
-                .SetParameters(new IdentityParameter(id))
-                .ExecuteSingleAsync<DatabentoWatchdogObservation?>(MarketDataServiceDbContext.MapToObservation, cancellationToken);
+            .SetParameters(new IdentityParameter(id))
+            .ExecuteSingleAsync<DatabentoWatchdogObservation?>(MarketDataServiceDbContext.MapToObservation, cancellationToken);
 
         /// <summary>
         /// Performs the <c>ReadDurableSubscriptionAsync</c> operation for Market Data Service persistence.
@@ -35,9 +66,8 @@ internal static class MarketDataServiceDbContextExtensions
         internal async Task<DurableSubscriptionSnapshot> ReadDurableSubscriptionAsync(string scope, string dataset,
             CancellationToken cancellationToken = default)
         {
-            DurableSubscriptionContract.ValidateScope(scope, dataset);
             var row = await context.ReadDurableCurrentAsync(context.CreateDurableRepository(), scope, dataset, false, cancellationToken)
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
             return row ?? context.CreateEmptyDurableSnapshot(scope, dataset);
         }
 
@@ -48,9 +78,8 @@ internal static class MarketDataServiceDbContextExtensions
         internal async Task<DurableIntentResult?> FindDurableOperationAsync(string scope, string dataset, Guid operationId,
             CancellationToken cancellationToken = default)
         {
-            context.ValidateDurableIdentity(scope, dataset, operationId);
             return (await context.ReadDurableOperationAsync(context.CreateDurableRepository(), scope, dataset, operationId, cancellationToken)
-                .ConfigureAwait(false))?.Result;
+            .ConfigureAwait(false))?.Result;
         }
 
         /// <summary>
@@ -59,12 +88,12 @@ internal static class MarketDataServiceDbContextExtensions
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Retain the existing bounded persistence failure boundary: complete cleanup or report failure while preserving ambiguous commit/recovery evidence and the original cause.")]
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep the transaction, resource ownership and failure ordering together during this provider migration; splitting it would obscure the atomic persistence boundary.")]
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal async Task<DurableIntentResult> ApplyDurableSubscriptionAsync(DurableAuthorityMutation mutation,
+        internal async Task<DurableIntentResult> ApplyDurableSubscriptionAsync(DurableSubscriptionCommand prepared,
             CancellationToken cancellationToken = default)
         {
-            var input = DurableSubscriptionContract.Freeze(mutation);
-            var requestDigest = DurableSubscriptionContract.RequestDigest(input);
-            var factDigest = DurableSubscriptionContract.FactDigest(input);
+            var input = prepared.Input;
+            var requestDigest = prepared.RequestDigest;
+            var factDigest = prepared.FactDigest;
             cancellationToken.ThrowIfCancellationRequested();
             var repository = context.CreateDurableRepository();
             var transaction = repository.BeginTransaction() as PostgresObjectDataRepositoryTransaction<MarketDataServiceTransactionRepository>
@@ -72,14 +101,15 @@ internal static class MarketDataServiceDbContextExtensions
             try
             {
                 _ = await repository.Use("Stage4Intent.BoundTransaction", MarketDataServiceDbSql.ConfigureDurableTransaction)
-                .ExecuteCommandAsync(cancellationToken)
-                .ConfigureAwait(false);
+                    .ExecuteCommandAsync(cancellationToken)
+                    .ConfigureAwait(false);
+                var initialSnapshotParameters = new DurableSubscriptionParameters(Values(Text(input.Scope), Text(input.Dataset),
+                            Text(JsonSerializer.Serialize(context.CreateEmptyDurableSnapshot(input.Scope, input.Dataset)))));
                 // Insert or wait for the first writer; SELECT FOR UPDATE then serializes this dataset.
                 _ = await repository.Use("Stage4Intent.EnsureCurrent", MarketDataServiceDbSql.EnsureDurableCurrent)
-                .SetParameters(new DurableSubscriptionParameters(Values(Text(input.Scope), Text(input.Dataset),
-                            Text(JsonSerializer.Serialize(context.CreateEmptyDurableSnapshot(input.Scope, input.Dataset))))))
+                    .SetParameters(initialSnapshotParameters)
                     .ExecuteCommandAsync(cancellationToken)
-                .ConfigureAwait(false);
+                    .ConfigureAwait(false);
                 var current = await context.ReadDurableCurrentAsync(repository, input.Scope, input.Dataset, true, cancellationToken)
                     .ConfigureAwait(false) ?? throw new InvalidDataException("Locked current intent is missing.");
                 var prior = await context.ReadDurableOperationAsync(repository, input.Scope, input.Dataset, input.OperationId, cancellationToken)
@@ -91,92 +121,95 @@ internal static class MarketDataServiceDbContextExtensions
                         : new(input.OperationId, DurableIntentResultCode.OperationConflict, prior.Result.Revision, null);
                 }
 
-                var code = DurableSubscriptionTransition.Apply(current, input, factDigest, out var next);
-                var currentIds = current.Authorities.SelectMany(value => value.Leases).Select(value => value.LeaseId).ToHashSet();
-                var additions = input.Adds.Where(value => !currentIds.Contains(value.LeaseId)).ToArray();
-                if (code == DurableIntentResultCode.Committed && additions.Length != 0)
+                var plan = prepared.Plan(current);
+                var code = plan.Code;
+                var nextRevision = plan.Revision;
+                var additions = plan.Additions;
+                if (code == DurableIntentResultCode.Committed && additions.Count != 0)
                 {
                     var reserved = await context.ReadDurableSingleAsync(repository, "Stage4Intent.CheckLeaseIdentity", MarketDataServiceDbSql.CheckDurableLeaseIdentity, Values(Text(input.Scope), Text(input.Dataset),
                                 Text(JsonSerializer.Serialize(additions.Select(value => value.LeaseId)))),
-                            row => new DurableExistsRow(row.GetBool(0)), cancellationToken)
-                .ConfigureAwait(false);
+                            MarketDataServiceDbContext.MapToDurableExists, cancellationToken)
+                                .ConfigureAwait(false);
                     if (reserved?.Exists == true)
                     {
                         code = DurableIntentResultCode.LeaseConflict;
-                        next = current;
+                        nextRevision = current.Revision;
                     }
                 }
                 var now = context._time.GetUtcNow();
                 var transitionId = code == DurableIntentResultCode.Committed ? Guid.NewGuid() : (Guid?)null;
-                var result = new DurableIntentResult(input.OperationId, code, next.Revision, transitionId);
+                var result = new DurableIntentResult(input.OperationId, code, nextRevision, transitionId);
                 if (code == DurableIntentResultCode.Committed)
                 {
-                    var serialized = JsonSerializer.Serialize(next);
-                    if (Encoding.UTF8.GetByteCount(serialized) > DurableSubscriptionContract.MaximumSnapshotBytes)
+                    if (plan.ExceedsSnapshotCapacity)
                     {
                         code = DurableIntentResultCode.CapacityExceeded;
-                        next = current;
                         result = new(input.OperationId, code, current.Revision, null);
                     }
                     else
                     {
+                        var updateParameters = new DurableSubscriptionParameters(Values(Text(input.Scope), Text(input.Dataset),
+                                    Bigint(nextRevision), Text(plan.SnapshotJson), Bigint(current.Revision)));
                         var changed = await repository.Use("Stage4Intent.UpdateCurrent", MarketDataServiceDbSql.UpdateDurableCurrent)
-                .SetParameters(new DurableSubscriptionParameters(Values(Text(input.Scope), Text(input.Dataset),
-                                    Bigint(next.Revision), Text(serialized), Bigint(current.Revision))))
+                            .SetParameters(updateParameters)
                             .ExecuteCommandAsync(cancellationToken)
-                .ConfigureAwait(false);
+                            .ConfigureAwait(false);
                         if (changed.Sum() != 1) throw new InvalidOperationException("Current revision changed while locked.");
                         context._writeObserver?.Invoke(DurableStoreWriteStage.CurrentIntent);
 
-                        if (additions.Length != 0)
+                        if (additions.Count != 0)
                         {
                             var identities = additions.Select(lease => new DurableSubscriptionParameters(Values(Text(input.Scope), Text(input.Dataset),
                                 Uuid(lease.LeaseId), Text(input.SourceId), Text(DurableSubscriptionContract.Digest(input.Owner)),
-                                Text(DurableSubscriptionContract.Digest(lease)), Bigint(next.Revision)))).ToArray();
+                                Text(DurableSubscriptionContract.Digest(lease)), Bigint(nextRevision)))).ToArray();
                             _ = await repository.Use("Stage4Intent.ReserveLeaseIdentity", MarketDataServiceDbSql.ReserveDurableLeaseIdentity)
-                .SetParameters(identities)
-                .ExecuteCommandAsync(cancellationToken)
-                .ConfigureAwait(false);
-                        }
-                        var remainingIds = next.Authorities.SelectMany(value => value.Leases).Select(value => value.LeaseId).ToHashSet();
-                        var removedIds = currentIds.Where(value => !remainingIds.Contains(value)).ToArray();
-                        if (removedIds.Length != 0)
-                        {
-                            var retired = await repository.Use("Stage4Intent.RetireLeaseIdentity", MarketDataServiceDbSql.RetireDurableLeaseIdentity)
-                .SetParameters(new DurableSubscriptionParameters(Values(Text(input.Scope), Text(input.Dataset), Bigint(next.Revision),
-                                        Text(JsonSerializer.Serialize(removedIds)))))
+                                .SetParameters(identities)
                                 .ExecuteCommandAsync(cancellationToken)
-                .ConfigureAwait(false);
-                            if (retired.Sum() != removedIds.Length)
+                                .ConfigureAwait(false);
+                        }
+                        var removedIds = plan.Removed;
+                        if (removedIds.Count != 0)
+                        {
+                            var retireParameters = new DurableSubscriptionParameters(Values(Text(input.Scope), Text(input.Dataset), Bigint(nextRevision),
+                                        Text(JsonSerializer.Serialize(removedIds))));
+                            var retired = await repository.Use("Stage4Intent.RetireLeaseIdentity", MarketDataServiceDbSql.RetireDurableLeaseIdentity)
+                                .SetParameters(retireParameters)
+                                .ExecuteCommandAsync(cancellationToken)
+                                .ConfigureAwait(false);
+                            if (retired.Sum() != removedIds.Count)
                                 throw new InvalidDataException("Current intent is missing its immutable lease identity reservation.");
                         }
                         context._writeObserver?.Invoke(DurableStoreWriteStage.LeaseIdentity);
                     }
                 }
+                var receiptParameters = new DurableSubscriptionParameters(Values(Text(input.Scope), Text(input.Dataset), Uuid(input.OperationId),
+                            Text(requestDigest), Text(JsonSerializer.Serialize(result)), TimestampTz(now.UtcDateTime)));
 
                 _ = await repository.Use("Stage4Intent.InsertOperation", MarketDataServiceDbSql.InsertDurableOperation)
-                .SetParameters(new DurableSubscriptionParameters(Values(Text(input.Scope), Text(input.Dataset), Uuid(input.OperationId),
-                            Text(requestDigest), Text(JsonSerializer.Serialize(result)), TimestampTz(now.UtcDateTime))))
+                    .SetParameters(receiptParameters)
                     .ExecuteCommandAsync(cancellationToken)
-                .ConfigureAwait(false);
+                    .ConfigureAwait(false);
                 context._writeObserver?.Invoke(DurableStoreWriteStage.OperationResult);
 
                 if (code == DurableIntentResultCode.Committed)
                 {
                     var outbox = new DurableSubscriptionOutboxItem(transitionId!.Value, input.OperationId, input.CorrelationId,
-                        next.Revision, input.SourceId, input.SourceVersion, input.Status, input.ReasonCode, now);
+                        nextRevision, input.SourceId, input.SourceVersion, input.Status, input.ReasonCode, now);
+                    var outboxParameters = new DurableSubscriptionParameters(Values(Text(input.Scope), Text(input.Dataset), Uuid(outbox.TransitionId),
+                                Uuid(input.OperationId), Bigint(nextRevision), Text(JsonSerializer.Serialize(outbox)), TimestampTz(now.UtcDateTime)));
                     _ = await repository.Use("Stage4Intent.InsertOutbox", MarketDataServiceDbSql.InsertDurableOutbox)
-                .SetParameters(new DurableSubscriptionParameters(Values(Text(input.Scope), Text(input.Dataset), Uuid(outbox.TransitionId),
-                                Uuid(input.OperationId), Bigint(next.Revision), Text(JsonSerializer.Serialize(outbox)), TimestampTz(now.UtcDateTime))))
+                        .SetParameters(outboxParameters)
                         .ExecuteCommandAsync(cancellationToken)
-                .ConfigureAwait(false);
+                        .ConfigureAwait(false);
                     context._writeObserver?.Invoke(DurableStoreWriteStage.Outbox);
-                    _ = await repository.Use("Stage4Intent.UpdateWatermark", MarketDataServiceDbSql.UpdateDurableWatermark)
-                .SetParameters(new DurableSubscriptionParameters(Values(Text(input.Scope), Text(input.Dataset), Text(input.SourceId),
+                    var watermarkParameters = new DurableSubscriptionParameters(Values(Text(input.Scope), Text(input.Dataset), Text(input.SourceId),
                                 Bigint(input.SourceVersion), Uuid(input.SourceEventId), Text(factDigest),
-                                Text(DurableSubscriptionContract.Digest(input.Owner)))))
+                                Text(DurableSubscriptionContract.Digest(input.Owner))));
+                    _ = await repository.Use("Stage4Intent.UpdateWatermark", MarketDataServiceDbSql.UpdateDurableWatermark)
+                        .SetParameters(watermarkParameters)
                         .ExecuteCommandAsync(cancellationToken)
-                .ConfigureAwait(false);
+                        .ConfigureAwait(false);
                     context._writeObserver?.Invoke(DurableStoreWriteStage.AuthorityWatermark);
                 }
                 cancellationToken.ThrowIfCancellationRequested();
@@ -195,9 +228,9 @@ internal static class MarketDataServiceDbContextExtensions
                 // failure can throw before that cleanup; dispose only this call's remaining owned state.
                 // Never replace the original database/cancellation exception with a cleanup failure.
                 try { if (transaction.Transaction is { } ownedTransaction) await ownedTransaction.DisposeAsync()
-                .ConfigureAwait(false); } catch { /* Preserve the original database failure; cleanup is best effort. */ }
+                    .ConfigureAwait(false); } catch { /* Preserve the original database failure; cleanup is best effort. */ }
                 try { if (transaction.Connection is { } ownedConnection) await ownedConnection.DisposeAsync()
-                .ConfigureAwait(false); } catch { /* Preserve the original database failure; cleanup is best effort. */ }
+                    .ConfigureAwait(false); } catch { /* Preserve the original database failure; cleanup is best effort. */ }
             }
         }
 
@@ -208,12 +241,12 @@ internal static class MarketDataServiceDbContextExtensions
         internal async Task<IReadOnlyList<DurableSubscriptionOutboxItem>> ReadPendingDurableOutboxAsync(string scope, string dataset,
             int pageSize = 100, CancellationToken cancellationToken = default)
         {
-            DurableSubscriptionContract.ValidateScope(scope, dataset);
-            if (pageSize is < 1 or > 1000) throw new ArgumentOutOfRangeException(nameof(pageSize));
-            var items = await context.CreateDurableRepository().Use("Stage4Intent.ReadOutbox", MarketDataServiceDbSql.ReadDurableOutbox)
-                .SetParameters(new DurableSubscriptionParameters(Values(Text(scope), Text(dataset), Integer(pageSize))))
-                .ExecuteQueryAsync(row => context.DeserializeDurable<DurableSubscriptionOutboxItem>(row.GetString(0), 4096), cancellationToken)
-                .ConfigureAwait(false);
+        var preparedParameters7 = new DurableSubscriptionParameters(Values(Text(scope), Text(dataset), Integer(pageSize)));
+            var items = await context.CreateDurableRepository()
+            .Use("Stage4Intent.ReadOutbox", MarketDataServiceDbSql.ReadDurableOutbox)
+            .SetParameters(preparedParameters7)
+            .ExecuteQueryAsync(MarketDataServiceDbContext.MapToDurableOutboxItem, cancellationToken)
+            .ConfigureAwait(false);
             return Array.AsReadOnly(items.ToArray());
         }
 
@@ -224,11 +257,12 @@ internal static class MarketDataServiceDbContextExtensions
         internal async Task<bool> AcknowledgeDurableOutboxAsync(string scope, string dataset, Guid transitionId,
             CancellationToken cancellationToken = default)
         {
-            context.ValidateDurableIdentity(scope, dataset, transitionId);
-            var changed = await context.CreateDurableRepository().Use("Stage4Intent.AcknowledgeOutbox", MarketDataServiceDbSql.AcknowledgeDurableOutbox)
-                .SetParameters(new DurableSubscriptionParameters(Values(Text(scope), Text(dataset), Uuid(transitionId), TimestampTz(context._time.GetUtcNow().UtcDateTime))))
-                .ExecuteCommandAsync(cancellationToken)
-                .ConfigureAwait(false);
+        var preparedParameters8 = new DurableSubscriptionParameters(Values(Text(scope), Text(dataset), Uuid(transitionId), TimestampTz(context._time.GetUtcNow().UtcDateTime)));
+            var changed = await context.CreateDurableRepository()
+            .Use("Stage4Intent.AcknowledgeOutbox", MarketDataServiceDbSql.AcknowledgeDurableOutbox)
+            .SetParameters(preparedParameters8)
+            .ExecuteCommandAsync(cancellationToken)
+            .ConfigureAwait(false);
             return changed.Sum() == 1;
         }
 
@@ -243,10 +277,10 @@ internal static class MarketDataServiceDbContextExtensions
                 ? MarketDataServiceDbSql.ReadDurableCurrentForUpdate
                 : MarketDataServiceDbSql.ReadDurableCurrent;
             var row = await context.ReadDurableSingleAsync(repository, "Stage4Intent.ReadCurrent", sql, Values(Text(scope), Text(dataset)),
-                record => new DurableCurrentRow(record.GetString(0), record.GetLong(1)), cancellationToken)
-                .ConfigureAwait(false);
+                MarketDataServiceDbContext.MapToDurableCurrentRow, cancellationToken)
+            .ConfigureAwait(false);
             if (row is null) return null;
-            var result = DurableSubscriptionContract.Freeze(context.DeserializeDurable<DurableSubscriptionSnapshot>(row.Json,
+            var result = DurableSubscriptionContract.Freeze(row.Json.DeserializeDurable<DurableSubscriptionSnapshot>(
                 DurableSubscriptionContract.MaximumSnapshotBytes));
             if (!string.Equals(result.Scope,scope,StringComparison.Ordinal) || !string.Equals(result.Dataset,dataset,StringComparison.Ordinal) || result.Revision != row.Revision)
                 throw new InvalidDataException("Persisted intent scope or revision does not match its row.");
@@ -259,7 +293,7 @@ internal static class MarketDataServiceDbContextExtensions
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         internal Task<DurableOperationRow?> ReadDurableOperationAsync(MarketDataServiceTransactionRepository repository, string scope, string dataset, Guid operationId,
             CancellationToken cancellationToken) => context.ReadDurableSingleAsync(repository, "Stage4Intent.ReadOperation", MarketDataServiceDbSql.ReadDurableOperation, Values(Text(scope), Text(dataset), Uuid(operationId)),
-            row => new DurableOperationRow(row.GetString(0), context.DeserializeDurable<DurableIntentResult>(row.GetString(1), 4096)), cancellationToken);
+            MarketDataServiceDbContext.MapToDurableOperation, cancellationToken);
 
         /// <summary>
         /// Performs the <c>ReadDurableSingleAsync</c> operation for Market Data Service persistence.
@@ -270,10 +304,10 @@ internal static class MarketDataServiceDbContextExtensions
             object?[] parameters, Func<IObjectDataRecord, T> map, CancellationToken cancellationToken) where T : class
         {
             using var commandContext = repository.Use(commandName, sql)
-                .SetParameters(new DurableSubscriptionParameters(parameters));
+            .SetParameters(new DurableSubscriptionParameters(parameters));
             var ambient = repository.InTransaction() as NpgsqlCommand;
             if (ambient is null) return await commandContext.ExecuteSingleAsync(map, cancellationToken)
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
             await using var ambientDisposal = ambient.ConfigureAwait(false);
             // The current shared provider's query methods always open a separate connection, unlike its
             // command methods. Keep these transactional reads on this repository's owned transaction.
@@ -281,21 +315,10 @@ internal static class MarketDataServiceDbContextExtensions
             commandContext.SetCommand(ambient);
             PostgresValueBinding.AddParameters(ambient, parameters);
             var reader = await ambient.ExecuteReaderAsync(cancellationToken)
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
         await using var readerDisposal = reader.ConfigureAwait(false);
             return await reader.ReadAsync(cancellationToken)
-                .ConfigureAwait(false) ? map(new AdoNetDataRecord().SetReader(reader)) : null;
-        }
-
-        /// <summary>
-        /// Performs the <c>DeserializeDurable</c> operation for Market Data Service persistence.
-        /// </summary>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Preserve the C# 14 extension receiver contract used by context callers.")]
-        internal T DeserializeDurable<T>(string value, int maximumBytes)
-        {
-            if (Encoding.UTF8.GetByteCount(value) > maximumBytes) throw new InvalidDataException("Persisted payload exceeds its bound.");
-            return JsonSerializer.Deserialize<T>(value, JsonOptions) ?? throw new InvalidDataException("Persisted payload is invalid.");
+            .ConfigureAwait(false) ? map(new AdoNetDataRecord().SetReader(reader)) : null;
         }
 
         /// <summary>
@@ -304,16 +327,6 @@ internal static class MarketDataServiceDbContextExtensions
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         internal DurableSubscriptionSnapshot CreateEmptyDurableSnapshot(string scope, string dataset) => new(1, scope, dataset, 0, Array.Empty<DurableAuthorityState>());
-        /// <summary>
-        /// Performs the <c>ValidateDurableIdentity</c> operation for Market Data Service persistence.
-        /// </summary>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal void ValidateDurableIdentity(string scope, string dataset, Guid id)
-        {
-            DurableSubscriptionContract.ValidateScope(scope, dataset);
-            if (id == Guid.Empty) throw new ArgumentException("A non-empty identifier is required.",nameof(id));
-        }
         /// <summary>
         /// Performs the <c>CreateDurableRepository</c> operation for Market Data Service persistence.
         /// </summary>
@@ -347,6 +360,16 @@ internal static class MarketDataServiceDbContextExtensions
             TimestampTz(assignment.UpdatedOnUtc),
             Text(assignment.UpdatedBy),
             Bigint(expectedRowVersion));
+    }
+
+    extension(string value)
+    {
+        /// <summary>Decodes a stored JSON document only if it fits the accepted size bound.</summary>
+        internal T DeserializeDurable<T>(int maximumBytes)
+        {
+            if (Encoding.UTF8.GetByteCount(value) > maximumBytes) throw new InvalidDataException("Persisted payload exceeds its bound.");
+            return JsonSerializer.Deserialize<T>(value, JsonOptions) ?? throw new InvalidDataException("Persisted payload is invalid.");
+        }
     }
 
     extension(DateTime value)

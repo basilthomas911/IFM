@@ -47,32 +47,28 @@ internal readonly record struct InsertTickTradeData(object?[] Values) : IBindVal
     public object Bind() => Values;
 }
 
-/// <summary>Single-use reference owner for quote parameters and pooled bind lifetime; it must not be copied as a value binding.</summary>
-internal sealed class InsertTickQuoteData(
-    object?[] values,
-    TickQuoteScyllaBindValue? encoded = null)
-    : IBindValue, TomasAI.IFM.Framework.Storage.ScyllaDb.IScyllaOwnedBindValues
+/// <summary>Binds quote parameters through one shared owner even when the value model is copied.</summary>
+internal readonly record struct InsertTickQuoteData : IBindValue
 {
-    private object?[]? _values = values ?? throw new ArgumentNullException(nameof(values));
+    readonly SingleUseScyllaQuoteBinding binding;
 
-    /// <summary>Returns this one-time Scylla binding owner to the repository context.</summary>
-    public object Bind() => this;
+    internal InsertTickQuoteData(object?[] values, TickQuoteScyllaBindValue? encoded = null)
+        => binding = new(values, encoded);
 
-    /// <summary>Retains the encoded quote array until the Scylla driver finishes.</summary>
-    public IDisposable? BindLifetime { get; } = encoded;
-
-    /// <summary>Transfers the fresh quote insert values to one prepared-statement bind.</summary>
-    public object?[] TakeValues()
-        => Interlocked.Exchange(ref _values, null)
-            ?? throw new InvalidOperationException("Tick quote parameters have already been bound.");
+    public object Bind() => binding;
 }
 
-/// <summary>Original provider trade fields used by application cache initialization.</summary>
-public sealed record BootstrapTradeRow(DateOnly ValueDate, decimal Price, long Size, long Sequence,
-    long EventNanoseconds, long ReceiveNanoseconds, short Action, short HeaderFlags, uint InstrumentId, ushort PublisherId)
+/// <summary>Transfers the exact parameter array once and retains its pooled values until driver execution ends.</summary>
+internal sealed class SingleUseScyllaQuoteBinding(object?[] values, TickQuoteScyllaBindValue? encoded)
+    : TomasAI.IFM.Framework.Storage.ScyllaDb.IScyllaOwnedBindValues
 {
-    /// <summary>Clustering time used to select this raw trade, when read from a bounded window.</summary>
-    public TimeOnly? AggregationTimeUtc { get; init; }
+    object?[]? pending = values ?? throw new ArgumentNullException(nameof(values));
+
+    public IDisposable? BindLifetime { get; } = encoded;
+
+    public object?[] TakeValues()
+        => Interlocked.Exchange(ref pending, null)
+            ?? throw new InvalidOperationException("Tick quote parameters have already been bound.");
 }
 
 internal readonly record struct BootstrapTradeParameters(string ContractId, DateOnly ThroughDate) : IBindValue

@@ -1,5 +1,6 @@
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.MarketData.Shared.Queries;
+using TomasAI.IFM.Domain.MarketData.Shared.QueryParameters;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Query;
@@ -14,8 +15,8 @@ public static class GetFuturesOptionContractsPage
         {
             ArgumentNullException.ThrowIfNull(factory);
             ArgumentNullException.ThrowIfNull(query);
-            query.Request.Validate();
-            return factory.SecuritiesDb.GetFuturesOptionContractsPageAsync(query.Request, cancellationToken);
+            var page = new QualifiedOptionCatalogPage(query.Request);
+            return factory.SecuritiesDb.GetFuturesOptionContractsPageAsync(page, cancellationToken);
         }
     }
 }

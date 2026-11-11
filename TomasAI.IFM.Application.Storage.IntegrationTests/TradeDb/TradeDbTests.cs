@@ -729,6 +729,8 @@ public class TradeDbTests : IClassFixture<TradeDbFixture>
         var tradePlan = result.First();
         tradePlan.OrderId.Should().Be(SampleData.TradePlan.OrderId);
         tradePlan.TradeId.Should().Be(SampleData.TradePlan.TradeId);
+        tradePlan.SequenceId.Should().Be(SampleData.TradePlan.SequenceId,
+            "the plan and its forward-loss ratio use the caller's durable sequence");
         tradePlan.ValueDate.Should().Be(SampleData.TradePlan.ValueDate);
         tradePlan.ActionDate.Should().Be(SampleData.TradePlan.ActionDate);
         tradePlan.TradeDate.Should().Be(SampleData.TradePlan.TradeDate);

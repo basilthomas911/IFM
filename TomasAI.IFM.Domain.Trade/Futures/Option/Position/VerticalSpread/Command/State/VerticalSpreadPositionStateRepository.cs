@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.EventSourcing.Persistence.Command;
 using TomasAI.IFM.Application.EventSourcing.Repository;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage;
@@ -40,7 +41,7 @@ public sealed class VerticalSpreadPositionStateRepository(IEventSourceActorState
             committed = events;
         }
         else
-            committed = await EventSourceDb.SaveCommandEventsAtomicallyAsync(command, events, expectedStreamVersion, cancellationToken).ConfigureAwait(false);
+            committed = await AtomicCommandEventCommit.CommitAsync(EventSourceDb, command, events, expectedStreamVersion, cancellationToken).ConfigureAwait(false);
         await projector.DomainEventsProjectionAsync(committed).ConfigureAwait(false);
     }
 

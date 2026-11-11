@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Shared;
 using System.Collections.Immutable;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
@@ -23,16 +24,17 @@ public static class AcceptedMarketDataReadProjectionDescriptors
         return ImmutableArray.Create(
             Describe<EconomicCalendarsImportedCompleteEvent>((source,token) => transactions.ExecuteOnceAsync(async (transaction,cancellation) =>
             {
-                await MarketDataDbContextExtensions.ImportEconomicCalendarsAsync(transaction,source.EconomicCalendars,source.DuplicatePolicy,source.CommandId,cancellation).ConfigureAwait(false);
+                await MarketDataDbContextExtensions.ImportEconomicCalendarsAsync(transaction,MarketDataImportBatch.Calendars(source.EconomicCalendars, source.DuplicatePolicy, source.CommandId),cancellation).ConfigureAwait(false);
                 return true;
             },token)),
             Describe<YieldCurveRatesImportedCompleteEvent>((source,token) => transactions.ExecuteOnceAsync(async (transaction,cancellation) =>
             {
-                await MarketDataDbContextExtensions.ImportYieldCurvesAsync(transaction,source.YieldCurveRates,source.DuplicatePolicy,source.CommandId,source.ReceivedOn,cancellation).ConfigureAwait(false);
+                await MarketDataDbContextExtensions.ImportYieldCurvesAsync(transaction,MarketDataImportBatch.YieldCurves(source.YieldCurveRates, source.DuplicatePolicy, source.CommandId),source.ReceivedOn,cancellation).ConfigureAwait(false);
                 return true;
             },token)),
             Describe<MarketDataDownloadLogInsertedEvent>((source,token) => transactions.ExecuteOnceAsync(async (transaction,cancellation) =>
             {
+                MarketDataDownloadOutcome.VerifyProjection(source.Outcome, source.CommandId, source.PayloadSha256);
                 await databases.MarketDataDb.ProjectDownloadLogAsync(transaction,source.Outcome,source.CommandId,source.PayloadSha256,cancellation).ConfigureAwait(false);
                 return true;
             },token)));

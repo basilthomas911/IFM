@@ -11,7 +11,7 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb;
 public sealed class PostgresCommittedBusinessEventJournal : ICommittedBusinessEventJournal
 {
 
-    const string Columns = "SELECT el.eventStreamId,en.eventName,en.eventTypeName,el.eventVersion,el.EventPayload,el.commandId,el.eventTimestamp::text,el.StreamVersion FROM event_log el JOIN event_name_id en ON en.eventNameId=el.eventNameId ";
+    const string Columns = EventSourceDbSql.PostgresCommittedBusinessEventJournal_Statement_1;
     const string Pending = Columns + "WHERE en.eventName=ANY($1) AND NOT EXISTS(SELECT 1 FROM business_subscription_projection_receipt r WHERE r.event_id=el.eventVersion) ORDER BY el.eventVersion LIMIT 32;";
     const string Prior = Columns + "WHERE el.eventStreamId=$1 AND el.eventVersion<=$2 AND en.eventName=ANY($3) ORDER BY el.eventVersion DESC LIMIT 1;";
     const string Handoffs = Columns + "JOIN business_subscription_projection_receipt r ON r.event_id=el.eventVersion WHERE en.eventName='WorkflowStrategyStateUpdatedEvent' AND NOT r.handoff_completed ORDER BY el.eventVersion LIMIT 32;";
@@ -45,7 +45,7 @@ public sealed class PostgresCommittedBusinessEventJournal : ICommittedBusinessEv
         await using var dbDisposal = db.ConfigureAwait(false);
         await db.OpenAsync(cancellationToken)
             .ConfigureAwait(false);
-        var command = new NpgsqlCommand("UPDATE business_subscription_projection_receipt SET handoff_completed=true WHERE event_id=$1;", db) { CommandTimeout = 10 };
+        var command = new NpgsqlCommand(EventSourceDbSql.PostgresCommittedBusinessEventJournal_CompleteHandoffAsync_1, db) { CommandTimeout = 10 };
         await using var commandDisposal = command.ConfigureAwait(false);
         PostgresValueBinding.AddParameter(command, eventId);
         if (await command.ExecuteNonQueryAsync(cancellationToken)
@@ -94,13 +94,13 @@ public sealed class PostgresCommittedBusinessEventJournal : ICommittedBusinessEv
         var transaction = await db.BeginTransactionAsync(cancellationToken)
             .ConfigureAwait(false);
         await using var transactionDisposal = transaction.ConfigureAwait(false);
-        using (var issue = new NpgsqlCommand("INSERT INTO business_subscription_projection_issue(event_id,reason_code,detail) VALUES($1,$2,$3) ON CONFLICT DO NOTHING;", db, transaction) { CommandTimeout = 10 })
+        using (var issue = new NpgsqlCommand(EventSourceDbSql.PostgresCommittedBusinessEventJournal_RejectAsync_1, db, transaction) { CommandTimeout = 10 })
         {
             PostgresValueBinding.AddParameter(issue, eventId); PostgresValueBinding.AddParameter(issue, reasonCode); PostgresValueBinding.AddParameter(issue, detail);
             await issue.ExecuteNonQueryAsync(cancellationToken)
             .ConfigureAwait(false);
         }
-        using (var receipt = new NpgsqlCommand("INSERT INTO business_subscription_projection_receipt(event_id) VALUES($1) ON CONFLICT DO NOTHING;", db, transaction) { CommandTimeout = 10 })
+        using (var receipt = new NpgsqlCommand(EventSourceDbSql.PostgresCommittedBusinessEventJournal_RejectAsync_2, db, transaction) { CommandTimeout = 10 })
         {
             PostgresValueBinding.AddParameter(receipt, eventId);
             await receipt.ExecuteNonQueryAsync(cancellationToken)
@@ -115,7 +115,7 @@ public sealed class PostgresCommittedBusinessEventJournal : ICommittedBusinessEv
         await using var dbDisposal = db.ConfigureAwait(false);
         await db.OpenAsync(cancellationToken)
             .ConfigureAwait(false);
-        var command = new NpgsqlCommand("INSERT INTO business_subscription_projection_receipt(event_id) VALUES($1) ON CONFLICT DO NOTHING;", db) { CommandTimeout = 10 };
+        var command = new NpgsqlCommand(EventSourceDbSql.PostgresCommittedBusinessEventJournal_RejectAsync_2, db) { CommandTimeout = 10 };
         await using var commandDisposal = command.ConfigureAwait(false);
         PostgresValueBinding.AddParameter(command, eventId);
         await command.ExecuteNonQueryAsync(cancellationToken)

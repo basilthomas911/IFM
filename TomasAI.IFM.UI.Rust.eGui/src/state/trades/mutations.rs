@@ -99,6 +99,7 @@ impl TradeController {
         // current order and trades before inferring opening versus closing.
         if matches!(action, "prepare-trade" | "create-trade") {
             let original = self.data.order.ok_or("Select an order before adding a trade")?;
+            self.data.context = Some(context.clone());
             self.data.load_orders(backend, registry, deadline).await?;
             if self.data.order != Some(original) {
                 return Err("The selected order is no longer available; reload before adding a trade".into());
@@ -113,6 +114,9 @@ impl TradeController {
             if !rows.is_empty() && (rows.len() != 1 || rows[0]["PrimaryTrade"] != true
                 || !matches!(rows[0]["TradeState"].as_str(), Some("TradeToOpen" | "Open"))) {
                 return Err("This order already has an opening trade. Select and place that trade before adding a close; remove an inactive rejected or draft trade before replacing it.".into());
+            }
+            if rows.is_empty() && self.data.base_contract_choices()?.is_empty() {
+                return Err("Configure the Fund Base Contracts in Fund Details, and ensure current Databento futures contracts are available before adding an opening trade".into());
             }
         }
         let order = selected(
@@ -228,7 +232,21 @@ impl TradeController {
                         .as_ref()
                         .map(|row| text(&row["BaseContractId"]))
                         .unwrap_or_else(|| field(intent, "baseContract").into());
-                    let contract=self.data.contracts.iter().map(|wire|registry.project("TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesContractV3ReadModel",wire)).collect::<Result<Vec<_>,_>>()?.into_iter().find(|row|row["ContractId"]==contract_id).ok_or("Select a current base futures contract")?;
+                    if primary.is_none() && !self.data.base_contract_choices()?.contains(&contract_id) {
+                        return Err("Select a current or future base contract for this Fund; the contract list may have rolled since the dialog opened".into());
+                    }
+                    let known = self.data.contracts.iter().map(|wire|registry.project("TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesContractV3ReadModel",wire))
+                        .collect::<Result<Vec<_>,_>>()?.into_iter().find(|row|row["ContractId"]==contract_id);
+                    let contract = if let Some(contract) = known { contract } else if primary.is_some() {
+                        // Closing retains the original instrument even after Fund defaults or the current cycle change.
+                        let wire = crate::services::actor_requests::query(backend, registry,
+                            "TomasAI.IFM.Domain.MarketData.Shared.Queries.GetFuturesContractQuery", &contract_id,
+                            BTreeMap::from([("ContractId".into(),contract_id.clone().into())])).await?;
+                        let original = registry.project("TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesContractV3ReadModel",&wire)?;
+                        if original["ContractId"] != contract_id { return Err("The original closing contract lookup returned a different instrument".into()); }
+                        original
+                    } else { return Err("Select a current base futures contract".into()); };
+
                     let effective =
                         crate::backend::date_input::parse(field(intent, "effectiveDate"))?;
                     let maturity = primary

@@ -60,7 +60,7 @@ public sealed class RegimeDiscoveryConfigurationStateRepository(
             var version = state.CommittedStreamVersion;
             foreach (var source in pending)
             {
-                var eventId = await transaction.AppendAsync(command.StreamId, command.CommandId, source, version++, token).ConfigureAwait(false);
+                var eventId = await transaction.AppendAsync(new EnlistedEventAppend(command.StreamId, command.CommandId, source, version++), token).ConfigureAwait(false);
                 await database.MarkParameterProjectionPendingAsync(transaction, eventId, token).ConfigureAwait(false);
             }
             await database.AdvanceParameterRevisionFenceAsync(transaction, token).ConfigureAwait(false);

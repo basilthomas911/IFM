@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.EventProjector.ReadModels;
 using TomasAI.IFM.Application.EventSourcing.Projections.TradePlan;
 using System.Linq;
 using System.IO;
@@ -91,7 +92,7 @@ public sealed class PostgresExitWorkflowRepositoryTests(PostgresTradePlanFixture
         if (!riskStage)
         {
             var marker = await source.GetEventProjectorExecutionStateAsync(
-                pendingSource.EventId, ExitPositionWorkflowActorNames.DurableProjection(started.StrategyKind).ProjectorName);
+                new EventProjectorIdentity(pendingSource.EventId, ExitPositionWorkflowActorNames.DurableProjection(started.StrategyKind).ProjectorName));
             marker.Should().NotBeNull();
             marker!.Stage.Should().Be(EventProjectorStageType.ApplyProjection);
         }
@@ -242,7 +243,7 @@ public sealed class PostgresExitWorkflowRepositoryTests(PostgresTradePlanFixture
 
     async Task SeedStart(ICommand command, ExitPositionWorkflowStartedEvent started) => await fixture.Transactions.ExecuteOnceAsync(async (db, token) =>
     {
-        await db.AppendAsync(command.StreamId, command.CommandId, started, 0, token);
+        await db.AppendAsync(new EnlistedEventAppend(command.StreamId, command.CommandId, started, 0), token);
         await fixture.Plans.ProjectExitWorkflowAsync(db, ExitWorkflowSnapshotFacts.From(started), token);
         return true;
     });
@@ -283,7 +284,7 @@ public sealed class PostgresExitWorkflowRepositoryTests(PostgresTradePlanFixture
     async Task AppendReceipt(string stream, IEvent receipt) =>
         await fixture.Transactions.ExecuteOnceAsync(async (db, token) =>
         {
-            await db.AppendAsync(stream, receipt.CommandId, receipt, 0, token);
+            await db.AppendAsync(new EnlistedEventAppend(stream, receipt.CommandId, receipt, 0), token);
             return true;
         });
 

@@ -124,9 +124,9 @@ public sealed class BrokerUiHost : IAsyncLifetime
             foreach(var stream in new[] { "Portfolio.1", "PortfolioFund.1.4", "PortfolioFinancialPolicy.1.3" }) {
                 var id = Guid.NewGuid();
                 if (stream == "PortfolioFund.1.4")
-                    await db.AppendAsync(stream,id,new FundMandateCreatedEvent(Guid.NewGuid(),id,1,DateTime.UtcNow,"SyntheticFlaUI",
-                        new() { PortfolioId = 1, FundId = 4, FundMandateVersion = 1 }),0,token);
-                else await db.AppendAsync(stream,id,new PortfolioCreatedEvent(Guid.NewGuid(),id,1,DateTime.UtcNow,"SyntheticFlaUI",new()),0,token);
+                    await db.AppendAsync(new EnlistedEventAppend(stream,id,new FundMandateCreatedEvent(Guid.NewGuid(),id,1,DateTime.UtcNow,"SyntheticFlaUI",
+                        new() { PortfolioId = 1, FundId = 4, FundMandateVersion = 1 }),0),token);
+                else await db.AppendAsync(new EnlistedEventAppend(stream,id,new PortfolioCreatedEvent(Guid.NewGuid(),id,1,DateTime.UtcNow,"SyntheticFlaUI",new()),0),token);
             }
             return true;
         });

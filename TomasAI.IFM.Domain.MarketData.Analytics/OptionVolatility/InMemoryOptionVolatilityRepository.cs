@@ -1,10 +1,14 @@
 using System.Collections.Immutable;
+using TomasAI.IFM.Application.MarketData.Contracts.Historical;
+using TomasAI.IFM.Application.MarketData.Databento.Historical;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.OptionVolatility;
 /// <summary>Deterministic repository used for closed-market and publication-failure qualification.</summary>
-public sealed class InMemoryOptionVolatilityRepository(Action<VolatilityPublicationStage>? beforeStage = null) : IOptionVolatilityRepository
+public sealed class InMemoryOptionVolatilityRepository(Action<VolatilityPublicationStage>? beforeStage = null,
+    IMarketSessionCalendar? sessionCalendar = null) : IOptionVolatilityRepository
 {
+    readonly IMarketSessionCalendar calendar = sessionCalendar ?? new CmeFuturesMarketSessionCalendar();
     readonly System.Threading.Lock gate = new();
     readonly Dictionary<(string Environment, string Id), OptionIvObservation> observations = new();
     readonly Dictionary<(string Environment, string Id), OptionIvMetricRevision> snapshots = new();
@@ -77,7 +81,7 @@ public sealed class InMemoryOptionVolatilityRepository(Action<VolatilityPublicat
             }
 
             var metric = snapshots[(request.Scope.Environment, pointer.SnapshotId)];
-            var status = request.RequestedAtUtc - pointer.AvailableAtUtc <= request.MaximumAge ? VolatilityFreshnessStatus.Accepted : VolatilityFreshnessStatus.Stale;
+            var status = MarketTradingTime.Elapsed(calendar, pointer.AvailableAtUtc, request.RequestedAtUtc, request.MaximumAge) <= request.MaximumAge ? VolatilityFreshnessStatus.Accepted : VolatilityFreshnessStatus.Stale;
             return Task.FromResult(new LatestVolatilityResult(metric, status));
         }
     }
@@ -111,7 +115,7 @@ public sealed class InMemoryOptionVolatilityRepository(Action<VolatilityPublicat
         }
     }
 
-    public Task<IReadOnlyDictionary<VolatilityStorageScope, OptionIvLatestPointer>> RebuildLatestCacheAsync(IEnumerable<VolatilityStorageScope> scopes, CancellationToken cancellationToken = default)
+    public Task<IReadOnlyDictionary<VolatilityStorageScope, OptionIvLatestPointer>> ReadLatestVolatilityPointersAsync(IEnumerable<VolatilityStorageScope> scopes, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(scopes);
         cancellationToken.ThrowIfCancellationRequested();

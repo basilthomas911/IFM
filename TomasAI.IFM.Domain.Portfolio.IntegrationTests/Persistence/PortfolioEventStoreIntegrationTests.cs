@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.EventSourcing.ViewModels;
 using FluentAssertions;
 using System.Diagnostics;
 using TomasAI.IFM.Application.Storage.EventSourceDb;

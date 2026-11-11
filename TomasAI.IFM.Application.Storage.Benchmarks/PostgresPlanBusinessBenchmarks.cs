@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.EventSourcing;
 
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Domain.Portfolio.Financial.Repository;
@@ -83,7 +84,7 @@ public class PostgresPlanBusinessBenchmarks
         var source = BuildSource(plan);
         await Transactions().ExecuteOnceAsync(async (transaction, token) =>
         {
-            await transaction.AppendAsync(stream, source.CommandId, source, planRevision, token);
+            await transaction.AppendAsync(new EnlistedEventAppend(stream, source.CommandId, source, planRevision), token);
             if (!Split) await plans.ProjectMaterialAsync(transaction, plan, token);
             return true;
         });
@@ -104,7 +105,7 @@ public class PostgresPlanBusinessBenchmarks
         var source = BuildSource(BuildPlan(sourceOnlyRevision + 1));
         await Transactions().ExecuteOnceAsync(async (transaction, token) =>
         {
-            await transaction.AppendAsync(stream + "-source-component", source.CommandId, source, sourceOnlyRevision, token);
+            await transaction.AppendAsync(new EnlistedEventAppend(stream + "-source-component", source.CommandId, source, sourceOnlyRevision), token);
             return true;
         });
         sourceOnlyRevision++;
@@ -187,7 +188,7 @@ public class PostgresPlanBusinessBenchmarks
             foreach (var stream in new[] { $"Portfolio.{id}", $"PortfolioFinancialPolicy.{id}.{id + 2}" }.Concat(book.Funds.Select(x => $"PortfolioFund.{id}.{x.FundId}")))
             {
                 var command = Guid.NewGuid();
-                await db.AppendAsync(stream, command, new PortfolioCreatedEvent(Guid.NewGuid(), command, 1, DateTime.UtcNow, "benchmark", new()), 0, ct);
+                await db.AppendAsync(new EnlistedEventAppend(stream, command, new PortfolioCreatedEvent(Guid.NewGuid(), command, 1, DateTime.UtcNow, "benchmark", new()), 0), ct);
             }
             return true;
         });

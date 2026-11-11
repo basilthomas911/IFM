@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Persistence;
 using TomasAI.IFM.Application.Storage.TradeDb;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position;
@@ -9,6 +10,8 @@ internal static class PositionQueryModel
     /// <summary>Reads one position and filters it to the required strategy kind.</summary>
     internal static async ValueTask<StrategyPositionSnapshot?> OneAsync(StrategyPositionQueryBase<StrategyPositionSnapshot> query, ITradeDbReadContext tradeDb, TradeStrategyKind strategyKind, CancellationToken cancellationToken)
     {
+        if (!query.PositionId.IsValid)
+            throw new ArgumentException("Valid position identity is required.", nameof(query));
         var value = await tradeDb.GetStrategyPositionAsync(query.PositionId, cancellationToken).ConfigureAwait(false);
         return value?.StrategyKind == strategyKind ? value : null;
     }
@@ -16,6 +19,7 @@ internal static class PositionQueryModel
     /// <summary>Reads a position history page and filters it to the required strategy kind.</summary>
     internal static async ValueTask<StrategyPositionSnapshot[]> ManyAsync(PositionHistoryQuery query, ITradeDbReadContext tradeDb, TradeStrategyKind strategyKind, CancellationToken cancellationToken)
     {
+        TradeHistorySelection.RequirePosition(query.PositionId.PositionId, query.FromUtc, query.ToUtc, query.PageSize);
         var positions = new List<StrategyPositionSnapshot>();
         var pagingState = query.PagingState;
         do

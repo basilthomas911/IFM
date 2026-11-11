@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.EventSourcing.Persistence.Command;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.TradeDb;
@@ -25,22 +26,28 @@ internal static class TradeAtomicPersistence
             var version = expectedVersion;
             foreach (var sourceEvent in pending)
             {
-                await transaction.AppendAsync(command.StreamId, command.CommandId, sourceEvent, version++, ct).ConfigureAwait(false);
+                await transaction.AppendAsync(new EnlistedEventAppend(command.StreamId, command.CommandId, sourceEvent, version++), ct).ConfigureAwait(false);
                 switch (sourceEvent)
                 {
                     case TradeOrderChangedEvent order:
+                        ArgumentNullException.ThrowIfNull(order.TradeOrderDefinition);
                         await writer.ProjectOrderAsync(transaction, order.TradeOrderDefinition, order.ReceivedOn, ct).ConfigureAwait(false);
                         break;
                     case OrderExecutionChangedEvent execution:
+                        ArgumentNullException.ThrowIfNull(execution.OrderExecutionDefinition);
                         await writer.ProjectExecutionAsync(transaction, execution.OrderExecutionDefinition, ct).ConfigureAwait(false);
                         break;
                     case FuturesTradeChangedEvent trade:
+                        ArgumentNullException.ThrowIfNull(trade.EstablishedTradeDefinition);
                         await writer.ProjectTradeAsync(transaction, trade.EstablishedTradeDefinition, ct).ConfigureAwait(false);
                         break;
                     case OptionTradeChangedEvent trade:
+                        ArgumentNullException.ThrowIfNull(trade.EstablishedTradeDefinition);
                         await writer.ProjectTradeAsync(transaction, trade.EstablishedTradeDefinition, ct).ConfigureAwait(false);
                         break;
                     case IronCondorMonitoringInitializedEvent limits:
+                        ArgumentNullException.ThrowIfNull(limits.TradeLimits);
+                        ArgumentNullException.ThrowIfNull(limits.SpreadLimits);
                         if (limits.MonitoringInitialization.ApprovedOrder is { } approval)
                         {
                             var json = await transaction.ScalarAsync(
@@ -90,6 +97,7 @@ internal static class TradeAtomicPersistence
                         await writer.ProjectPositionHistoryAsync(transaction,historical,original.PositionSnapshot.PositionSequence,ct).ConfigureAwait(false);
                         break;
                     case PositionChangedEvent position:
+                        ArgumentNullException.ThrowIfNull(position.PositionSnapshot);
                         await writer.ProjectPositionAsync(transaction, position.PositionSnapshot, ct).ConfigureAwait(false);
                         break;
                     default:

@@ -29,7 +29,7 @@ public sealed class ScheduledTaskCatalogEventProjector(IScheduledTaskProjectionW
             async (domainEvent, execution) =>
             {
                 if (writer is not IScheduledTaskTransactionalProjectionWriter { ProviderName: "System.Data.Postgres" })
-                    await writer.ProjectAsync(((ScheduledTaskCatalogProjectRegisteredEvent)domainEvent).ScheduledTaskCatalog!, execution.CancellationToken).ConfigureAwait(false);
+                    await writer.ProjectAsync(((ScheduledTaskCatalogProjectRegisteredEvent)domainEvent).ScheduledTaskCatalog ?? throw new InvalidDataException("Missing committed ScheduledTaskCatalog source payload."), execution.CancellationToken).ConfigureAwait(false);
                 return new(EventProjectionApplyOutcome.Applied);
             }, domainEvent =>
             {
@@ -43,7 +43,7 @@ public sealed class ScheduledTaskCatalogEventProjector(IScheduledTaskProjectionW
             async (domainEvent, execution) =>
             {
                 if (writer is not IScheduledTaskTransactionalProjectionWriter { ProviderName: "System.Data.Postgres" })
-                    await writer.ProjectAsync(((ScheduledTaskCatalogHostCapabilityRecordedEvent)domainEvent).ScheduledTaskCatalog!, execution.CancellationToken).ConfigureAwait(false);
+                    await writer.ProjectAsync(((ScheduledTaskCatalogHostCapabilityRecordedEvent)domainEvent).ScheduledTaskCatalog ?? throw new InvalidDataException("Missing committed ScheduledTaskCatalog source payload."), execution.CancellationToken).ConfigureAwait(false);
                 return new(EventProjectionApplyOutcome.Applied);
             }, domainEvent =>
             {

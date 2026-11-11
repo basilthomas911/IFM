@@ -21,6 +21,7 @@
 	  <InternalsVisibleTo Include="TomasAI.IFM.Application.Actor.IntegrationTests" />
       <InternalsVisibleTo Include="TomasAI.IFM.Application.Api.Server" />
       <InternalsVisibleTo Include="TomasAI.IFM.Application.Api.Server.Core" />
+      <InternalsVisibleTo Include="TomasAI.IFM.Application.EventSourcing.Persistence" />
 
   </ItemGroup>
 

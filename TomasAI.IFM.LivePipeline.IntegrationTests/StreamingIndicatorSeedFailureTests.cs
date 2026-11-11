@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
@@ -25,6 +26,7 @@ public sealed class StreamingIndicatorSeedFailureTests
         var window = RsiHistoricalSeedWindowModel.Create(TimeFrameType.OneMinute, 1, now, calendar)[0];
         var ticks = Substitute.For<ITradeTickQuoteDbContext, IStreamingRawFuturesTradeReader>();
         var streaming = (IStreamingRawFuturesTradeReader)ticks;
+        streaming.SupportsRawFuturesTradeStreaming.Returns(true);
         var databases = Substitute.For<IDbContextFactory>();
         databases.TradeTickQuoteDb.Returns(ticks);
         var fail = true;

@@ -1,3 +1,5 @@
+using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Application.EventSourcing.Persistence.Command;
 using TomasAI.IFM.Application.Storage.PortfolioDb.Schema;
 using System.Text.Json;
 using System.Diagnostics;
@@ -121,7 +123,7 @@ internal static class EventLogIndexMigrationQualification
                                 RequiresDurableProjection = true,
                                 Payload = new string('x', 1024)
                             })).ToArray(),
-                        CommandAudit = CommandAuditEnvelope.Create(command, new CommandAuditMessagePackCodec())
+                        CommandAudit = CommandAuditPreparation.Create(command, new CommandAuditMessagePackCodec())
                     };
                     await writer.AppendAsync(request);
                     expected += count;

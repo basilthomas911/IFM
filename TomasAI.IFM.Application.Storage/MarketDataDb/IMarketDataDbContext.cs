@@ -17,19 +17,10 @@ public interface IMarketDataDbContext :
     IMarketDataDbReadContext,
     IMarketDataDbWriteContext,
     ICompositionPreparationStore,
-    TomasAI.IFM.Application.MarketData.Contracts.IOptionChainStatisticsStore,
     TomasAI.IFM.Application.MarketData.Contracts.IStrategyOptionChainParameterStore,
-    IOptionTradeEvidenceWriter,
     IOptionVolatilityRepository,
     IHistoricalObservationStore
 {
-    /// <summary>Reads canonical observations and compatible persisted Native replay coverage in one bounded request.</summary>
-    Task<IReadOnlyList<FuturesTradeSessionBarReadModel>> GetQualifiedIndicatorSeedBarsAsync(string contractId, TimeFrameType frame,
-        DateOnly valueDate, DateTimeOffset[] intervalEndsUtc, string sourceVersion, CancellationToken cancellationToken);
-
-    /// <summary>Atomically retains independently qualified seed intervals for the same contract, date and timeframe.</summary>
-    Task StoreQualifiedIndicatorSeedBarsAsync(string sourceVersion, FuturesTradeSessionBarReadModel[] bars, CancellationToken cancellationToken);
-
     /// <summary>Gets the Market Data database read capability.</summary>
     IMarketDataDbReadContext DbReader { get; }
 

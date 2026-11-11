@@ -34,7 +34,7 @@ public static class ApplyYieldCurveRatesImport
 
                 var heads = await MarketDataImportStreamFence.LockAsync(transaction, groups.Select(group => Stream(group.Key)),
                     "YieldCurveRateEventProjector", token).ConfigureAwait(false);
-                await transaction.ImportYieldCurvesAsync(rows, source.DuplicatePolicy, source.CommandId, source.ReceivedOn, token).ConfigureAwait(false);
+                await transaction.ImportYieldCurvesAsync(MarketDataImportBatch.YieldCurves(rows, source.DuplicatePolicy, source.CommandId), source.ReceivedOn, token).ConfigureAwait(false);
                 foreach (var group in groups)
                 {
                     var stream = Stream(group.Key);
@@ -48,10 +48,10 @@ public static class ApplyYieldCurveRatesImport
                             EventSource = command.EventSource, ReceivedOn = source.ReceivedOn, UpdatedOn = source.ReceivedOn,
                             UpdatedBy = command.EventSource, YieldCurveRate = row
                         };
-                        await transaction.AppendAsync(stream, command.CommandId, changed, version++, token).ConfigureAwait(false);
+                        await transaction.AppendAsync(new EnlistedEventAppend(stream, command.CommandId, changed, version++), token).ConfigureAwait(false);
                     }
                 }
-                await transaction.AppendAsync(acceptedStream, source.CommandId, source, 0, token).ConfigureAwait(false);
+                await transaction.AppendAsync(new EnlistedEventAppend(acceptedStream, source.CommandId, source, 0), token).ConfigureAwait(false);
                 return true;
             }).ConfigureAwait(false);
             return new ServiceOk<GuidResult>(new GuidResult(command.CommandId));

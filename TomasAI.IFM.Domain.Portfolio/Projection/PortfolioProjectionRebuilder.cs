@@ -51,7 +51,7 @@ public sealed class PortfolioProjectionRebuilder(IPortfolioEventStore events, IP
         var ordered = history.OrderBy(SourceEventId).ThenBy(x => x.GetType().FullName, StringComparer.Ordinal).ToArray();
         if (ordered.Any(x => SourceEventId(x) <= 0))
             throw new InvalidOperationException("Only committed authoritative events can be rebuilt.");
-        var handler = new PortfolioProjectionHandler(_events, _projections);
+        var handler = new PortfolioProjectionHandler(_events, _projections, transactions);
         foreach (var item in ordered)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -63,7 +63,7 @@ public sealed class PortfolioProjectionRebuilder(IPortfolioEventStore events, IP
             if (facts is not null)
             {
                 await (transactions ?? throw new InvalidOperationException("Portfolio rebuild transaction is not registered.")).ExecuteOnceAsync(async (db,ct) => {
-                    await PortfolioDbContextExtensions.PersistAcceptedPortfolioAsync(db,(IEvent)item,facts,ct).ConfigureAwait(false);
+                    await AcceptedPortfolioProjection.PersistAcceptedPortfolioAsync(db,(IEvent)item,facts,ct).ConfigureAwait(false);
                     return true;
                 },cancellationToken).ConfigureAwait(false);
                 continue;

@@ -1,7 +1,9 @@
+using TomasAI.IFM.Domain.MarketData.Shared.QueryParameters;
+﻿using TomasAI.IFM.Domain.MarketData.Securities.Persistence;
+using TomasAI.IFM.Application.Storage.SecuritiesDb;
 
 
 using TomasAI.IFM.Application.MarketData.Contracts;
-using TomasAI.IFM.Application.Storage.SecuritiesDb;
 using TomasAI.IFM.Application.MarketData.Databento;
 
 using TomasAI.IFM.Domain.MarketData.Shared;
@@ -60,7 +62,10 @@ public sealed class OptionContractExpiryCalendarRefreshService(
     IMarketDataApi marketData,
     IInstrumentDefinitionStore instrumentDefinitions,
     ISecuritiesDbContext securities,
+    FuturesDefinitionPublisher futuresDefinitions,
     IDbContextFactory dbFactory,
+    SecuritiesOptionDefinitionReader definitionReader,
+    SecuritiesOptionDefinitionPublisher definitionPublisher,
     OptionContractExpiryCalendarOptions options,
     TimeProvider timeProvider,
     ILogger<OptionContractExpiryCalendarRefreshService> logger)
@@ -120,12 +125,9 @@ public sealed class OptionContractExpiryCalendarRefreshService(
                         MappingVersion = storedFuture.MappingVersion
                     };
                     futuresByMaturity[storedFuture.LastTradeDate] = enriched;
-                    if (!existing.OnTheRun && existing.Rollover)
-                        await securities.InsertFuturesContractAsync(enriched with { Rollover = false })
-                            .ConfigureAwait(false);
                     continue;
                 }
-                await securities.InsertFuturesContractAsync(storedFuture).ConfigureAwait(false);
+                await futuresDefinitions.PublishAsync(storedFuture, cancellationToken).ConfigureAwait(false);
                 futuresByMaturity.Add(storedFuture.LastTradeDate, storedFuture);
             }
             var futures = futuresByMaturity.Values.OrderBy(static future => future.LastTradeDate).ToArray();
@@ -194,8 +196,9 @@ public sealed class OptionContractExpiryCalendarRefreshService(
             if (cached.Count == 0)
                 throw new InvalidOperationException($"Databento returned no cacheable option definitions for '{symbol}'.");
             providerTimer.Stop();
+            cached = (await securities.ResolveOptionReferenceIdentitiesAsync(cached, cancellationToken).ConfigureAwait(false)).ToList();
             var saveTimer = Stopwatch.StartNew();
-            await securities.ReplaceOptionContractDefinitionsAsync(
+            await definitionPublisher.PublishAsync(
                 symbol, valueDate, horizon, cached, cancellationToken).ConfigureAwait(false);
             saveTimer.Stop();
             var verificationTimer = Stopwatch.StartNew();
@@ -259,7 +262,7 @@ public sealed class OptionContractExpiryCalendarRefreshService(
         var lower = price - 2.5m * deviation;
         var upper = price + 2.5m * deviation;
         var timer = Stopwatch.StartNew();
-        var rows = await securities.GetCachedOptionContractDefinitionsAsync(symbol,
+        var rows = await definitionReader.GetOptionDefinitionsAsync(symbol,
                 first.UnderlyingContractId, first.ExpiryDate, [first.ProviderRoot], cancellationToken)
             .ConfigureAwait(false);
         var selected = rows.Where(row => row.Definition.GetExactStrikePrice() >= lower
@@ -285,7 +288,8 @@ public sealed class OptionContractExpiryCalendarRefreshService(
         var expectedGroups = expected
             .GroupBy(row => (row.UnderlyingContractId, row.ExpiryDate, Root: row.ProviderRoot.ToUpperInvariant()))
             .ToArray();
-        var expiries = await securities.GetOptionContractExpiriesAsync(symbol, from, through, cancellationToken)
+        var expiries = await securities.GetOptionContractExpiriesAsync(
+            new OptionDefinitionExpiryRange(symbol, from, through), cancellationToken)
             .ConfigureAwait(false);
         var actualMappings = expiries
             .Select(row => (UnderlyingContractId: row.ContractId, row.ExpiryDate,
@@ -306,7 +310,7 @@ public sealed class OptionContractExpiryCalendarRefreshService(
             },
             async (group, token) =>
             {
-                var rows = await securities.GetCachedOptionContractDefinitionsAsync(
+                var rows = await definitionReader.GetOptionDefinitionsAsync(
                     symbol,
                     group.Key.UnderlyingContractId,
                     group.Key.ExpiryDate,

@@ -22,22 +22,27 @@ public sealed class PortfolioFundCommandApi(IActorProducer actorProducer, IPortf
         ?? PortfolioAccessContext.Administrator($"interactive:{Environment.UserName}");
     static PortfolioAccessContext WorkflowAccess => PortfolioAccessScope.Current
         ?? PortfolioAccessContext.Workflow("strategy-workflow");
-    public Task<ServiceResult<Guid>> CreateFundMandateAsync(FundMandateReadModel mandate, Guid idempotencyKey, CancellationToken cancellationToken = default) 
+    public Task<ServiceResult<Guid>> CreateFundMandateAsync(FundMandateReadModel mandate, Guid idempotencyKey, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(mandate);
         return Send(new(mandate.PortfolioId, mandate.FundId), CreateFundMandateCommand.Verb, new CreateFundMandateCommand(mandate, idempotencyKey), PortfolioErrorCodes.ValidationFailed, cancellationToken, IdempotentCommandId.Create(idempotencyKey, mandate));
     }
-    public Task<ServiceResult<Guid>> AddFundMandateVersionAsync(FundMandateReadModel mandate, long expectedVersion, CancellationToken cancellationToken = default) 
+    public Task<ServiceResult<Guid>> ConfigureFundBaseContractsAsync(FundMandateReadModel mandate, long expectedVersion, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(mandate);
+        return Send(new(mandate.PortfolioId, mandate.FundId), ConfigureFundBaseContractsCommand.Verb, new ConfigureFundBaseContractsCommand(mandate, expectedVersion), PortfolioErrorCodes.VersionConflict, cancellationToken);
+    }
+    public Task<ServiceResult<Guid>> AddFundMandateVersionAsync(FundMandateReadModel mandate, long expectedVersion, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(mandate);
         return Send(new(mandate.PortfolioId, mandate.FundId), AddFundMandateVersionCommand.Verb, new AddFundMandateVersionCommand(mandate, expectedVersion), PortfolioErrorCodes.VersionConflict, cancellationToken);
     }
-    public Task<ServiceResult<Guid>> ChangeFundStateAsync(PortfolioFundId fundId, long expectedVersion, FundOperatingState state, string reason, CancellationToken cancellationToken = default) 
+    public Task<ServiceResult<Guid>> ChangeFundStateAsync(PortfolioFundId fundId, long expectedVersion, FundOperatingState state, string reason, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(fundId);
         return Send(fundId, ChangeFundOperatingStateCommand.Verb, new ChangeFundOperatingStateCommand(expectedVersion, state, reason), PortfolioErrorCodes.InvalidStateTransition, cancellationToken);
     }
-    public Task<ServiceResult<Guid>> AssignTradeTemplateAsync(FundTradeTemplateAssignmentReadModel assignment, long expectedVersion, CancellationToken cancellationToken = default) 
+    public Task<ServiceResult<Guid>> AssignTradeTemplateAsync(FundTradeTemplateAssignmentReadModel assignment, long expectedVersion, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(assignment);
         return Send(new(assignment.PortfolioId, assignment.FundId), AssignTradeTemplateCommand.Verb, new AssignTradeTemplateCommand(assignment, expectedVersion), PortfolioErrorCodes.ValidationFailed, cancellationToken);
@@ -175,7 +180,7 @@ public sealed class PortfolioFundCommandApi(IActorProducer actorProducer, IPortf
     /// <returns>The committed canonical order composition.</returns>
     public Task<ServiceResult<FundCompositionReservationResult>> RemoveManualTradeAsync(
         ManualFundOrderTradeMutationRequest request,
-        CancellationToken cancellationToken = default) 
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
         return SendManualMutationAsync(
@@ -334,12 +339,12 @@ public sealed class PortfolioFundCommandApi(IActorProducer actorProducer, IPortf
         return null;
     }
 
-    public Task<ServiceResult<FundOrderProjectionReadModel>> MarkComposingAsync(PortfolioFundOrderId orderId, long expectedVersion, Guid invocationId, CancellationToken cancellationToken = default) 
+    public Task<ServiceResult<FundOrderProjectionReadModel>> MarkComposingAsync(PortfolioFundOrderId orderId, long expectedVersion, Guid invocationId, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(orderId);
         return SendAndReadOrder(new(orderId.PortfolioId, orderId.FundId), MarkFundOrderComposingCommand.Verb, new MarkFundOrderComposingCommand(orderId, expectedVersion, invocationId), orderId.OrderId, expectedVersion + 1, PortfolioErrorCodes.InvalidStateTransition, WorkflowAccess, null, cancellationToken);
     }
-    public Task<ServiceResult<FundOrderProjectionReadModel>> RecordComposedAsync(PortfolioFundOrderId orderId, long expectedVersion, OrderCompositionResultReference result, CancellationToken cancellationToken = default) 
+    public Task<ServiceResult<FundOrderProjectionReadModel>> RecordComposedAsync(PortfolioFundOrderId orderId, long expectedVersion, OrderCompositionResultReference result, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(orderId);
         return SendAndReadOrder(new(orderId.PortfolioId, orderId.FundId), RecordFundOrderComposedCommand.Verb, new RecordFundOrderComposedCommand(orderId, expectedVersion, result), orderId.OrderId, expectedVersion + 1, PortfolioErrorCodes.ResultMismatch, WorkflowAccess, null, cancellationToken);
@@ -353,17 +358,17 @@ public sealed class PortfolioFundCommandApi(IActorProducer actorProducer, IPortf
             new AuthorizeFundOrderRiskCommand(orderId, expectedVersion, authorization), orderId.OrderId, expectedVersion + 1,
             PortfolioErrorCodes.ResultMismatch, WorkflowAccess, commandId, cancellationToken);
     }
-    public Task<ServiceResult<FundOrderProjectionReadModel>> RecordRiskOutcomeAsync(PortfolioFundOrderId orderId, long expectedVersion, RiskManagementResultReference result, CancellationToken cancellationToken = default) 
+    public Task<ServiceResult<FundOrderProjectionReadModel>> RecordRiskOutcomeAsync(PortfolioFundOrderId orderId, long expectedVersion, RiskManagementResultReference result, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(orderId);
         return SendAndReadOrder(new(orderId.PortfolioId, orderId.FundId), RecordFundOrderRiskOutcomeCommand.Verb, new RecordFundOrderRiskOutcomeCommand(orderId, expectedVersion, result), orderId.OrderId, expectedVersion + 1, PortfolioErrorCodes.ResultMismatch, WorkflowAccess, null, cancellationToken);
     }
-    public Task<ServiceResult<FundOrderProjectionReadModel>> CancelCompositionAsync(PortfolioFundOrderId orderId, long expectedVersion, string reason, CancellationToken cancellationToken = default) 
+    public Task<ServiceResult<FundOrderProjectionReadModel>> CancelCompositionAsync(PortfolioFundOrderId orderId, long expectedVersion, string reason, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(orderId);
         return SendAndReadOrder(new(orderId.PortfolioId, orderId.FundId), CancelFundOrderCompositionCommand.Verb, new CancelFundOrderCompositionCommand(orderId, expectedVersion, reason), orderId.OrderId, expectedVersion + 1, PortfolioErrorCodes.InvalidStateTransition, AdministratorAccess, null, cancellationToken);
     }
-    public Task<ServiceResult<FundOrderProjectionReadModel>> ExpireCompositionAsync(PortfolioFundOrderId orderId, long expectedVersion, string reason, CancellationToken cancellationToken = default) 
+    public Task<ServiceResult<FundOrderProjectionReadModel>> ExpireCompositionAsync(PortfolioFundOrderId orderId, long expectedVersion, string reason, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(orderId);
         return SendAndReadOrder(new(orderId.PortfolioId, orderId.FundId), ExpireFundOrderCompositionCommand.Verb, new ExpireFundOrderCompositionCommand(orderId, expectedVersion, reason), orderId.OrderId, expectedVersion + 1, PortfolioErrorCodes.InvalidStateTransition, WorkflowAccess, null, cancellationToken);
@@ -379,6 +384,7 @@ public sealed class PortfolioFundCommandApi(IActorProducer actorProducer, IPortf
         object command = message switch
         {
             CreateFundMandateCommand value => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.CopyCommandIfSameIdentity(value, value with { CommandId = actualCommandId, Subject = subject, EntityId = id, ErrorCode = errorCode, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = actualAccess }),
+            ConfigureFundBaseContractsCommand value => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.CopyCommandIfSameIdentity(value, value with { CommandId = actualCommandId, Subject = subject, EntityId = id, ErrorCode = errorCode, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = actualAccess }),
             AddFundMandateVersionCommand value => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.CopyCommandIfSameIdentity(value, value with { CommandId = actualCommandId, Subject = subject, EntityId = id, ErrorCode = errorCode, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = actualAccess }),
             ChangeFundOperatingStateCommand value => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.CopyCommandIfSameIdentity(value, value with { CommandId = actualCommandId, Subject = subject, EntityId = id, ErrorCode = errorCode, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = actualAccess }),
             AssignTradeTemplateCommand value => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.CopyCommandIfSameIdentity(value, value with { CommandId = actualCommandId, Subject = subject, EntityId = id, ErrorCode = errorCode, CorrelationId = correlationId, RequestedOnUtc = requestedOnUtc, Access = actualAccess }),
@@ -398,7 +404,7 @@ public sealed class PortfolioFundCommandApi(IActorProducer actorProducer, IPortf
         };
         try
         {
-            if (command is CreateFundMandateCommand or AddFundMandateVersionCommand or AssignTradeTemplateCommand
+            if (command is CreateFundMandateCommand or AddFundMandateVersionCommand or ConfigureFundBaseContractsCommand or AssignTradeTemplateCommand
                 or ChangeFundOperatingStateCommand { State: FundOperatingState.Active })
             {
                 var reference = ValidatePortfolioReferenceCommand.ForOwnerCommand(actualCommandId) with { Access = actualAccess };
@@ -423,6 +429,7 @@ public sealed class PortfolioFundCommandApi(IActorProducer actorProducer, IPortf
                 var preparation = command switch
                 {
                     CreateFundMandateCommand value => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(reference, reference with { Mandate = value.Mandate }),
+                    ConfigureFundBaseContractsCommand value => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(reference, reference with { Mandate = value.Mandate }),
                     AddFundMandateVersionCommand value => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(reference, reference with { Mandate = value.Mandate }),
                     AssignTradeTemplateCommand value => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(reference, reference with { Assignment = value.Assignment }),
                     ChangeFundOperatingStateCommand when activation is not null => reference,
@@ -435,6 +442,7 @@ public sealed class PortfolioFundCommandApi(IActorProducer actorProducer, IPortf
                     command = command switch
                     {
                         CreateFundMandateCommand value => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(value, value with { ReferencePreparationId = receipt.Value }),
+                        ConfigureFundBaseContractsCommand value => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(value, value with { ReferencePreparationId = receipt.Value }),
                         AddFundMandateVersionCommand value => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(value, value with { ReferencePreparationId = receipt.Value, ActivationPreparation = activation }),
                         AssignTradeTemplateCommand value => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(value, value with { ReferencePreparationId = receipt.Value }),
                         ChangeFundOperatingStateCommand value => global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(value, value with { ReferencePreparationId = receipt.Value, ActivationPreparation = activation }),

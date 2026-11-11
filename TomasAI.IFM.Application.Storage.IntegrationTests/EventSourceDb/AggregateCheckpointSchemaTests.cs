@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.EventSourcing.ViewModels;
 using Npgsql;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using Xunit;

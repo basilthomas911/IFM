@@ -53,6 +53,19 @@ public sealed class HistoricalDataLoadPersistenceTests
         Assert.Null(await adapter.GetAsync(attempt, default));
         await adapter.SaveAsync(state, default);
         (await db.GetHistoricalDataLoadAsync(attempt)).Should().BeEquivalentTo(state);
+        Assert.Equal("Processing", (await db.GetHistoricalAnalyticsAttemptProjectionAsync(attempt))?.Status);
+        await using (var legacyConnection = new PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(infrastructure.PostgresConnectionString))
+        {
+            await legacyConnection.OpenAsync();
+            await using var clear = new NpgsqlCommand("DELETE FROM historical_analytics_attempt_progress WHERE attempt_id = $1", legacyConnection);
+            clear.Parameters.Add(new NpgsqlParameter { Value = attempt });
+            Assert.Equal(1, await clear.ExecuteNonQueryAsync());
+        }
+        Assert.Null(await db.GetHistoricalAnalyticsAttemptProjectionAsync(attempt));
+        var unprojected = Assert.Single(await db.ReadUnprojectedHistoricalDataLoadsAsync(default));
+        await db.BackfillHistoricalAnalyticsProgressAsync(HistoricalAnalyticsDiagnosticsProjection.From(unprojected), default);
+        Assert.Empty(await db.ReadUnprojectedHistoricalDataLoadsAsync(default));
+        Assert.Equal("Processing", (await db.GetHistoricalAnalyticsAttemptProjectionAsync(attempt))?.Status);
         Assert.Null(await adapter.GetCompletedByRequestHashAsync(state.RequestSha256, default));
         var manifest = new MarketDataHistoricalManifest { ManifestId = Guid.NewGuid(), DataLoadAttemptId = attempt,
             ProviderJobId = "job", RequestSha256 = state.RequestSha256, NormalizedSha256 = "accepted",
@@ -64,8 +77,8 @@ public sealed class HistoricalDataLoadPersistenceTests
         await connection.OpenAsync();
         await using (var constraint = new NpgsqlCommand("ALTER TABLE historical_data_load_manifest ADD CONSTRAINT reject_manifest_probe CHECK(manifest_json NOT LIKE '%REJECT%');", connection))
             await constraint.ExecuteNonQueryAsync();
-        await Assert.ThrowsAnyAsync<Exception>(() => db.SaveHistoricalDataLoadAsync(completed with
-            { Manifest = manifest with { NormalizedSha256 = "REJECT" } }));
+        await Assert.ThrowsAnyAsync<Exception>(() => adapter.SaveAsync(completed with
+            { Manifest = manifest with { NormalizedSha256 = "REJECT" } }, default).AsTask());
         (await adapter.GetAsync(attempt, default)).Should().BeEquivalentTo(state);
         Assert.Null(await db.GetCompletedHistoricalDataLoadAsync(state.RequestSha256));
         await adapter.SaveAsync(completed, default);
@@ -74,8 +87,8 @@ public sealed class HistoricalDataLoadPersistenceTests
         Assert.Equal("accepted", (await adapter.GetAsync(attempt, default))!.Manifest!.NormalizedSha256);
         Assert.Equal("Completed", (await db.GetHistoricalAnalyticsAttemptProjectionAsync(attempt))?.Status);
         var duplicate = Guid.NewGuid();
-        await Assert.ThrowsAnyAsync<Exception>(() => db.SaveHistoricalDataLoadAsync(completed with
-            { DataLoadAttemptId = duplicate, Checkpoint = completed.Checkpoint with { DataLoadAttemptId = duplicate } }));
+        await Assert.ThrowsAnyAsync<Exception>(() => adapter.SaveAsync(completed with
+            { DataLoadAttemptId = duplicate, Checkpoint = completed.Checkpoint with { DataLoadAttemptId = duplicate } }, default).AsTask());
         Assert.Null(await db.GetHistoricalDataLoadAsync(duplicate));
         var id = new FuturesAnalyticsHistoricalDataLoaderEntityId(duplicate);
         var requested = new FuturesAnalyticsHistoricalDataLoaderRequestedEvent
@@ -110,10 +123,10 @@ public sealed class HistoricalDataLoadPersistenceTests
         await adapter.SaveAsync(warmup, default);
         (await adapter.GetAsync(warmupId, default)).Should().BeEquivalentTo(warmup);
         Assert.Null(await adapter.GetCompletedByRequestHashAsync(warmup.RequestSha256, default));
-        await Assert.ThrowsAsync<ArgumentException>(() => db.GetCompletedHistoricalDataLoadAsync(" "));
+        await Assert.ThrowsAsync<ArgumentException>(() => adapter.GetCompletedByRequestHashAsync(" ", default).AsTask());
         using var cancelled = new CancellationTokenSource(); cancelled.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => db.GetHistoricalDataLoadAsync(attempt, cancelled.Token));
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => db.SaveHistoricalDataLoadAsync(state, cancelled.Token));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => adapter.SaveAsync(state, cancelled.Token).AsTask());
     }
 
     static async IAsyncEnumerable<IEvent> Events(params IEvent[] events)

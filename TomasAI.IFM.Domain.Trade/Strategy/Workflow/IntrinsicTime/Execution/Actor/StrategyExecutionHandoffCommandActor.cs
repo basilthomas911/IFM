@@ -7,6 +7,7 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Validation;
 using TomasAI.IFM.Application.CommandPipeline;
+using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Execution.Projection;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Execution.Actor;
@@ -17,6 +18,8 @@ public sealed class StrategyExecutionHandoffCommandActor(ICommandActorContext<St
 {
     public const string ActorName = BeginStrategyExecutionHandoffCommand.Actor;
     readonly IStrategyExecutionHandoffCommandContext services = Typed(context);
+    readonly Lazy<IEventProjector<StrategyExecutionHandoffCommandActor>> projector =
+        new(() => Typed(context).EventProjector);
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap = new Dictionary<string, Func<IActorMessage, ICommand>>(StringComparer.Ordinal)
     {
         [BeginStrategyExecutionHandoffCommand.Verb] = static message => message.AsCommand<BeginStrategyExecutionHandoffCommand>()!,
@@ -37,8 +40,11 @@ public sealed class StrategyExecutionHandoffCommandActor(ICommandActorContext<St
             [typeof(AdvanceStrategyExecutionHandoffCommand)] = static (command, state, now) => ((AdvanceStrategyExecutionHandoffCommand)command).Execute(state, now)
         }.ToFrozenDictionary();
 
-    protected override ValueTask OnStartup(ICommandActorContext<StrategyExecutionHandoffCommandActor> context) => services.EventProjector.StartAsync(context);
-    protected override ValueTask OnShutdown(ICommandActorContext<StrategyExecutionHandoffCommandActor> context) => services.EventProjector.StopAsync();
+    protected override ValueTask OnStartup(ICommandActorContext<StrategyExecutionHandoffCommandActor> context)
+        => projector.Value.StartAsync(context);
+
+    protected override ValueTask OnShutdown(ICommandActorContext<StrategyExecutionHandoffCommandActor> context)
+        => projector.IsValueCreated ? projector.Value.StopAsync() : ValueTask.CompletedTask;
     protected override ICommand ParseMessage(ICommandActorContext<StrategyExecutionHandoffCommandActor> context, IActorMessage message) => ParseMappedCommand(context, message, _parseMap);
     protected override async ValueTask OnValidateAsync(ICommandActorContext<StrategyExecutionHandoffCommandActor> context, ActorThreadId threadId, ICommand command)
     {

@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Securities.Persistence;
 using TomasAI.IFM.Application.Storage.SecuritiesDb;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -26,7 +27,7 @@ public sealed class FuturesOptionContractEventProjector(
             e => string.Equals(actorContext.DbFactory.SecuritiesDb.ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ? ValueTask.CompletedTask : new ValueTask(actorContext.DbFactory.SecuritiesDb.InsertFuturesOptionContractAsync(e.Contract)))
             .WithReadModelRebuild((source,token) => RebuildAsync(actorContext,source,token)),
         Describe<FuturesOptionContractsAddedEvent, FuturesOptionContractsAddedCompleteEvent, FuturesOptionContractsAddedFailEvent, FuturesOptionContractsEntityId>(
-            e => string.Equals(actorContext.DbFactory.SecuritiesDb.ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ? ValueTask.CompletedTask : new ValueTask(actorContext.DbFactory.SecuritiesDb.InsertFuturesOptionContractsAsync(e.Contracts)))
+            e => string.Equals(actorContext.DbFactory.SecuritiesDb.ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ? ValueTask.CompletedTask : new ValueTask(actorContext.DbFactory.SecuritiesDb.InsertQualifiedOptionContractsAsync(e.Contracts)))
             .WithReadModelRebuild((source,token) => RebuildAsync(actorContext,source,token)),
         Describe<FuturesOptionContractChangedEvent, FuturesOptionContractChangedCompleteEvent, FuturesOptionContractChangedFailEvent, FuturesOptionContractEntityId>(
             e => string.Equals(actorContext.DbFactory.SecuritiesDb.ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ? ValueTask.CompletedTask : new ValueTask(actorContext.DbFactory.SecuritiesDb.UpdateFuturesOptionContractAsync(e.OriginalContractId, e.Contract)))

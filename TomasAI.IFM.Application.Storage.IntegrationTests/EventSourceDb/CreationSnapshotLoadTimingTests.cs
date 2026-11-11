@@ -75,10 +75,13 @@ public sealed class CreationSnapshotLoadTimingTests(EventSourceActorSnapshotRang
                 }
                 var allocated = GC.GetTotalAllocatedBytes(true);
                 var stopwatch = Stopwatch.StartNew();
+                var identity = await database.GetEventStreamIdFromDbAsync(streamName);
+                var resolvedStreamId = identity?.EventStreamId
+                    ?? throw new InvalidOperationException("The committed fixture stream did not resolve.");
                 if (variant == "before")
                 {
-                    _ = await database.GetCommittedStreamVersionAsync(streamId, CancellationToken.None);
-                    await database.MapReduceActorEventStreamAsync<FuturesRsiSignalCommandState>(streamId, Replay, CancellationToken.None);
+                    _ = await database.GetCommittedStreamVersionAsync(resolvedStreamId, CancellationToken.None);
+                    await database.MapReduceActorEventStreamAsync<FuturesRsiSignalCommandState>(resolvedStreamId, Replay, CancellationToken.None);
                 }
                 else
                 {
@@ -86,9 +89,10 @@ public sealed class CreationSnapshotLoadTimingTests(EventSourceActorSnapshotRang
                     var method = database.GetType().GetMethods().Single(method =>
                         method.Name == "MapReduceActorEventStreamFromCreationAsync" && method.IsGenericMethodDefinition);
                     await (ValueTask)method.MakeGenericMethod(typeof(FuturesRsiSignalCommandState))
-                        .Invoke(database, [streamId, (Action<IEnumerable<EventStreamReadModel>>)Replay, CancellationToken.None])!;
+                        .Invoke(database, [resolvedStreamId, (Action<IEnumerable<EventStreamReadModel>>)Replay, CancellationToken.None])!;
                 }
                 stopwatch.Stop();
+                Assert.Equal(streamId, resolvedStreamId);
                 Assert.Equal(eventCount, count);
                 Assert.Equal(eventCount, state.CommittedStreamVersion);
                 samples.Add(stopwatch.Elapsed.TotalMilliseconds);

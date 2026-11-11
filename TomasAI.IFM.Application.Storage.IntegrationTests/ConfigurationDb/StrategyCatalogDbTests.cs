@@ -15,7 +15,6 @@ using TomasAI.IFM.Domain.Strategy.Contracts.Shared.StrategyCatalog.Contracts;
 using TomasAI.IFM.Application.Strategy.StrategyCatalog;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
-using TomasAI.IFM.Shared.Storage;
 using Xunit;
 using static TomasAI.IFM.Application.Storage.IntegrationTests.ConfigurationDb.StrategyCatalogContractTests;
 
@@ -30,14 +29,79 @@ public sealed class StrategyCatalogDbTests(MarketConditionConfigurationDbFixture
     static readonly CatalogCapability[] ValidatorCapabilities = [new("validator", "fixture", 1)];
     static DateTime Now => DateTime.UtcNow.CatalogNow();
 
+    static readonly System.Runtime.CompilerServices.ConditionalWeakTable<ConfigurationDbContext, StrategyCatalogQualification> Qualifications = new();
+
+    static StrategyCatalogQualification Qualification(ConfigurationDbContext context) =>
+        Qualifications.GetValue(context, _ => throw new InvalidOperationException("Missing fixture qualification owner."));
+
     ConfigurationDbContext Context(bool supported = true, IStrategyCatalogReferences? references = null)
     {
         var settings = new DbConnectionSettings().Add(ConfigurationDbContext.ConfigurationDbConnection,
             fixture.Context.ConnectionString, "System.Data.Postgres");
         var validators = new[] { "evaluator", "data", "builder", "risk", "validator" }
             .Select(role => (IStrategyCatalogCapabilityValidator)new FixtureValidator(new(role, "fixture", 1)));
-        return new(settings, Substitute.For<IDbContextFactory>(), Substitute.For<ILogger<DbProvider>>(),
-            new StrategyCatalogCapabilityRegistry(supported ? validators : []), references ?? new FixtureReferences());
+        var context = new ConfigurationDbContext(settings, Substitute.For<IDbContextFactory>(), Substitute.For<ILogger<DbProvider>>());
+        Qualifications.Add(context, new(new StrategyCatalogCapabilityRegistry(supported ? validators : []),
+            references ?? new FixtureReferences()));
+        return context;
+    }
+
+    [Fact]
+    public async Task External_product_validation_runs_after_the_catalog_read_transaction_closes()
+    {
+        var graph = await Graph(Context());
+        var draft = graph.Deployment with
+        {
+            Key = graph.Deployment.Key with { Id = Guid.NewGuid() },
+            Code = "LockProbe-" + Guid.NewGuid().ToString("N")
+        };
+        ConfigurationDbContext context = null!;
+        var probes = 0;
+        context = Context(references: new FixtureReferences(async token =>
+        {
+            token.ThrowIfCancellationRequested();
+            // A separate backend cannot take this lock while the qualification graph still holds FOR SHARE.
+            var locked = await Scalar(context, "SELECT version FROM reference_configuration.strategy_catalog_version WHERE id=$1 FOR UPDATE NOWAIT;", draft.Key.Id);
+            locked.Should().Be(1);
+            probes++;
+        }));
+        var hash = await context.InsertStrategyCatalogDraftAsync(draft, 0, "catalog-tests");
+        await Qualification(context).PublishAsync(context, draft.Key, hash, Now, "catalog-tests");
+        probes.Should().BeGreaterThan(0);
+        (await context.GetStrategyCatalogAsync(draft.Key))!.Status.Should().Be(CatalogLifecycleStatus.Published);
+    }
+
+    [Fact]
+    public async Task Qualification_reads_committed_facts_while_a_separate_writer_holds_the_row_lock()
+    {
+        var context = Context();
+        var draft = Definition(StrategyCatalogKind.Family);
+        var hash = await context.InsertStrategyCatalogDraftAsync(draft, 0, "catalog-tests");
+        await using var connection = await context.OpenCatalogAsync(CancellationToken.None);
+        await using var transaction = await connection.BeginTransactionAsync();
+        await using var command = new NpgsqlCommand(
+            "SELECT version FROM reference_configuration.strategy_catalog_version WHERE id=$1 FOR UPDATE;", connection, transaction);
+        command.Parameters.Add(new NpgsqlParameter { Value = draft.Key.Id });
+        Assert.Equal(1, (int)(await command.ExecuteScalarAsync())!);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var prepared = await Qualification(context).PreparePublicationAsync(context, draft.Key, hash, Now, timeout.Token);
+        Assert.Equal(draft.Key, prepared.Root);
+        await transaction.RollbackAsync();
+    }
+
+    [Fact]
+    public async Task Qualified_proof_cannot_publish_after_another_writer_changes_the_graph()
+    {
+        var context = Context();
+        var draft = Definition(StrategyCatalogKind.Family);
+        var hash = await context.InsertStrategyCatalogDraftAsync(draft, 0, "catalog-tests");
+        var at = Now;
+        var owner = Qualification(context);
+        var stale = await owner.PreparePublicationAsync(context, draft.Key, hash, at);
+        await owner.PublishAsync(context, draft.Key, hash, at, "first-writer");
+        await FluentActions.Invoking(() => context.PublishPreparedStrategyCatalogAsync(stale, hash, "stale-writer"))
+            .Should().ThrowAsync<InvalidOperationException>().WithMessage("*graph or policy changed*");
+        (await context.GetStrategyCatalogAsync(draft.Key))!.PublishedBy.Should().Be("first-writer");
     }
 
     [Fact]
@@ -91,11 +155,11 @@ public sealed class StrategyCatalogDbTests(MarketConditionConfigurationDbFixture
     public async Task Normalized_catalog_round_trip_publication_and_frozen_deployment_preserve_all_exact_versions()
     {
         var ctx = Context(); var graph = await Graph(ctx);
-        var snapshot = await ctx.GetPublishedStrategyDeploymentAsync(graph.Deployment.Key, Now);
+        var snapshot = await Qualification(ctx).ReadPublishedAsync(ctx, graph.Deployment.Key, Now);
         snapshot.Definitions.Should().HaveCount(7);
         snapshot.Definitions.Select(x => x.Definition.Key).Should().Contain(graph.Schema.Key).And.Contain(graph.Parameter.Key);
         snapshot.ContentHash.Should().HaveLength(64);
-        var second = await ctx.GetPublishedStrategyDeploymentAsync(graph.Deployment.Key, Now);
+        var second = await Qualification(ctx).ReadPublishedAsync(ctx, graph.Deployment.Key, Now);
         second.ContentHash.Should().Be(snapshot.ContentHash);
         var stored = await ctx.GetStrategyCatalogAsync(graph.Deployment.Key);
         stored!.Definition.Products.Should().BeEquivalentTo(graph.Deployment.Products);
@@ -118,7 +182,7 @@ public sealed class StrategyCatalogDbTests(MarketConditionConfigurationDbFixture
             Legs = [new("Future", "Futures", "Buy", "None", 1, "Front")]
         };
         var hash = await ctx.InsertStrategyCatalogDraftAsync(d, 0, "catalog-tests");
-        await FluentActions.Invoking(() => ctx.PublishStrategyCatalogAsync(d.Key, hash, Now, "catalog-tests"))
+        await FluentActions.Invoking(() => Qualification(ctx).PublishAsync(ctx, d.Key, hash, Now, "catalog-tests"))
             .Should().ThrowAsync<InvalidOperationException>().WithMessage("*Unsupported*");
         (await ctx.GetStrategyCatalogAsync(d.Key))!.Status.Should().Be(CatalogLifecycleStatus.Draft);
     }
@@ -164,10 +228,10 @@ public sealed class StrategyCatalogDbTests(MarketConditionConfigurationDbFixture
         var structure = Structure(); await Publish(ctx, structure);
         var strategy = Definition(StrategyCatalogKind.Strategy) with { Families = [family.Key], Structures = [structure.Key], Capabilities = StrategyCapabilities };
         var hash = await ctx.InsertStrategyCatalogDraftAsync(strategy, 0, "catalog-tests");
-        await FluentActions.Invoking(() => ctx.PublishStrategyCatalogAsync(strategy.Key, hash, Now, "catalog-tests"))
+        await FluentActions.Invoking(() => Qualification(ctx).PublishAsync(ctx, strategy.Key, hash, Now, "catalog-tests"))
             .Should().ThrowAsync<InvalidOperationException>().WithMessage("*not effective and Published*");
         var exact = await ctx.GetStrategyCatalogAsync(family.Key);
-        await FluentActions.Invoking(() => ctx.PublishStrategyCatalogAsync(family.Key, new string('0', 64), Now, "catalog-tests"))
+        await FluentActions.Invoking(() => Qualification(ctx).PublishAsync(ctx, family.Key, new string('0', 64), Now, "catalog-tests"))
             .Should().ThrowAsync<InvalidOperationException>().WithMessage("*exact Draft content hash*");
         exact!.Status.Should().Be(CatalogLifecycleStatus.Draft);
     }
@@ -176,10 +240,10 @@ public sealed class StrategyCatalogDbTests(MarketConditionConfigurationDbFixture
     public async Task Retiring_dependency_blocks_new_bindings_and_preserves_historical_content()
     {
         var ctx = Context(); var graph = await Graph(ctx);
-        var snapshot = await ctx.GetPublishedStrategyDeploymentAsync(graph.Deployment.Key, Now);
+        var snapshot = await Qualification(ctx).ReadPublishedAsync(ctx, graph.Deployment.Key, Now);
         var variant = await ctx.GetStrategyCatalogAsync(graph.Variant.Key);
         await ctx.RetireStrategyCatalogAsync(graph.Variant.Key, variant!.ContentHash, Now, "retirement-test");
-        await FluentActions.Invoking(() => ctx.GetPublishedStrategyDeploymentAsync(graph.Deployment.Key, Now))
+        await FluentActions.Invoking(() => Qualification(ctx).ReadPublishedAsync(ctx, graph.Deployment.Key, Now))
             .Should().ThrowAsync<InvalidOperationException>().WithMessage("*not effective and Published*");
         var historical = await ctx.GetStrategyCatalogAsync(graph.Variant.Key);
         historical!.ContentHash.Should().Be(variant.ContentHash);
@@ -209,7 +273,7 @@ public sealed class StrategyCatalogDbTests(MarketConditionConfigurationDbFixture
         await Publish(ctx, variant);
         var deployment = graph.Deployment with { Key = Key(StrategyCatalogKind.Deployment), Code = "Mismatch-" + Guid.NewGuid().ToString("N"), Variants = [variant.Key] };
         var hash = await ctx.InsertStrategyCatalogDraftAsync(deployment, 0, "catalog-tests");
-        await FluentActions.Invoking(() => ctx.PublishStrategyCatalogAsync(deployment.Key, hash, Now, "catalog-tests"))
+        await FluentActions.Invoking(() => Qualification(ctx).PublishAsync(ctx, deployment.Key, hash, Now, "catalog-tests"))
             .Should().ThrowAsync<ArgumentException>().WithMessage("*not assigned*");
     }
 
@@ -223,7 +287,7 @@ public sealed class StrategyCatalogDbTests(MarketConditionConfigurationDbFixture
         (await ctx.GetStrategyCatalogAsync(invalid.Key)).Should().BeNull();
         var semantic = invalid with { Settings = Json("{\"threshold\":0.5,\"enabled\":false}") };
         var hash = await ctx.InsertStrategyCatalogDraftAsync(semantic, 0, "catalog-tests");
-        await FluentActions.Invoking(() => ctx.PublishStrategyCatalogAsync(semantic.Key, hash, Now, "catalog-tests"))
+        await FluentActions.Invoking(() => Qualification(ctx).PublishAsync(ctx, semantic.Key, hash, Now, "catalog-tests"))
             .Should().ThrowAsync<ArgumentException>().WithMessage("*fixture semantic*");
     }
 
@@ -233,7 +297,7 @@ public sealed class StrategyCatalogDbTests(MarketConditionConfigurationDbFixture
         var ctx = Context(); var graph = await Graph(ctx);
         var badProduct = graph.Deployment with { Key = Key(StrategyCatalogKind.Deployment), Code = "BadProduct-" + Guid.NewGuid().ToString("N"), Products = [new(101, "NQ", "CME", "USD")] };
         var hash = await ctx.InsertStrategyCatalogDraftAsync(badProduct, 0, "catalog-tests");
-        await FluentActions.Invoking(() => ctx.PublishStrategyCatalogAsync(badProduct.Key, hash, Now, "catalog-tests"))
+        await FluentActions.Invoking(() => Qualification(ctx).PublishAsync(ctx, badProduct.Key, hash, Now, "catalog-tests"))
             .Should().ThrowAsync<ArgumentException>().WithMessage("*fixture product*");
         var badParameter = graph.Deployment with
         {
@@ -242,7 +306,7 @@ public sealed class StrategyCatalogDbTests(MarketConditionConfigurationDbFixture
             PipelineParameters = [new("selection", CatalogPipelineParameterKind.TradeSelection, Guid.NewGuid(), 1, new string('a', 64))]
         };
         hash = await ctx.InsertStrategyCatalogDraftAsync(badParameter, 0, "catalog-tests");
-        await FluentActions.Invoking(() => ctx.PublishStrategyCatalogAsync(badParameter.Key, hash, Now, "catalog-tests"))
+        await FluentActions.Invoking(() => Qualification(ctx).PublishAsync(ctx, badParameter.Key, hash, Now, "catalog-tests"))
             .Should().ThrowAsync<InvalidOperationException>().WithMessage("*Pipeline parameter reference*");
     }
 
@@ -252,8 +316,8 @@ public sealed class StrategyCatalogDbTests(MarketConditionConfigurationDbFixture
         var ctx = Context(); var graph = await Graph(ctx);
         var future = graph.Deployment with { Key = graph.Deployment.Key with { Version = 2 } };
         var hash = await ctx.InsertStrategyCatalogDraftAsync(future, 1, "catalog-tests");
-        await ctx.PublishStrategyCatalogAsync(future.Key, hash, Now.AddDays(1), "catalog-tests");
-        await FluentActions.Invoking(() => ctx.GetPublishedStrategyDeploymentAsync(future.Key, Now)).Should().ThrowAsync<InvalidOperationException>();
+        await Qualification(ctx).PublishAsync(ctx, future.Key, hash, Now.AddDays(1), "catalog-tests");
+        await FluentActions.Invoking(() => Qualification(ctx).ReadPublishedAsync(ctx, future.Key, Now)).Should().ThrowAsync<InvalidOperationException>();
         string? cursor = null; var found = new List<StrategyCatalogSummary>();
         while (true)
         {
@@ -310,7 +374,7 @@ public sealed class StrategyCatalogDbTests(MarketConditionConfigurationDbFixture
         (await ctx.GetStrategyCatalogAsync(d.Key))!.Status.Should().Be(CatalogLifecycleStatus.Published);
         async Task<bool> TryPublish()
         {
-            try { await ctx.PublishStrategyCatalogAsync(d.Key, hash, Now, "catalog-tests"); return true; }
+            try { await Qualification(ctx).PublishAsync(ctx, d.Key, hash, Now, "catalog-tests"); return true; }
             catch (InvalidOperationException) { return false; }
         }
     }
@@ -325,7 +389,7 @@ public sealed class StrategyCatalogDbTests(MarketConditionConfigurationDbFixture
     static async Task Publish(ConfigurationDbContext ctx, StrategyCatalogDefinition d)
     {
         var hash = await ctx.InsertStrategyCatalogDraftAsync(d, 0, "catalog-tests");
-        await ctx.PublishStrategyCatalogAsync(d.Key, hash, Now.AddMinutes(-1), "catalog-tests");
+        await Qualification(ctx).PublishAsync(ctx, d.Key, hash, Now.AddMinutes(-1), "catalog-tests");
     }
 
     static async Task<GraphFixture> Graph(ConfigurationDbContext ctx)
@@ -360,12 +424,12 @@ public sealed class StrategyCatalogDbTests(MarketConditionConfigurationDbFixture
                 throw new ArgumentException("Rejected by fixture semantic parameter validator.");
         }
     }
-    sealed class FixtureReferences : IStrategyCatalogReferences
+    sealed class FixtureReferences(Func<CancellationToken, Task>? probe = null) : IStrategyCatalogReferences
     {
         public Task ValidateProductAsync(CatalogProduct product, CancellationToken cancellationToken)
         {
             if (product != new CatalogProduct(101, "ES", "CME", "USD")) throw new ArgumentException("Invalid fixture product.");
-            return Task.CompletedTask;
+            return probe?.Invoke(cancellationToken) ?? Task.CompletedTask;
         }
         public Task ValidateLegacyFamilyAsync(CatalogLegacyFamily family, StrategyCatalogDefinition deployment, CancellationToken cancellationToken)
         {

@@ -1,3 +1,4 @@
+using ISequenceIdDbContext = TomasAI.IFM.Shared.Identity.ISequenceIdDbContext;
 using TomasAI.IFM.Shared.Identity;
 using System;
 using System.Collections.Generic;

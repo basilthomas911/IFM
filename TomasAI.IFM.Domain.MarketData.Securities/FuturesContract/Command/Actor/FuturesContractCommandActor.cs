@@ -108,7 +108,8 @@ public class FuturesContractCommandActor(
     {
         [AddFuturesContractCommand.Verb] = msg => msg.AsCommand<AddFuturesContractCommand>()!,
         [ChangeFuturesContractCommand.Verb] = msg => msg.AsCommand<ChangeFuturesContractCommand>()!,
-        [RemoveFuturesContractCommand.Verb] = msg => msg.AsCommand<RemoveFuturesContractCommand>()!
+        [RemoveFuturesContractCommand.Verb] = msg => msg.AsCommand<RemoveFuturesContractCommand>()!,
+        [ReplaceFuturesRolloverSetCommand.Verb] = msg => msg.AsCommand<ReplaceFuturesRolloverSetCommand>()!
     };
 
     /// <summary>
@@ -142,7 +143,8 @@ public class FuturesContractCommandActor(
     {
         [typeof(AddFuturesContractCommand)] = (cmd, context, state) => (cmd as AddFuturesContractCommand)!.Execute(state),
         [typeof(ChangeFuturesContractCommand)] = (cmd, context, state) => (cmd as ChangeFuturesContractCommand)!.Execute(state),
-        [typeof(RemoveFuturesContractCommand)] = (cmd, context, state) => (cmd as RemoveFuturesContractCommand)!.Execute(state)
+        [typeof(RemoveFuturesContractCommand)] = (cmd, context, state) => (cmd as RemoveFuturesContractCommand)!.Execute(state),
+        [typeof(ReplaceFuturesRolloverSetCommand)] = static (cmd, context, state) => ((ReplaceFuturesRolloverSetCommand)cmd).Execute(state)
     };
 
     /// <summary>
@@ -165,6 +167,7 @@ public class FuturesContractCommandActor(
         IsArgumentNull.Check(threadId);
         IsArgumentNull.Check(command);
         ValidateMappedCommand(command, _validationMap);
+        if (command is ReplaceFuturesRolloverSetCommand) return;
 
         var refLookupService = Context.ReferenceLookupService;
         await refLookupService.EnsureLoadedAsync(cancellationToken).ConfigureAwait(false);
@@ -193,6 +196,12 @@ public class FuturesContractCommandActor(
                     .ValidateCommandId(e.CommandId, e.CommandName)
                     .ValidateEntityId(e.EntityId, e.CommandName)
                     .ValidateFuturesContractEntityId(e.ContractId);
+            },
+            [typeof(ReplaceFuturesRolloverSetCommand)] = static cmd =>
+            {
+                var command = (ReplaceFuturesRolloverSetCommand)cmd;
+                return new List<ValidationError>().ValidateCommandId(command.CommandId, command.CommandName)
+                    .ValidateEntityId(command.EntityId, command.CommandName);
             },
             [typeof(RemoveFuturesContractCommand)] = static cmd =>
             {

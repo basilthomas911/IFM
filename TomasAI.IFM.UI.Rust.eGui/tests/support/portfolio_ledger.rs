@@ -146,6 +146,9 @@ async fn portfolio_ledger_dialogs_match_managed_forms() {
         "risk-policy",
         "discard-policy",
     ] {
+        // Match the managed oracle's empty policy store independently of any
+        // preceding test leaving the responder in populated Policy mode.
+        mode(&backend, "PortfolioMode", "Normal").await;
         let mut state = controller();
         let mut p = act(&mut state, &backend, &registry, 0, "load", json!({})).await;
         let root = if view.contains("version") {

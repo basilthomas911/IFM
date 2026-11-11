@@ -39,7 +39,7 @@ public sealed class FuturesContractRolloverStartupIntegrationTests(
             new DatabentoMarketDataApiOptions(),
             clock,
             resolver,
-            fixture.Db);
+            fixture.RolloverStore);
         var runtimeOptions = new DatabentoMarketDataRuntimeOptions
         {
             FeedOptions = DatabentoFeedOptions.ForProfile(
@@ -51,7 +51,7 @@ public sealed class FuturesContractRolloverStartupIntegrationTests(
         };
         var registry = new DatabentoContractRegistrationRegistry([], runtimeOptions);
         var check = new FuturesContractRolloverStartupCheck(
-            api, fixture.Db, clock, runtimeOptions, registry);
+            api, fixture.RolloverStore, clock, runtimeOptions, registry);
 
         var first = await check.ExecuteAsync(ValueDate);
         var second = await check.ExecuteAsync(ValueDate);
@@ -62,7 +62,7 @@ public sealed class FuturesContractRolloverStartupIntegrationTests(
             Contracts = []
         };
         var syntheticCheck = new FuturesContractRolloverStartupCheck(
-            api, fixture.Db, clock, syntheticOptions, registry);
+            api, fixture.RolloverStore, clock, syntheticOptions, registry);
         var synthetic = await syntheticCheck.ExecuteAsync(new DateOnly(2026, 9, 15));
         var dueWithoutReplacement = () => syntheticCheck.ExecuteAsync(new DateOnly(2026, 9, 16));
         await dueWithoutReplacement.Should().ThrowAsync<FuturesContractRolloverConfigurationException>()
@@ -119,7 +119,7 @@ public sealed class FuturesContractRolloverStartupIntegrationTests(
             new DatabentoMarketDataApiOptions(),
             clock,
             resolver,
-            fixture.Db);
+            fixture.RolloverStore);
 
         var set = await api.UpdateOnTheRunFuturesContractAsync("ES", ValueDate);
         var skipped = await api.UpdateOnTheRunFuturesContractAsync("ES", ValueDate);
@@ -143,7 +143,7 @@ public sealed class FuturesContractRolloverStartupIntegrationTests(
             new DatabentoMarketDataApiOptions(),
             clock,
             resolver,
-            fixture.Db);
+            fixture.RolloverStore);
         await api.UpdateOnTheRunFuturesContractAsync("ES", ValueDate);
 
         var advanced = await api.UpdateOnTheRunFuturesContractAsync(
@@ -175,7 +175,7 @@ public sealed class FuturesContractRolloverStartupIntegrationTests(
             new DatabentoMarketDataApiOptions(),
             clock,
             resolver,
-            fixture.Db);
+            fixture.RolloverStore);
         await api.UpdateFuturesTermStructureContractsAsync("VX", ValueDate);
 
         var advanced = await api.UpdateFuturesTermStructureContractsAsync(
@@ -210,7 +210,7 @@ public sealed class FuturesContractRolloverStartupIntegrationTests(
             new DatabentoMarketDataApiOptions(),
             clock,
             resolver,
-            fixture.Db);
+            fixture.RolloverStore);
 
         await api.UpdateOnTheRunFuturesContractAsync("ES", ValueDate);
         await api.UpdateFuturesTermStructureContractsAsync("VX", ValueDate);
@@ -275,8 +275,8 @@ public sealed class FuturesContractRolloverStartupIntegrationTests(
         };
 
         await Task.WhenAll(
-            fixture.Db.ReplaceFuturesRolloverSetAsync(pointer, [front, back]),
-            fixture.Db.ReplaceFuturesRolloverSetAsync(pointer, [back, front]));
+            fixture.RolloverStore.ReplaceFuturesRolloverSetAsync(pointer, [front, back]),
+            fixture.RolloverStore.ReplaceFuturesRolloverSetAsync(pointer, [back, front]));
 
         var actual = (await fixture.Db.GetRolloverFuturesContractsAsync("VX"))
             .OrderBy(contract => contract.LastTradeDate)
@@ -301,7 +301,7 @@ public sealed class FuturesContractRolloverStartupIntegrationTests(
             new DatabentoMarketDataApiOptions(),
             clock,
             resolver,
-            fixture.Db);
+            fixture.RolloverStore);
         var runtimeOptions = new DatabentoMarketDataRuntimeOptions
         {
             FeedOptions = DatabentoFeedOptions.ForProfile(
@@ -312,7 +312,7 @@ public sealed class FuturesContractRolloverStartupIntegrationTests(
             Contracts = []
         };
         var check = new FuturesContractRolloverStartupCheck(
-            api, fixture.Db, clock, runtimeOptions);
+            api, fixture.RolloverStore, clock, runtimeOptions);
 
         var act = () => check.ExecuteAsync(ValueDate);
 
@@ -331,7 +331,7 @@ public sealed class FuturesContractRolloverStartupIntegrationTests(
             new DatabentoMarketDataApiOptions(),
             clock,
             resolver,
-            fixture.Db);
+            fixture.RolloverStore);
         DatabentoContractRegistration[] registrations =
         [
             new()
@@ -368,7 +368,7 @@ public sealed class FuturesContractRolloverStartupIntegrationTests(
         var registry = new DatabentoContractRegistrationRegistry(
             registrations, runtimeOptions);
         var check = new FuturesContractRolloverStartupCheck(
-            api, fixture.Db, clock, runtimeOptions, registry);
+            api, fixture.RolloverStore, clock, runtimeOptions, registry);
 
         var rows = await check.ExecuteAsync(new DateOnly(2026, 8, 19));
 
@@ -426,7 +426,7 @@ public sealed class FuturesContractRolloverStartupIntegrationTests(
             nameof(FuturesContractRolloverStartupIntegrationTests));
         foreach (var assignment in _originalAssignments)
         {
-            await fixture.Db.ReplaceFuturesRolloverSetAsync(
+            await fixture.RolloverStore.ReplaceFuturesRolloverSetAsync(
                 assignment.Rollover,
                 assignment.Contracts);
         }

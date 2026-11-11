@@ -97,7 +97,12 @@ impl PortfolioController {
         if self.editing_policy.is_some() {
             return Err("Save or cancel the policy working copy first".into());
         }
-        if !self.dialogs.is_empty() {
+        // Financials/Risk History are embedded Fund views, not modal working copies.
+        // Keep them available underneath an editor, while protecting every actual draft/dialog.
+        if self.editing.is_some() || self.dialogs.iter().any(|dialog| {
+            !(self.inline_fund_view.as_deref() == Some(dialog.key.as_str()) &&
+                matches!(dialog.key.as_str(), "financials" | "risk-history"))
+        }) {
             return Err("Close the current editor before opening another".into());
         }
         if view == "risk-policy" {
@@ -141,7 +146,7 @@ impl PortfolioController {
             "financials" => {
                 return self.open_financials(backend, registry, deadline).await;
             }
-            "new-fund" | "version-fund" | "allocation" | "envelope" | "assignment" => {
+            "new-fund" | "version-fund" | "allocation" | "envelope" | "assignment" | "base-contracts" => {
                 self.open_fund_editor(backend, registry, view, &context, deadline)
                     .await?
             }
@@ -397,7 +402,7 @@ impl PortfolioController {
         self.data.context = Some(context.clone());
         if matches!(
             view.as_str(),
-            "new-fund" | "version-fund" | "allocation" | "envelope" | "assignment"
+            "new-fund" | "version-fund" | "allocation" | "envelope" | "assignment" | "base-contracts"
         ) {
             return self
                 .save_fund_editor(backend, registry, &view, intent, &context, deadline)

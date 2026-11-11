@@ -236,7 +236,7 @@ public sealed class ResidentPilotDatabase(string? existingTestConnection = null)
 
     public async ValueTask DisposeAsync()
     {
-        if (Events is not null) await Events.DisposeAsync().ConfigureAwait(false);
+        if (Events is not null) await ((IAsyncDisposable)Events).DisposeAsync().ConfigureAwait(false);
         if (existingTestConnection is null) await infrastructure.DisposeAsync().ConfigureAwait(false);
     }
 }

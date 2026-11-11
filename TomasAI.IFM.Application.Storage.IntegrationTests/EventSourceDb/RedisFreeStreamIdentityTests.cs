@@ -33,7 +33,7 @@ public sealed class RedisFreeStreamIdentityTests(EventSourceActorSnapshotRangeFi
         var stream = "RedisRemoval.Restore." + Guid.NewGuid().ToString("N");
         var oldOwner = fixture.CreateActorEventDb();
         var previousId = await oldOwner.GetEventStreamIdAsync(stream);
-        await oldOwner.DisposeAsync();
+        await ((IAsyncDisposable)oldOwner).DisposeAsync();
         await using var connection = new NpgsqlConnection(fixture.ConnectionString);
         await connection.OpenAsync();
         // This fixture stream contains no events. Replacing its metadata simulates the identity boundary

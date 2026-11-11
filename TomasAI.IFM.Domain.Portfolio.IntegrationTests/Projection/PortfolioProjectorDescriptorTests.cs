@@ -35,7 +35,7 @@ public sealed class PortfolioProjectorDescriptorTests
             typeof(FundAddedToPortfolioEvent), typeof(PortfolioRetiredEvent), typeof(FundAllocationDelegatedEvent), typeof(FundRiskEnvelopeDelegatedEvent),
             typeof(DraftPortfolioDeletedEvent), typeof(PortfolioFinancialPolicyAssignedEvent)]);
         fund.ProjectedEventTypes.Should().BeEquivalentTo([
-            typeof(FundMandateCreatedEvent), typeof(FundMandateVersionAddedEvent), typeof(FundOperatingStateChangedEvent),
+            typeof(FundBaseContractsConfiguredEvent), typeof(FundMandateCreatedEvent), typeof(FundMandateVersionAddedEvent), typeof(FundOperatingStateChangedEvent),
             typeof(FundTradeTemplateAssignedEvent), typeof(FundCompositionReservedEvent), typeof(FundCompositionStateChangedEvent),
             typeof(FundManualOrderChangedEvent), typeof(FundManualOrderDeletedEvent)]);
         policy.ProjectedEventTypes.Should().BeEquivalentTo([

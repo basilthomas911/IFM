@@ -73,7 +73,7 @@ public class MarketDataFeedQueryApiTests(TomasAI.IFM.IntegrationTesting.KestrelW
 
         await dbFixture.MarketDataDb.DeleteFuturesEodDataAsync(eodData.ContractId, eodData.ValueDate);
         await dbFixture.MarketDataDb.InsertFuturesEodDataIndexAsync(eodDataIndex);
-        await dbFixture.MarketDataDb.InsertFuturesEodDataAsync(eodData);
+        await dbFixture.MarketDataDb.InsertFuturesEodDataAsync(eodData, 1);
 
         // act...
         var marketDataFeedApi = new MarketDataFeedQueryApi(_actorProducer);

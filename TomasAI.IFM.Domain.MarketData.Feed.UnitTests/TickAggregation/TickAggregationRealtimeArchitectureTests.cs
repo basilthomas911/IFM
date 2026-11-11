@@ -204,6 +204,7 @@ public sealed class TickAggregationRealtimeArchitectureTests
     {
         var projector = new FuturesEodDataRealtimeProjector(
             Substitute.For<IDbContextFactory>(),
+            Substitute.For<TomasAI.IFM.Framework.SequenceId.ISequenceIdGenerator>(),
             Substitute.For<ILogger<FuturesEodDataRealtimeProjector>>());
 
         projector.Should().BeAssignableTo<IRealtimeProjector<FuturesEodDataRealtimeActor>>();
@@ -228,8 +229,10 @@ public sealed class TickAggregationRealtimeArchitectureTests
         var marketDataDb = Substitute.For<IMarketDataDbContext>();
         var dbFactory = Substitute.For<IDbContextFactory>();
         dbFactory.MarketDataDb.Returns(marketDataDb);
+        var sequences = Substitute.For<TomasAI.IFM.Framework.SequenceId.ISequenceIdGenerator>();
+        sequences.GetSequenceIdAsync(TomasAI.IFM.Shared.Identity.SequenceName.FuturesIntraDay_SequenceId).Returns(10L, 11L);
         var projector = new FuturesEodDataRealtimeProjector(
-            dbFactory,
+            dbFactory, sequences,
             Substitute.For<ILogger<FuturesEodDataRealtimeProjector>>());
         var tradeRow = new FuturesEodDataV2ReadModel
         {
@@ -250,7 +253,7 @@ public sealed class TickAggregationRealtimeArchitectureTests
                 descriptor.SourceEventType == typeof(FuturesEodSessionStatisticsUpdatedEvent))
             .ApplyAsync(new FuturesEodSessionStatisticsUpdatedEvent { FuturesEodData = correctedRow }, CancellationToken.None);
 
-        await marketDataDb.Received(1).InsertFuturesEodDataAsync(tradeRow);
-        await marketDataDb.Received(1).InsertFuturesEodDataAsync(correctedRow);
+        await marketDataDb.Received(1).InsertFuturesEodDataAsync(tradeRow, 10);
+        await marketDataDb.Received(1).InsertFuturesEodDataAsync(correctedRow, 11);
     }
 }

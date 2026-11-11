@@ -12,6 +12,7 @@ public static class GetMarketDataDownloadHistory
         {
             ArgumentNullException.ThrowIfNull(db);
             ArgumentNullException.ThrowIfNull(query);
+            MarketDataDownloadReadRequests.ValidateSelection(query.Request, query.PageSize, query.Cursor);
             return db.MarketDataDb.GetMarketDataDownloadHistoryAsync(query.Request, query.PageSize, query.Cursor, cancellationToken);
         }
     }

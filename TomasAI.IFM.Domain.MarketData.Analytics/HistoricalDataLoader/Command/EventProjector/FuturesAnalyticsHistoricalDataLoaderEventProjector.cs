@@ -38,8 +38,11 @@ public sealed class FuturesAnalyticsHistoricalDataLoaderEventProjector(
     public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors => descriptors;
 
     static Task ProjectAsync(IDbContextFactory db, FuturesAnalyticsHistoricalDataLoaderDiagnosticsReadModel diagnostics,
-        long eventId, CancellationToken token) =>
-        db.MarketDataDb.UpsertHistoricalAnalyticsAttemptProjectionAsync(diagnostics, eventId, token);
+        long eventId, CancellationToken token)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(eventId);
+        return db.MarketDataDb.UpsertHistoricalAnalyticsAttemptProjectionAsync(diagnostics, eventId, token);
+    }
 
     static FuturesAnalyticsHistoricalDataLoaderDiagnosticsReadModel Requested(FuturesAnalyticsHistoricalDataLoaderRequestedEvent fact) => new()
     {

@@ -9,7 +9,9 @@ namespace TomasAI.IFM.Application.Storage;
 public interface IEventSourceActorDbContext :
     IObjectRepository<EventSourceDb.EventSourceActorDbContext>,
     EventSourceDb.IEventSourceActorDbReadContext,
-    EventSourceDb.IEventSourceActorDbWriteContext
+    EventSourceDb.IEventSourceActorDbWriteContext,
+    IDisposable,
+    IAsyncDisposable
 {
     /// <summary>Business clock shared by persistence and cold projector replay; IO leases remain physical.</summary>
     TimeProvider BusinessClock => TimeProvider.System;

@@ -6,6 +6,7 @@ using System.Linq;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
+using TomasAI.IFM.Application.Storage.TradeTickQuoteDb;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
 using Xunit;
@@ -36,19 +37,15 @@ public sealed class ScyllaDbPositionalParameterCatalogTests
             ["GetReferenceVersionHistory:page_limit"] = "pageLimit"
         };
 
-    [Theory]
-    // ReferenceDb is PostgreSQL-only now; its CQL catalog was removed during migration.
-    [InlineData("SecuritiesDb", "SecuritiesDbCql")]
-    [InlineData("MarketDataDb", "MarketDataDbCql")]
-    public void EveryScyllaParameterCatalogBinding_MatchesCqlMarkerOrder(
-        string catalogNamespace,
-        string cqlTypeName)
+    static void VerifyScyllaParameterCatalogBindings(string catalogNamespace, string cqlTypeName)
     {
         var namespaceName = $"TomasAI.IFM.Application.Storage.{catalogNamespace}";
         var cqlType = StorageAssembly.GetType($"{namespaceName}.{cqlTypeName}", throwOnError: true)!;
         var bindTypes = StorageAssembly.GetTypes()
             .Where(type => type.Namespace == namespaceName && typeof(IBindValue).IsAssignableFrom(type))
             .Where(type => !IsOpaqueBindingAdapter(type))
+            // Quote ownership and positional binding are exercised together by TickQuoteParameterOwnershipTests.
+            .Where(type => type != typeof(InsertTickQuoteData))
             .Where(type => !typeof(TomasAI.IFM.Framework.Storage.ScyllaDb.IScyllaOwnedBindValues).IsAssignableFrom(type))
             .Where(type => cqlType.GetField(
                 CqlAliases.GetValueOrDefault(type.Name, type.Name),
@@ -63,7 +60,7 @@ public sealed class ScyllaDbPositionalParameterCatalogTests
 
     [Fact]
     public void Raw_tick_quote_bindings_match_cql_marker_order()
-        => EveryScyllaParameterCatalogBinding_MatchesCqlMarkerOrder("TradeTickQuoteDb", "TradeTickQuoteDbCql");
+        => VerifyScyllaParameterCatalogBindings("TradeTickQuoteDb", "TradeTickQuoteDbCql");
 
     static bool IsOpaqueBindingAdapter(Type type)
     {

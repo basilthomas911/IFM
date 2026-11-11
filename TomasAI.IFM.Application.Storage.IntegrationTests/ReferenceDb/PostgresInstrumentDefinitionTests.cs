@@ -56,6 +56,17 @@ public sealed class PostgresInstrumentDefinitionTests(PostgresTradePlanFixture f
             var row = ExactInstrumentDefinition.Parse("GLBX.MDP3", """
                 {"hd":{"rtype":19,"publisher_id":1,"instrument_id":42002230,"ts_event":"1788089407203111341"},"ts_recv":"1788480000000000000","raw_symbol":"OZRU7 P2020","asset":"OZR","instrument_class":"P","underlying_id":42000681,"currency":"USD","exchange":"XCBT","expiration":"1819390800000000000","activation":"1784928600000000000","strike_price":"2020000000000","high_limit_price":"9223372036854775807","unknown_future_field":{"x":"keep exactly"}}
                 """);
+            var batchId=Guid.NewGuid();
+            await ((IInstrumentDefinitionBatchStore)store).InsertBatchAsync(batchId,127,[row,row,row],token);
+            await ((IInstrumentDefinitionBatchStore)store).InsertBatchAsync(batchId,127,[row,row,row],token);
+            Assert.Equal(row.Json, await db.GetInstrumentDefinitionJsonAsync(batchId,"GLBX.MDP3",127,127,token));
+            Assert.Equal(row.Json, await Context().GetInstrumentDefinitionJsonAsync(batchId,"GLBX.MDP3",0,128,token));
+            Assert.Null(await db.GetInstrumentDefinitionJsonAsync(batchId,"XCBF.PITCH",127,127,token));
+            foreach(var bucket in new[]{127,0,1}) {
+                var batchRows=new List<string>();
+                await foreach(var json in store.ReadJsonAsync(batchId,"GLBX.MDP3",bucket,token)) batchRows.Add(json);
+                Assert.Equal(row.Json,Assert.Single(batchRows));
+            }
             var first = new InstrumentDefinitionSnapshot(Guid.NewGuid(), DateTime.UtcNow, 1, ["GLBX.MDP3"]);
             await store.InsertAsync(first.Id, 0, row, token);
             await store.IndexSelectionAsync(InstrumentDefinitionSelectionMapper.Map(first.Id, 0, row), token);
@@ -81,6 +92,24 @@ public sealed class PostgresInstrumentDefinitionTests(PostgresTradePlanFixture f
             Assert.Equal(second.Id, (await restarted.GetSnapshotAsync(token))!.Id);
             Assert.Equal(symbol.Id, Assert.Single((await catalog.GetAsync(TradeStrategyFamilyType.FuturesOption, token)).Value!).Id);
             Assert.Single((await catalog.GetAsync(TradeStrategyFamilyType.Futures, token)).Value!);
+            // Exchange labels are independent of stable product identities and publication events.
+            var admin = new Admin(settings[ReferenceDbContext.ReferenceDbConnection], logger);
+            await admin.Use("Labels.Verified", """
+                INSERT INTO reference.product_description(source,exchange,family,symbol,contract,description,resolved,source_uri,source_sha256)
+                VALUES('CME','XCBT',1,'ZR','','Rough Rice Futures',true,'https://www.cmegroup.com/source',repeat('a',64)),
+                      ('CFE','XCBF',1,'VX','VX/X6','VX Monthly Nov 2026',true,'https://cdn.cboe.com/source',repeat('b',64));
+                """).ExecuteCommandAsync(token);
+            Assert.Equal("Rough Rice Futures", Assert.Single((await new StoredInstrumentDefinitionSymbolCatalog(Store()).GetAsync(TradeStrategyFamilyType.Futures, token)).Value!).Description);
+            Assert.Equal("ZR futures options", Assert.Single((await catalog.GetAsync(TradeStrategyFamilyType.FuturesOption, token)).Value!).Description);
+            Assert.Equal("VX Monthly Nov 2026", (await db.GetContractDescriptionsAsync("XCBF", "VX", token))["VX/X6"]);
+            Assert.Empty(await db.GetContractDescriptionsAsync("XCME", "VX", token));
+            await admin.Use("Labels.Conflict", """
+                INSERT INTO reference.product_description(source,exchange,family,symbol,contract,description,resolved,source_uri,source_sha256)
+                VALUES('Other','XCBT',1,'ZR','','Conflicting name',true,'https://www.cmegroup.com/other',repeat('c',64));
+                """).ExecuteCommandAsync(token);
+            Assert.Equal("ZR futures", Assert.Single((await catalog.GetAsync(TradeStrategyFamilyType.Futures, token)).Value!).Description);
+            Assert.Equal(second.Id, (await restarted.GetSnapshotAsync(token))!.Id);
+
         }
         finally
         {

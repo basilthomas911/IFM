@@ -21,11 +21,14 @@ public sealed class FuturesTickDataEventProjector(
         DescribeNotification<FuturesTickDataStreamingStartedEvent, FuturesTickDataStreamingId>(useDurableReplay: false),
         DescribeNotification<FuturesTickDataStreamingStoppedEvent, FuturesTickDataStreamingId>(useDurableReplay: false),
         Describe<FuturesTickDataInsertedEvent, FuturesTickDataInsertedCompleteEvent, FuturesTickDataInsertedFailEvent, FuturesTickDataId>(
-            (e, context) => actorContext.DbFactory.MarketDataDb.InsertFuturesTickDataAsync(
-                e.TickData with
+            (e, context) =>
+            {
+                RawTickRequestQualification.RequireScope(e.TickData.ContractId, e.TickData.ValueDate);
+                return actorContext.DbFactory.MarketDataDb.InsertFuturesTickDataAsync(e.TickData with
                 {
                     TickId = e.TickData.TickId > 0 ? e.TickData.TickId : context.EventId
-                }))
+                });
+            })
     ];
     public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors => _descriptors;
 }

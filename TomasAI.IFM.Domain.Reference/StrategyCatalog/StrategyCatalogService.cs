@@ -1,3 +1,5 @@
+using TomasAI.IFM.Application.Strategy.StrategyCatalog;
+using TomasAI.IFM.Application.Storage.ConfigurationDb;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.Strategy.Contracts.Shared.Canonical;
 using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
@@ -10,11 +12,13 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.Reference.StrategyCatalog;
 
 /// <summary>Coordinates catalog source-event acceptance, durable projection, and projected reads.</summary>
-public sealed class StrategyCatalogService(IDbContextFactory factory, IPostgresEventTransaction? transactions = null, TimeProvider? timeProvider = null)
+public sealed class StrategyCatalogService(IDbContextFactory factory, IPostgresEventTransaction? transactions = null, TimeProvider? timeProvider = null,
+    StrategyCatalogQualification? qualification = null)
 {
     public async Task ExecuteEventSourcedAsync(CatalogCommandRequest request, string principal,
         IEventProjector<StrategyCatalogCommandActor> projector, ActorEntityId entityId, CancellationToken token)
     {
+        ArgumentNullException.ThrowIfNull(request);
         var key = request.Operation == CatalogCommandOperation.SaveDraft ? request.Definition?.Key : request.Key;
         if (key is null || StrategyCatalogLifecycleCommand.Address(key) != entityId)
             throw new InvalidOperationException("Catalog command route does not match its version identity.");
@@ -22,18 +26,70 @@ public sealed class StrategyCatalogService(IDbContextFactory factory, IPostgresE
         var database = factory.ConfigurationDb;
         if (PostgresDatabaseIdentity.Parse(database.ConnectionString) != PostgresDatabaseIdentity.Parse(factory.ActorEventSourceDb.ConnectionString))
             throw new InvalidOperationException("Strategy catalog and source events must share one PostgreSQL database/security identity.");
-        var fact = await unitOfWork.ExecuteOnceAsync((transaction, cancellationToken) =>
-            database.RecordStrategyCatalogTransitionAsync(transaction, request, principal, cancellationToken), token).ConfigureAwait(false);
+        var fact = await CommitAsync(database, unitOfWork, request, principal, entityId, timeProvider, token, qualification)
+            .ConfigureAwait(false);
         if (fact is null)
             return;
         await projector.ProcessDomainEventAsync(fact).ConfigureAwait(false);
         await projector.DomainEventsProjectionAsync(new DomainEventCollection([fact])).ConfigureAwait(false);
     }
 
+    /// <summary>Commits the owning actor's accepted catalog fact before durable projection can run.</summary>
+    public static async Task<StrategyCatalogSourceEvent?> CommitAsync(IConfigurationDbContext database,
+        IPostgresEventTransaction unitOfWork, CatalogCommandRequest request, string principal, ActorEntityId entityId,
+        TimeProvider? timeProvider, CancellationToken token = default, StrategyCatalogQualification? qualification = null)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentException.ThrowIfNullOrWhiteSpace(principal);
+        var stream = $"StrategyCatalog.{entityId.Format()}";
+        StrategyCatalogPublicationProof? publication = null;
+        if (request.Operation == CatalogCommandOperation.Publish && request.Key is { } key
+            && request.ExpectedHash is { } hash && request.EffectiveUtc is { } effective)
+        {
+            var receipt = await database.ReadCommittedStrategyCatalogOperationAsync(stream, request.OperationId, token)
+                .ConfigureAwait(false);
+            if (receipt is not null)
+            {
+                if (!string.Equals(receipt.RequestJson, StrategyCatalogJson.Write(request), StringComparison.Ordinal)
+                    || !string.Equals(receipt.Principal, principal, StringComparison.Ordinal))
+                    throw new InvalidOperationException("Catalog operation identity was reused with different input.");
+                return null;
+            }
+            var previous = await database.GetStrategyCatalogAsync(key, token).ConfigureAwait(false);
+            if (!(previous is { Status: CatalogLifecycleStatus.Published } && previous.EffectiveFromUtc == effective
+                  && string.Equals(previous.ContentHash, hash, StringComparison.Ordinal) && string.Equals(previous.PublishedBy, principal, StringComparison.Ordinal)))
+                publication = await (qualification ?? new StrategyCatalogQualification()).PreparePublicationAsync(database, key, hash, effective, token)
+                    .ConfigureAwait(false);
+        }
+        return await unitOfWork.ExecuteOnceAsync<StrategyCatalogSourceEvent?>(async (transaction, cancellationToken) =>
+        {
+            var prepared = await database.PrepareStrategyCatalogTransitionAsync(
+                transaction, request, principal, stream, publication, cancellationToken).ConfigureAwait(false);
+            if (prepared is null) return null;
+            var source = new StrategyCatalogSourceEvent
+            {
+                Subject = new ActorSubject(ActorType.Event, "StrategyCatalogEvent", request.Operation.ToString(), entityId.Format()),
+                EntityId = entityId, Id = request.OperationId, CommandId = request.OperationId,
+                AggregateId = entityId.Format(), EventSource = "StrategyCatalogCommandActor",
+                ReceivedOn = (timeProvider ?? TimeProvider.System).GetUtcNow().UtcDateTime,
+                RequestJson = prepared.RequestJson, BeforeJson = prepared.BeforeJson, AfterJson = prepared.AfterJson,
+                Principal = principal
+            };
+            var eventId = await transaction.AppendAsync(new EnlistedEventAppend(stream, request.OperationId, source, prepared.StreamVersion), cancellationToken)
+                .ConfigureAwait(false);
+            await database.MarkParameterProjectionPendingAsync(transaction, eventId, cancellationToken).ConfigureAwait(false);
+            await database.AdvanceParameterRevisionFenceAsync(transaction, cancellationToken).ConfigureAwait(false);
+            return source;
+        }, token).ConfigureAwait(false);
+    }
+
     public Task<bool> ProjectAsync(StrategyCatalogSourceEvent fact, bool rebuild, CancellationToken token)
-        => (transactions ?? throw new InvalidOperationException("Catalog event persistence is unavailable."))
+    {
+        ArgumentNullException.ThrowIfNull(fact);
+        return (transactions ?? throw new InvalidOperationException("Catalog event persistence is unavailable."))
             .ExecuteOnceAsync((transaction, cancellationToken) =>
                 factory.ConfigurationDb.ProjectStrategyCatalogSourceAsync(transaction, fact, rebuild, cancellationToken), token);
+    }
 
     public async Task<string> QueryAsync(CatalogQueryRequest request, CancellationToken ct = default)
     {
@@ -45,7 +101,7 @@ public sealed class StrategyCatalogService(IDbContextFactory factory, IPostgresE
             CatalogQueryOperation.Exact when request.Key is not null => StrategyCatalogJson.Write(await (db.GetStrategyCatalogAsync(request.Key, ct)).ConfigureAwait(false)),
             CatalogQueryOperation.DeploymentChoices => StrategyCatalogJson.Write(await (DeploymentChoices(request, ct)).ConfigureAwait(false)),
             CatalogQueryOperation.ValidatePublishedDeployment when request.Key is not null =>
-                StrategyCatalogJson.Write((await (db.GetPublishedStrategyDeploymentAsync(request.Key, new DateTime((timeProvider ?? TimeProvider.System).GetUtcNow().UtcTicks / 10 * 10, DateTimeKind.Utc), ct)).ConfigureAwait(false)).ContentHash),
+                StrategyCatalogJson.Write((await ((qualification ?? new StrategyCatalogQualification()).ReadPublishedAsync(db, request.Key, new DateTime((timeProvider ?? TimeProvider.System).GetUtcNow().UtcTicks / 10 * 10, DateTimeKind.Utc), ct)).ConfigureAwait(false)).ContentHash),
             _ => throw new ArgumentException("Unsupported catalog query.",nameof(request))
         };
     }

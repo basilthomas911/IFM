@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Application.Storage.PortfolioDb.Schema;
 using Microsoft.Extensions.Logging.Abstractions;
 using TomasAI.IFM.Domain.Portfolio.GeneralLedger.Command;
@@ -73,10 +74,10 @@ public sealed class LedgerEventOnlyRebuildTests(PortfolioEventStoreFixture fixtu
                 [Rule(LedgerTransactionKind.DepositConfirmed), Rule(LedgerTransactionKind.WithdrawalRequested), Rule(LedgerTransactionKind.Commission)],
                 new DateOnly(2020, 1, 1), new DateOnly(2099, 12, 31));
             foreach (var source in events)
-                await target.ExecuteAsync((db, ct) => db.AppendAsync("LedgerRebuild.Test." + book.BookId, source.CommandId, source,
-                    source.Receipt.FinancialRevision - 1, ct));
+                await target.ExecuteAsync((db, ct) => db.AppendAsync(new EnlistedEventAppend("LedgerRebuild.Test." + book.BookId, source.CommandId, source,
+                    source.Receipt.FinancialRevision - 1), ct));
         foreach(var source in new TomasAI.IFM.Shared.EventSourcing.IEvent[] {preparedExport,deliveredExport,capturedIntent})
-            await target.ExecuteAsync((db,ct)=>db.AppendAsync("OperationalRebuild."+source.Id,source.CommandId,source,0,ct));
+            await target.ExecuteAsync((db,ct)=>db.AppendAsync(new EnlistedEventAppend("OperationalRebuild."+source.Id,source.CommandId,source,0),ct));
         var projection = new LedgerFinancialProjection(target);
         foreach (var source in events) await projection.ReplayAsync(source);
         (await LedgerState(book.BookId, target)).Should().Be(before);
@@ -115,7 +116,7 @@ public sealed class LedgerEventOnlyRebuildTests(PortfolioEventStoreFixture fixtu
             foreach (var stream in new[] { $"Portfolio.{id}", $"PortfolioFund.{id}.{id+1}" })
             {
                 var command=Guid.NewGuid();
-                await db.AppendAsync(stream,command,new TomasAI.IFM.Domain.Portfolio.Shared.Events.PortfolioCreatedEvent(Guid.NewGuid(),command,1,DateTime.UtcNow,"integration",new()),0,ct);
+                await db.AppendAsync(new EnlistedEventAppend(stream,command,new TomasAI.IFM.Domain.Portfolio.Shared.Events.PortfolioCreatedEvent(Guid.NewGuid(),command,1,DateTime.UtcNow,"integration",new()),0),ct);
             }
             return true;
         });
@@ -153,7 +154,7 @@ public sealed class LedgerEventOnlyRebuildTests(PortfolioEventStoreFixture fixtu
             await new PortfolioFinancialSchema(target).InitializeAsync();
             var sources=new TomasAI.IFM.Shared.EventSourcing.IEvent[] { first,second,third };
             foreach (var source in sources)
-                await target.ExecuteAsync((db,ct)=>db.AppendAsync("Rebuild."+source.Id,Guid.NewGuid(),source,0,ct));
+                await target.ExecuteAsync((db,ct)=>db.AppendAsync(new EnlistedEventAppend("Rebuild."+source.Id,Guid.NewGuid(),source,0),ct));
             var configProjection=new LedgerConfigurationProjection(target);
             var ledgerProjection=new LedgerFinancialProjection(target);
             for (var pass=0;pass<2;pass++)
@@ -206,7 +207,7 @@ public sealed class LedgerEventOnlyRebuildTests(PortfolioEventStoreFixture fixtu
                 [Rule(LedgerTransactionKind.DepositConfirmed)],new(2020,1,1),new(2099,12,31));
             await target.ExecuteAsync(async(db,ct)=> { await db.ExecuteAsync("UPDATE portfolio_financial.financial_authority SET financial_revision=1 WHERE portfolio_id=$1;",[book.PortfolioId],ct);return true; });
             foreach(var source in new TomasAI.IFM.Shared.EventSourcing.IEvent[] {reserved,consumed,filled})
-                await target.ExecuteAsync((db,ct)=>db.AppendAsync("CapacityRebuild."+source.Id,Guid.NewGuid(),source,0,ct));
+                await target.ExecuteAsync((db,ct)=>db.AppendAsync(new EnlistedEventAppend("CapacityRebuild."+source.Id,Guid.NewGuid(),source,0),ct));
             var projection=new CapacityFinancialProjection(target);
             for(var pass=0;pass<2;pass++)
             {
@@ -250,7 +251,7 @@ public sealed class LedgerEventOnlyRebuildTests(PortfolioEventStoreFixture fixtu
             await new EventSourceSchemaDb(settings,NullLogger<DbProvider>.Instance).CreateAllAsync();var target=new PostgresEventTransaction(settings);await new PortfolioFinancialSchema(target).InitializeAsync();
             await new PortfolioFinancialStore(target).CreateBookAsync(book,[new(101,1,"Cash",PostingSide.Debit,true,"cash"),new(102,1,"Equity",PostingSide.Credit,true,"equity")],
                 [Rule(LedgerTransactionKind.DepositConfirmed)],new(2020,1,1),new(2099,12,31));
-            await target.ExecuteAsync((db,ct)=>db.AppendAsync("AuthorityRebuild."+source.Id,command,source,0,ct));
+            await target.ExecuteAsync((db,ct)=>db.AppendAsync(new EnlistedEventAppend("AuthorityRebuild."+source.Id,command,source,0),ct));
             var projection=new FinancialAuthorityProjection(target);await projection.ReplayAsync(source);await projection.ReplayAsync(source);
             var state=await target.ExecuteAsync((db,ct)=>db.QueryAsync("SELECT authority_epoch,financial_revision,operating_state FROM portfolio_financial.financial_authority WHERE portfolio_id=$1;",
                 [book.PortfolioId],r=>(r.GetInt64(0),r.GetInt64(1),r.GetString(2)),ct));state.Single().Should().Be((1L,1L,"NeedsRefresh"));

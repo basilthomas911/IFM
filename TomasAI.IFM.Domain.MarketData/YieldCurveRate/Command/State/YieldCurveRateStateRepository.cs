@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Persistence;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.EventSourcing.Repository;
 using Microsoft.Extensions.Logging;

@@ -25,4 +25,5 @@
   <ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.EventModelActor/TomasAI.IFM.Application.EventModelActor.csproj" /><Using Include="TomasAI.IFM.Application.EventModelActor" /></ItemGroup>
 <ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.EventSourcing/TomasAI.IFM.Application.EventSourcing.csproj" /><Using Include="TomasAI.IFM.Application.EventSourcing" /></ItemGroup>
 <ItemGroup><Using Include="TomasAI.IFM.Shared.Identity" /></ItemGroup><ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.Identity/TomasAI.IFM.Application.Identity.csproj" /></ItemGroup>  <ItemGroup><InternalsVisibleTo Include="TomasAI.IFM.Application.Storage.IntegrationTests" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.Strategy/TomasAI.IFM.Application.Strategy.csproj" /></ItemGroup>
 </Project>

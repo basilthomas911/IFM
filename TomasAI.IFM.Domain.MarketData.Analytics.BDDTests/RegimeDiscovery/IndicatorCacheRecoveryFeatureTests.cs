@@ -8,6 +8,37 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.BDDTests.RegimeDiscovery;
 public sealed class IndicatorCacheRecoveryFeatureTests
 {
     [Theory]
+    [InlineData(2, true)]
+    [InlineData(16, false)]
+    public async Task GivenLastCompletedBarBeforeMarketClose_WhenSessionReopens_ThenOnlyTradingTimeConsumesFreshness(int minutesAfterOpen, bool expected)
+    {
+        var source = DateTimeOffset.Parse("2026-11-10T21:59:00Z");
+        var now = DateTimeOffset.Parse("2026-11-10T23:00:00Z").AddMinutes(minutesAfterOpen);
+        var provider = new RegimeDiscoveryMarketSignalSnapshotProvider(new SessionClock(now));
+        var contract = "ES-" + Guid.NewGuid().ToString("N");
+        RegimeDiscoverySignalCacheAdapter.Publish(new TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels.FuturesRsiSignalReadModel
+        {
+            ContractId = contract, ValueDate = new DateOnly(2026, 11, 10), TimePeriod = TimeFrameType.FifteenMinutes,
+            Timestamp = TimeOnly.FromDateTime(source.UtcDateTime), PeriodLength = 14, RSI = 60, RSISlope = 1, IsWarm = true
+        });
+        var result = await provider.CaptureAsync(new()
+        {
+            MarketSeriesIdentity = MarketSeriesIdentity.ForContract(contract), TargetHorizon = TimeFrameType.Daily,
+            Requirements = [new() { Metric = RegimeDiscoverySignalMetric.Rsi14, TimeFrame = TimeFrameType.FifteenMinutes,
+                CalculationConfigurationId = "Rsi14.v1", MaximumAgeSeconds = 900, IsRequired = true, Weight = 1m }],
+            FutureClockSkewSeconds = 2, SupportedSchemaVersions = [1], ApprovedCalculationVersions = ["1"], CaptureAttempts = 3
+        });
+        Assert.Equal(expected, result.IsSuccess);
+        if (expected) Assert.Equal(source.UtcDateTime, Assert.Single(result.Snapshot!.Observations).MarketDataAsOfUtc);
+        else Assert.Equal(RegimeDiscoverySignalAvailability.Stale, Assert.Single(result.Issues).Availability);
+    }
+
+    sealed class SessionClock(DateTimeOffset now) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => now;
+    }
+
+    [Theory]
     [InlineData(TimeFrameType.OneHour)]
     [InlineData(TimeFrameType.FourHours)]
     public async Task GivenHistoricalSeed_WhenLiveSequenceRestarts_ThenConsumerReceivesNewerWarmObservation(TimeFrameType frame)

@@ -59,7 +59,9 @@ public sealed class EventSourceActorDbContextConventionTests
             .ToArray();
         Assert.All(declared.Where(method => method.IsStatic), method =>
             Assert.StartsWith("MapTo", method.Name, StringComparison.Ordinal));
-        Assert.DoesNotContain(declared, method => !method.IsPublic && !method.IsStatic);
+        var lifetime = typeof(EventSourceActorDbContext).GetInterfaceMap(typeof(IDisposable)).TargetMethods
+            .Concat(typeof(EventSourceActorDbContext).GetInterfaceMap(typeof(IAsyncDisposable)).TargetMethods);
+        Assert.DoesNotContain(declared.Except(lifetime), method => !method.IsPublic && !method.IsStatic);
         var extensions = typeof(EventSourceActorDbContext).Assembly.GetType(
             "TomasAI.IFM.Application.Storage.EventSourceDb.EventSourceActorDbContextExtensions");
         Assert.NotNull(extensions);

@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.EventSourcing.Persistence.Command;
 using TomasAI.IFM.Application.Storage.PortfolioDb.Schema;
 using System.Buffers.Binary;
 using System.Diagnostics;
@@ -318,7 +319,7 @@ internal static class EventLogMarkerQualification
                     RequiresDurableProjection = true,
                     Payload = "qualification"
                 })).ToArray(),
-            expected, DateTime.UtcNow, CommandAuditEnvelope.Create(command, new CommandAuditMessagePackCodec()));
+            expected, DateTime.UtcNow, CommandAuditPreparation.Create(command, new CommandAuditMessagePackCodec()));
     }
 
     internal static async Task Verify(NpgsqlConnection db, EventLogAppendRequest request, int events, int commands)

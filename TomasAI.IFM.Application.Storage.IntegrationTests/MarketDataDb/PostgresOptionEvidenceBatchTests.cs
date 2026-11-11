@@ -32,7 +32,7 @@ public sealed class PostgresOptionEvidenceBatchTests(EventSourceActorSnapshotRan
         Assert.Equal(new[] { true, false, true, false }, await db.WriteFirstBatchAsync(group, CancellationToken.None));
         var restarted = Store(settings);
         Assert.Equal(new[] { true, false, true, false }, await restarted.WriteFirstBatchAsync(group, CancellationToken.None));
-        Assert.Equal(source, await restarted.ReadAsync(source.Source.ContractId, source.Source.ValueDate, source.Source.Identity));
+        Assert.Equal(source, await restarted.ReadAsync(new OptionTradeEvidenceLookup(source.Source.ContractId, source.Source.ValueDate, source.Source.Identity)));
 
         var shared = Evidence(3);
         var changed = shared with { Source = shared.Source with { Price = 17m } };
@@ -64,7 +64,7 @@ public sealed class PostgresOptionEvidenceBatchTests(EventSourceActorSnapshotRan
         };
         var error = await Assert.ThrowsAnyAsync<Exception>(() => db.WriteFirstBatchAsync([valid, rejected], CancellationToken.None).AsTask());
         Assert.Equal(PostgresErrorCodes.CheckViolation, ((error as PostgresException) ?? (error.InnerException as PostgresException))?.SqlState);
-        Assert.Null(await db.ReadAsync(valid.Source.ContractId, valid.Source.ValueDate, valid.Source.Identity));
+        Assert.Null(await db.ReadAsync(new OptionTradeEvidenceLookup(valid.Source.ContractId, valid.Source.ValueDate, valid.Source.Identity)));
         Assert.True(await db.WriteFirstAsync(valid, CancellationToken.None));
     }
 

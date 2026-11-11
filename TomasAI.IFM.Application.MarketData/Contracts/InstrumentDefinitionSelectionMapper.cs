@@ -39,11 +39,11 @@ public static class InstrumentDefinitionSelectionMapper
             Deleted = row.Deleted
         };
     }
-    /// <summary>Maps ES USD/index-point economics only when quantity and venue tick value agree. Deliverable count is not a monetary multiplier.</summary>
+    /// <summary>Maps ES/MES USD/index-point economics only when quantity and venue tick value agree. Deliverable count is not a monetary multiplier.</summary>
     public static decimal? PricePointMultiplier(ExactInstrumentDefinition row)
     {
         ArgumentNullException.ThrowIfNull(row);
-        if(row.Asset!="ES"||row.Currency!="USD"||row.Summary.UnitOfMeasure!="IPNT")return null;
+        if(row.Asset is not ("ES" or "MES")||row.Currency!="USD"||row.Summary.UnitOfMeasure!="IPNT")return null;
         using var json=System.Text.Json.JsonDocument.Parse(row.Json);
         decimal? Fixed(string name)=>json.RootElement.TryGetProperty(name,out var value)
             && long.TryParse(value.ToString(),System.Globalization.NumberStyles.Integer,System.Globalization.CultureInfo.InvariantCulture,out var integer)

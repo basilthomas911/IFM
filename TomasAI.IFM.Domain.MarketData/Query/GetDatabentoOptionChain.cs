@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Shared.QueryParameters;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.MarketData.Query.Actor;
 using TomasAI.IFM.Domain.MarketData.Shared.Queries;
@@ -20,7 +21,7 @@ public static class GetDatabentoOptionChain
             cancellationToken.ThrowIfCancellationRequested();
             ServiceResult<FuturesOptionContractReadModel[]> result;
             var expiries = await context.DbFactory.SecuritiesDb.GetOptionContractExpiriesAsync(
-                query.UnderlyingSymbol, query.MaturityDate, query.MaturityDate, cancellationToken).ConfigureAwait(false);
+                new OptionDefinitionExpiryRange(query.UnderlyingSymbol, query.MaturityDate, query.MaturityDate), cancellationToken).ConfigureAwait(false);
             var underlyingId = expiries.FirstOrDefault(row => row.ExpiryDate == query.MaturityDate
                 && string.Equals(row.ProviderRoot, query.ProviderRoot, StringComparison.OrdinalIgnoreCase))?.ContractId;
             if (string.IsNullOrWhiteSpace(underlyingId))
@@ -28,7 +29,7 @@ public static class GetDatabentoOptionChain
             else
             {
                 var cached = await context.DbFactory.SecuritiesDb.GetCachedOptionContractDefinitionsAsync(
-                    query.UnderlyingSymbol, underlyingId, query.MaturityDate, [query.ProviderRoot], cancellationToken)
+                    new OptionDefinitionPartition(query.UnderlyingSymbol, underlyingId, query.MaturityDate), [query.ProviderRoot], cancellationToken)
                     .ConfigureAwait(false);
                 var (currentPrice, deviation, observationDate) = await OptionChainWindowInputs.GetAsync(
                     context, query.UnderlyingSymbol, underlyingId, cancellationToken).ConfigureAwait(false);

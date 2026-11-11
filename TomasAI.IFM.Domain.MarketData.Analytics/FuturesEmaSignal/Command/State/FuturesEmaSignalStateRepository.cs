@@ -55,7 +55,7 @@ public sealed class FuturesEmaSignalStateRepository(
             var version = state.CommittedStreamVersion;
             foreach (var source in pending)
             {
-                await transaction.AppendAsync(command.StreamId,command.CommandId,source,version++,token).ConfigureAwait(false);
+                await transaction.AppendAsync(new EnlistedEventAppend(command.StreamId,command.CommandId,source,version++),token).ConfigureAwait(false);
                 _ = await AcceptedMarketSignalProjection.TryProjectAsync(transaction,source,token).ConfigureAwait(false);
             }
             return true;

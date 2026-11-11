@@ -13,7 +13,7 @@ using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 
 namespace TomasAI.IFM.Application.Storage.TradeTickQuoteDb;
 
-/// <summary>Scylla ingestion bindings, partition-safe batching, validation and provider buffer ownership.</summary>
+/// <summary>Scylla ingestion bindings, partition-safe batching and provider buffer ownership.</summary>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "C# 14 context extension API keeps the context receiver.")]
 internal static class TradeTickQuoteDbContextExtensions
 {
@@ -23,12 +23,12 @@ internal static class TradeTickQuoteDbContextExtensions
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
         internal Task InsertTickTradeDataAsyncCore(FuturesTickTradeDataInsertedEvent e)
         {
-            ArgumentNullException.ThrowIfNull(e);
             var id = e.TickDataId;
             var data = e.TradeData;
+        var preparedParameters1 = new InsertTickTradeData([(sbyte)e.AssetTypeId, id.ContractId, id.ValueDate, TimeOnly.FromDateTime(id.TimestampUtc), id.SequenceId, id.TimestampUtc, id.TimestampUtc.Ticks, (short)e.SchemaVersion, e.Dataset, e.DefinitionDate, (int)e.PublisherId, (long)e.InstrumentId, e.Id, e.EventId, e.CommandId, e.AggregateId, e.EventSource, e.ReceivedOn, (long)data.SourceSequence, data.EventTimestampNanoseconds, data.ReceiveTimestampNanoseconds, (short)data.HeaderFlags, data.PriceRaw, data.Price, (long)data.Size, (short)data.Action, (short)data.Side, (short)data.DbnFlags]);
             return context.Use($"{nameof(TradeTickQuoteDbCql)}.{nameof(TradeTickQuoteDbCql.InsertTickTradeData)}", TradeTickQuoteDbCql.InsertTickTradeData)
-                .SetParameters(new InsertTickTradeData([(sbyte)e.AssetTypeId, id.ContractId, id.ValueDate, TimeOnly.FromDateTime(id.TimestampUtc), id.SequenceId, id.TimestampUtc, id.TimestampUtc.Ticks, (short)e.SchemaVersion, e.Dataset, e.DefinitionDate, (int)e.PublisherId, (long)e.InstrumentId, e.Id, e.EventId, e.CommandId, e.AggregateId, e.EventSource, e.ReceivedOn, (long)data.SourceSequence, data.EventTimestampNanoseconds, data.ReceiveTimestampNanoseconds, (short)data.HeaderFlags, data.PriceRaw, data.Price, (long)data.Size, (short)data.Action, (short)data.Side, (short)data.DbnFlags]))
-                .ExecuteCommandAsync();
+            .SetParameters(preparedParameters1)
+            .ExecuteCommandAsync();
         }
 
         /// <summary>Writes a bounded quote segment as one native CQL nested-UDT-list value.</summary>
@@ -37,98 +37,48 @@ internal static class TradeTickQuoteDbContextExtensions
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
         internal Task InsertTickQuoteDataAsyncCore(FuturesTickQuoteDataInsertedEvent e)
         {
-            ArgumentNullException.ThrowIfNull(e);
-            var id = e.TickDataId;
-            var encoded = new TickQuoteScyllaBindValue(e.QuoteData);
-            object? [] values = [(sbyte)e.AssetTypeId, id.ContractId, id.ValueDate, TimeOnly.FromDateTime(id.TimestampUtc), id.SequenceId, id.TimestampUtc, id.TimestampUtc.Ticks, (short)e.SchemaVersion, e.Dataset, e.DefinitionDate, (int)e.PublisherId, (long)e.InstrumentId, e.Id, e.EventId, e.CommandId, e.AggregateId, e.EventSource, e.ReceivedOn, (short)e.EmissionReason, (short)e.QuoteCount, encoded];
+            var preparedParameters = e.CreateQuoteParameters();
             return context.Use($"{nameof(TradeTickQuoteDbCql)}.{nameof(TradeTickQuoteDbCql.InsertTickQuoteData)}", TradeTickQuoteDbCql.InsertTickQuoteData)
-                .SetParameters(new InsertTickQuoteData(values, encoded))
-                .ExecuteCommandAsync();
+            .SetParameters(preparedParameters)
+            .ExecuteCommandAsync();
         }
 
         internal Task InsertFuturesTickDataAsyncCore(FuturesTickDataV2ReadModel value)
         {
-            context.ValidateTick(value);
             return context.InsertFuturesTickDataAsync(new[] { value });
         }
 
         internal async Task InsertFuturesTickDataAsyncCore(ICollection<FuturesTickDataV2ReadModel> values)
         {
-            context.ValidateTicks(values);
             foreach (var partition in values.GroupBy(row => (row.ContractId, row.ValueDate)))
             {
                 foreach (var batch in partition.Chunk(24))
                 {
                     List<object> commands = [context.Use(nameof(TradeTickQuoteDbCql.InsertFuturesTickData), TradeTickQuoteDbCql.InsertFuturesTickData)
-                .SetParameters(batch.Select(row => new InsertFuturesTickData(row.ContractId, row.ValueDate, row.TickId, row.TickTime, row.Price, row.Size)))
-                .QueueCommand(), context.Use(nameof(TradeTickQuoteDbCql.InsertFuturesTickDataByTime), TradeTickQuoteDbCql.InsertFuturesTickDataByTime)
-                .SetParameters(batch.Select(row => new InsertFuturesTickDataByTime(row.ContractId, row.ValueDate, row.TickTime, row.TickId, row.Price, row.Size)))
-                .QueueCommand()];
+            .SetParameters(batch.Select(row => new InsertFuturesTickData(row.ContractId, row.ValueDate, row.TickId, row.TickTime, row.Price, row.Size)))
+            .QueueCommand(),
+                context.Use(nameof(TradeTickQuoteDbCql.InsertFuturesTickDataByTime), TradeTickQuoteDbCql.InsertFuturesTickDataByTime)
+            .SetParameters(batch.Select(row => new InsertFuturesTickDataByTime(row.ContractId, row.ValueDate, row.TickTime, row.TickId, row.Price, row.Size)))
+            .QueueCommand()];
                     await context.ExecuteQueuedCommandsAsync(commands, useTransaction: true)
-                .ConfigureAwait(false);
+            .ConfigureAwait(false);
                 }
             }
         }
 
         internal Task InsertFuturesOptionTickDataAsyncCore(FuturesOptionTickDataV2ReadModel value)
         {
-            context.ValidateOptionTick(value);
             return context.InsertFuturesOptionTickDataAsync(new[] { value });
         }
 
         internal Task InsertFuturesOptionTickDataAsyncCore(ICollection<FuturesOptionTickDataV2ReadModel> values)
         {
-            context.ValidateOptionTicks(values);
             return context.Use(nameof(TradeTickQuoteDbCql.InsertFuturesOptionTickData), TradeTickQuoteDbCql.InsertFuturesOptionTickData)
-                .SetParameters(values.Select(row => new InsertFuturesOptionTickData(row.ContractId, row.ValueDate, row.TickId, row.TickTime, row.OptionPrice, row.BidPrice, row.AskPrice, row.BidSize, row.AskSize, row.ImpliedVolatility, row.UnderlyingPrice, row.Delta, row.Gamma, row.Vega, row.Theta, row.Rho)))
-                .ExecuteCommandAsync();
+            .SetParameters(values.Select(row => new InsertFuturesOptionTickData(row.ContractId, row.ValueDate, row.TickId, row.TickTime, row.OptionPrice, row.BidPrice, row.AskPrice, row.BidSize, row.AskSize, row.ImpliedVolatility, row.UnderlyingPrice, row.Delta, row.Gamma, row.Vega, row.Theta, row.Rho)))
+            .ExecuteCommandAsync();
         }
 
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Validation belongs to the context extension API.")]
-        internal void ValidateScope(string contractId, DateOnly valueDate)
-        {
-            ArgumentException.ThrowIfNullOrWhiteSpace(contractId);
-            if (valueDate == default) throw new ArgumentException("A tick value date is required.", nameof(valueDate));
-        }
-        internal void ValidateTickIdentity([System.Diagnostics.CodeAnalysis.NotNull] FuturesTickDataId? value)
-        {
-            ArgumentNullException.ThrowIfNull(value);
-            context.ValidateScope(value.ContractId, value.ValueDate);
-        }
-        internal void ValidateOptionTickIdentity([System.Diagnostics.CodeAnalysis.NotNull] FuturesOptionTickDataId? value)
-        {
-            ArgumentNullException.ThrowIfNull(value);
-            context.ValidateScope(value.ContractId, value.ValueDate);
-        }
-        internal void ValidateFuturesIdentity([System.Diagnostics.CodeAnalysis.NotNull] FuturesDataId? value)
-        {
-            ArgumentNullException.ThrowIfNull(value);
-            context.ValidateScope(value.ContractId, value.ValueDate);
-        }
-        internal void ValidateTick([System.Diagnostics.CodeAnalysis.NotNull] FuturesTickDataV2ReadModel? value)
-        {
-            ArgumentNullException.ThrowIfNull(value);
-            context.ValidateScope(value.ContractId, value.ValueDate);
-        }
-        internal void ValidateOptionTick([System.Diagnostics.CodeAnalysis.NotNull] FuturesOptionTickDataV2ReadModel? value)
-        {
-            ArgumentNullException.ThrowIfNull(value);
-            context.ValidateScope(value.ContractId, value.ValueDate);
-        }
-        internal void ValidateTicks([System.Diagnostics.CodeAnalysis.NotNull] ICollection<FuturesTickDataV2ReadModel>? values)
-        {
-            ArgumentNullException.ThrowIfNull(values);
-            foreach (var value in values) context.ValidateTick(value);
-            if (values.Select(row => (row.ContractId, row.ValueDate, row.TickId)).Distinct().Count() != values.Count)
-                throw new ArgumentException("Duplicate raw tick identities in one batch.", nameof(values));
-        }
-        internal void ValidateOptionTicks([System.Diagnostics.CodeAnalysis.NotNull] ICollection<FuturesOptionTickDataV2ReadModel>? values)
-        {
-            ArgumentNullException.ThrowIfNull(values);
-            foreach (var value in values) context.ValidateOptionTick(value);
-            if (values.Select(row => (row.ContractId, row.ValueDate, row.TickId)).Distinct().Count() != values.Count)
-                throw new ArgumentException("Duplicate raw tick identities in one batch.", nameof(values));
-        }
+
     }
 }
 
@@ -164,4 +114,23 @@ internal static class ScyllaTickWriteRetry
         while (error.InnerException is { } inner) error = inner;
         return error is WriteTimeoutException;
     }
+
+    extension(FuturesTickQuoteDataInsertedEvent quote)
+    {
+        /// <summary>Prepares the raw Scylla quote insert in CQL column order and transfers UDT buffer ownership.</summary>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2000", Justification = "The binding owns the encoded quote until execution or explicit disposal.")]
+        internal InsertTickQuoteData CreateQuoteParameters()
+        {
+            var id = quote.TickDataId;
+            var encoded = new TickQuoteScyllaBindValue(quote.QuoteData);
+            return new(
+                [(sbyte)quote.AssetTypeId, id.ContractId, id.ValueDate, TimeOnly.FromDateTime(id.TimestampUtc),
+                    id.SequenceId, id.TimestampUtc, id.TimestampUtc.Ticks, (short)quote.SchemaVersion, quote.Dataset,
+                    quote.DefinitionDate, (int)quote.PublisherId, (long)quote.InstrumentId, quote.Id, quote.EventId,
+                    quote.CommandId, quote.AggregateId, quote.EventSource, quote.ReceivedOn, (short)quote.EmissionReason,
+                    (short)quote.QuoteCount, encoded],
+                encoded);
+        }
+    }
+
 }

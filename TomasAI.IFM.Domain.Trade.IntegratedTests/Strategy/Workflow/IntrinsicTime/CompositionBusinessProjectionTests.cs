@@ -265,10 +265,8 @@ public sealed partial class CompositionBusinessProjectionTests
             factory.ActorEventSourceDb.Returns(f.Events);
             var marketDataService = new MarketDataServiceDbContext(
                 f.settings,
-                factory,
-                Substitute.For<TomasAI.IFM.Shared.Identity.ISequenceIdDbContext>(),
                 logger);
-            f.Store = marketDataService;
+            f.Store = new DurableSubscriptionIntentStore(marketDataService);
             f.Plans = marketDataService;
             f.Journal = new(f.settings);
             return f;

@@ -5,12 +5,83 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Queries;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Query.Actor;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Query.Model;
+using NSubstitute;
 
 namespace TomasAI.IFM.Domain.Trade.UnitTests.Architecture;
 
 /// <summary>Guards the published IntrinsicTime workflow query wire layouts.</summary>
 public sealed class IntrinsicTimeWorkflowQueryWireTests
 {
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Workflow_status_queries_reject_a_reversed_range_before_accessing_storage(bool completed)
+    {
+        var services = Substitute.For<IIntrinsicTimeStrategyWorkflowQueryContext>();
+        var start = new DateOnly(2026, 11, 5);
+        var end = start.AddDays(-1);
+        var failure = await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => completed
+            ? IntrinsicTimeStrategyWorkflowQueryModel.ExecuteAsync(services,
+                new GetCompletedIntrinsicTimeStrategyWorkflowsQuery { StartDate = start, EndDate = end }, CancellationToken.None).AsTask()
+            : IntrinsicTimeStrategyWorkflowQueryModel.ExecuteAsync(services,
+                new GetStoppedIntrinsicTimeStrategyWorkflowsQuery { StartDate = start, EndDate = end }, CancellationToken.None).AsTask());
+        Assert.Equal("endDate", failure.ParamName);
+        Assert.Empty(services.ReceivedCalls());
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    public void Every_stopped_grid_stage_preserves_the_recorded_workflow_reason(int stageIndex)
+    {
+        var stage = new StrategyWorkflowStageState
+        {
+            ProcessingStatus = StrategyActorProcessingStatus.Completed,
+            ContinuationDecision = StrategyWorkflowContinuationDecision.Stop
+        };
+        var view = new IntrinsicTimeStrategyWorkflowView
+        {
+            Outcome = StrategyWorkflowOutcome.NoTrade,
+            StopReasonCode = "Recorded policy restriction"
+        };
+        view = stageIndex switch
+        {
+            0 => view with { RegimeDiscovery = stage },
+            1 => view with { MarketCondition = stage },
+            2 => view with { TradeSelection = stage },
+            3 => view with { OrderComposition = stage },
+            _ => view with { RiskManagement = stage }
+        };
+        var row = IntrinsicTimeStrategyUpdatesGridRow.FromView(view);
+        var copy = MessagePackSerializer.Deserialize<IntrinsicTimeStrategyUpdatesGridRow>(MessagePackSerializer.Serialize(row));
+        copy.Stages[stageIndex].DecisionReasons.Should().Equal("Recorded policy restriction");
+        copy.Stages.Where((_, index) => index != stageIndex).Should().OnlyContain(item => item.DecisionReasons == null);
+    }
+
+    [Fact]
+    public void Completed_no_trade_preserves_its_reason_even_when_option_chain_failure_evidence_is_retained()
+    {
+        var view = new IntrinsicTimeStrategyWorkflowView
+        {
+            Outcome = StrategyWorkflowOutcome.NoTrade,
+            StopReasonCode = "No eligible option contracts are available.",
+            OrderComposition = new StrategyWorkflowStageState
+            {
+                ProcessingStatus = StrategyActorProcessingStatus.Completed,
+                ContinuationDecision = StrategyWorkflowContinuationDecision.Stop,
+                Failure = new StrategyPipelineFailure { ErrorType = "OptionChainUnavailable", ErrorMessage = "No eligible option contracts are available." }
+            }
+        };
+        var row = IntrinsicTimeStrategyUpdatesGridRow.FromView(view);
+        row.Stages[3].DecisionReasons.Should().Equal(view.StopReasonCode);
+        row.Stages[3].ErrorMessage.Should().Be(view.StopReasonCode);
+    }
+
     [Fact]
     public void Workflow_detail_batch_returns_a_small_retryable_error_before_exceeding_Nats_limit()
     {

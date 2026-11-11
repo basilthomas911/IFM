@@ -10,6 +10,15 @@ namespace TomasAI.IFM.Domain.MarketData.Shared.DownloadLog;
 [MessagePackObject]
 public sealed record MarketDataDownloadOutcome
 {
+    /// <summary>Rejects an accepted projection fact with a mismatched attempt identity or payload digest.</summary>
+    public static void VerifyProjection(MarketDataDownloadOutcome outcome, Guid logCommandId, string payloadSha256)
+    {
+        ArgumentNullException.ThrowIfNull(outcome);
+        if (LoggingCommandId(outcome.ImportCommandId) != logCommandId ||
+            !string.Equals(outcome.ComputeHash(), payloadSha256, StringComparison.Ordinal))
+            throw new ArgumentException("DownloadLog projection identity/hash mismatch.", nameof(logCommandId));
+    }
+
     [Key(0)] public short SchemaVersion { get; init; } = 1;
     [Key(1)] public MarketDataDownloadDataset Dataset { get; init; }
     [Key(2)] public string Provider { get; init; } = "FMP";

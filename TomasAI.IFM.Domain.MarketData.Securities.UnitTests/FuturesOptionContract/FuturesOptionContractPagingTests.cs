@@ -39,7 +39,7 @@ public sealed class FuturesOptionContractPagingTests
         using var cancellation = new CancellationTokenSource();
         var request = new GetFuturesOptionContractsPageParameter("ES", 200, "cursor");
         var page = new FuturesOptionContractPageReadModel([], "next");
-        db.GetFuturesOptionContractsPageAsync(request, cancellation.Token).Returns(page);
+        db.GetFuturesOptionContractsPageAsync(new QualifiedOptionCatalogPage(request), cancellation.Token).Returns(page);
         var actor = new FuturesOptionContractQueryActorTests.TestableFuturesOptionContractQueryActor(
             factory, Substitute.For<ILogger<FuturesOptionContractQueryActor>>());
         var query = new GetFuturesOptionContractsPageQuery(request)
@@ -48,7 +48,7 @@ public sealed class FuturesOptionContractPagingTests
                 GetFuturesOptionContractsPageQuery.Verb, request.Format())
         };
         await actor.InvokeReceiveAsync(actor.FuturesOptionContext, query, cancellation.Token);
-        await db.Received(1).GetFuturesOptionContractsPageAsync(request, cancellation.Token);
+        await db.Received(1).GetFuturesOptionContractsPageAsync(new QualifiedOptionCatalogPage(request), cancellation.Token);
         await actor.FuturesOptionContext.Received(1).ReplyAsync(query.Subject.ThreadId,
             GetFuturesOptionContractsPageQuery.Verb,
             Arg.Is<ServiceResult<FuturesOptionContractPageReadModel>>(r => r.Value == page));

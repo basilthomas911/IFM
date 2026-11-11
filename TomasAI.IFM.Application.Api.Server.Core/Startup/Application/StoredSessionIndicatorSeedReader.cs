@@ -1,3 +1,5 @@
+using TomasAI.IFM.Domain.MarketData.Feed.Shared;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using System.Diagnostics;
 using TomasAI.IFM.Application.MarketData.Contracts.Historical;
 using TomasAI.IFM.Application.MarketData.Contracts;
@@ -135,13 +137,15 @@ public sealed class StoredSessionIndicatorSeedReader(IDbContextFactory databases
             var end = until < midnight ? until : midnight;
             var lower = TimeOnly.FromDateTime(cursor.UtcDateTime);
             var upper = end == midnight ? TimeOnly.MaxValue : TimeOnly.FromDateTime(end.UtcDateTime);
-            if (databases.TradeTickQuoteDb is IStreamingRawFuturesTradeReader streaming)
+            var ticks = databases.TradeTickQuoteDb;
+            RawTickRequestQualification.RequireWindow(contractId, first.ValueDate, lower, upper);
+            if (ticks.SupportsRawFuturesTradeStreaming)
             {
-                await foreach (var row in streaming.StreamRawFuturesTradeWindowAsync(contractId, first.ValueDate, lower, upper, token).ConfigureAwait(false))
+                await foreach (var row in ticks.StreamRawFuturesTradeWindowAsync(contractId, first.ValueDate, lower, upper, token).ConfigureAwait(false))
                 { token.ThrowIfCancellationRequested(); yield return row; }
             }
             else
-                foreach (var row in await databases.TradeTickQuoteDb.GetRawFuturesTradeWindowAsync(contractId, first.ValueDate, lower, upper, token).ConfigureAwait(false))
+                foreach (var row in await ticks.GetRawFuturesTradeWindowAsync(contractId, first.ValueDate, lower, upper, token).ConfigureAwait(false))
                 { token.ThrowIfCancellationRequested(); yield return row; }
             cursor = end;
         }
@@ -236,7 +240,11 @@ public sealed class StoredSessionIndicatorSeedReader(IDbContextFactory databases
         DateOnly date, DateTimeOffset[] ends, string? sourceVersion, CancellationToken token)
     {
         if (sourceVersion is not null)
+        {
+            IndicatorSeedRequestQualification.RequireSelection(sourceVersion, ends);
             return await databases.MarketDataDb.GetQualifiedIndicatorSeedBarsAsync(contractId, frame, date, ends, sourceVersion, token).ConfigureAwait(false);
+        }
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(ends.Length, 64);
         if (ends.Length != 1)
             return await databases.MarketDataDb.GetStoredTradeSessionBarsAsync(contractId, frame, date, ends, token).ConfigureAwait(false);
         var bar = await databases.MarketDataDb.GetStoredTradeSessionBarAsync(contractId, frame, date, ends[0], token).ConfigureAwait(false);

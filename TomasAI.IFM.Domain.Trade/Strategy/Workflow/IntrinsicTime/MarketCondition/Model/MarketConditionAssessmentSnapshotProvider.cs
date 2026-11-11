@@ -59,8 +59,9 @@ public sealed class MarketConditionAssessmentSnapshotProvider(IMarketDataApi mar
 
             if (marketData.TryGetOnTheRunFuturesContract("VX", out var vx) && marketData.TryGetLastTickPrice(vx.ContractId, out var vxPrice) && vxPrice.Trade is { } vxTrade)
             {
-                var target = evaluatedAtUtc.AddMinutes(-5);
-                var bars = await storage.MarketDataDb.GetFuturesBarDataAsync(vx.ContractId, "VX", vxPrice.ValueDate, target.AddMinutes(-5), target).ConfigureAwait(false);
+                var target = TomasAI.IFM.Application.MarketData.Databento.Historical.MarketTradingTime.Add(
+                    calendar, new(evaluatedAtUtc), TimeSpan.FromMinutes(-5)).UtcDateTime;
+                var bars = await storage.MarketDataDb.GetFuturesBarDataAsync(vx.ContractId, "VX", vxPrice.ValueDate, TomasAI.IFM.Application.MarketData.Databento.Historical.MarketTradingTime.Add(calendar, new(target), TimeSpan.FromMinutes(-5)).UtcDateTime, target).ConfigureAwait(false);
                 cancellationToken.ThrowIfCancellationRequested();
                 var baseline = bars.Where(x => x.BarDate <= target && x.BarValue > 0m).OrderByDescending(x => x.BarDate).FirstOrDefault();
                 if (baseline is not null)

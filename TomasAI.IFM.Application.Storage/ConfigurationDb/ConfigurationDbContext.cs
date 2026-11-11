@@ -29,14 +29,11 @@ namespace TomasAI.IFM.Application.Storage.ConfigurationDb;
 /// <param name = "connectionSettings">The named database connection settings.</param>
 /// <param name = "dbFactory">The database-context factory.</param>
 /// <param name = "logger">The database-provider logger.</param>
-/// <param name = "catalogCapabilities">The optional strategy-catalog capability registry.</param>
-/// <param name = "catalogReferences">The optional strategy-catalog reference validator.</param>
-public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSettings, IDbContextFactory dbFactory, ILogger<DbProvider> logger, IStrategyCatalogCapabilities? catalogCapabilities = null, IStrategyCatalogReferences? catalogReferences = null, TimeProvider? timeProvider = null) : ObjectDataRepository<ConfigurationDbContext>(connectionSettings[ConfigurationDbConnection], logger), IConfigurationDbContext
+/// <param name="timeProvider">The business clock used for caller-visible timestamps.</param>
+public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSettings, IDbContextFactory dbFactory, ILogger<DbProvider> logger, TimeProvider? timeProvider = null) : ObjectDataRepository<ConfigurationDbContext>(connectionSettings[ConfigurationDbConnection], logger), IConfigurationDbContext
 {
     /// <summary>Business clock for dated projections; transport and database limits remain physical.</summary>
     internal TimeProvider BusinessClock { get; } = timeProvider ?? TimeProvider.System;
-    internal IStrategyCatalogCapabilities? CatalogCapabilities { get; } = catalogCapabilities;
-    internal IStrategyCatalogReferences? CatalogReferences { get; } = catalogReferences;
 
     /// <summary>Gets the configuration connection setting name.</summary>
     public const string ConfigurationDbConnection = "ConfigurationDbConnection";
@@ -53,15 +50,12 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
     /// <param name = "createdBy">The author.</param>
     /// <param name = "cancellationToken">The cancellation token.</param>
     /// <returns>A task representing the insert operation.</returns>
-        /// <param name="parameterSet">The parameterSet supplied for this transaction or query.</param>
-    /// <param name="description">The description supplied for this transaction or query.</param>
-    /// <param name="createdBy">The createdBy supplied for this transaction or query.</param>
-    /// <param name="cancellationToken">The cancellationToken supplied for this transaction or query.</param>
     public async Task InsertRegimeDiscoveryDraftAsync(RegimeDiscoveryParameterSet parameterSet, string description, string createdBy, CancellationToken cancellationToken = default)
     {
         var payload = RegimeDiscoveryParameterPayload.Serialize(parameterSet);
+        var preparedParameters1 = new InsertConfigurationDraft(parameterSet.ParameterSetId, parameterSet.Version, checked((short)parameterSet.SchemaVersion), (short)ConfigurationParameterSetStatus.Draft, payload, RegimeDiscoveryParameterPayload.ComputeSha256(payload), description ?? string.Empty, BusinessClock.GetUtcNow().UtcDateTime, createdBy);
         await dbFactory.ConfigurationDb.Use($"{nameof(ConfigurationDbSql)}.{nameof(ConfigurationDbSql.InsertDraft)}", ConfigurationDbSql.InsertDraft)
-            .SetParameters(new InsertConfigurationDraft(parameterSet.ParameterSetId, parameterSet.Version, checked((short)parameterSet.SchemaVersion), (short)ConfigurationParameterSetStatus.Draft, payload, RegimeDiscoveryParameterPayload.ComputeSha256(payload), description ?? string.Empty, BusinessClock.GetUtcNow().UtcDateTime, createdBy))
+            .SetParameters(preparedParameters1)
             .ExecuteCommandAsync(cancellationToken)
             .ConfigureAwait(false);
     }
@@ -74,12 +68,6 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
     /// <param name = "createdAtUtc">The created at utc.</param>
     /// <param name = "cancellationToken">The cancellation token.</param>
     /// <returns>A task representing the persistence operation.</returns>
-        /// <param name="transaction">The transaction supplied for this transaction or query.</param>
-    /// <param name="parameterSet">The parameterSet supplied for this transaction or query.</param>
-    /// <param name="description">The description supplied for this transaction or query.</param>
-    /// <param name="createdBy">The createdBy supplied for this transaction or query.</param>
-    /// <param name="createdAtUtc">The createdAtUtc supplied for this transaction or query.</param>
-    /// <param name="cancellationToken">The cancellationToken supplied for this transaction or query.</param>
     public async Task InsertRegimeDiscoveryDraftAsync(IEnlistedPostgresTransaction transaction, RegimeDiscoveryParameterSet parameterSet, string description, string createdBy, DateTime createdAtUtc, CancellationToken cancellationToken = default)
     {
         var payload = RegimeDiscoveryParameterPayload.Serialize(parameterSet);
@@ -95,11 +83,6 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
     /// <param name = "effectiveFromUtc">The effective from utc.</param>
     /// <param name = "cancellationToken">The cancellation token.</param>
     /// <returns>A task representing the persistence operation.</returns>
-        /// <param name="transaction">The transaction supplied for this transaction or query.</param>
-    /// <param name="parameterSetId">The parameterSetId supplied for this transaction or query.</param>
-    /// <param name="version">The version supplied for this transaction or query.</param>
-    /// <param name="effectiveFromUtc">The effectiveFromUtc supplied for this transaction or query.</param>
-    /// <param name="cancellationToken">The cancellationToken supplied for this transaction or query.</param>
     public async Task PublishRegimeDiscoveryAsync(IEnlistedPostgresTransaction transaction, Guid parameterSetId, int version, DateTime effectiveFromUtc, CancellationToken cancellationToken = default)
     {
         var parameters = new PublishConfiguration((short)ConfigurationParameterSetStatus.Published, effectiveFromUtc, parameterSetId, version, (short)ConfigurationParameterSetStatus.Draft);
@@ -115,11 +98,6 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
     /// <param name = "retiredAtUtc">The retired at utc.</param>
     /// <param name = "cancellationToken">The cancellation token.</param>
     /// <returns>A task representing the persistence operation.</returns>
-        /// <param name="transaction">The transaction supplied for this transaction or query.</param>
-    /// <param name="parameterSetId">The parameterSetId supplied for this transaction or query.</param>
-    /// <param name="version">The version supplied for this transaction or query.</param>
-    /// <param name="retiredAtUtc">The retiredAtUtc supplied for this transaction or query.</param>
-    /// <param name="cancellationToken">The cancellationToken supplied for this transaction or query.</param>
     public async Task RetireRegimeDiscoveryAsync(IEnlistedPostgresTransaction transaction, Guid parameterSetId, int version, DateTime retiredAtUtc, CancellationToken cancellationToken = default)
     {
         var parameters = new RetireConfiguration((short)ConfigurationParameterSetStatus.Retired, retiredAtUtc, parameterSetId, version, (short)ConfigurationParameterSetStatus.Published);
@@ -134,15 +112,12 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
     /// <param name = "createdBy">The author.</param>
     /// <param name = "cancellationToken">The cancellation token.</param>
     /// <returns>A task representing the insert operation.</returns>
-        /// <param name="parameterSet">The parameterSet supplied for this transaction or query.</param>
-    /// <param name="description">The description supplied for this transaction or query.</param>
-    /// <param name="createdBy">The createdBy supplied for this transaction or query.</param>
-    /// <param name="cancellationToken">The cancellationToken supplied for this transaction or query.</param>
     public async Task InsertMarketConditionDraftAsync(MarketConditionParameterSet parameterSet, string description, string createdBy, CancellationToken cancellationToken = default)
     {
         var payload = MarketConditionParameterPayload.Serialize(parameterSet);
+        var preparedParameters2 = new InsertConfigurationDraft(parameterSet.ParameterSetId, parameterSet.Version, checked((short)parameterSet.SchemaVersion), (short)ConfigurationParameterSetStatus.Draft, payload, MarketConditionParameterPayload.ComputeSha256(payload), description ?? string.Empty, BusinessClock.GetUtcNow().UtcDateTime, createdBy);
         await dbFactory.ConfigurationDb.Use($"{nameof(ConfigurationDbSql)}.{nameof(ConfigurationDbSql.InsertMarketConditionDraft)}", ConfigurationDbSql.InsertMarketConditionDraft)
-            .SetParameters(new InsertConfigurationDraft(parameterSet.ParameterSetId, parameterSet.Version, checked((short)parameterSet.SchemaVersion), (short)ConfigurationParameterSetStatus.Draft, payload, MarketConditionParameterPayload.ComputeSha256(payload), description ?? string.Empty, BusinessClock.GetUtcNow().UtcDateTime, createdBy))
+            .SetParameters(preparedParameters2)
             .ExecuteCommandAsync(cancellationToken)
             .ConfigureAwait(false);
     }
@@ -154,11 +129,6 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
     /// <param name = "effectiveFromUtc">The UTC effective timestamp.</param>
     /// <param name = "cancellationToken">The cancellation token.</param>
     /// <returns>A task representing the publish operation.</returns>
-        /// <param name="kind">The kind supplied for this transaction or query.</param>
-    /// <param name="parameterSetId">The parameterSetId supplied for this transaction or query.</param>
-    /// <param name="version">The version supplied for this transaction or query.</param>
-    /// <param name="effectiveFromUtc">The effectiveFromUtc supplied for this transaction or query.</param>
-    /// <param name="cancellationToken">The cancellationToken supplied for this transaction or query.</param>
     public async Task PublishAsync(StrategyParameterSetKind kind, Guid parameterSetId, int version, DateTime effectiveFromUtc, CancellationToken cancellationToken = default)
     {
         if (kind == StrategyParameterSetKind.OrderComposition)
@@ -185,8 +155,9 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
         }
 
         var sql = ConfigurationDbSql.PublishFor(kind);
+        var preparedParameters3 = new PublishConfiguration((short)ConfigurationParameterSetStatus.Published, effectiveFromUtc, parameterSetId, version, (short)ConfigurationParameterSetStatus.Draft);
         var affected = await dbFactory.ConfigurationDb.Use($"{nameof(ConfigurationDbSql)}.Publish.{kind}", sql)
-            .SetParameters(new PublishConfiguration((short)ConfigurationParameterSetStatus.Published, effectiveFromUtc, parameterSetId, version, (short)ConfigurationParameterSetStatus.Draft))
+            .SetParameters(preparedParameters3)
             .ExecuteCommandAsync(cancellationToken)
             .ConfigureAwait(false);
         this.EnsureSingleLifecycleTransition(affected, kind, parameterSetId, version, "publish", "Draft");
@@ -199,16 +170,12 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
     /// <param name = "retiredAtUtc">The UTC retirement timestamp.</param>
     /// <param name = "cancellationToken">The cancellation token.</param>
     /// <returns>A task representing the retirement operation.</returns>
-        /// <param name="kind">The kind supplied for this transaction or query.</param>
-    /// <param name="parameterSetId">The parameterSetId supplied for this transaction or query.</param>
-    /// <param name="version">The version supplied for this transaction or query.</param>
-    /// <param name="retiredAtUtc">The retiredAtUtc supplied for this transaction or query.</param>
-    /// <param name="cancellationToken">The cancellationToken supplied for this transaction or query.</param>
     public async Task RetireAsync(StrategyParameterSetKind kind, Guid parameterSetId, int version, DateTime retiredAtUtc, CancellationToken cancellationToken = default)
     {
         var sql = ConfigurationDbSql.RetireFor(kind);
+        var preparedParameters4 = new RetireConfiguration((short)ConfigurationParameterSetStatus.Retired, retiredAtUtc, parameterSetId, version, (short)ConfigurationParameterSetStatus.Published);
         var affected = await dbFactory.ConfigurationDb.Use($"{nameof(ConfigurationDbSql)}.Retire.{kind}", sql)
-            .SetParameters(new RetireConfiguration((short)ConfigurationParameterSetStatus.Retired, retiredAtUtc, parameterSetId, version, (short)ConfigurationParameterSetStatus.Published))
+            .SetParameters(preparedParameters4)
             .ExecuteCommandAsync(cancellationToken)
             .ConfigureAwait(false);
         this.EnsureSingleLifecycleTransition(affected, kind, parameterSetId, version, "retire", "Published");
@@ -219,13 +186,11 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
     /// <param name = "version">The version number.</param>
     /// <param name = "cancellationToken">The cancellation token.</param>
     /// <returns>The resolved version, or <see langword="null"/> when it does not exist.</returns>
-        /// <param name="parameterSetId">The parameterSetId supplied for this transaction or query.</param>
-    /// <param name="version">The version supplied for this transaction or query.</param>
-    /// <param name="cancellationToken">The cancellationToken supplied for this transaction or query.</param>
     public async Task<ResolvedRegimeDiscoveryParameterSet?> GetRegimeDiscoveryAsync(Guid parameterSetId, int version, CancellationToken cancellationToken = default)
     {
+        var preparedParameters5 = new GetConfiguration(parameterSetId, version);
         var row = await dbFactory.ConfigurationDb.Use($"{nameof(ConfigurationDbSql)}.{nameof(ConfigurationDbSql.GetExact)}", ConfigurationDbSql.GetExact)
-            .SetParameters(new GetConfiguration(parameterSetId, version))
+            .SetParameters(preparedParameters5)
             .ExecuteSingleAsync(MapToConfigurationParameterSet, cancellationToken)
             .ConfigureAwait(false);
         return row is null ? null : this.Resolve(row);
@@ -236,13 +201,11 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
     /// <param name = "version">The version number.</param>
     /// <param name = "cancellationToken">The cancellation token.</param>
     /// <returns>The resolved version, or <see langword="null"/> when it does not exist.</returns>
-        /// <param name="parameterSetId">The parameterSetId supplied for this transaction or query.</param>
-    /// <param name="version">The version supplied for this transaction or query.</param>
-    /// <param name="cancellationToken">The cancellationToken supplied for this transaction or query.</param>
     public async Task<ResolvedMarketConditionParameterSet?> GetMarketConditionAsync(Guid parameterSetId, int version, CancellationToken cancellationToken = default)
     {
+        var preparedParameters6 = new GetConfiguration(parameterSetId, version);
         var row = await dbFactory.ConfigurationDb.Use($"{nameof(ConfigurationDbSql)}.{nameof(ConfigurationDbSql.GetExactMarketCondition)}", ConfigurationDbSql.GetExactMarketCondition)
-            .SetParameters(new GetConfiguration(parameterSetId, version))
+            .SetParameters(preparedParameters6)
             .ExecuteSingleAsync(MapToMarketConditionParameterSet, cancellationToken)
             .ConfigureAwait(false);
         return row is null ? null : this.ResolveMarketCondition(row);
@@ -253,13 +216,11 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
     /// <param name = "targetHorizon">The target horizon.</param>
     /// <param name = "cancellationToken">The cancellation token.</param>
     /// <returns>The effective version, or <see langword="null"/> when none exists.</returns>
-        /// <param name="effectiveAtUtc">The effectiveAtUtc supplied for this transaction or query.</param>
-    /// <param name="targetHorizon">The targetHorizon supplied for this transaction or query.</param>
-    /// <param name="cancellationToken">The cancellationToken supplied for this transaction or query.</param>
     public async Task<ResolvedRegimeDiscoveryParameterSet?> GetEffectiveRegimeDiscoveryAsync(DateTime effectiveAtUtc, TimeFrameType targetHorizon, CancellationToken cancellationToken = default)
     {
+        var preparedParameters7 = new ResolveConfiguration((short)ConfigurationParameterSetStatus.Published, effectiveAtUtc, (short)targetHorizon);
         var rows = await dbFactory.ConfigurationDb.Use($"{nameof(ConfigurationDbSql)}.{nameof(ConfigurationDbSql.ResolveEffective)}", ConfigurationDbSql.ResolveEffective)
-            .SetParameters(new ResolveConfiguration((short)ConfigurationParameterSetStatus.Published, effectiveAtUtc, (short)targetHorizon))
+            .SetParameters(preparedParameters7)
             .ExecuteQueryAsync(MapToConfigurationParameterSet, cancellationToken)
             .ConfigureAwait(false);
         if (rows.Count > 1 && rows.ElementAt(0).EffectiveFromUtc == rows.ElementAt(1).EffectiveFromUtc)
@@ -274,15 +235,11 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
     /// <param name = "targetHorizon">The target horizon.</param>
     /// <param name = "cancellationToken">The cancellation token.</param>
     /// <returns>The effective version, or <see langword="null"/> when none exists.</returns>
-        /// <param name="effectiveAtUtc">The effectiveAtUtc supplied for this transaction or query.</param>
-    /// <param name="fundId">The fundId supplied for this transaction or query.</param>
-    /// <param name="instrumentRoot">The instrumentRoot supplied for this transaction or query.</param>
-    /// <param name="targetHorizon">The targetHorizon supplied for this transaction or query.</param>
-    /// <param name="cancellationToken">The cancellationToken supplied for this transaction or query.</param>
     public async Task<ResolvedMarketConditionParameterSet?> GetEffectiveMarketConditionAsync(DateTime effectiveAtUtc, int fundId, string instrumentRoot, TimeFrameType targetHorizon, CancellationToken cancellationToken = default)
     {
+        var preparedParameters8 = new ResolveMarketConditionConfiguration((short)ConfigurationParameterSetStatus.Published, effectiveAtUtc, fundId, instrumentRoot, (short)targetHorizon);
         var rows = await dbFactory.ConfigurationDb.Use($"{nameof(ConfigurationDbSql)}.{nameof(ConfigurationDbSql.ResolveEffectiveMarketCondition)}", ConfigurationDbSql.ResolveEffectiveMarketCondition)
-            .SetParameters(new ResolveMarketConditionConfiguration((short)ConfigurationParameterSetStatus.Published, effectiveAtUtc, fundId, instrumentRoot, (short)targetHorizon))
+            .SetParameters(preparedParameters8)
             .ExecuteQueryAsync(MapToMarketConditionParameterSet, cancellationToken)
             .ConfigureAwait(false);
         if (rows.Count > 1)
@@ -299,12 +256,11 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
     /// <param name = "groupName">The lookup group name.</param>
     /// <param name = "cancellationToken">The cancellation token.</param>
     /// <returns>The ordered lookup definitions.</returns>
-        /// <param name="groupName">The groupName supplied for this transaction or query.</param>
-    /// <param name="cancellationToken">The cancellationToken supplied for this transaction or query.</param>
     public async Task<LookupDefinitionReadModel[]> GetLookupDefinitionsAsync(string groupName, CancellationToken cancellationToken = default)
     {
+        var preparedParameters9 = new GetLookupDefinitions(groupName);
         var rows = await dbFactory.ConfigurationDb.Use($"{nameof(ConfigurationDbSql)}.{nameof(ConfigurationDbSql.GetLookupDefinitions)}", ConfigurationDbSql.GetLookupDefinitions)
-            .SetParameters(new GetLookupDefinitions(groupName))
+            .SetParameters(preparedParameters9)
             .ExecuteQueryAsync(MapToLookupDefinition, cancellationToken)
             .ConfigureAwait(false);
         if (rows.Count > 1024)
@@ -319,18 +275,15 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
     /// <param name = "createdBy">The author.</param>
     /// <param name = "cancellationToken">The cancellation token.</param>
     /// <returns>A task representing the insert operation.</returns>
-        /// <param name="parameters">The parameters supplied for this transaction or query.</param>
-    /// <param name="description">The description supplied for this transaction or query.</param>
-    /// <param name="createdBy">The createdBy supplied for this transaction or query.</param>
-    /// <param name="cancellationToken">The cancellationToken supplied for this transaction or query.</param>
     public async Task InsertMarketConditionAssessmentDraftAsync(MarketConditionAssessmentParameterSet parameters, string description, string createdBy, CancellationToken cancellationToken = default)
     {
         var normalized = parameters with
         {
             Sources = parameters.Sources
         };
+        var preparedParameters10 = new InsertMarketConditionAssessmentDraft(normalized.ParameterSetId, normalized.Version, normalized.SchemaVersion, normalized.MarketProfileId, normalized.InstrumentRoot, (short)normalized.TargetHorizon, MarketConditionAssessmentHash.Serialize(normalized), MarketConditionAssessmentHash.Parameters(normalized), description ?? string.Empty, BusinessClock.GetUtcNow().UtcDateTime, createdBy);
         await dbFactory.ConfigurationDb.Use($"{nameof(ConfigurationDbSql)}.{nameof(ConfigurationDbSql.InsertMarketConditionAssessmentDraft)}", ConfigurationDbSql.InsertMarketConditionAssessmentDraft)
-            .SetParameters(new InsertMarketConditionAssessmentDraft(normalized.ParameterSetId, normalized.Version, normalized.SchemaVersion, normalized.MarketProfileId, normalized.InstrumentRoot, (short)normalized.TargetHorizon, MarketConditionAssessmentHash.Serialize(normalized), MarketConditionAssessmentHash.Parameters(normalized), description ?? string.Empty, BusinessClock.GetUtcNow().UtcDateTime, createdBy))
+            .SetParameters(preparedParameters10)
             .ExecuteCommandAsync(cancellationToken)
             .ConfigureAwait(false);
     }
@@ -340,13 +293,11 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
     /// <param name = "version">The version number.</param>
     /// <param name = "cancellationToken">The cancellation token.</param>
     /// <returns>The resolved parameter set, or <see langword="null"/> when it does not exist.</returns>
-        /// <param name="parameterSetId">The parameterSetId supplied for this transaction or query.</param>
-    /// <param name="version">The version supplied for this transaction or query.</param>
-    /// <param name="cancellationToken">The cancellationToken supplied for this transaction or query.</param>
     public async Task<ResolvedMarketConditionAssessmentParameterSet?> GetMarketConditionAssessmentAsync(Guid parameterSetId, int version, CancellationToken cancellationToken = default)
     {
+        var preparedParameters11 = new GetConfiguration(parameterSetId, version);
         return await dbFactory.ConfigurationDb.Use($"{nameof(ConfigurationDbSql)}.{nameof(ConfigurationDbSql.GetMarketConditionAssessment)}", ConfigurationDbSql.GetMarketConditionAssessment)
-            .SetParameters(new GetConfiguration(parameterSetId, version))
+            .SetParameters(preparedParameters11)
             .ExecuteSingleAsync(MapToMarketConditionAssessment, cancellationToken)
             .ConfigureAwait(false);
     }
@@ -358,15 +309,11 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
     /// <param name = "targetHorizon">The target horizon.</param>
     /// <param name = "cancellationToken">The cancellation token.</param>
     /// <returns>The effective parameter set, or <see langword="null"/> when none exists.</returns>
-        /// <param name="effectiveAtUtc">The effectiveAtUtc supplied for this transaction or query.</param>
-    /// <param name="marketProfileId">The marketProfileId supplied for this transaction or query.</param>
-    /// <param name="instrumentRoot">The instrumentRoot supplied for this transaction or query.</param>
-    /// <param name="targetHorizon">The targetHorizon supplied for this transaction or query.</param>
-    /// <param name="cancellationToken">The cancellationToken supplied for this transaction or query.</param>
     public async Task<ResolvedMarketConditionAssessmentParameterSet?> GetEffectiveMarketConditionAssessmentAsync(DateTime effectiveAtUtc, string marketProfileId, string instrumentRoot, TimeFrameType targetHorizon, CancellationToken cancellationToken = default)
     {
+        var preparedParameters12 = new GetEffectiveMarketConditionAssessment(marketProfileId, instrumentRoot, (short)targetHorizon, effectiveAtUtc);
         var rows = await dbFactory.ConfigurationDb.Use($"{nameof(ConfigurationDbSql)}.{nameof(ConfigurationDbSql.GetEffectiveMarketConditionAssessment)}", ConfigurationDbSql.GetEffectiveMarketConditionAssessment)
-            .SetParameters(new GetEffectiveMarketConditionAssessment(marketProfileId, instrumentRoot, (short)targetHorizon, effectiveAtUtc))
+            .SetParameters(preparedParameters12)
             .ExecuteQueryAsync(MapToMarketConditionAssessment, cancellationToken)
             .ConfigureAwait(false);
         if (rows.Count > 1)
@@ -387,14 +334,13 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
     /// <param name = "definition">The validated definition.</param>
     /// <param name = "cancellationToken">The cancellation token.</param>
     /// <returns>A task representing the insert operation.</returns>
-        /// <param name="definition">The definition supplied for this transaction or query.</param>
-    /// <param name="cancellationToken">The cancellationToken supplied for this transaction or query.</param>
     public async Task InsertVolatilitySeriesDefinitionAsync(VolatilitySeriesDefinition definition, CancellationToken cancellationToken = default)
     {
         var json = JsonSerializer.Serialize(definition);
         var hash = json.Sha256();
+        var preparedParameters13 = new InsertVolatilitySeriesDefinition(definition.Identity.SeriesId, definition.Identity.MethodologyVersion, definition.DataIdentity.Environment, definition.Governance.EffectiveFromUtc.UtcDateTime, definition.Governance.EffectiveUntilUtc?.UtcDateTime, json, hash, definition.Governance.ApprovedConfigurationVersion, definition.Governance.Owner, definition.Governance.ApprovalEvidenceId);
         await dbFactory.ConfigurationDb.Use($"{nameof(ConfigurationDbSql)}.{nameof(ConfigurationDbSql.InsertVolatilitySeriesDefinition)}", ConfigurationDbSql.InsertVolatilitySeriesDefinition)
-            .SetParameters(new InsertVolatilitySeriesDefinition(definition.Identity.SeriesId, definition.Identity.MethodologyVersion, definition.DataIdentity.Environment, definition.Governance.EffectiveFromUtc.UtcDateTime, definition.Governance.EffectiveUntilUtc?.UtcDateTime, json, hash, definition.Governance.ApprovedConfigurationVersion, definition.Governance.Owner, definition.Governance.ApprovalEvidenceId))
+            .SetParameters(preparedParameters13)
             .ExecuteCommandAsync(cancellationToken)
             .ConfigureAwait(false);
         var stored = await GetVolatilitySeriesDefinitionAsync(definition.Identity, cancellationToken)
@@ -407,12 +353,11 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
     /// <param name = "identity">The definition identity.</param>
     /// <param name = "cancellationToken">The cancellation token.</param>
     /// <returns>The resolved definition, or <see langword="null"/> when it does not exist.</returns>
-        /// <param name="identity">The identity supplied for this transaction or query.</param>
-    /// <param name="cancellationToken">The cancellationToken supplied for this transaction or query.</param>
     public Task<ResolvedVolatilitySeriesDefinition?> GetVolatilitySeriesDefinitionAsync(VolatilitySeriesIdentity identity, CancellationToken cancellationToken = default)
     {
+        var preparedParameters14 = new GetVolatilitySeriesDefinition(identity.SeriesId, identity.MethodologyVersion);
         return dbFactory.ConfigurationDb.Use($"{nameof(ConfigurationDbSql)}.{nameof(ConfigurationDbSql.GetVolatilitySeriesDefinition)}", ConfigurationDbSql.GetVolatilitySeriesDefinition)
-            .SetParameters(new GetVolatilitySeriesDefinition(identity.SeriesId, identity.MethodologyVersion))
+            .SetParameters(preparedParameters14)
             .ExecuteSingleAsync(MapToVolatilitySeriesDefinition, cancellationToken);
     }
 
@@ -422,14 +367,11 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
     /// <param name = "effectiveAtUtc">The UTC selection timestamp.</param>
     /// <param name = "cancellationToken">The cancellation token.</param>
     /// <returns>The effective definition, or <see langword="null"/> when none exists.</returns>
-        /// <param name="environment">The environment supplied for this transaction or query.</param>
-    /// <param name="seriesId">The seriesId supplied for this transaction or query.</param>
-    /// <param name="effectiveAtUtc">The effectiveAtUtc supplied for this transaction or query.</param>
-    /// <param name="cancellationToken">The cancellationToken supplied for this transaction or query.</param>
     public async Task<ResolvedVolatilitySeriesDefinition?> GetEffectiveVolatilitySeriesDefinitionAsync(string environment, string seriesId, DateTimeOffset effectiveAtUtc, CancellationToken cancellationToken = default)
     {
+        var preparedParameters15 = new GetEffectiveVolatilitySeriesDefinition(environment, seriesId, effectiveAtUtc.UtcDateTime);
         var rows = await dbFactory.ConfigurationDb.Use($"{nameof(ConfigurationDbSql)}.{nameof(ConfigurationDbSql.GetEffectiveVolatilitySeriesDefinition)}", ConfigurationDbSql.GetEffectiveVolatilitySeriesDefinition)
-            .SetParameters(new GetEffectiveVolatilitySeriesDefinition(environment, seriesId, effectiveAtUtc.UtcDateTime))
+            .SetParameters(preparedParameters15)
             .ExecuteQueryAsync(MapToVolatilitySeriesDefinition, cancellationToken)
             .ConfigureAwait(false);
         if (rows.Count > 1)
@@ -453,14 +395,11 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
     /// <param name = "createdBy">The created by.</param>
     /// <param name = "cancellationToken">The cancellation token.</param>
     /// <returns>A task representing the persistence operation.</returns>
-        /// <param name="policy">The policy supplied for this transaction or query.</param>
-    /// <param name="description">The description supplied for this transaction or query.</param>
-    /// <param name="createdBy">The createdBy supplied for this transaction or query.</param>
-    /// <param name="cancellationToken">The cancellationToken supplied for this transaction or query.</param>
     public async Task InsertStrategyPositionRiskDraftAsync(TomasAI.IFM.Domain.Trade.Shared.Strategy.Risk.StrategyRiskParameterSet policy, string description, string createdBy, CancellationToken cancellationToken = default)
     {
+        var preparedParameters16 = new InsertConfigurationDraft(policy.ParameterSetId, policy.Version, checked((short)policy.SchemaVersion), 0, policy.Serialize(), policy.Hash(), description, BusinessClock.GetUtcNow().UtcDateTime, createdBy);
         await dbFactory.ConfigurationDb.Use($"{nameof(ConfigurationDbSql)}.{nameof(ConfigurationDbSql.InsertStrategyPositionRiskDraft)}", ConfigurationDbSql.InsertStrategyPositionRiskDraft)
-            .SetParameters(new InsertConfigurationDraft(policy.ParameterSetId, policy.Version, checked((short)policy.SchemaVersion), 0, policy.Serialize(), policy.Hash(), description, BusinessClock.GetUtcNow().UtcDateTime, createdBy))
+            .SetParameters(preparedParameters16)
             .ExecuteCommandAsync(cancellationToken)
             .ConfigureAwait(false);
     }
@@ -470,13 +409,11 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
     /// <param name = "version">The version.</param>
     /// <param name = "cancellationToken">The cancellation token.</param>
     /// <returns>The get strategy position risk version result.</returns>
-        /// <param name="id">The id supplied for this transaction or query.</param>
-    /// <param name="version">The version supplied for this transaction or query.</param>
-    /// <param name="cancellationToken">The cancellationToken supplied for this transaction or query.</param>
     public async Task<TomasAI.IFM.Domain.Trade.Shared.Strategy.Risk.ResolvedStrategyRiskParameterSet?> GetStrategyPositionRiskVersionAsync(Guid id, int version, CancellationToken cancellationToken = default)
     {
+        var preparedParameters17 = new GetConfiguration(id, version);
         return await dbFactory.ConfigurationDb.Use($"{nameof(ConfigurationDbSql)}.{nameof(ConfigurationDbSql.GetStrategyPositionRiskVersion)}", ConfigurationDbSql.GetStrategyPositionRiskVersion)
-            .SetParameters(new GetConfiguration(id, version))
+            .SetParameters(preparedParameters17)
             .ExecuteSingleAsync(MapToStrategyPositionRiskVersion, cancellationToken)
             .ConfigureAwait(false);
     }
@@ -495,8 +432,9 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
     /// <param name="token">The token supplied for this transaction or query.</param>
     public async Task InsertRiskManagementDraftAsync(RiskParameterSet policy, string description, string createdBy, CancellationToken token = default)
     {
+        var preparedParameters18 = new InsertConfigurationDraft(policy.ParameterSetId, policy.Version, policy.SchemaVersion, 0, policy.Serialize(), policy.Hash(), description, BusinessClock.GetUtcNow().UtcDateTime, createdBy);
         await dbFactory.ConfigurationDb.Use($"{nameof(ConfigurationDbSql)}.{nameof(ConfigurationDbSql.InsertRiskManagementDraft)}", ConfigurationDbSql.InsertRiskManagementDraft)
-            .SetParameters(new InsertConfigurationDraft(policy.ParameterSetId, policy.Version, policy.SchemaVersion, 0, policy.Serialize(), policy.Hash(), description, BusinessClock.GetUtcNow().UtcDateTime, createdBy))
+            .SetParameters(preparedParameters18)
             .ExecuteCommandAsync(token)
             .ConfigureAwait(false);
     }
@@ -537,8 +475,6 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
     /// <param name = "key">The catalog key.</param>
     /// <param name = "cancellationToken">The cancellation token.</param>
     /// <returns>The stored definition, or <see langword="null"/> when it does not exist.</returns>
-        /// <param name="key">The key supplied for this transaction or query.</param>
-    /// <param name="cancellationToken">The cancellationToken supplied for this transaction or query.</param>
     public async Task<StoredStrategyCatalogDefinition?> GetStrategyCatalogAsync(CatalogKey key, CancellationToken cancellationToken = default)
     {
         var connection = await this.OpenCatalogAsync(cancellationToken)
@@ -554,10 +490,6 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
     /// <param name = "afterCode">The exclusive stable-code cursor.</param>
     /// <param name = "cancellationToken">The cancellation token.</param>
     /// <returns>The strategy-catalog summaries.</returns>
-        /// <param name="kind">The kind supplied for this transaction or query.</param>
-    /// <param name="limit">The limit supplied for this transaction or query.</param>
-    /// <param name="afterCode">The afterCode supplied for this transaction or query.</param>
-    /// <param name="cancellationToken">The cancellationToken supplied for this transaction or query.</param>
     public async Task<IReadOnlyList<StrategyCatalogSummary>> GetStrategyCatalogsAsync(StrategyCatalogKind kind, int limit = 50, string? afterCode = null, CancellationToken cancellationToken = default)
     {
         var connection = await this.OpenCatalogAsync(cancellationToken)
@@ -575,33 +507,20 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
         return result;
     }
 
-    /// <summary>Publishes a strategy-catalog draft.</summary>
-    /// <param name = "key">The catalog key.</param>
-    /// <param name = "expectedContentHash">The expected content digest.</param>
-    /// <param name = "effectiveFromUtc">The UTC effective timestamp.</param>
-    /// <param name = "publishedBy">The publisher.</param>
-    /// <param name = "cancellationToken">The cancellation token.</param>
-    /// <returns>A task representing the publish operation.</returns>
-        /// <param name="key">The key supplied for this transaction or query.</param>
-    /// <param name="expectedContentHash">The expectedContentHash supplied for this transaction or query.</param>
-    /// <param name="effectiveFromUtc">The effectiveFromUtc supplied for this transaction or query.</param>
-    /// <param name="publishedBy">The publishedBy supplied for this transaction or query.</param>
-    /// <param name="cancellationToken">The cancellationToken supplied for this transaction or query.</param>
-    public async Task PublishStrategyCatalogAsync(CatalogKey key, string expectedContentHash, DateTime effectiveFromUtc, string publishedBy, CancellationToken cancellationToken = default)
+    /// <inheritdoc/>
+    public async Task PublishPreparedStrategyCatalogAsync(StrategyCatalogPublicationProof proof, string expectedContentHash,
+        string publishedBy, CancellationToken cancellationToken = default)
     {
-        var connection = await this.OpenCatalogAsync(cancellationToken)
+        await using var connection = await this.OpenCatalogAsync(cancellationToken)
             .ConfigureAwait(false);
-        await using var connectionDisposal = connection.ConfigureAwait(false);
-        var transaction = await connection.BeginTransactionAsync(cancellationToken)
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken)
             .ConfigureAwait(false);
-        await using var transactionDisposal = transaction.ConfigureAwait(false);
-        await this.PublishStrategyCatalogCoreAsync(connection, transaction, key, expectedContentHash, effectiveFromUtc, publishedBy, cancellationToken)
-            .ConfigureAwait(false);
+        await this.PublishPreparedStrategyCatalogCoreAsync(connection, transaction, proof, expectedContentHash, publishedBy,
+            cancellationToken)
+                .ConfigureAwait(false);
         await transaction.CommitAsync(cancellationToken)
             .ConfigureAwait(false);
     }
-
-
 
     /// <summary>Retires a published strategy-catalog version.</summary>
     /// <param name = "key">The catalog key.</param>
@@ -610,11 +529,6 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
     /// <param name = "retiredBy">The retiring user.</param>
     /// <param name = "cancellationToken">The cancellation token.</param>
     /// <returns>A task representing the retirement operation.</returns>
-        /// <param name="key">The key supplied for this transaction or query.</param>
-    /// <param name="expectedContentHash">The expectedContentHash supplied for this transaction or query.</param>
-    /// <param name="retiredAtUtc">The retiredAtUtc supplied for this transaction or query.</param>
-    /// <param name="retiredBy">The retiredBy supplied for this transaction or query.</param>
-    /// <param name="cancellationToken">The cancellationToken supplied for this transaction or query.</param>
     public async Task RetireStrategyCatalogAsync(CatalogKey key, string expectedContentHash, DateTime retiredAtUtc, string retiredBy, CancellationToken cancellationToken = default)
     {
         var connection = await this.OpenCatalogAsync(cancellationToken)
@@ -631,18 +545,18 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
 
 
 
-    /// <summary>Commits a catalog source fact with the existing relational catalog transition.</summary>
-        /// <returns>The persisted projection result or completion of the caller-owned transaction.</returns>
-    /// <param name="enlisted">The enlisted supplied for this transaction or query.</param>
-    /// <param name="request">The request supplied for this transaction or query.</param>
-    /// <param name="principal">The principal supplied for this transaction or query.</param>
-    /// <param name="token">The token supplied for this transaction or query.</param>
-    public async Task<StrategyCatalogSourceEvent?> RecordStrategyCatalogTransitionAsync(EnlistedEventTransaction enlisted, CatalogCommandRequest request,
-        string principal, CancellationToken token = default)
+    /// <summary>Prepares a catalog row transition under the write fence without appending an event.</summary>
+    /// <param name="enlisted">The transaction that will append the accepted fact.</param>
+    /// <param name="request">The typed command already qualified by its owner.</param>
+    /// <param name="principal">The accepting user or service.</param>
+    /// <param name="stream">The owning catalog stream.</param>
+    /// <param name="publication">The exact graph proof for a new publish, or null for other transitions.</param>
+    /// <param name="token">Cancels the write.</param>
+    /// <returns>The persisted predecessor and candidate images, or null for an accepted retry.</returns>
+    public async Task<PreparedStrategyCatalogTransition?> PrepareStrategyCatalogTransitionAsync(EnlistedEventTransaction enlisted, CatalogCommandRequest request,
+        string principal, string stream, StrategyCatalogPublicationProof? publication = null, CancellationToken token = default)
     {
-        this.RequireStorageArgument(enlisted, nameof(enlisted));
-        this.RequireStorageArgument(request, nameof(request));
-        this.RequireStorageText(principal, nameof(principal));
+        ArgumentNullException.ThrowIfNull(enlisted);
         var key = request.Operation == CatalogCommandOperation.SaveDraft ? request.Definition?.Key : request.Key;
         if (key is null || request.OperationId == Guid.Empty)
             throw new InvalidOperationException("Catalog operation and version identity are required.");
@@ -652,14 +566,8 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
             .ConfigureAwait(false);
         await this.CatalogWriteLock(connection, transaction, token)
             .ConfigureAwait(false);
-        var entityId = new ActorEntityId($"{(int)key.Kind}-{key.Id:N}-{key.Version}");
-        var subject = new ActorSubject(ActorType.Event, "StrategyCatalogEvent", request.Operation.ToString(), entityId.Format());
-        var stream = $"StrategyCatalog.{entityId.Format()}";
         var requestJson = StrategyCatalogJson.Write(request);
-        var latest = await enlisted.QueryAsync(ConfigurationDbSql.TypedCatalog.CatalogSourceHead,
-            [stream, request.OperationId], reader => (
-                Version: reader.GetInt64(0), EventId: reader.GetInt64(1),
-                Type: reader.GetString(2), Payload: (byte[])reader.GetValue(3)), token)
+        var latest = await enlisted.QueryAsync(ConfigurationDbSql.TypedCatalog.CatalogSourceHead, (object? [])new CatalogSourceSelection(stream, request.OperationId).Bind(), MapToStrategyCatalogSourceHead, token)
             .ConfigureAwait(false);
         var previous = latest.Count == 0 ? null :
             EventLogMessagePackCodec.Shared.Deserialize(latest[0].Type, latest[0].EventId, latest[0].Payload) as StrategyCatalogSourceEvent
@@ -682,7 +590,7 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
             throw new InvalidOperationException("PARAM.PROJECTION_LAG");
 
         // Reuse the existing transactional graph validation, then discard its tentative relational writes.
-        await enlisted.ExecuteAsync("SAVEPOINT catalog_acceptance;", [], token)
+        await enlisted.ExecuteAsync(ConfigurationDbSql.TypedCatalog.StartAcceptance, [], token)
             .ConfigureAwait(false);
         switch (request.Operation)
         {
@@ -700,8 +608,10 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
                     string.Equals(before.ContentHash, publishHash, StringComparison.Ordinal) && before.EffectiveFromUtc == effective &&
                     string.Equals(before.PublishedBy, principal, StringComparison.Ordinal))
                     return null;
-                await this.PublishStrategyCatalogCoreAsync(connection, transaction, key, publishHash, effective, principal, token)
-            .ConfigureAwait(false);
+                if (publication is null || publication.Root != key || publication.EffectiveFromUtc != effective)
+                    throw new InvalidOperationException("The prepared publication does not match the command.");
+                await this.PublishPreparedStrategyCatalogCoreAsync(connection, transaction, publication, publishHash, principal, token)
+                    .ConfigureAwait(false);
                 break;
             case CatalogCommandOperation.Retire when request.ExpectedHash is { } retireHash && request.EffectiveUtc is { } retired:
                 if (before is { Status: CatalogLifecycleStatus.Retired } &&
@@ -717,23 +627,14 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
         var after = await this.ReadCatalog(connection, transaction, key, true, token)
             .ConfigureAwait(false)
             ?? throw new InvalidOperationException("The committed catalog version was not materialized.");
-        var fact = new StrategyCatalogSourceEvent
-        {
-            Subject = subject, EntityId = entityId, Id = request.OperationId, CommandId = request.OperationId,
-            AggregateId = entityId.Format(), EventSource = "StrategyCatalogCommandActor", ReceivedOn = BusinessClock.GetUtcNow().UtcDateTime,
-            RequestJson = requestJson, BeforeJson = before is null ? string.Empty : StrategyCatalogJson.Write(before),
-            AfterJson = StrategyCatalogJson.Write(after), Principal = principal
-        };
-        await enlisted.ExecuteAsync("ROLLBACK TO SAVEPOINT catalog_acceptance;", [], token)
+        await enlisted.ExecuteAsync(ConfigurationDbSql.TypedCatalog.RollbackAcceptance, [], token)
             .ConfigureAwait(false);
-        var eventId = await enlisted.AppendAsync(stream, request.OperationId, fact, latest.Count == 0 ? 0 : latest[0].Version, token)
-            .ConfigureAwait(false);
-        await MarkParameterProjectionPendingAsync(enlisted, eventId, token)
-            .ConfigureAwait(false);
-        await AdvanceParameterRevisionFenceAsync(enlisted, token)
-            .ConfigureAwait(false);
-        return fact;
+        return new(latest.Count == 0 ? 0 : latest[0].Version, requestJson,
+            before is null ? string.Empty : StrategyCatalogJson.Write(before), StrategyCatalogJson.Write(after));
     }
+
+    internal static (long Version, long EventId, string Type, byte[] Payload) MapToStrategyCatalogSourceHead(System.Data.Common.DbDataReader reader)
+        => (reader.GetInt64(0), reader.GetInt64(1), reader.GetString(2), reader.GetFieldValue<byte[]>(3));
 
     /// <summary>Materializes an accepted source fact or a historical baseline without re-running command validation.</summary>
         /// <returns>The persisted projection result or completion of the caller-owned transaction.</returns>
@@ -744,8 +645,7 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
     public async Task<bool> ProjectStrategyCatalogSourceAsync(EnlistedEventTransaction enlisted, StrategyCatalogSourceEvent source,
         bool rebuild, CancellationToken token = default)
     {
-        this.RequireStorageArgument(enlisted, nameof(enlisted));
-        this.RequireStorageArgument(source, nameof(source));
+        ArgumentNullException.ThrowIfNull(enlisted);
         var (connection, transaction) = enlisted.GetConnectionAndTransaction();
         await this.Execute(connection, transaction, ConfigurationDbSql.AcquireParameterWriterLock, token)
             .ConfigureAwait(false);
@@ -782,106 +682,74 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
         /// <returns>The persisted projection result or completion of the caller-owned transaction.</returns>
     /// <param name="enlisted">The enlisted supplied for this transaction or query.</param>
     /// <param name="token">The token supplied for this transaction or query.</param>
-    public async Task<int> CaptureStrategyCatalogBaselineAsync(EnlistedEventTransaction enlisted, CancellationToken token = default)
+    /// <summary>Capture strategy catalog baseline.</summary>
+    public async Task<IReadOnlyList<CatalogKey>> ReadLockedStrategyCatalogBaselineKeysAsync(EnlistedEventTransaction enlisted, CancellationToken token = default)
     {
-        this.RequireStorageArgument(enlisted, nameof(enlisted));
         var (connection, transaction) = enlisted.GetConnectionAndTransaction();
         await this.CatalogWriteLock(connection, transaction, token)
             .ConfigureAwait(false);
-        var keys = await enlisted.QueryAsync(ConfigurationDbSql.TypedCatalog.CatalogVersionsWithoutSource, [],
-            reader => new CatalogKey((StrategyCatalogKind)reader.GetInt16(0), reader.GetGuid(1), reader.GetInt32(2)), token)
+        return await enlisted.QueryAsync(ConfigurationDbSql.TypedCatalog.CatalogVersionsWithoutSource, [], MapToStrategyCatalogKey, token)
             .ConfigureAwait(false);
-        foreach (var key in keys)
-        {
-            var version = await this.ReadCatalog(connection, transaction, key, true, token)
-            .ConfigureAwait(false)
-                ?? throw new InvalidDataException("A catalog version disappeared during baseline capture.");
-            var id = Guid.NewGuid();
-            var entityId = StrategyCatalogLifecycleCommand.Address(key);
-            var fact = new StrategyCatalogSourceEvent
-            {
-                IsBaseline = true,
-                Subject = new(ActorType.Event, "StrategyCatalogEvent", "BaselineCaptured", entityId.Format()),
-                EntityId = entityId, Id = id, CommandId = id, AggregateId = entityId.Format(),
-                EventSource = "StrategyCatalogMigration", ReceivedOn = BusinessClock.GetUtcNow().UtcDateTime,
-                AfterJson = StrategyCatalogJson.Write(version), Principal = version.CreatedBy
-            };
-            await enlisted.AppendAsync($"StrategyCatalog.{entityId.Format()}", id, fact, 0, token)
-            .ConfigureAwait(false);
-        }
-        return keys.Count;
     }
+
+    /// <inheritdoc/>
+    public Task<StoredStrategyCatalogDefinition?> GetLockedStrategyCatalogAsync(EnlistedEventTransaction enlisted, CatalogKey key, CancellationToken token = default)
+    {
+        var (connection, transaction) = enlisted.GetConnectionAndTransaction();
+        return this.ReadCatalog(connection, transaction, key, true, token);
+    }
+
+    private static CatalogKey MapToStrategyCatalogKey(System.Data.Common.DbDataReader reader) =>
+        new((StrategyCatalogKind)reader.GetInt16(0), reader.GetGuid(1), reader.GetInt32(2));
 
         /// <returns>The persisted projection result or completion of the caller-owned transaction.</returns>
     /// <param name="transaction">The transaction supplied for this transaction or query.</param>
     /// <param name="token">The token supplied for this transaction or query.</param>
+    /// <summary>Reads strategy catalog source heads from the committed projection.</summary>
     public Task<IReadOnlyList<StrategyCatalogSourceEvent>> GetStrategyCatalogSourceHeadsAsync(
         IEnlistedPostgresTransaction transaction, CancellationToken token = default)
     {
-        this.RequireStorageArgument(transaction, nameof(transaction));
-        return transaction.QueryAsync(ConfigurationDbSql.TypedCatalog.CatalogSourceHeads, [], reader =>
-            EventLogMessagePackCodec.Shared.Deserialize(reader.GetString(1), reader.GetInt64(0), (byte[])reader.GetValue(2))
-                as StrategyCatalogSourceEvent ?? throw new InvalidDataException("Unexpected strategy catalog stream head."), token);
+        ArgumentNullException.ThrowIfNull(transaction);
+        return transaction.QueryAsync(ConfigurationDbSql.TypedCatalog.CatalogSourceHeads, [], MapToGetStrategyCatalogSourceHeadsRow1, token);
     }
 
-        /// <returns>The persisted projection result or completion of the caller-owned transaction.</returns>
-    /// <param name="enlisted">The enlisted supplied for this transaction or query.</param>
-    /// <param name="sourceHeads">The sourceHeads supplied for this transaction or query.</param>
-    /// <param name="token">The token supplied for this transaction or query.</param>
-    public async Task RebuildStrategyCatalogAsync(EnlistedEventTransaction enlisted,
-        IReadOnlyCollection<StrategyCatalogSourceEvent> sourceHeads, CancellationToken token = default)
+    /// <inheritdoc/>
+    public async Task<StrategyCatalogQualificationFacts> ReadStrategyCatalogQualificationAsync(CatalogKey root, DateTime asOfUtc,
+        bool allowRootDraft, CancellationToken cancellationToken = default)
     {
-        this.RequireStorageArgument(sourceHeads, nameof(sourceHeads));
-        var remaining = sourceHeads.Select(fact => (Fact: fact, Version: StrategyCatalogJson.Read<StoredStrategyCatalogDefinition>(fact.AfterJson)))
-            .GroupBy(item => item.Version.Definition.Key)
-            .ToDictionary(group => group.Key, group => group.MaxBy(item => item.Fact.EventId));
-        while (remaining.Count > 0)
-        {
-            token.ThrowIfCancellationRequested();
-            var ready = remaining.Values
-                .Where(item => !Dependencies(item.Version.Definition).Any(remaining.ContainsKey))
-                .OrderBy(item => item.Version.CreatedUtc)
-                .ThenBy(item => item.Version.Definition.Key.Version)
-                .ToArray();
-            if (ready.Length == 0)
-                throw new InvalidDataException("Catalog source events contain a cyclic dependency.");
-            foreach (var item in ready)
-            {
-                await ProjectStrategyCatalogSourceAsync(enlisted, item.Fact, true, token)
+        await using var connection = await this.OpenCatalogAsync(cancellationToken)
             .ConfigureAwait(false);
-                remaining.Remove(item.Version.Definition.Key);
-            }
-        }
-    }
-
-
-
-    /// <summary>Gets a validated published strategy deployment snapshot.</summary>
-    /// <param name = "deployment">The deployment catalog key.</param>
-    /// <param name = "asOfUtc">The UTC selection timestamp.</param>
-    /// <param name = "cancellationToken">The cancellation token.</param>
-    /// <returns>The validated deployment snapshot.</returns>
-        /// <param name="deployment">The deployment supplied for this transaction or query.</param>
-    /// <param name="asOfUtc">The asOfUtc supplied for this transaction or query.</param>
-    /// <param name="cancellationToken">The cancellationToken supplied for this transaction or query.</param>
-    public async Task<StrategyCatalogSnapshot> GetPublishedStrategyDeploymentAsync(CatalogKey deployment, DateTime asOfUtc, CancellationToken cancellationToken = default)
-    {
-        var connection = await this.OpenCatalogAsync(cancellationToken)
+        await using var transaction = await connection.BeginTransactionAsync(IsolationLevel.RepeatableRead, cancellationToken)
             .ConfigureAwait(false);
-        await using var connectionDisposal = connection.ConfigureAwait(false);
-        var transaction = await connection.BeginTransactionAsync(IsolationLevel.RepeatableRead, cancellationToken)
-            .ConfigureAwait(false);
-        await using var transactionDisposal = transaction.ConfigureAwait(false);
-        var graph = await this.LoadCatalogGraph(connection, transaction, deployment, asOfUtc, false, cancellationToken)
-            .ConfigureAwait(false);
-        await this.ValidateCatalogGraph(connection, transaction, graph, asOfUtc, cancellationToken)
-            .ConfigureAwait(false);
-        var definitions = graph.Values.OrderBy(x => x.Definition.Key.Kind).ThenBy(x => x.Definition.Key.Id).ThenBy(x => x.Definition.Key.Version).ToArray();
-        var hash = Sha(CanonicalJson(JsonSerializer.SerializeToElement(new { SchemaVersion = 1, Deployment = deployment, Definitions = definitions.Select(x => new { x.Definition.Key, x.ContentHash }).ToArray() }, JsonOptions)));
+        var facts = await this.ReadStrategyCatalogQualificationCoreAsync(connection, transaction, root, asOfUtc,
+            allowRootDraft, lockRows: false, cancellationToken)
+                .ConfigureAwait(false);
         await transaction.CommitAsync(cancellationToken)
             .ConfigureAwait(false);
-        return new(deployment, asOfUtc, definitions, hash);
+        return facts;
     }
+
+    /// <inheritdoc/>
+    public async Task<StrategyCatalogSourceEvent?> ReadCommittedStrategyCatalogOperationAsync(string stream, Guid operationId, CancellationToken token = default)
+    {
+        await using var connection = await this.OpenCatalogAsync(token)
+            .ConfigureAwait(false);
+        var parameters = new CatalogSourceSelection(stream, operationId);
+        await using var command = this.Command(connection, null, ConfigurationDbSql.TypedCatalog.CatalogSourceHead, parameters);
+        await using var reader = await command.ExecuteReaderAsync(token)
+            .ConfigureAwait(false);
+        if (!await reader.ReadAsync(token)
+            .ConfigureAwait(false)) return null;
+        var row = MapToStrategyCatalogSourceHead(reader);
+        var source = EventLogMessagePackCodec.Shared.Deserialize(row.Type, row.EventId, row.Payload) as StrategyCatalogSourceEvent
+            ?? throw new InvalidDataException("Unexpected source event in a strategy catalog stream.");
+        return source.CommandId == operationId ? source : null;
+    }
+
+    internal static CatalogPipelinePolicyFact MapToCatalogPipelinePolicy(System.Data.Common.DbDataReader row,
+        CatalogPipelineParameterKind kind, Guid id, int version)
+        => new(kind, id, version, row.GetString(0), row.GetInt16(1),
+            row.IsDBNull(2) ? null : row.GetDateTime(2), row.GetString(3), row.GetInt16(4));
 
     /// <summary>Inserts an immutable order-composition draft.</summary>
     /// <param name = "policy">The validated policy.</param>
@@ -889,14 +757,11 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
     /// <param name = "createdBy">The author.</param>
     /// <param name = "cancellationToken">The cancellation token.</param>
     /// <returns>A task representing the insert operation.</returns>
-        /// <param name="policy">The policy supplied for this transaction or query.</param>
-    /// <param name="description">The description supplied for this transaction or query.</param>
-    /// <param name="createdBy">The createdBy supplied for this transaction or query.</param>
-    /// <param name="cancellationToken">The cancellationToken supplied for this transaction or query.</param>
     public async Task InsertSelectionConstructionDraftAsync(SelectionConstructionPolicy policy, string description, string createdBy, CancellationToken cancellationToken = default)
     {
+        var preparedParameters19 = new InsertConfigurationDraft(policy.ParameterSetId, policy.Version, policy.SchemaVersion, 0, policy.Serialize(), policy.Hash(), description, BusinessClock.GetUtcNow().UtcDateTime, createdBy);
         await dbFactory.ConfigurationDb.Use($"{nameof(ConfigurationDbSql)}.{nameof(ConfigurationDbSql.InsertOrderCompositionDraft)}", ConfigurationDbSql.InsertOrderCompositionDraft)
-            .SetParameters(new InsertConfigurationDraft(policy.ParameterSetId, policy.Version, policy.SchemaVersion, 0, policy.Serialize(), policy.Hash(), description, BusinessClock.GetUtcNow().UtcDateTime, createdBy))
+            .SetParameters(preparedParameters19)
             .ExecuteCommandAsync(cancellationToken)
             .ConfigureAwait(false);
     }
@@ -907,14 +772,11 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
     /// <param name = "createdBy">The author.</param>
     /// <param name = "cancellationToken">The cancellation token.</param>
     /// <returns>A task representing the insert operation.</returns>
-        /// <param name="activation">The activation supplied for this transaction or query.</param>
-    /// <param name="description">The description supplied for this transaction or query.</param>
-    /// <param name="createdBy">The createdBy supplied for this transaction or query.</param>
-    /// <param name="cancellationToken">The cancellationToken supplied for this transaction or query.</param>
     public async Task InsertTradeSelectionActivationDraftAsync(TradeSelectionActivation activation, string description, string createdBy, CancellationToken cancellationToken = default)
     {
+        var preparedParameters20 = new InsertConfigurationDraft(activation.ParameterSetId, activation.Version, activation.SchemaVersion, 0, activation.Serialize(), activation.Hash(), description, BusinessClock.GetUtcNow().UtcDateTime, createdBy);
         await dbFactory.ConfigurationDb.Use($"{nameof(ConfigurationDbSql)}.{nameof(ConfigurationDbSql.InsertStrategyWorkflowDraft)}", ConfigurationDbSql.InsertStrategyWorkflowDraft)
-            .SetParameters(new InsertConfigurationDraft(activation.ParameterSetId, activation.Version, activation.SchemaVersion, 0, activation.Serialize(), activation.Hash(), description, BusinessClock.GetUtcNow().UtcDateTime, createdBy))
+            .SetParameters(preparedParameters20)
             .ExecuteCommandAsync(cancellationToken)
             .ConfigureAwait(false);
     }
@@ -953,14 +815,11 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
     /// <param name = "createdBy">The author.</param>
     /// <param name = "cancellationToken">The cancellation token.</param>
     /// <returns>A task representing the insert operation.</returns>
-        /// <param name="parameters">The parameters supplied for this transaction or query.</param>
-    /// <param name="description">The description supplied for this transaction or query.</param>
-    /// <param name="createdBy">The createdBy supplied for this transaction or query.</param>
-    /// <param name="cancellationToken">The cancellationToken supplied for this transaction or query.</param>
     public async Task InsertTradeSelectionDraftAsync(TradeSelectionParameterSet parameters, string description, string createdBy, CancellationToken cancellationToken = default)
     {
+        var preparedParameters21 = new InsertConfigurationDraft(parameters.ParameterSetId, parameters.Version, parameters.SchemaVersion, 0, TradeSelectionPolicy.Serialize(parameters), TradeSelectionPolicy.Hash(parameters), description ?? "", BusinessClock.GetUtcNow().UtcDateTime, createdBy);
         await dbFactory.ConfigurationDb.Use($"{nameof(ConfigurationDbSql)}.{nameof(ConfigurationDbSql.InsertTradeSelectionDraft)}", ConfigurationDbSql.InsertTradeSelectionDraft)
-            .SetParameters(new InsertConfigurationDraft(parameters.ParameterSetId, parameters.Version, parameters.SchemaVersion, 0, TradeSelectionPolicy.Serialize(parameters), TradeSelectionPolicy.Hash(parameters), description ?? "", BusinessClock.GetUtcNow().UtcDateTime, createdBy))
+            .SetParameters(preparedParameters21)
             .ExecuteCommandAsync(cancellationToken)
             .ConfigureAwait(false);
     }
@@ -970,13 +829,11 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
     /// <param name = "version">The version number.</param>
     /// <param name = "cancellationToken">The cancellation token.</param>
     /// <returns>The resolved version, or <see langword="null"/> when it does not exist.</returns>
-        /// <param name="id">The id supplied for this transaction or query.</param>
-    /// <param name="version">The version supplied for this transaction or query.</param>
-    /// <param name="cancellationToken">The cancellationToken supplied for this transaction or query.</param>
     public async Task<ResolvedTradeSelectionParameterSet?> GetTradeSelectionVersionAsync(Guid id, int version, CancellationToken cancellationToken = default)
     {
+        var preparedParameters22 = new GetConfiguration(id, version);
         return await dbFactory.ConfigurationDb.Use($"{nameof(ConfigurationDbSql)}.{nameof(ConfigurationDbSql.GetTradeSelectionVersion)}", ConfigurationDbSql.GetTradeSelectionVersion)
-            .SetParameters(new GetConfiguration(id, version))
+            .SetParameters(preparedParameters22)
             .ExecuteSingleAsync(MapToTradeSelectionVersion, cancellationToken)
             .ConfigureAwait(false);
     }
@@ -1010,14 +867,11 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
     /// <param name = "version">The version number.</param>
     /// <param name = "cancellationToken">The cancellation token.</param>
     /// <returns>The policy snapshot, or <see langword="null"/> when it does not exist.</returns>
-        /// <param name="kind">The kind supplied for this transaction or query.</param>
-    /// <param name="id">The id supplied for this transaction or query.</param>
-    /// <param name="version">The version supplied for this transaction or query.</param>
-    /// <param name="cancellationToken">The cancellationToken supplied for this transaction or query.</param>
     public async Task<SelectionPipelinePolicySnapshot?> GetSelectionPipelinePolicyAsync(CatalogPipelineParameterKind kind, Guid id, int version, CancellationToken cancellationToken = default)
     {
+        var preparedParameters23 = new GetConfiguration(id, version);
         return await dbFactory.ConfigurationDb.Use($"{nameof(ConfigurationDbSql)}.{nameof(ConfigurationDbSql.GetSelectionPipelinePolicyFor)}.{kind}", ConfigurationDbSql.GetSelectionPipelinePolicyFor(kind))
-            .SetParameters(new GetConfiguration(id, version))
+            .SetParameters(preparedParameters23)
             .ExecuteSingleAsync(MapToSelectionPipelinePolicy, cancellationToken)
             .ConfigureAwait(false);
     }
@@ -1069,9 +923,6 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
     /// <param name = "fact">The fact.</param>
     /// <param name = "cancellationToken">The cancellation token.</param>
     /// <returns>A task representing the persistence operation.</returns>
-        /// <param name="transaction">The transaction supplied for this transaction or query.</param>
-    /// <param name="fact">The fact supplied for this transaction or query.</param>
-    /// <param name="cancellationToken">The cancellationToken supplied for this transaction or query.</param>
     public Task ProjectParameterAssignmentAsync(IEnlistedPostgresTransaction transaction, ParameterAssignmentChangedEvent fact, CancellationToken cancellationToken = default)
     {
         return this.ProjectCatalogAssignmentAsync(transaction,fact,cancellationToken);
@@ -1083,14 +934,11 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
     /// <param name = "offset">The result offset.</param>
     /// <param name = "cancellationToken">The cancellation token.</param>
     /// <returns>The legacy parameter versions.</returns>
-        /// <param name="setId">The setId supplied for this transaction or query.</param>
-    /// <param name="version">The version supplied for this transaction or query.</param>
-    /// <param name="offset">The offset supplied for this transaction or query.</param>
-    /// <param name="cancellationToken">The cancellationToken supplied for this transaction or query.</param>
     public async Task<ParameterLegacyVersion[]> GetLegacyParameterVersionsAsync(Guid? setId = null, int version = 0, int offset = 0, CancellationToken cancellationToken = default)
     {
+        var preparedParameters24 = new GetLegacyParameterVersions(setId, version, offset);
         var rows = await dbFactory.ConfigurationDb.Use($"{nameof(ConfigurationDbSql)}.{nameof(ConfigurationDbSql.GetLegacyParameterVersions)}", ConfigurationDbSql.GetLegacyParameterVersions)
-            .SetParameters(new GetLegacyParameterVersions(setId, version, offset))
+            .SetParameters(preparedParameters24)
             .ExecuteQueryAsync(MapToLegacyParameterVersion, cancellationToken)
             .ConfigureAwait(false);
         return rows.ToArray();
@@ -1124,8 +972,9 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
     /// <param name="token">The token supplied for this transaction or query.</param>
     public async Task<ParameterSchemaDefinition?> GetParameterSchemaAsync(string componentCode, int version, CancellationToken token = default)
     {
+        var preparedParameters25 = new GetParameterSchema(componentCode, version);
         var stored = await dbFactory.ConfigurationDb.Use($"{nameof(ConfigurationDbSql)}.{nameof(ConfigurationDbSql.GetParameterSchema)}", ConfigurationDbSql.GetParameterSchema)
-            .SetParameters(new GetParameterSchema(componentCode, version))
+            .SetParameters(preparedParameters25)
             .ExecuteSingleAsync(MapToParameterSchema, token)
             .ConfigureAwait(false);
         if (stored is null)
@@ -1166,9 +1015,6 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
     /// <param name = "fact">The fact.</param>
     /// <param name = "cancellationToken">The cancellation token.</param>
     /// <returns>A task representing the persistence operation.</returns>
-        /// <param name="transaction">The transaction supplied for this transaction or query.</param>
-    /// <param name="fact">The fact supplied for this transaction or query.</param>
-    /// <param name="cancellationToken">The cancellationToken supplied for this transaction or query.</param>
     public Task ProjectParameterSetAsync(IEnlistedPostgresTransaction transaction, IParameterSetFact fact, CancellationToken cancellationToken = default)
     {
         return this.ProjectCatalogSetAsync(transaction,fact,cancellationToken);
@@ -1199,8 +1045,7 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
         await using var transaction=await connection.BeginTransactionAsync(token)
             .ConfigureAwait(false);
         var session=new ConfigurationDbSession(connection,transaction);
-        var page=await session.QueryAsync(ConfigurationDbSql.TypedCatalog.VersionPage,[componentCode,setId,afterName,afterSetId,afterVersion,limit],
-            reader=>(Id:reader.GetGuid(0),Version:reader.GetInt64(1),Name:reader.GetString(2),Description:reader.GetString(3),Revision:reader.GetInt64(4)),token)
+        var page=await session.QueryAsync(ConfigurationDbSql.TypedCatalog.VersionPage, [componentCode, setId, afterName, afterSetId, afterVersion, limit], MapToGetParameterSetsRow2, token)
             .ConfigureAwait(false);
         var result=new List<ParameterSetVersion>();
         foreach(var row in page)
@@ -1245,9 +1090,6 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
     /// <param name = "fact">The fact.</param>
     /// <param name = "cancellationToken">The cancellation token.</param>
     /// <returns>A task representing the persistence operation.</returns>
-        /// <param name="transaction">The transaction supplied for this transaction or query.</param>
-    /// <param name="fact">The fact supplied for this transaction or query.</param>
-    /// <param name="cancellationToken">The cancellationToken supplied for this transaction or query.</param>
     public Task ProjectParameterStartupAsync(IEnlistedPostgresTransaction transaction, ParameterStartupChangedEvent fact, CancellationToken cancellationToken = default)
     {
         return this.ProjectCatalogStartupAsync(transaction,fact,cancellationToken);
@@ -1334,6 +1176,7 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
 
         /// <returns>The persisted projection result or completion of the caller-owned transaction.</returns>
     /// <param name="cancellationToken">The cancellationToken supplied for this transaction or query.</param>
+    /// <summary>Reads projected parameter revision from the committed projection.</summary>
     public async Task<long?> GetProjectedParameterRevisionAsync(CancellationToken cancellationToken = default)
     {
         await using var connection = await this.OpenCatalogAsync(cancellationToken)
@@ -1349,10 +1192,11 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
     /// <param name="transaction">The transaction supplied for this transaction or query.</param>
     /// <param name="eventId">The eventId supplied for this transaction or query.</param>
     /// <param name="cancellationToken">The cancellationToken supplied for this transaction or query.</param>
+    /// <summary>Mark parameter projection pending.</summary>
     public async Task MarkParameterProjectionPendingAsync(
         IEnlistedPostgresTransaction transaction, long eventId, CancellationToken cancellationToken = default)
     {
-        this.RequireStorageArgument(transaction, nameof(transaction));
+        ArgumentNullException.ThrowIfNull(transaction);
         await transaction.ExecuteAsync(ConfigurationDbSql.TypedCatalog.MarkParameterProjectionPending, [eventId], cancellationToken)
             .ConfigureAwait(false);
     }
@@ -1361,10 +1205,11 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
     /// <param name="transaction">The transaction supplied for this transaction or query.</param>
     /// <param name="eventId">The eventId supplied for this transaction or query.</param>
     /// <param name="cancellationToken">The cancellationToken supplied for this transaction or query.</param>
+    /// <summary>Complete parameter projection.</summary>
     public async Task<bool> CompleteParameterProjectionAsync(
         IEnlistedPostgresTransaction transaction, long eventId, CancellationToken cancellationToken = default)
     {
-        this.RequireStorageArgument(transaction, nameof(transaction));
+        ArgumentNullException.ThrowIfNull(transaction);
         return await transaction.ExecuteAsync(ConfigurationDbSql.TypedCatalog.CompleteParameterProjection, [eventId], cancellationToken)
             .ConfigureAwait(false) == 1;
     }
@@ -1375,7 +1220,7 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
     /// <param name="cancellationToken">The cancellationToken supplied for this transaction or query.</param>
     public async Task AdvanceParameterRevisionFenceAsync(IEnlistedPostgresTransaction transaction, CancellationToken cancellationToken = default)
     {
-        this.RequireStorageArgument(transaction, nameof(transaction));
+        ArgumentNullException.ThrowIfNull(transaction);
         if (await transaction.ExecuteAsync(ConfigurationDbSql.TypedCatalog.AdvanceRevisionFence, [], cancellationToken)
             .ConfigureAwait(false) != 1)
             throw new InvalidDataException("PARAM.REVISION_FENCE_MISSING");
@@ -1394,8 +1239,7 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken)
             .ConfigureAwait(false);
         var session = new ConfigurationDbSession(connection, transaction);
-        var ids = await session.QueryAsync(ConfigurationDbSql.TypedCatalog.StartupPage,
-            [afterCreatedAtUtc?.ToBinary(), afterRunId ?? Guid.Empty, Math.Clamp(limit, 1, 25)], reader => reader.GetGuid(0), cancellationToken)
+        var ids = await session.QueryAsync(ConfigurationDbSql.TypedCatalog.StartupPage, [afterCreatedAtUtc?.ToBinary(), afterRunId ?? Guid.Empty, Math.Clamp(limit, 1, 25)], MapToGetParameterStartupRunIdsRow3, cancellationToken)
             .ConfigureAwait(false);
         return ids.ToArray();
     }
@@ -1403,6 +1247,7 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
         /// <returns>The persisted projection result or completion of the caller-owned transaction.</returns>
     /// <param name="setId">The setId supplied for this transaction or query.</param>
     /// <param name="cancellationToken">The cancellationToken supplied for this transaction or query.</param>
+    /// <summary>Reads parameter set snapshot from the committed projection.</summary>
     public async Task<ParameterSetSnapshot> GetParameterSetSnapshotAsync(Guid setId, CancellationToken cancellationToken = default)
     {
         await using var connection = await this.OpenCatalogAsync(cancellationToken)
@@ -1410,9 +1255,7 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
         await using var transaction = await connection.BeginTransactionAsync(IsolationLevel.RepeatableRead, cancellationToken)
             .ConfigureAwait(false);
         var session = new ConfigurationDbSession(connection, transaction);
-        var rows = await session.QueryAsync(ConfigurationDbSql.TypedCatalog.SetSnapshotVersions, [setId],
-            reader => (Version: reader.GetInt64(0), Name: reader.GetString(1), Description: reader.GetString(2), Revision: reader.GetInt64(3)),
-            cancellationToken)
+        var rows = await session.QueryAsync(ConfigurationDbSql.TypedCatalog.SetSnapshotVersions, [setId], MapToGetParameterSetSnapshotRow4, cancellationToken)
             .ConfigureAwait(false);
         var versions = new List<ParameterSetVersion>(rows.Count);
         foreach (var row in rows)
@@ -1427,9 +1270,7 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
         }
 
         var references = versions.ToDictionary(item => item.Reference.Version, item => item.Reference);
-        var operations = await session.QueryAsync(ConfigurationDbSql.TypedCatalog.OwnerOperations, ["set", setId],
-            reader => new ParameterOperationReceipt(reader.GetGuid(0), reader.GetString(2), reader.GetInt64(1), references[reader.GetInt32(3)]),
-            cancellationToken)
+        var operations = await session.QueryAsync(ConfigurationDbSql.TypedCatalog.OwnerOperations, ["set", setId], (reader) => MapToGetParameterSetSnapshotRow5(reader, references), cancellationToken)
             .ConfigureAwait(false);
         var audit = new List<ParameterAuditEntry>();
         foreach (var operation in operations)
@@ -1445,6 +1286,7 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
     /// <param name="identity">The identity supplied for this transaction or query.</param>
     /// <param name="scope">The scope supplied for this transaction or query.</param>
     /// <param name="cancellationToken">The cancellationToken supplied for this transaction or query.</param>
+    /// <summary>Reads parameter assignment snapshot from the committed projection.</summary>
     public async Task<ParameterAssignmentSnapshot> GetParameterAssignmentSnapshotAsync(
         ParameterAssignmentEntityId identity, ParameterAssignmentScope scope, CancellationToken cancellationToken = default)
     {
@@ -1453,8 +1295,7 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
         await using var transaction = await connection.BeginTransactionAsync(IsolationLevel.RepeatableRead, cancellationToken)
             .ConfigureAwait(false);
         var session = new ConfigurationDbSession(connection, transaction);
-        var operations = await session.QueryAsync(ConfigurationDbSql.TypedCatalog.OwnerOperations, ["assignment", identity.AssignmentId],
-            reader => (Id: reader.GetGuid(0), Revision: reader.GetInt64(1)), cancellationToken)
+        var operations = await session.QueryAsync(ConfigurationDbSql.TypedCatalog.OwnerOperations, ["assignment", identity.AssignmentId], MapToGetParameterAssignmentSnapshotRow6, cancellationToken)
             .ConfigureAwait(false);
         if (operations.Count == 0)
             return new(identity, scope, 0, null, []);
@@ -1476,7 +1317,8 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
         /// <returns>The persisted projection result or completion of the caller-owned transaction.</returns>
     /// <param name="assignmentIds">The assignmentIds supplied for this transaction or query.</param>
     /// <param name="cancellationToken">The cancellationToken supplied for this transaction or query.</param>
-    public async Task<(ParameterAssignmentRevision[] Assignments, ParameterSetVersion[] Versions)> GetParameterStartupInputsAsync(
+    /// <summary>Reads parameter startup inputs from the committed projection.</summary>
+    public async Task<ParameterStartupInputsReadModel> GetParameterStartupInputsAsync(
         Guid[] assignmentIds, CancellationToken cancellationToken = default)
     {
         await using var connection = await this.OpenCatalogAsync(cancellationToken)
@@ -1487,8 +1329,7 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
         var assignments = new List<ParameterAssignmentRevision>(assignmentIds.Length);
         foreach (var id in assignmentIds)
         {
-            var revision = Convert.ToInt64(await session.ScalarAsync(ConfigurationDbSql.TypedCatalog.Revision,
-                ["assignment", id], cancellationToken)
+            var revision = Convert.ToInt64(await session.ScalarAsync(ConfigurationDbSql.TypedCatalog.Revision, ["assignment", id], cancellationToken)
             .ConfigureAwait(false));
             if (revision > 0)
             {
@@ -1509,12 +1350,13 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
                 ?? throw new InvalidOperationException("PARAM.EXACT_VERSION_MISSING");
             versions.Add(metadata.Restore(values));
         }
-        return (assignments.ToArray(), versions.ToArray());
+        return new(assignments.ToArray(), versions.ToArray());
     }
 
         /// <returns>The persisted projection result or completion of the caller-owned transaction.</returns>
     /// <param name="runId">The runId supplied for this transaction or query.</param>
     /// <param name="cancellationToken">The cancellationToken supplied for this transaction or query.</param>
+    /// <summary>Has parameter startup projection.</summary>
     public async Task<bool> HasParameterStartupProjectionAsync(Guid runId, CancellationToken cancellationToken = default)
     {
         await using var connection = await this.OpenCatalogAsync(cancellationToken)
@@ -1529,7 +1371,8 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
         /// <returns>The persisted projection result or completion of the caller-owned transaction.</returns>
     /// <param name="runId">The runId supplied for this transaction or query.</param>
     /// <param name="cancellationToken">The cancellationToken supplied for this transaction or query.</param>
-    public async Task<(ParameterStartupRun? Run, ParameterSignalStartupReport? Report)> GetActiveParameterStartupAsync(
+    /// <summary>Reads active parameter startup from the committed projection.</summary>
+    public async Task<ParameterStartupReadModel> GetActiveParameterStartupAsync(
         Guid runId, CancellationToken cancellationToken = default)
     {
         await using var connection = await this.OpenCatalogAsync(cancellationToken)
@@ -1537,17 +1380,16 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
         await using var transaction = await connection.BeginTransactionAsync(IsolationLevel.RepeatableRead, cancellationToken)
             .ConfigureAwait(false);
         var session = new ConfigurationDbSession(connection, transaction);
-        var active = await session.QueryAsync(ConfigurationDbSql.TypedCatalog.ActiveStartup,
-            [runId], reader => reader.GetGuid(0), cancellationToken)
+        var active = await session.QueryAsync(ConfigurationDbSql.TypedCatalog.ActiveStartup, [runId], MapToGetActiveParameterStartupRow7, cancellationToken)
             .ConfigureAwait(false);
         if (active.Count == 0)
-            return (null, null);
+            return new(null, null);
 
         var run = await GetParameterStartupProjectionAsync(session, runId, cancellationToken)
             .ConfigureAwait(false);
         var report = await GetParameterStartupReportProjectionAsync(session, runId, cancellationToken)
             .ConfigureAwait(false);
-        return (run, report);
+        return new(run, report);
     }
 
         /// <returns>The persisted projection result or completion of the caller-owned transaction.</returns>
@@ -1555,6 +1397,7 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
     /// <param name="afterCreatedAtUtc">The afterCreatedAtUtc supplied for this transaction or query.</param>
     /// <param name="afterRunId">The afterRunId supplied for this transaction or query.</param>
     /// <param name="cancellationToken">The cancellationToken supplied for this transaction or query.</param>
+    /// <summary>Reads active parameter startup page from the committed projection.</summary>
     public async Task<ParameterStartupRun[]> GetActiveParameterStartupPageAsync(
         int limit, DateTime? afterCreatedAtUtc, Guid? afterRunId, CancellationToken cancellationToken = default)
     {
@@ -1563,9 +1406,7 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
         await using var transaction = await connection.BeginTransactionAsync(IsolationLevel.RepeatableRead, cancellationToken)
             .ConfigureAwait(false);
         var session = new ConfigurationDbSession(connection, transaction);
-        var ids = await session.QueryAsync(ConfigurationDbSql.TypedCatalog.StartupPage,
-            [afterCreatedAtUtc?.ToBinary(), afterRunId ?? Guid.Empty, Math.Clamp(limit, 1, 25)],
-            reader => reader.GetGuid(0), cancellationToken)
+        var ids = await session.QueryAsync(ConfigurationDbSql.TypedCatalog.StartupPage, [afterCreatedAtUtc?.ToBinary(), afterRunId ?? Guid.Empty, Math.Clamp(limit, 1, 25)], MapToGetActiveParameterStartupPageRow8, cancellationToken)
             .ConfigureAwait(false);
         var runs = new List<ParameterStartupRun>(ids.Count);
         foreach (var id in ids)
@@ -1622,4 +1463,36 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
     /// <returns>The typed report, or null when absent.</returns>
     public Task<ParameterSignalStartupReport?> GetParameterStartupReportProjectionAsync(IEnlistedPostgresTransaction transaction, Guid runId, CancellationToken cancellationToken=default)
         => this.ReadCatalogAsync<ParameterSignalStartupReport>(transaction,runId,1,cancellationToken);
+
+    /// <summary>Maps the selected database columns in their query ordinal order.</summary>
+    private static global::TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogSourceEvent MapToGetStrategyCatalogSourceHeadsRow1(global::System.Data.Common.DbDataReader reader) =>             EventLogMessagePackCodec.Shared.Deserialize(reader.GetString(1), reader.GetInt64(0), (byte[])reader.GetValue(2))
+                as StrategyCatalogSourceEvent ?? throw new InvalidDataException("Unexpected strategy catalog stream head.");
+
+    /// <summary>Maps the selected database columns in their query ordinal order.</summary>
+    private static (global::System.Guid Id, long Version, string Name, string Description, long Revision) MapToGetParameterSetsRow2(global::System.Data.Common.DbDataReader reader) => (Id:reader.GetGuid(0),Version:reader.GetInt64(1),Name:reader.GetString(2),Description:reader.GetString(3),Revision:reader.GetInt64(4));
+
+    /// <summary>Maps the selected database columns in their query ordinal order.</summary>
+    private static global::System.Guid MapToGetParameterStartupRunIdsRow3(global::System.Data.Common.DbDataReader reader) => reader.GetGuid(0);
+
+    /// <summary>Maps the selected database columns in their query ordinal order.</summary>
+    private static (long Version, string Name, string Description, long Revision) MapToGetParameterSetSnapshotRow4(global::System.Data.Common.DbDataReader reader) => (Version: reader.GetInt64(0), Name: reader.GetString(1), Description: reader.GetString(2), Revision: reader.GetInt64(3));
+
+    /// <summary>Maps the selected database columns in their query ordinal order.</summary>
+    private static global::TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterOperationReceipt MapToGetParameterSetSnapshotRow5(global::System.Data.Common.DbDataReader reader, global::System.Collections.Generic.Dictionary<int, global::TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterVersionRef> references) => new ParameterOperationReceipt(reader.GetGuid(0), reader.GetString(2), reader.GetInt64(1), references[reader.GetInt32(3)]);
+
+    /// <summary>Maps the selected database columns in their query ordinal order.</summary>
+    private static (global::System.Guid Id, long Revision) MapToGetParameterAssignmentSnapshotRow6(global::System.Data.Common.DbDataReader reader) => (Id: reader.GetGuid(0), Revision: reader.GetInt64(1));
+
+    /// <summary>Maps the selected database columns in their query ordinal order.</summary>
+    private static global::System.Guid MapToGetActiveParameterStartupRow7(global::System.Data.Common.DbDataReader reader) => reader.GetGuid(0);
+
+    /// <summary>Maps the selected database columns in their query ordinal order.</summary>
+    private static global::System.Guid MapToGetActiveParameterStartupPageRow8(global::System.Data.Common.DbDataReader reader) => reader.GetGuid(0);
+internal static (string Component, int Schema, string Hash, string Codec) MapToReadTypedValueRow1(global::System.Data.Common.DbDataReader reader) => (Component: reader.GetString(0), Schema: reader.GetInt32(1), Hash: reader.GetString(2), Codec: reader.GetString(3));
+internal static global::TomasAI.IFM.Application.Storage.ConfigurationDb.ParameterValueMapping.Row MapToReadTypedValueRow2(global::System.Data.Common.DbDataReader reader, global::TomasAI.IFM.Application.Storage.ConfigurationDb.ParameterValueMapping.Table table) => new ParameterValueMapping.Row(table, reader.GetString(0), reader.IsDBNull(1) ? null : reader.GetString(1), reader.GetInt32(2),
+                    Enumerable.Range(0, table.Columns.Count).Select(index => reader.IsDBNull(index + 3) ? null : reader.GetValue(index + 3)).ToArray());
+    internal static ParameterValueMapping.Row MapToParameterProjectionRow(System.Data.Common.DbDataReader reader, ParameterValueMapping.Table table) =>
+        new(table, reader.GetString(0), reader.IsDBNull(1) ? null : reader.GetString(1), reader.GetInt32(2),
+            Enumerable.Range(0, table.Columns.Count).Select(i => reader.IsDBNull(i + 3) ? null : reader.GetValue(i + 3)).ToArray());
+
 }

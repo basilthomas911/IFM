@@ -27,7 +27,7 @@ internal static class ScheduledTaskAtomicPersistence
             var version = state.CommittedStreamVersion;
             foreach (var domainEvent in pending)
             {
-                await transaction.AppendAsync(command.StreamId, command.CommandId, domainEvent, version++, cancellation).ConfigureAwait(false);
+                await transaction.AppendAsync(new EnlistedEventAppend(command.StreamId, command.CommandId, domainEvent, version++), cancellation).ConfigureAwait(false);
                 await Project(transaction, writer, domainEvent, cancellation).ConfigureAwait(false);
             }
             return true;

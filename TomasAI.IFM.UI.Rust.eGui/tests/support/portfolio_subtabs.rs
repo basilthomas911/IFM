@@ -104,3 +104,41 @@ async fn portfolio_subtabs_match_managed_financials_and_risk_evidence() {
         assert_eq!(native["dialogs"], json!([]));
     }
 }
+
+
+/// Embedded read-only panels must not become phantom editors when navigating Funds -> Fund Details.
+#[tokio::test]
+#[ignore = "Requires isolated C# compatibility responder"]
+async fn portfolio_fund_details_opens_base_contracts_over_inline_panels_and_preserves_real_drafts() {
+    let backend = Backend::connect(Settings { url:std::env::var("IFM_STANDALONE_TEST_NATS_URL").unwrap(),
+        credentials_file:None,token:None,request_timeout:Duration::from_secs(3) }).await.unwrap();
+    let registry=Registry::compiled().unwrap();
+    for panel in ["financials","risk-history"] {
+        for (owner,mode) in [("PortfolioMode","Reset"),("PortfolioMode","FundCommands"),("FinancialMode","Normal"),("InspectionMode","Normal")] {
+            service_result(&backend.request(&ActorSubject::query("NativeCompatibility",owner,"none"),&mode.into(),None,None).await.unwrap()).unwrap();
+        }
+        let mut state=PortfolioController::with_journal_root(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("target/cross-language/base-contract-navigation").join(uuid::Uuid::new_v4().to_string()));
+        let mut p=act(&mut state,&backend,&registry,0,"load",json!({}),None).await;
+        p=act(&mut state,&backend,&registry,p.generation,"portfolio-fund-view",json!({"view":panel}),None).await;
+        assert_eq!(p.outcomes[0].state,"Completed","{}",p.status);
+        assert_eq!(doc(&p)["fundView"]["key"],panel);
+        assert_eq!(doc(&p)["dialogs"],json!([]));
+        p=act(&mut state,&backend,&registry,p.generation,"portfolio-open",json!({"view":"base-contracts"}),None).await;
+        assert_eq!(p.outcomes[0].state,"Completed","{}",p.status);
+        assert_eq!(doc(&p)["dialogs"][0]["key"],"base-contracts");
+        assert_eq!(doc(&p)["fundView"]["key"],panel);
+        let mut draft=doc(&p)["dialogs"][0].clone();
+        // A real Base Contracts working copy must still block another editor.
+        p=act(&mut state,&backend,&registry,p.generation,"portfolio-open",json!({"view":"allocation"}),None).await;
+        assert_eq!(p.outcomes[0].state,"Failed");
+        assert_eq!(p.outcomes[0].message,"Close the current editor before opening another");
+        draft["status"]="Close the current editor before opening another".into();
+        assert_eq!(doc(&p)["dialogs"][0],draft);
+        p=act(&mut state,&backend,&registry,p.generation,"portfolio-cancel",json!({}),None).await;
+        assert_eq!(p.outcomes[0].state,"Completed","{}",p.status);
+        assert_eq!(doc(&p)["fundView"]["key"],panel);
+        assert_eq!(doc(&p)["dialogs"],json!([]),"Cancel must leave no modal editor");
+        p=act(&mut state,&backend,&registry,p.generation,"portfolio-open",json!({"view":"base-contracts"}),None).await;
+        assert_eq!(p.outcomes[0].state,"Completed","{}",p.status);
+    }
+}

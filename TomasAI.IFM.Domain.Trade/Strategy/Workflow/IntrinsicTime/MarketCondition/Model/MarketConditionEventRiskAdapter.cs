@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Shared.QueryParameters;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.MarketCondition;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Model;
@@ -24,7 +25,7 @@ public sealed class MarketConditionEventRiskAdapter(IDbContextFactory storage, T
                     Availability = MarketSourceAvailability.Unavailable
                 }
             };
-        var rows = await storage.MarketDataDb.GetEconomicCalendarsAsync(evaluationTimestampUtc.AddMinutes(-after), evaluationTimestampUtc.AddMinutes(before), "US", cancellationToken).ConfigureAwait(false);
+        var rows = await storage.MarketDataDb.GetEconomicCalendarsAsync(new EconomicCalendarDateRange(evaluationTimestampUtc.AddMinutes(-after), evaluationTimestampUtc.AddMinutes(before), "US"), cancellationToken).ConfigureAwait(false);
         if (rows.Any(x => !x.IsValid || string.IsNullOrWhiteSpace(x.EventName)))
             throw new InvalidOperationException("Economic-calendar event identity is invalid.");
         var active = rows.Select(x => new { Value = x, Category = ((IsRateDecision(x.EventName)) switch

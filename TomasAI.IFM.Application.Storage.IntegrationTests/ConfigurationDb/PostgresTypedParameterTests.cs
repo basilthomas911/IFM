@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.EventSourcing;
 using System;
 using System.Linq;
 using System.Collections.Generic;
@@ -41,7 +42,7 @@ public sealed class PostgresTypedParameterTests(PostgresTradePlanFixture fixture
             originals.Add(version);
             var fact=new ParameterSetCreatedEvent {CommandId=Guid.NewGuid(),EntityId=new(id),Revision=1,RequestHash=new string('f',64),
                 VersionJson=System.Text.Json.JsonSerializer.Serialize(version)};
-            await fixture.Transactions.ExecuteOnceAsync(async(tx,token)=>{await tx.AppendAsync("migration-"+id,fact.CommandId,fact,0,token);return true;});
+            await fixture.Transactions.ExecuteOnceAsync(async(tx,token)=>{await tx.AppendAsync(new EnlistedEventAppend("migration-"+id,fact.CommandId,fact,0),token);return true;});
         }
         var migration=new TomasAI.IFM.Domain.Reference.ParameterSets.Migration.ParameterCatalogMigrationService(fixture.Transactions,factory.Object);
         Assert.True(await migration.ExecuteAsync()>=8);

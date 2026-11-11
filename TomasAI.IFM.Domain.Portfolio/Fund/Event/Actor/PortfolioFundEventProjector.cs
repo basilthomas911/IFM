@@ -25,27 +25,28 @@ public sealed class PortfolioFundEventProjector(
 {
     static readonly ImmutableArray<Type> Types =
     [
-        typeof(FundMandateCreatedEvent), typeof(FundMandateVersionAddedEvent), typeof(FundOperatingStateChangedEvent),
+        typeof(FundBaseContractsConfiguredEvent), typeof(FundMandateCreatedEvent), typeof(FundMandateVersionAddedEvent), typeof(FundOperatingStateChangedEvent),
         typeof(FundTradeTemplateAssignedEvent), typeof(FundCompositionReservedEvent), typeof(FundCompositionStateChangedEvent),
         typeof(FundManualOrderChangedEvent), typeof(FundManualOrderDeletedEvent),
     ];
     readonly ImmutableArray<EventProjectionDescriptor> _descriptors =
         [
-            DescribeNotification<FundMandateCreatedEvent, ActorEntityId>(x => new PortfolioProjectionHandler(events, projections).ApplyAsync(x)).WithReadModelRebuild((source,ct) => RebuildAsync(source, ((FundMandateCreatedEvent)source).ProjectionFacts, transactions,ct)),
-            DescribeNotification<FundMandateVersionAddedEvent, ActorEntityId>(x => new PortfolioProjectionHandler(events, projections).ApplyAsync(x)).WithReadModelRebuild((source,ct) => RebuildAsync(source, ((FundMandateVersionAddedEvent)source).ProjectionFacts, transactions,ct)),
-            DescribeNotification<FundOperatingStateChangedEvent, ActorEntityId>(x => new PortfolioProjectionHandler(events, projections).ApplyAsync(x)).WithReadModelRebuild((source,ct) => RebuildAsync(source, ((FundOperatingStateChangedEvent)source).ProjectionFacts, transactions,ct)),
-            DescribeNotification<FundTradeTemplateAssignedEvent, ActorEntityId>(x => new PortfolioProjectionHandler(events, projections).ApplyAsync(x)).WithReadModelRebuild((source,ct) => RebuildAsync(source, ((FundTradeTemplateAssignedEvent)source).ProjectionFacts, transactions,ct)),
-            DescribeNotification<FundCompositionReservedEvent, ActorEntityId>(x => new PortfolioProjectionHandler(events, projections).ApplyAsync(x)).WithReadModelRebuild((source,ct) => RebuildAsync(source, ((FundCompositionReservedEvent)source).ProjectionFacts, transactions,ct)),
-            DescribeNotification<FundCompositionStateChangedEvent, ActorEntityId>(x => new PortfolioProjectionHandler(events, projections).ApplyAsync(x)).WithReadModelRebuild((source,ct) => RebuildAsync(source, ((FundCompositionStateChangedEvent)source).ProjectionFacts, transactions,ct)),
-            DescribeNotification<FundManualOrderChangedEvent, ActorEntityId>(x => new PortfolioProjectionHandler(events, projections).ApplyAsync(x)).WithReadModelRebuild((source,ct) => RebuildAsync(source, ((FundManualOrderChangedEvent)source).ProjectionFacts, transactions,ct)),
-            DescribeNotification<FundManualOrderDeletedEvent, ActorEntityId>(x => new PortfolioProjectionHandler(events, projections).ApplyAsync(x)).WithReadModelRebuild((source,ct) => RebuildAsync(source, ((FundManualOrderDeletedEvent)source).ProjectionFacts, transactions,ct)),
+            DescribeNotification<FundMandateCreatedEvent, ActorEntityId>(x => new PortfolioProjectionHandler(events, projections, transactions).ApplyAsync(x)).WithReadModelRebuild((source,ct) => RebuildAsync(source, ((FundMandateCreatedEvent)source).ProjectionFacts, transactions,ct)),
+            DescribeNotification<FundBaseContractsConfiguredEvent, ActorEntityId>(x => new PortfolioProjectionHandler(events, projections, transactions).ApplyAsync(x)).WithReadModelRebuild((source,ct) => RebuildAsync(source, ((FundBaseContractsConfiguredEvent)source).ProjectionFacts, transactions,ct)),
+            DescribeNotification<FundMandateVersionAddedEvent, ActorEntityId>(x => new PortfolioProjectionHandler(events, projections, transactions).ApplyAsync(x)).WithReadModelRebuild((source,ct) => RebuildAsync(source, ((FundMandateVersionAddedEvent)source).ProjectionFacts, transactions,ct)),
+            DescribeNotification<FundOperatingStateChangedEvent, ActorEntityId>(x => new PortfolioProjectionHandler(events, projections, transactions).ApplyAsync(x)).WithReadModelRebuild((source,ct) => RebuildAsync(source, ((FundOperatingStateChangedEvent)source).ProjectionFacts, transactions,ct)),
+            DescribeNotification<FundTradeTemplateAssignedEvent, ActorEntityId>(x => new PortfolioProjectionHandler(events, projections, transactions).ApplyAsync(x)).WithReadModelRebuild((source,ct) => RebuildAsync(source, ((FundTradeTemplateAssignedEvent)source).ProjectionFacts, transactions,ct)),
+            DescribeNotification<FundCompositionReservedEvent, ActorEntityId>(x => new PortfolioProjectionHandler(events, projections, transactions).ApplyAsync(x)).WithReadModelRebuild((source,ct) => RebuildAsync(source, ((FundCompositionReservedEvent)source).ProjectionFacts, transactions,ct)),
+            DescribeNotification<FundCompositionStateChangedEvent, ActorEntityId>(x => new PortfolioProjectionHandler(events, projections, transactions).ApplyAsync(x)).WithReadModelRebuild((source,ct) => RebuildAsync(source, ((FundCompositionStateChangedEvent)source).ProjectionFacts, transactions,ct)),
+            DescribeNotification<FundManualOrderChangedEvent, ActorEntityId>(x => new PortfolioProjectionHandler(events, projections, transactions).ApplyAsync(x)).WithReadModelRebuild((source,ct) => RebuildAsync(source, ((FundManualOrderChangedEvent)source).ProjectionFacts, transactions,ct)),
+            DescribeNotification<FundManualOrderDeletedEvent, ActorEntityId>(x => new PortfolioProjectionHandler(events, projections, transactions).ApplyAsync(x)).WithReadModelRebuild((source,ct) => RebuildAsync(source, ((FundManualOrderDeletedEvent)source).ProjectionFacts, transactions,ct)),
         ];
 
     static Task<bool> RebuildAsync(IEvent source, TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.PortfolioProjectionFacts? facts,
         IPostgresEventTransaction? owner, CancellationToken token)
         => (owner ?? throw new InvalidOperationException("Portfolio rebuild transaction is not registered.")).ExecuteOnceAsync(async (transaction,ct) =>
         {
-            await PortfolioDbContextExtensions.PersistAcceptedPortfolioAsync(transaction,source,
+            await AcceptedPortfolioProjection.PersistAcceptedPortfolioAsync(transaction,source,
                 facts ?? throw new InvalidOperationException("Older Portfolio events require verified baseline facts."),ct).ConfigureAwait(false);
             return true;
         },token);

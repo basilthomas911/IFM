@@ -258,6 +258,24 @@ fn derived(registry: &Registry, kind: &str, wire: &Value, name: &str) -> Result<
         };
         return Ok(valid.into());
     }
+    if kind.ends_with("WorkflowStrategyStateUpdatedEvent") {
+        if name == "RequiredProjection" {
+            return Ok(Value::Map(vec![
+                ("ActorName".into(), "IntrinsicTimeStrategyWorkflowCommandActor".into()),
+                ("ProjectorName".into(), "IntrinsicTimeStrategyWorkflowEventProjector".into()),
+                ("InitialStage".into(), registry.enum_value("TomasAI.IFM.Shared.EventProjector.EventProjectorStageType", "ApplyProjection")?.into()),
+            ]));
+        }
+        if name == "RequiresDurableProjection" {
+            let state = member(registry, kind, wire, "WorkflowDefinition")?;
+            let state_kind = registry.field_kind(kind, "WorkflowDefinition")?;
+            let matches = |field: &str, label: &str| -> Result<bool,String> {
+                Ok(member(registry,state_kind,&state,field)?.as_i64() == Some(registry.enum_value(registry.field_kind(state_kind,field)?,label)?))
+            };
+            return Ok((!member(registry,state_kind,&state,"OpeningExecutionRoute")?.is_nil() &&
+                matches("Status","Completed")? && matches("Outcome","Completed")? && matches("CurrentStage","RiskManagement")?).into());
+        }
+    }
     if name == "State" && kind.ends_with("WorkflowStrategyStateUpdatedEvent") {
         return member(registry, kind, wire, "WorkflowDefinition");
     }

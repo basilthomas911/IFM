@@ -20,6 +20,7 @@ pub(in crate::services) async fn qualify(
         verb,
         "CreateFundMandate"
             | "AddFundMandateVersion"
+            | "ConfigureFundBaseContracts"
             | "AssignTradeTemplate"
             | "ChangeFundOperatingState"
             | "CreatePortfolioFinancialPolicy"
@@ -109,7 +110,7 @@ pub(in crate::services) async fn qualify(
     } else {
         let mut inputs = BTreeMap::from([("Access".into(), access)]);
         match verb {
-            "CreateFundMandate" | "AddFundMandateVersion" => {
+            "CreateFundMandate" | "AddFundMandateVersion" | "ConfigureFundBaseContracts" => {
                 inputs.insert("Mandate".into(), field("Mandate")?);
             }
             "AssignTradeTemplate" => {

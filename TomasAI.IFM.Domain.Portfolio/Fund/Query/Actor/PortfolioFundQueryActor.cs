@@ -40,15 +40,17 @@ public sealed class PortfolioFundQueryActor(
     IQueryActorContext<PortfolioFundQueryActor> actorContext,
     IDbContextFactory dbFactory,
     IPortfolioOperationalGuard operationalGuard,
-    ILogger<PortfolioFundQueryActor> logger)
+    ILogger<PortfolioFundQueryActor> logger,
+    TomasAI.IFM.Domain.MarketData.Shared.IValueDateProvider? valueDateProvider = null)
     : BaseQueryActor<PortfolioFundQueryActor>(actorContext, logger)
 {
     public const string ActorName = PortfolioQueryRoutes.Fund;
-    readonly PortfolioQueryParameters _parameters = new(dbFactory);
+    readonly PortfolioQueryParameters _parameters = new(dbFactory, valueDateProvider);
 
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap =
         new Dictionary<string, Func<IActorMessage, IQuery>>(StringComparer.Ordinal)
         {
+            [GetFundBaseContractsQuery.Verb] = static message => message.AsQuery<GetFundBaseContractsQuery, FundBaseContractsReadModel>()!,
             [GetFundQuery.Verb] = static message => message.AsQuery<GetFundQuery, FundMandateReadModel>()!,
             [GetFundRevisionQuery.Verb] = static message => message.AsQuery<GetFundRevisionQuery, PortfolioAggregateRevision>()!,
             [GetFundsQuery.Verb] = static message => message.AsQuery<GetFundsQuery, PortfolioPage<FundMandateReadModel>>()!,
@@ -68,6 +70,8 @@ public sealed class PortfolioFundQueryActor(
     static readonly IReadOnlyDictionary<Type, Func<PortfolioQueryParameters, IQueryActorContext<PortfolioFundQueryActor>, IQuery, CancellationToken, ValueTask>> _receiveMap =
         new Dictionary<Type, Func<PortfolioQueryParameters, IQueryActorContext<PortfolioFundQueryActor>, IQuery, CancellationToken, ValueTask>>
         {
+            [typeof(GetFundBaseContractsQuery)] = static (parameters, context, query, token) =>
+                PortfolioQueryHandlerModel.ReplyAsync(context, query, ((GetFundBaseContractsQuery)query).ExecuteAsync(parameters, token), token),
             [typeof(GetFundQuery)] = static (parameters, context, query, token) =>
                 PortfolioQueryHandlerModel.ReplyAsync(context, query, ((GetFundQuery)query).ExecuteAsync(parameters, token), token),
             [typeof(GetFundRevisionQuery)] = static (parameters, context, query, token) =>

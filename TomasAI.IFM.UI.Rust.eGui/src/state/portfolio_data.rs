@@ -122,6 +122,8 @@ pub struct PortfolioData {
     pub portfolio: Option<Value>,
     /// Optional fund; `None` represents an absent value.
     pub fund: Option<Value>,
+    /// Databento-qualified base contract publication for the selected Fund.
+    pub base_contracts: Option<Value>,
     /// Optional allocation; `None` represents an absent value.
     pub allocation: Option<Value>,
     /// Optional envelope; `None` represents an absent value.
@@ -202,6 +204,7 @@ impl PortfolioData {
 
     /// Clears fund for portfolio data.
     fn clear_fund(&mut self) {
+        self.base_contracts = None;
         self.fund = None;
         self.allocation = None;
         self.envelope = None;
@@ -575,6 +578,8 @@ impl PortfolioData {
         }
         self.portfolio_revision = portfolio_revision;
         self.fund_revision = fund_revision;
+        self.base_contracts = Some(crate::services::base_contracts::load(backend, registry, context,
+            pid.into(), fid.into(), deadline).await?);
         self.fund = Some(selected);
         self.allocation = if allocation.is_nil() {
             None

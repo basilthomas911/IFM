@@ -1,6 +1,7 @@
 using System.Text.Json;
 using TomasAI.IFM.Application.MarketData.Pricing;
 using TomasAI.IFM.Application.Storage.SecuritiesDb;
+using TomasAI.IFM.Domain.MarketData.Securities.Persistence;
 
 namespace TomasAI.IFM.Domain.MarketData.Securities.OptionPricing.Repository;
 
@@ -16,7 +17,7 @@ public sealed class OptionPricingReferenceBundleRepository(ISecuritiesDbContext 
     {
         ArgumentNullException.ThrowIfNull(bundle);
         bundle.Validate();
-        var mappings = db.DbReader;
+        var mappings = new SecuritiesReferenceReader(db.DbReader);
         foreach (var definition in bundle.Definitions)
         {
             var mapping = await mappings.GetAsync(definition.ContractId, definition.MappingVersion, token).ConfigureAwait(false);

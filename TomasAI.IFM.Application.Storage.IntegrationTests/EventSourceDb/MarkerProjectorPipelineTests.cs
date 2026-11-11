@@ -1,3 +1,5 @@
+using TomasAI.IFM.Application.EventSourcing.Persistence.Command;
+using TomasAI.IFM.Shared.EventProjector.ReadModels;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -138,7 +140,7 @@ public sealed partial class MarkerProjectorPipelineTests(MarkerProjectorFixture 
         var stream = await Append(batched, name, 2);
         var first = Projector(name, failBefore: !afterTarget, failAfter: afterTarget);
         await Assert.ThrowsAsync<InjectedFailure>(() => first.ProcessDomainEventAsync(stream.Events[0]).AsTask());
-        var state = await fixture.Storage.ActorEventDb.GetEventProjectorExecutionStateAsync(stream.Events[0].EventId, name);
+        var state = await fixture.Storage.ActorEventDb.GetEventProjectorExecutionStateAsync(new EventProjectorIdentity(stream.Events[0].EventId, name));
         Assert.Equal(EventProjectorOutcomeType.Retrying, state!.Outcome);
         Assert.Null(state.ExecutionToken);
         Assert.Null(await fixture.Storage.ActorEventDb.GetEventProjectorStreamCheckpointAsync(name, stream.Id));
@@ -201,12 +203,14 @@ public sealed partial class MarkerProjectorPipelineTests(MarkerProjectorFixture 
         var stream = await Append(batched, name, 1);
         var oldToken = Guid.NewGuid();
         var old = await fixture.Storage.ActorEventDb.TryClaimEventProjectorExecutionAsync(
-            stream.Events[0].EventId, name, oldToken, DateTime.UtcNow.AddMinutes(-5), TimeSpan.FromSeconds(1));
+            new EventProjectorLease(stream.Events[0].EventId, name, oldToken,
+                DateTime.UtcNow.AddMinutes(-5), TimeSpan.FromSeconds(1)));
         Assert.NotNull(old);
         await Recover(Projector(name));
         await VerifyCompleted(stream, 1);
         Assert.Null(await fixture.Storage.ActorEventDb.TryRenewEventProjectorExecutionAsync(
-            old!.EventId, name, oldToken, old.Revision, DateTime.UtcNow, TimeSpan.FromSeconds(1)));
+            new EventProjectorLease(old!.EventId, name, oldToken,
+                DateTime.UtcNow, TimeSpan.FromSeconds(1), old.Revision)));
     }
 
     [Theory]
@@ -276,7 +280,7 @@ public sealed partial class MarkerProjectorPipelineTests(MarkerProjectorFixture 
         var command = new ProbeCommand { CommandId = commandId, StreamId = streamName, Value = count };
         var result = await writer.AppendAsync(new(streamName, id, commandId,
             events.Select(e => new EventLogAppendEntry(eventName, e)).ToArray(), 0, DateTime.UtcNow,
-            CommandAuditEnvelope.Create(command, new CommandAuditMessagePackCodec())));
+            CommandAuditPreparation.Create(command, new CommandAuditMessagePackCodec())));
         var persisted = new List<ProbeEvent>();
         foreach (var assignment in result.Assignments)
         {

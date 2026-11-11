@@ -1,4 +1,7 @@
-﻿using TomasAI.IFM.Framework.Messaging.Nats;
+﻿using TomasAI.IFM.Domain.MarketData.Securities.Persistence;
+using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Framework.Messaging.Nats;
 using TomasAI.IFM.Domain.MarketData.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Shared.Events;
 using FluentAssertions;
@@ -31,6 +34,48 @@ public class FuturesContractFuturesContractCommandApiTests(TomasAI.IFM.Integrati
     static readonly TimeSpan EventTimeout = TimeSpan.FromSeconds(30);
     readonly IActorProducer _actorProducer = factory.Services.GetRequiredService<IActorProducer>();
     readonly ILogger<NatsActorEventListener> _logger = Substitute.For<ILogger<NatsActorEventListener>>();
+
+    [Fact]
+    public async Task Rollover_commits_through_actor_and_rejects_a_stale_preparation()
+    {
+        using var timeout = new CancellationTokenSource(EventTimeout);
+        var token = timeout.Token;
+        var store = new ActorFuturesRolloverStore(dbFixture.Db, _actorProducer);
+        var expiry = new DateOnly(2034, 3, 17);
+        var contract = SampleData.NewFuturesContract with
+        {
+            ContractId = "RTY20340317", Symbol = "RTY", LocalSymbol = "RTYH4",
+            LastTradeDate = expiry, OnTheRun = true, Rollover = true
+        };
+        var now = new DateTime(2033, 12, 1, 0, 0, 0, DateTimeKind.Utc);
+        var pointer = new FuturesContractRolloverReadModel
+        {
+            Symbol = contract.Symbol, ContractId = contract.ContractId, NextRolloverDate = expiry,
+            CreatedOn = now, CreatedBy = nameof(Rollover_commits_through_actor_and_rejects_a_stale_preparation),
+            UpdatedOn = now, UpdatedBy = "test"
+        };
+        var before = await dbFixture.Db.ReadCatalogRevisionAsync(SecuritiesCatalogStreams.Futures, token);
+        await store.ReplaceFuturesRolloverSetAsync(pointer, [contract], token);
+        var committed = await dbFixture.Db.ReadCatalogRevisionAsync(SecuritiesCatalogStreams.Futures, token);
+        Assert.True(committed > before);
+        Assert.Equal(contract, Assert.Single(await store.GetFuturesRolloverSetAsync("RTY", token)));
+        Assert.Equal(contract.ContractId, (await store.GetFuturesContractRolloverAsync("RTY", token))?.ContractId);
+        Assert.Equal(contract.ContractId, (await store.GetFuturesContractRolloverAsync(" rty ", token))?.ContractId);
+        await store.ReplaceFuturesRolloverSetAsync(pointer, [contract], token);
+        Assert.Equal(committed, await dbFixture.Db.ReadCatalogRevisionAsync(SecuritiesCatalogStreams.Futures, token));
+
+        var stale = new ReplaceFuturesRolloverSetCommand
+        {
+            CommandId = Guid.NewGuid(), EntityId = contract.Id, ExpectedCatalogRevision = before,
+            Subject = new(ActorType.Command, AddFuturesContractCommand.Actor, ReplaceFuturesRolloverSetCommand.Verb, contract.Id.Format()),
+            Rollover = pointer, ChangedContracts = [contract], PostEvents = true
+        };
+        var rejected = await _actorProducer.RequestAsync<ReplaceFuturesRolloverSetCommand, FuturesContractId, GuidResult>(
+            stale.Subject, stale, stale.EntityId, token);
+        Assert.False(rejected.Success);
+        Assert.Equal(ReplaceFuturesRolloverSetCommand.CatalogChanged, rejected.ErrorCode);
+        Assert.Equal(committed, await dbFixture.Db.ReadCatalogRevisionAsync(SecuritiesCatalogStreams.Futures, token));
+    }
 
     [Fact]
     public async Task AddFuturesContract_Ok()

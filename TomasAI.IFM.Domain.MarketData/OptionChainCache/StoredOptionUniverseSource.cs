@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Shared.QueryParameters;
 ﻿using System.Collections.Immutable;
 using Microsoft.Extensions.Hosting;
 using TomasAI.IFM.Application.MarketData.OptionChainCache;
@@ -21,7 +22,10 @@ public sealed class StoredOptionUniverseSource(TomasAI.IFM.Application.Storage.I
     /// <inheritdoc />
     public async Task<ImmutableArray<PreparedOptionUniverse>> LoadAsync(DateOnly valueDate, CancellationToken cancellationToken)
     {
-        var parameters = await databases.MarketDataDb.ReadPublishedAsync(environment.EnvironmentName, cancellationToken).ConfigureAwait(false);
+        var environmentName = environment.EnvironmentName;
+        if (environmentName is not ("Development" or "Paper" or "Production"))
+            throw new ArgumentException("Invalid parameter environment.", nameof(environmentName));
+        var parameters = await databases.MarketDataDb.ReadPublishedAsync(environmentName, cancellationToken).ConfigureAwait(false);
         if (parameters.IsEmpty) return [];
         var output = ImmutableArray.CreateBuilder<PreparedOptionUniverse>();
         foreach (var policy in parameters)
@@ -77,13 +81,12 @@ public sealed class StoredOptionUniverseSource(TomasAI.IFM.Application.Storage.I
     async Task<Dictionary<string, FuturesOptionContractReadModel>> ReadDefinitionsAsync(string instrumentRoot,
         DateOnly from, DateOnly through, CancellationToken cancellationToken)
     {
-            var expirations = await databases.SecuritiesDb.GetOptionContractExpiriesAsync(instrumentRoot,
-                from, through, cancellationToken).ConfigureAwait(false);
+            var expirations = await databases.SecuritiesDb.GetOptionContractExpiriesAsync(
+                new OptionDefinitionExpiryRange(instrumentRoot, from, through), cancellationToken).ConfigureAwait(false);
             var definitions = new Dictionary<string, FuturesOptionContractReadModel>(StringComparer.Ordinal);
             foreach (var expiry in expirations.Select(x => (x.ExpiryDate, x.ContractId)).Distinct())
             {
-                var found = await databases.SecuritiesDb.GetCachedOptionContractDefinitionsAsync(instrumentRoot,
-                    expiry.ContractId, expiry.ExpiryDate, null, cancellationToken).ConfigureAwait(false);
+                var found = await databases.SecuritiesDb.GetCachedOptionContractDefinitionsAsync(new OptionDefinitionPartition(instrumentRoot, expiry.ContractId, expiry.ExpiryDate), null, cancellationToken).ConfigureAwait(false);
                 foreach (var row in found) definitions.TryAdd(row.Definition.ContractId, row.Definition);
             }
         return definitions;

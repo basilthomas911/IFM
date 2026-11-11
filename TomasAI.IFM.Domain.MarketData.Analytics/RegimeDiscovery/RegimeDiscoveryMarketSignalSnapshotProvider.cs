@@ -2,15 +2,19 @@ using System.Collections.Concurrent;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.RegimeDiscovery;
+using TomasAI.IFM.Application.MarketData.Contracts.Historical;
+using TomasAI.IFM.Application.MarketData.Databento.Historical;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.RegimeDiscovery;
 
 /// <summary>Provides atomic, revision-stable Regime Discovery snapshots from process-local latest signals.</summary>
-public sealed class RegimeDiscoveryMarketSignalSnapshotProvider(TimeProvider? timeProvider = null)
+public sealed class RegimeDiscoveryMarketSignalSnapshotProvider(TimeProvider? timeProvider = null,
+    IMarketSessionCalendar? sessionCalendar = null)
     : IRegimeDiscoveryMarketSignalSnapshotProvider,
       IRegimeDiscoveryMarketSignalCache
 {
     readonly TimeProvider businessClock = timeProvider ?? TimeProvider.System;
+    readonly IMarketSessionCalendar calendar = sessionCalendar ?? new CmeFuturesMarketSessionCalendar();
     static readonly ConcurrentDictionary<MarketAnalyticsSignalKey, RegimeDiscoverySignalObservation> Observations = new();
     static long revision;
 
@@ -110,7 +114,7 @@ public sealed class RegimeDiscoveryMarketSignalSnapshotProvider(TimeProvider? ti
         });
     }
 
-    static RegimeDiscoverySignalObservation Evaluate(
+    RegimeDiscoverySignalObservation Evaluate(
         RegimeDiscoveryMarketSignalSnapshotRequest request,
         RegimeDiscoverySignalRequirement requirement,
         DateTime capturedAtUtc)
@@ -122,6 +126,9 @@ public sealed class RegimeDiscoveryMarketSignalSnapshotProvider(TimeProvider? ti
                 RegimeDiscoverySignalMetric.VixLevel or RegimeDiscoverySignalMetric.VxFrontLevel) &&
               TryGetExternal(requirement, out source)))
             return Missing(request, requirement, RegimeDiscoverySignalAvailability.Missing);
+        var maximumAge = TimeSpan.FromSeconds(requirement.MaximumAgeSeconds);
+        var age = MarketTradingTime.Elapsed(calendar, new DateTimeOffset(source.MarketDataAsOfUtc),
+            new DateTimeOffset(capturedAtUtc), maximumAge);
         var availability = (source.Availability != RegimeDiscoverySignalAvailability.Available) switch
 {
     true => source.Availability,
@@ -134,7 +141,7 @@ public sealed class RegimeDiscoveryMarketSignalSnapshotProvider(TimeProvider? ti
             false => (source.MarketDataAsOfUtc > capturedAtUtc.AddSeconds(request.FutureClockSkewSeconds)) switch
             {
                 true => RegimeDiscoverySignalAvailability.FutureTimestamp,
-                false => (capturedAtUtc - source.MarketDataAsOfUtc > TimeSpan.FromSeconds(requirement.MaximumAgeSeconds)) switch
+                false => (age > maximumAge) switch
                 {
                     true => RegimeDiscoverySignalAvailability.Stale,
                     false => (!request.SupportedSchemaVersions.Contains(source.SchemaVersion)) switch
@@ -143,7 +150,7 @@ public sealed class RegimeDiscoveryMarketSignalSnapshotProvider(TimeProvider? ti
                         false => !request.ApprovedCalculationVersions.Contains(source.CalculationVersion, StringComparer.Ordinal) ? RegimeDiscoverySignalAvailability.CalculationVersionMismatch : RegimeDiscoverySignalAvailability.Available
                     }}}}}};
         var freshness = availability == RegimeDiscoverySignalAvailability.Available
-            ? Math.Clamp(1m - (decimal)(capturedAtUtc - source.MarketDataAsOfUtc).TotalSeconds /
+            ? Math.Clamp(1m - (decimal)age.TotalSeconds /
                 requirement.MaximumAgeSeconds, 0m, 1m)
             : 0m;
         return source with { Availability = availability, FreshnessFactor = freshness };

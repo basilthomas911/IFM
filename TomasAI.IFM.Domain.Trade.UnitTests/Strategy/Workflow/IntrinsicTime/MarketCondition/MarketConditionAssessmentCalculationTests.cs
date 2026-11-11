@@ -12,6 +12,23 @@ namespace TomasAI.IFM.Domain.Trade.UnitTests.Strategy.Workflow.IntrinsicTime.Mar
 [Trait("Gate", "MC-R05")]
 public sealed class MarketConditionAssessmentCalculationTests
 {
+    [Theory]
+    [InlineData(74, true)]
+    [InlineData(75, false)]
+    public void Completed_minute_movement_does_not_age_during_the_closed_hour(int secondsAfterOpen, bool fresh)
+    {
+        var open = new DateTime(2026, 11, 10, 23, 0, 0, DateTimeKind.Utc);
+        var source = open.AddHours(-1).AddSeconds(-1);
+        var c = AssessmentFixture.Command(atUtc: open.AddSeconds(secondsAfterOpen));
+        var s = Snapshot(c);
+        s = s with { Observations = s.Observations.Select(x => x.SourceId == "NormalizedMovement"
+            ? x with { ObservedAtUtc = source, ReceivedAtUtc = source, Value = 0.5m } : x).ToArray() };
+        var result = Calculate(c, s).Assessment;
+        result.LimitationReasons.Contains("MC.ASSESSMENT.NORMALIZEDMOVEMENT.STALE").Should().Be(!fresh);
+        result.EvidenceItems.Single(x => x.SourceId == "NormalizedMovement" && x.Feature == "SourceObservation")
+            .AgeSeconds.Should().Be(secondsAfterOpen + 1);
+    }
+
     /// <summary>A one-minute ATR remains current through its next publication grace, then becomes stale.</summary>
     [Theory]
     [InlineData(0, true)]

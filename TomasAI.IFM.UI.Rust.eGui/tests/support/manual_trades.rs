@@ -214,6 +214,8 @@ async fn trade_manual_commands_use_backend_ids_versions_and_projection_receipts(
     .await;
     assert_eq!(p.outcomes[0].state, "Completed", "{}", p.status);
     assert_eq!(p.result.context["preparedTradeId"], "201");
+    // A close must use its original instrument even when no current Fund contract remains.
+    mode(&backend,"HideBaseContracts").await;
     p = act(
         &mut state,
         &backend,

@@ -100,6 +100,7 @@ public sealed class QualifiedCompositionDiscovery(EuropeanOptionUniverse univers
                     SeparateContractConnection = request.SeparateContractConnection,
                     IndependentChainConnection = request.IndependentChainConnection
                 }.Seal();
+                plan.Validate();
                 await routePlans.SaveAsync(plan, linked.Token).ConfigureAwait(false);
                 scopeId = plan.PlanId;
                 routeSave.Complete();

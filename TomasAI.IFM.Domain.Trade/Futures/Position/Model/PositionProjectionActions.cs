@@ -10,20 +10,20 @@ internal static class PositionProjectionActions
     /// <summary>Rebuilds position history and current routing without publishing market marks or lifecycle commands.</summary>
     public static async Task RebuildReadModelAsync(IDbContextFactory dbFactory, PositionChangedEvent changed)
     {
-        await dbFactory.TradeDb.UpsertStrategyPositionAsync(changed.State).ConfigureAwait(false);
+        await WritePositionAsync(dbFactory, changed.State).ConfigureAwait(false);
         if (changed.State.Phase is StrategyPositionPhase.Open or StrategyPositionPhase.Close or StrategyPositionPhase.Correction)
-            await dbFactory.TradeDb.ReplaceOpenPositionRoutesAsync(changed.State).ConfigureAwait(false);
+            await WriteRoutesAsync(dbFactory, changed.State).ConfigureAwait(false);
     }
 
     public static async Task ProjectAsync(ICommandActorContext context, IDbContextFactory dbFactory, PositionChangedEvent changed, string positionActor, string realtimeActor, string tradePlanRealtimeActor)
     {
         if (!string.Equals(dbFactory.TradeDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
-            await dbFactory.TradeDb.UpsertStrategyPositionAsync(changed.State).ConfigureAwait(false);
+            await WritePositionAsync(dbFactory, changed.State).ConfigureAwait(false);
         await PublishTradePlanUpdateAsync(context, changed, tradePlanRealtimeActor).ConfigureAwait(false);
         if (changed.State.Phase is StrategyPositionPhase.Open or StrategyPositionPhase.Close or StrategyPositionPhase.Correction)
         {
             if (!string.Equals(dbFactory.TradeDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
-                await dbFactory.TradeDb.ReplaceOpenPositionRoutesAsync(changed.State).ConfigureAwait(false);
+                await WriteRoutesAsync(dbFactory, changed.State).ConfigureAwait(false);
             await context.SendAsync<OpenPositionRoutesChangedEvent, StrategyPositionId>(new OpenPositionRoutesChangedEvent { Subject = new ActorSubject(ActorType.Realtime, realtimeActor, OpenPositionRoutesChangedEvent.Verb, changed.EntityId.Format()), EntityId = changed.EntityId, Id = changed.Id, EventId = changed.EventId, CommandId = changed.CommandId, AggregateId = changed.AggregateId, EventSource = changed.EventSource, ReceivedOn = changed.ReceivedOn, Position = changed.State }).ConfigureAwait(false);
         }
 
@@ -39,6 +39,22 @@ internal static class PositionProjectionActions
                 await context.SendAsync<StrategyPositionCorrectedEvent, StrategyPositionId>(CreateBoundary<StrategyPositionCorrectedEvent>(changed, "StrategyPositionCorrected")).ConfigureAwait(false);
                 break;
         }
+    }
+
+    internal static Task WritePositionAsync(IDbContextFactory databases, StrategyPositionSnapshot position)
+    {
+        ArgumentNullException.ThrowIfNull(position);
+        if (!position.Id.IsValid)
+            throw new ArgumentException("Valid position identity is required.", nameof(position));
+        return databases.TradeDb.UpsertStrategyPositionAsync(position);
+    }
+
+    static Task WriteRoutesAsync(IDbContextFactory databases, StrategyPositionSnapshot position)
+    {
+        ArgumentNullException.ThrowIfNull(position);
+        if (position.Legs.Any(static leg => string.IsNullOrWhiteSpace(leg.ContractId)))
+            throw new ArgumentException("Every routed position leg requires ContractId.", nameof(position));
+        return databases.TradeDb.ReplaceOpenPositionRoutesAsync(position);
     }
 
     static ValueTask PublishTradePlanUpdateAsync(ICommandActorContext context, PositionChangedEvent changed, string realtimeActor)

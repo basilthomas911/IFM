@@ -24,17 +24,23 @@ public sealed class IsolatedIntegrationInfrastructure : IAsyncDisposable
     readonly string scope;
     readonly bool includeCql;
     readonly bool includeRedis;
+    readonly string[] scyllaWriteTimeoutArguments;
     readonly string runId = Guid.NewGuid().ToString("N")[..12];
     readonly Dictionary<string, string?> previousEnvironment = new(StringComparer.Ordinal);
     bool started;
 
     /// <summary>Creates an isolated infrastructure owner for the named test scope.</summary>
-    public IsolatedIntegrationInfrastructure(string scope, bool includeCql = true, bool includeRedis = false)
+    public IsolatedIntegrationInfrastructure(string scope, bool includeCql = true, bool includeRedis = false,
+        int? scyllaConditionalWriteTimeoutMilliseconds = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(scope);
         this.scope = new string(scope.Where(char.IsLetterOrDigit).Select(char.ToLowerInvariant).ToArray());
         this.includeCql = includeCql;
         this.includeRedis = includeRedis;
+        scyllaWriteTimeoutArguments = scyllaConditionalWriteTimeoutMilliseconds is { } timeout
+            ? ["--cas-contention-timeout-in-ms", timeout.ToString(System.Globalization.CultureInfo.InvariantCulture),
+               "--write-request-timeout-in-ms", timeout.ToString(System.Globalization.CultureInfo.InvariantCulture)]
+            : [];
         if (this.scope.Length == 0)
             throw new ArgumentException("The infrastructure scope must contain a letter or digit.", nameof(scope));
     }
@@ -110,7 +116,8 @@ public sealed class IsolatedIntegrationInfrastructure : IAsyncDisposable
             if (includeCql && useScylla)
                 await (DockerAsync(["run", "--detach", "--rm", "--name", CqlContainer, "--label", $"ifm.integration.run={runId}",
                     "--publish", "127.0.0.1::9042", "--memory", "3g", ScyllaImage,
-                    "--smp", "1", "--memory", "1G", "--overprovisioned", "1", "--developer-mode", "1"])).ConfigureAwait(false);
+                    "--smp", "1", "--memory", "1G", "--overprovisioned", "1", "--developer-mode", "1",
+                    .. scyllaWriteTimeoutArguments])).ConfigureAwait(false);
             else if (includeCql)
                 await (DockerAsync(["run", "--detach", "--rm", "--name", CqlContainer, "--label", $"ifm.integration.run={runId}",
                     "--publish", "127.0.0.1::9042", "--memory", "2g", "--env", "MAX_HEAP_SIZE=512M",

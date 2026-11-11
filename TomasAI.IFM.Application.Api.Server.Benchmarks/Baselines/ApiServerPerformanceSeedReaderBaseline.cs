@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.MarketData.Contracts.Historical;

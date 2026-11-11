@@ -7,6 +7,13 @@ namespace TomasAI.IFM.Application.Storage.PortfolioDb;
 /// <summary>Defines Portfolio database queries.</summary>
 public interface IPortfolioDbReadContext
 {
+    /// <summary>Reads a bounded page of current workflow stream tails without interpreting recovery decisions.</summary>
+    /// <param name="afterStreamId">The exclusive stream cursor.</param>
+    /// <param name="exactStream">An optional exact stream filter for verification.</param>
+    /// <param name="cancellationToken">Cancels the read.</param>
+    /// <returns>The latest committed payload for each selected stream.</returns>
+    Task<IReadOnlyList<FinancialWorkflowSourceRow>> ReadFinancialWorkflowSourcesAsync(long afterStreamId, string? exactStream = null, CancellationToken cancellationToken = default);
+
     /// <summary>Reads a committed financial operation receipt.</summary>
     /// <typeparam name="T">The completed financial event type.</typeparam>
     /// <param name="portfolioId">The portfolio identifier.</param>

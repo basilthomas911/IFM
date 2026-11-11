@@ -31,7 +31,7 @@ public class FuturesEodDataQueryApiTests(TomasAI.IFM.IntegrationTesting.KestrelW
 
         foreach (var eodData in eodDataRange)
             await dbFixture.MarketDataDb.DeleteFuturesEodDataAsync(eodData.ContractId, eodData.ValueDate);
-        await dbFixture.MarketDataDb.InsertFuturesEodDataAsync(eodDataRange);
+        await dbFixture.MarketDataDb.InsertFuturesEodDataAsync(new FuturesEodBatch(eodDataRange));
 
         // act...
         var marketDataFeedApi = new MarketDataFeedQueryApi(_actorProducer);
@@ -71,8 +71,8 @@ public class FuturesEodDataQueryApiTests(TomasAI.IFM.IntegrationTesting.KestrelW
         await dbFixture.MarketDataDb.DeleteFuturesEodDataAsync(contractId, valueDate);
         foreach (var eodData in eodDataRange)
             await dbFixture.MarketDataDb.DeleteFuturesEodDataAsync(eodData.ContractId, eodData.ValueDate);
-        await dbFixture.MarketDataDb.InsertFuturesEodDataAsync(eodDataToday);
-        await dbFixture.MarketDataDb.InsertFuturesEodDataAsync(eodDataRange);
+        await dbFixture.MarketDataDb.InsertFuturesEodDataAsync(eodDataToday, 1);
+        await dbFixture.MarketDataDb.InsertFuturesEodDataAsync(new FuturesEodBatch(eodDataRange));
 
         // act...
         var marketDataFeedApi = new MarketDataFeedQueryApi(_actorProducer);
@@ -121,7 +121,7 @@ public class FuturesEodDataQueryApiTests(TomasAI.IFM.IntegrationTesting.KestrelW
         var valueDate = eodData.ValueDate;
 
         await dbFixture.MarketDataDb.DeleteFuturesEodDataAsync(contractId, valueDate);
-        await dbFixture.MarketDataDb.InsertFuturesEodDataAsync(eodData);
+        await dbFixture.MarketDataDb.InsertFuturesEodDataAsync(eodData, 1);
 
         // act...
         var marketDataFeedApi = new MarketDataFeedQueryApi(_actorProducer);
@@ -151,8 +151,8 @@ public class FuturesEodDataQueryApiTests(TomasAI.IFM.IntegrationTesting.KestrelW
         var lastFuturesEodData = eodData with { ContractId = contractId, ValueDate = valueDate.AddDays(-1) };
         await dbFixture.MarketDataDb.DeleteFuturesEodDataAsync(contractId, lastFuturesEodData.ValueDate);
         await dbFixture.MarketDataDb.DeleteFuturesEodDataAsync(contractId, valueDate);
-        await dbFixture.MarketDataDb.InsertFuturesEodDataAsync(lastFuturesEodData);
-        await dbFixture.MarketDataDb.InsertFuturesEodDataAsync(eodData with { ContractId = contractId });
+        await dbFixture.MarketDataDb.InsertFuturesEodDataAsync(lastFuturesEodData, 1);
+        await dbFixture.MarketDataDb.InsertFuturesEodDataAsync(eodData with { ContractId = contractId }, 2);
 
         // act...
         var marketDataFeedApi = new MarketDataFeedQueryApi(_actorProducer);
@@ -182,7 +182,7 @@ public class FuturesEodDataQueryApiTests(TomasAI.IFM.IntegrationTesting.KestrelW
 
         foreach (var eodData in eodDataRange)
             await dbFixture.MarketDataDb.DeleteFuturesEodDataAsync(eodData.ContractId, eodData.ValueDate);
-        await dbFixture.MarketDataDb.InsertFuturesEodDataAsync(eodDataRange);
+        await dbFixture.MarketDataDb.InsertFuturesEodDataAsync(new FuturesEodBatch(eodDataRange));
 
         // act...
         var marketDataFeedApi = new MarketDataFeedQueryApi(_actorProducer);
@@ -213,7 +213,7 @@ public class FuturesEodDataQueryApiTests(TomasAI.IFM.IntegrationTesting.KestrelW
             size: 100);
 
         await dbFixture.MarketDataDb.DeleteVixFuturesEodDataAsync(vixContractId, valueDate);
-        await dbFixture.MarketDataDb.InsertVixFuturesEodDataAsync(vixFuturesTickData);
+        await dbFixture.MarketDataDb.InsertVixFuturesEodDataAsync(new VixTickObservation(vixFuturesTickData));
 
         // act...
         var marketDataFeedApi = new MarketDataFeedQueryApi(_actorProducer);
@@ -242,7 +242,7 @@ public class FuturesEodDataQueryApiTests(TomasAI.IFM.IntegrationTesting.KestrelW
             size: 100);
 
         await dbFixture.MarketDataDb.DeleteVixFuturesEodDataAsync(vixContractId, valueDate);
-        await dbFixture.MarketDataDb.InsertVixFuturesEodDataAsync(vixFuturesTickData);
+        await dbFixture.MarketDataDb.InsertVixFuturesEodDataAsync(new VixTickObservation(vixFuturesTickData));
 
         // act...
         var marketDataFeedApi = new MarketDataFeedQueryApi(_actorProducer);

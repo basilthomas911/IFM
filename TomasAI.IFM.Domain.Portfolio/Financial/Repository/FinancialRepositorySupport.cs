@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Application.Storage.EventSourceDb.Diagnostics;
 using TomasAI.IFM.Application.Storage.PortfolioDb;
 using Newtonsoft.Json;
@@ -86,7 +87,7 @@ internal static class FinancialRepositorySupport
         using var trace = FinancialTelemetry.ActivitySource.StartActivity("financial.operation.save_outcome");
         var stream = request.Subject.StreamId;
         var expected = function ? 0 : Convert.ToInt64(await (db.ScalarAsync(PortfolioDbSql.Financial.PortfolioDbFinancialSupport.Select05, [stream], token)).ConfigureAwait(false) ?? 0L,System.Globalization.CultureInfo.InvariantCulture);
-        var eventVersion = await (db.AppendAsync(stream, request.CommandId, completed, expected, token)).ConfigureAwait(false);
+        var eventVersion = await (db.AppendAsync(new EnlistedEventAppend(stream, request.CommandId, completed, expected), token)).ConfigureAwait(false);
         await (db.ExecuteAsync(PortfolioDbSql.Financial.PortfolioDbFinancialSupport.Insert06, [request.PortfolioId, request.OperationId, request.Subject.Name, request.InputSha256, eventVersion, revision], token)).ConfigureAwait(false);
         await db.ExecuteAsync(PortfolioDbSql.Financial.FinancialHistoryProjection.Insert01,
             [completed.PortfolioId, completed.CommittedAtUtc.Year * 100 + completed.CommittedAtUtc.Month, revision,

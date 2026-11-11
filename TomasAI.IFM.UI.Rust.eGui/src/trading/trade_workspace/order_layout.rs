@@ -492,6 +492,7 @@ impl TradeWorkspace {
                     }
                     "prepare-trade" => {
                         self.dialog = "create-trade".into();
+                        self.draft.remove("baseContract");
                         self.draft.remove("tradeReference");
                         self.draft.remove("tradeReferenceDefault");
                         action = Some(intent);

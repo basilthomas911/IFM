@@ -293,13 +293,7 @@ await                flushDelay.CancelAsync()
         CancellationToken cancellationToken)
     {
         var ids = batch.Select(static request => request.Request.EventStreamId).Distinct().Order().ToArray();
-        var command = EventLogAppenderSupport.Command(connection, transaction, """
-            SELECT EventStreamId, CurrentVersion
-            FROM event_stream_id
-            WHERE EventStreamId = ANY($1)
-            ORDER BY EventStreamId
-            FOR UPDATE;
-            """);
+        var command = EventLogAppenderSupport.Command(connection, transaction, EventSourceDbSql.BinaryCopyEventLogAppender_LockStreamsAsync_1);
         await using var commandDisposal = command.ConfigureAwait(false);
         EventLogAppenderSupport.Add(command, ids);
         var current = new Dictionary<long, long>(ids.Length);
@@ -344,12 +338,7 @@ await                flushDelay.CancelAsync()
         CancellationToken cancellationToken)
     {
         var ordered = finalVersions.OrderBy(static pair => pair.Key).ToArray();
-        var command = EventLogAppenderSupport.Command(connection, transaction, """
-            UPDATE event_stream_id AS stream
-            SET CurrentVersion = updates.FinalVersion
-            FROM unnest($1::bigint[], $2::bigint[]) AS updates(EventStreamId, FinalVersion)
-            WHERE stream.EventStreamId = updates.EventStreamId;
-            """);
+        var command = EventLogAppenderSupport.Command(connection, transaction, EventSourceDbSql.ReserveCopiedStreamVersions);
         await using var commandDisposal = command.ConfigureAwait(false);
         EventLogAppenderSupport.Add(command, ordered.Select(static pair => pair.Key).ToArray());
         EventLogAppenderSupport.Add(command, ordered.Select(static pair => pair.Value).ToArray());
@@ -366,7 +355,7 @@ await                flushDelay.CancelAsync()
     {
         var count = planned.Sum(static request => request.Assignments.Length);
         var command = EventLogAppenderSupport.Command(connection, transaction,
-            "SELECT nextval('public.event_log_eventversion_seq') FROM generate_series(1, $1);");
+            EventSourceDbSql.BinaryCopyEventLogAppender_ReserveEventIdsAsync_1);
         await using var commandDisposal = command.ConfigureAwait(false);
         EventLogAppenderSupport.Add(command, BindValues.Integer(count));
         var reader = await command.ExecuteReaderAsync(cancellationToken)

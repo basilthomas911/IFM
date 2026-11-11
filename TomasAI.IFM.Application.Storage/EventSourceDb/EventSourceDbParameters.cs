@@ -195,9 +195,9 @@ internal readonly record struct InsertActorCommandLog(Guid commandId, string str
 }
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
-internal readonly record struct InsertEventLog(long eventStreamId, int eventNameId, byte[] eventData, Guid commandId, string eventTimestamp) : IBindValue
+internal readonly record struct InsertEventLog(long eventStreamId, int eventNameId, byte[] eventData, Guid commandId, string eventTimestamp, string? messageOriginJson) : IBindValue
 {
-    public object Bind() => Values(Bigint(eventStreamId), Integer(eventNameId), Bytea(eventData), Uuid(commandId), Text(eventTimestamp));
+    public object Bind() => Values(Bigint(eventStreamId), Integer(eventNameId), Bytea(eventData), Uuid(commandId), Text(eventTimestamp), Text(messageOriginJson));
 }
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
@@ -207,10 +207,11 @@ internal readonly record struct InsertEventLogExpectedVersion(
     byte[] eventData,
     Guid commandId,
     string eventTimestamp,
-    long expectedStreamVersion) : IBindValue
+    long expectedStreamVersion,
+    string? messageOriginJson) : IBindValue
 {
     public object Bind() => Values(Bigint(eventStreamId), Integer(eventNameId), Bytea(eventData), Uuid(commandId),
-        Text(eventTimestamp), Bigint(expectedStreamVersion));
+        Text(eventTimestamp), Bigint(expectedStreamVersion), Text(messageOriginJson));
 }
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
@@ -563,3 +564,12 @@ internal readonly record struct ConcernWindowParameters(string Concern, string L
     {
         public object Bind() => BindValues.Values(Concern, Legacy, Identities, UseCheckpoint);
     }
+internal readonly record struct MaintenanceSourceStreams(string[] ExactStreams, string[] Prefixes) : IBindValue
+{
+    public object Bind() => Values(TextArray(ExactStreams), TextArray(Prefixes));
+}
+
+internal readonly record struct MaintenanceSourceStream(string Stream) : IBindValue
+{
+    public object Bind() => Values(Text(Stream));
+}

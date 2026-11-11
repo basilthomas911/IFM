@@ -16,6 +16,7 @@ mod financial_data;
 mod financial_grid;
 mod financial_ui;
 mod fund_editors;
+mod base_contracts;
 mod ledger_ui;
 mod policy;
 mod posting_ui;
@@ -423,10 +424,11 @@ impl PortfolioController {
                     self.policy_key = None;
                     self.policy_dirty = false;
                 }
+                let base_contracts = self.dialogs.last().is_some_and(|d| d.key == "base-contracts");
                 self.dialogs.pop();
                 self.editing = None;
                 self.edit_key = None;
-                if self.dialogs.last().is_some_and(|d| d.key == "financials") {
+                if !base_contracts && self.dialogs.last().is_some_and(|d| d.key == "financials") {
                     self.refresh_financial_journals(registry).await?;
                 }
                 return Ok("Editor closed".into());
@@ -820,6 +822,7 @@ impl PortfolioController {
             ("Allocation...", f && current),
             ("Risk Envelope...", f && current),
             ("Trade Assignment...", f && current),
+            ("Base Contracts...", f && current),
         ]);
         let visible = self.data.visible_fund_refs(registry)?;
         let grids = vec![
@@ -894,7 +897,7 @@ impl PortfolioController {
             let mut modal = self.policy_document(registry, &parent)?;
             modal.buttons.retain(|v| v != "Change Policy...");
             modal.status = format!(
-                "Portfolio {} — {}; Active policy: {} v{}",
+                "Portfolio {} \u{2014} {}; Active policy: {} v{}",
                 text(&parent["PortfolioId"]),
                 text(&parent["Name"]),
                 text(&parent["ActivePolicyId"]),
@@ -924,6 +927,7 @@ impl PortfolioController {
             dialogs: dialogs,
             policy: policy,
             fund_view: fund_view,
+            base_contracts: self.base_contract_nodes(registry)?,
             ..Default::default()
         };
         let bytes = crate::wire::encode(&document).map_err(|e| e.to_string())?;

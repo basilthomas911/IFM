@@ -106,6 +106,8 @@ public sealed class PortfolioQueryServiceTests
 
     sealed class ProjectionCatalog : IPortfolioDbReadContext
     {
+        public Task<IReadOnlyList<FinancialWorkflowSourceRow>> ReadFinancialWorkflowSourcesAsync(long afterStreamId, string? exactStream = null, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException("Workflow recovery is outside this query fixture.");
         public Task<FinancialBookConfiguration?> ReadActiveBookByExecutionAccountAsync(string environment, string executionAccountReference, CancellationToken cancellationToken = default)
             => Task.FromResult<FinancialBookConfiguration?>(null);
         public DateTime Now { get; } = new(2026, 8, 30, 19, 0, 0, DateTimeKind.Utc);

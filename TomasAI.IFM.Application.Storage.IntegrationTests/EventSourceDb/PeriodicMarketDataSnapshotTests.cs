@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.EventProjector.ReadModels;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.ReferenceDb;
@@ -85,7 +86,7 @@ public sealed class PeriodicMarketDataSnapshotTests(EventSourceActorSnapshotRang
         Assert.True(submitted.UseDurableProjection);
         Assert.True(submitted.EventId > 0);
         Assert.NotNull(await fixture.ActorEventDb.GetEventProjectorExecutionStateAsync(
-            submitted.EventId, "EconomicCalendarEventProjector", CancellationToken.None));
+            new EventProjectorIdentity(submitted.EventId, "EconomicCalendarEventProjector"), CancellationToken.None));
         await context.DidNotReceiveWithAnyArgs().SendAsync<EconomicCalendarAddedEvent, EconomicCalendarId>(default!);
     }
 
@@ -290,7 +291,7 @@ public sealed class PeriodicMarketDataSnapshotTests(EventSourceActorSnapshotRang
         if (durableProjector is not null)
         {
             var marker = await database.GetEventProjectorExecutionStateAsync(
-                accepted.EventId, durableProjector, CancellationToken.None);
+                new EventProjectorIdentity(accepted.EventId, durableProjector), CancellationToken.None);
             Assert.NotNull(marker);
             Assert.Equal(TomasAI.IFM.Shared.EventProjector.EventProjectorStageType.PublishProcessingEvent, marker.Stage);
         }

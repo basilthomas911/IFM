@@ -32,10 +32,16 @@ public static class ValidatePortfolioReference
         }
 
         public async ValueTask<PortfolioReferenceValidationCompletedEvent> ExecuteAsync(IReferenceQueryApi references,
-            IPortfolioOperationalGuard guard, CancellationToken token, TimeProvider? timeProvider = null)
+            IPortfolioOperationalGuard guard, CancellationToken token, TimeProvider? timeProvider = null,
+            FundBaseContractPreparation? baseContracts = null)
         {
             guard.Demand(request.Policy is null ? PortfolioOperation.AdministerFund : PortfolioOperation.AdministerPortfolio, request.Access, mutation: true);
             await request.ValidateReferencesAsync(references, token).ConfigureAwait(false);
+            if (request.Mandate?.BaseContracts.Length > 0)
+            {
+                ArgumentNullException.ThrowIfNull(baseContracts);
+                await baseContracts.EnsureAsync(request, token).ConfigureAwait(false);
+            }
             return new()
             {
                 Subject = new(ActorType.Event, "PortfolioReferenceValidationEvent", "Completed", request.EntityId.Format()),
@@ -71,6 +77,13 @@ public static class ValidatePortfolioReference
             {
                 var selections = await FundSelectionCatalog.LoadAsync(references, token).ConfigureAwait(false);
                 selections.ValidateSelections(mandate.UnderlyingUniverse, mandate.EligibleAssetTypes, mandate.PermittedDirections, mandate.PermittedConditions);
+                if (mandate.BaseContracts.Length > 0)
+                {
+                    var futures = await references.GetTradeStrategySymbolsAsync(TomasAI.IFM.Domain.Reference.Shared.ViewModels.TradeStrategyFamilyType.Futures, token).ConfigureAwait(false);
+                    if (!futures.Success || futures.Value is null || mandate.BaseContracts.Any(rule =>
+                        rule.Validate().Count != 0 || !futures.Value.Any(product => product.Symbol == rule.Symbol)))
+                        throw new ArgumentException("Fund base contract symbols must come from the published Databento Futures catalog.", nameof(request));
+                }
             }
             var families = mandate?.PermittedTradeStrategyFamilies ?? (assignment?.TradeStrategyFamily is { } family ? [family] : []);
             if (families.Length == 0) return;

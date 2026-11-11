@@ -29,21 +29,26 @@ public sealed class TradePlanDbContext(
         => this.ReadDailyForwardSpreadsAsync(positionId, dayEndsUtc, cancellationToken);
 
     /// <inheritdoc />
-    public Task<StrategyTradePlanHistoryPage> GetOffsetHistoryAsync(StrategyPositionId positionId, TradeStrategyKind strategy,
+    public Task<ITradePlanOffsetReadSession> OpenOffsetHistoryAsync(StrategyPositionId positionId, TradeStrategyKind strategy,
         DateOnly valueDate, int offset, int pageSize, long? maximumRevision = null, CancellationToken cancellationToken = default)
-        => this.ReadOffsetHistoryAsync(positionId, strategy, valueDate, offset, pageSize, maximumRevision, cancellationToken);
+        => this.OpenOffsetHistoryCoreAsync(positionId, strategy, valueDate, offset, pageSize, maximumRevision, cancellationToken);
 
+    /// <summary>Reads chart range from the committed projection.</summary>
+    /// <param name="positionId">The position id supplied by the caller.</param>
+    /// <param name="firstValueDate">The first value date supplied by the caller.</param>
+    /// <param name="lastValueDate">The last value date supplied by the caller.</param>
+    /// <param name="startUtc">The start utc supplied by the caller.</param>
+    /// <param name="endUtc">The end utc supplied by the caller.</param>
+    /// <param name="cancellationToken">Cancels the database operation.</param>
+    /// <returns>The selected rows in the query's defined order.</returns>
     public Task<StrategyTradePlanChartSeries> GetChartRangeAsync(StrategyPositionId positionId, DateOnly firstValueDate, DateOnly lastValueDate, DateTime startUtc, DateTime endUtc, CancellationToken cancellationToken = default)
         => this.ReadChartRangeAsync(positionId, firstValueDate, lastValueDate, startUtc, endUtc, cancellationToken);
-
-    internal readonly ILogger<DbProvider> tradePlanLogger = logger;
 
     /// <inheritdoc />
     public Task ProjectMaterialAsync(IEnlistedPostgresTransaction transaction, StrategyTradePlanSnapshot plan, CancellationToken cancellationToken = default)
         => this.ProjectMaterialAsyncCore(transaction, plan, cancellationToken);
 
     /// <inheritdoc />
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Disposable monitoring snapshots are logged and dropped on any persistence failure, as required; the next market update calculates a new snapshot.")]
     public Task ProjectMaterialAsync(
         StrategyTradePlanSnapshot plan,
         CancellationToken cancellationToken = default)

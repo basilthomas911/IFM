@@ -16,7 +16,7 @@ internal static class FrozenEmulatorOptionChain
         GetEvaluatedOptionChainQuery query, HostOptionChainContext context, CancellationToken token)
     {
         var timer = Stopwatch.StartNew();
-        var definitions = await context.DbFactory.SecuritiesDb.GetCachedOptionContractDefinitionsAsync(
+        var definitions = await context.Definitions.GetOptionDefinitionsAsync(
             query.UnderlyingSymbol, query.UnderlyingContractId, query.ExpiryDate, query.ProviderRoots, token)
             .ConfigureAwait(false);
         var definitionsMs = timer.Elapsed.TotalMilliseconds;

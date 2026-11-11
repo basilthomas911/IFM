@@ -300,8 +300,12 @@ public static class PortfolioSchemaSql
             CREATE INDEX IF NOT EXISTS portfolio_by_state_page ON portfolio.portfolio_by_state(operating_state,portfolio_id);
             CREATE TABLE IF NOT EXISTS portfolio.fund_by_portfolio(portfolio_id int NOT NULL,fund_id int NOT NULL,fund_mandate_version bigint NOT NULL,operating_state text NOT NULL,schema_version int NOT NULL,aggregate_version bigint NOT NULL,source_event_id bigint NOT NULL,updated_on_utc timestamptz NOT NULL,payload_json jsonb NOT NULL,payload_hash text NOT NULL,PRIMARY KEY(portfolio_id,fund_id,fund_mandate_version));
             CREATE INDEX IF NOT EXISTS fund_by_id ON portfolio.fund_by_portfolio(fund_id,fund_mandate_version DESC);
+            ALTER TABLE portfolio.fund_by_portfolio ADD COLUMN IF NOT EXISTS base_contracts jsonb
+                GENERATED ALWAYS AS (COALESCE(payload_json->'BaseContracts','[]'::jsonb)) STORED;
             CREATE TABLE IF NOT EXISTS portfolio.active_fund_by_portfolio_horizon(portfolio_id int NOT NULL,trading_year int NOT NULL,decision_horizon text NOT NULL,effective_from_utc timestamptz NOT NULL,fund_id int NOT NULL,fund_mandate_version bigint NOT NULL,schema_version int NOT NULL,aggregate_version bigint NOT NULL,source_event_id bigint NOT NULL,updated_on_utc timestamptz NOT NULL,payload_json jsonb NOT NULL,payload_hash text NOT NULL,PRIMARY KEY(portfolio_id,trading_year,decision_horizon,effective_from_utc,fund_id));
             CREATE TABLE IF NOT EXISTS portfolio.fund_template_assignment(portfolio_id int NOT NULL,fund_id int NOT NULL,fund_mandate_version bigint NOT NULL,trade_template_id uuid NOT NULL,trade_template_version bigint NOT NULL,schema_version int NOT NULL,aggregate_version bigint NOT NULL,source_event_id bigint NOT NULL,updated_on_utc timestamptz NOT NULL,payload_json jsonb NOT NULL,payload_hash text NOT NULL,PRIMARY KEY(portfolio_id,fund_id,fund_mandate_version,trade_template_id,trade_template_version));
+            ALTER TABLE portfolio.active_fund_by_portfolio_horizon ADD COLUMN IF NOT EXISTS base_contracts jsonb
+                GENERATED ALWAYS AS (COALESCE(payload_json->'BaseContracts','[]'::jsonb)) STORED;
             CREATE TABLE IF NOT EXISTS portfolio.fund_allocation(portfolio_id int NOT NULL,fund_id int NOT NULL,allocation_version bigint NOT NULL,schema_version int NOT NULL,aggregate_version bigint NOT NULL,source_event_id bigint NOT NULL,updated_on_utc timestamptz NOT NULL,payload_json jsonb NOT NULL,payload_hash text NOT NULL,PRIMARY KEY(portfolio_id,fund_id,allocation_version));
             CREATE TABLE IF NOT EXISTS portfolio.fund_risk_envelope(portfolio_id int NOT NULL,fund_id int NOT NULL,envelope_version bigint NOT NULL,schema_version int NOT NULL,aggregate_version bigint NOT NULL,source_event_id bigint NOT NULL,updated_on_utc timestamptz NOT NULL,payload_json jsonb NOT NULL,payload_hash text NOT NULL,PRIMARY KEY(portfolio_id,fund_id,envelope_version));
             CREATE TABLE IF NOT EXISTS portfolio.fund_order(portfolio_id int NOT NULL,fund_id int NOT NULL,order_month date NOT NULL,created_on_utc timestamptz NOT NULL,order_id int PRIMARY KEY,status text NOT NULL,schema_version int NOT NULL,aggregate_version bigint NOT NULL,source_event_id bigint NOT NULL,updated_on_utc timestamptz NOT NULL,payload_json jsonb NOT NULL,payload_hash text NOT NULL);
@@ -334,4 +338,11 @@ public static class PortfolioSchemaSql
 
     /// <summary>Drops the Portfolio projection schema.</summary>
     public const string Drop = "DROP SCHEMA IF EXISTS portfolio CASCADE;";
+    public const string AcceptedExecutionCapacity = """
+        CREATE TABLE IF NOT EXISTS portfolio_financial.accepted_execution_capacity (
+            order_id integer PRIMARY KEY, portfolio_id integer NOT NULL, fund_id integer NOT NULL,
+            execution_id uuid NOT NULL, source_event_version bigint NOT NULL,
+            financial_revision bigint NOT NULL, payload bytea NOT NULL);
+        """;
+    internal const string DropFinancial = "DROP SCHEMA IF EXISTS portfolio_financial CASCADE;";
 }

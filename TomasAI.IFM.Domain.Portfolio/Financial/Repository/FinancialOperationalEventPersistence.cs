@@ -10,7 +10,7 @@ internal static class FinancialOperationalEventPersistence
     internal static async Task AppendAsync(EnlistedEventTransaction db,string stream,IEvent source,int portfolioId,CancellationToken ct)
     {
         var revision=Convert.ToInt64(await (db.ScalarAsync(PortfolioDbSql.Financial.PortfolioDbFinancialSupport.Select05,[stream],ct)).ConfigureAwait(false) ?? 0L,System.Globalization.CultureInfo.InvariantCulture);
-        await (db.AppendAsync(stream,source.CommandId,source,revision,ct)).ConfigureAwait(false);
+        await (db.AppendAsync(new EnlistedEventAppend(stream,source.CommandId,source,revision),ct)).ConfigureAwait(false);
         await (ClaimAsync(db,source,portfolioId,ct)).ConfigureAwait(false);
     }
     internal static async Task<bool> ClaimAsync(EnlistedEventTransaction db,IEvent source,int portfolioId,CancellationToken ct)

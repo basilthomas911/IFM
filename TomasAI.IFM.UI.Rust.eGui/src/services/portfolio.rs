@@ -41,6 +41,7 @@ fn allowed_query(name: &str) -> bool {
             | "GetPortfolioRevisionQuery"
             | "GetFundsQuery"
             | "GetFundQuery"
+            | "GetFundBaseContractsQuery"
             | "GetFundRevisionQuery"
             | "GetFundAllocationQuery"
             | "GetFundRiskEnvelopeQuery"

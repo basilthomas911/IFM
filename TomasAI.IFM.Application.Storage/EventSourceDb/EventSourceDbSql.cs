@@ -1267,7 +1267,7 @@ FROM snapshot_versions
             $5,
             $6
         FROM next_stream_version
-        RETURNING EventVersion;
+        RETURNING EventVersion, StreamVersion;
     """;
 
     /// <summary>Inserts an event only when the stream is still at the caller's observed version.</summary>
@@ -1407,4 +1407,162 @@ ON CONFLICT (EventStream) DO UPDATE
 SET EventStream = EXCLUDED.EventStream
 RETURNING eventStreamId;
 """;
+    internal const string HasCommittedStreamWithPrefix = """
+        SELECT EXISTS (
+            SELECT 1 FROM public.event_stream_id s
+            WHERE s.currentversion > 0 AND NOT (s.eventstream = ANY($1::text[]))
+              AND EXISTS (SELECT 1 FROM unnest($2::text[]) p(prefix) WHERE starts_with(s.eventstream,p.prefix)));
+        """;
+    internal const string HasCommittedMaintenanceStream = "SELECT currentversion FROM public.event_stream_id WHERE eventstream=$1 AND currentversion>0;";
+    internal const string ReadMaintenanceSourceEvents = """
+        SELECT l.eventstreamid,n.eventname,n.eventtypename,l.eventversion,l.eventpayload,
+               l.commandid,l.eventtimestamp,l.streamversion,s.eventstream
+        FROM public.event_stream_id s
+        CROSS JOIN LATERAL (SELECT * FROM public.event_log l WHERE l.eventstreamid=s.eventstreamid OFFSET 0) l
+        JOIN public.event_name_id n ON n.eventnameid=l.eventnameid
+        WHERE s.eventstream=ANY($1::text[])
+           OR EXISTS (SELECT 1 FROM unnest($2::text[]) p(prefix) WHERE starts_with(s.eventstream,p.prefix))
+        ORDER BY l.eventversion;
+        """;
+    /// <summary>Parameter-bound persistence statement.</summary>
+    internal const string EnlistedEventTransaction_ReserveCommandAsync_1 = "SELECT commandid FROM command_log WHERE commandid=$1 FOR UPDATE;";
+
+    /// <summary>Parameter-bound persistence statement.</summary>
+    internal const string EnlistedEventTransaction_ReserveCommandAsync_2 = "SELECT EXISTS(SELECT 1 FROM event_log WHERE commandid=$1);";
+
+    /// <summary>Parameter-bound persistence statement.</summary>
+    internal const string EnlistedEventTransaction_ReserveCommandAsync_3 = "SELECT EXISTS(SELECT 1 FROM event_log l JOIN event_stream_id s ON l.eventstreamid=s.eventstreamid WHERE l.commandid=$1 AND s.eventstream=$2);";
+
+    /// <summary>Parameter-bound persistence statement.</summary>
+    internal const string EnlistedEventTransaction_AppendAsync_1 = "SELECT eventstreamid FROM event_stream_id WHERE eventstream=$1;";
+
+    /// <summary>Parameter-bound persistence statement.</summary>
+    internal const string EnlistedEventTransaction_AppendAsync_2 = "SELECT eventnameid FROM event_name_id WHERE eventname=$1 AND eventtypename=$2;";
+
+    /// <summary>Parameter-bound persistence statement.</summary>
+    internal const string EventSourceActorDbContext_GetCommittedStreamVersionAsync_1 = "SELECT COALESCE(MAX(StreamVersion),0) FROM event_log WHERE EventStreamId=$1;";
+
+    /// <summary>Parameter-bound persistence statement.</summary>
+    internal const string PostgresCommittedBusinessEventJournal_Statement_1 = "SELECT el.eventStreamId,en.eventName,en.eventTypeName,el.eventVersion,el.EventPayload,el.commandId,el.eventTimestamp::text,el.StreamVersion FROM event_log el JOIN event_name_id en ON en.eventNameId=el.eventNameId ";
+
+    /// <summary>Parameter-bound persistence statement.</summary>
+    internal const string PostgresCommittedBusinessEventJournal_CompleteHandoffAsync_1 = "UPDATE business_subscription_projection_receipt SET handoff_completed=true WHERE event_id=$1;";
+
+    /// <summary>Parameter-bound persistence statement.</summary>
+    internal const string PostgresCommittedBusinessEventJournal_RejectAsync_1 = "INSERT INTO business_subscription_projection_issue(event_id,reason_code,detail) VALUES($1,$2,$3) ON CONFLICT DO NOTHING;";
+
+    /// <summary>Parameter-bound persistence statement.</summary>
+    internal const string PostgresCommittedBusinessEventJournal_RejectAsync_2 = "INSERT INTO business_subscription_projection_receipt(event_id) VALUES($1) ON CONFLICT DO NOTHING;";
+
+    /// <summary>Parameter-bound persistence statement.</summary>
+    internal const string PostgresQueryTimeoutScope_ApplyAsync_1 = "SELECT set_config('statement_timeout',$1,true), set_config('lock_timeout',$2,true);";
+
+    /// <summary>Parameter-bound persistence statement.</summary>
+    internal const string RiskHistoryJournal_LoadCursorAsync_1 = "SELECT after_event_version FROM risk_history_projection_progress WHERE projection_name=$1;";
+
+    /// <summary>Parameter-bound persistence statement.</summary>
+    internal const string RiskHistoryJournal_LoadCursorAsync_2 = """
+                INSERT INTO risk_history_projection_receipt(projection_name,event_id)
+                SELECT $1,e.eventversion
+                FROM event_log e JOIN event_name_id n ON n.eventnameid=e.eventnameid
+                WHERE n.eventname='WorkflowStrategyStateUpdatedEvent' AND e.eventversion<=$2
+                ON CONFLICT DO NOTHING;
+                """;
+
+    /// <summary>Parameter-bound persistence statement.</summary>
+    internal const string RiskHistoryJournal_SaveCursorAsync_1 = """
+                INSERT INTO risk_history_projection_progress(projection_name,after_event_version) VALUES($2,$1)
+                ON CONFLICT(projection_name) DO UPDATE
+                SET after_event_version=GREATEST(risk_history_projection_progress.after_event_version,EXCLUDED.after_event_version);
+                """;
+
+    /// <summary>Parameter-bound persistence statement.</summary>
+    internal const string RiskHistoryJournal_PageAsync_1 = """
+                SELECT e.eventstreamid,n.eventname,n.eventtypename,e.eventversion,e.EventPayload,e.commandid,e.eventtimestamp::text,e.streamversion
+                FROM event_log e JOIN event_name_id n ON n.eventnameid=e.eventnameid
+                WHERE n.eventname='WorkflowStrategyStateUpdatedEvent'
+                  AND NOT EXISTS(
+                    SELECT 1 FROM risk_history_projection_receipt r
+                    WHERE r.projection_name=$1 AND r.event_id=e.eventversion)
+                ORDER BY e.eventversion LIMIT 32;
+                """;
+
+    /// <summary>Parameter-bound persistence statement.</summary>
+    internal const string RiskHistoryJournal_AcknowledgeAsync_1 = "INSERT INTO risk_history_projection_receipt(projection_name,event_id) VALUES($1,$2) ON CONFLICT DO NOTHING;";
+
+    /// <summary>Parameter-bound persistence statement.</summary>
+    internal const string RiskHistoryJournal_QuarantineConflictAsync_1 = """
+                INSERT INTO risk_history_projection_issue(
+                  projection_name,event_id,workflow_id,invocation_id,source_revision,issue_code,stored_hash,incoming_hash)
+                VALUES($1,$2,$3,$4,$5,'ImmutableRevisionConflict',$6,$7)
+                ON CONFLICT DO NOTHING;
+                """;
+
+    /// <summary>Parameter-bound persistence statement.</summary>
+    internal const string RiskHistoryJournal_ProjectCompletionPageAsync_1 = """
+                SELECT e.eventstreamid,n.eventname,n.eventtypename,e.eventversion,e.EventPayload,e.commandid,e.eventtimestamp::text,e.streamversion
+                FROM event_log e JOIN event_name_id n ON n.eventnameid=e.eventnameid
+                WHERE n.eventname=$1
+                  AND NOT EXISTS(
+                    SELECT 1 FROM risk_history_projection_receipt r
+                    WHERE r.projection_name=$2 AND r.event_id=e.eventversion)
+                ORDER BY e.eventversion LIMIT 32;
+                """;
+
+    /// <summary>Parameter-bound persistence statement.</summary>
+    internal const string CommandAuditPostgres_MatchesStoredRetryAsync_1 = "SELECT commandpayload,commandpayloadformat,commandpayloadversion,commandpayloadsha256 FROM command_log WHERE commandid=$1";
+
+    /// <summary>Parameter-bound persistence statement.</summary>
+    internal const string BatchedProjectionMarkerWriter_Statement_1 = """
+        WITH requested AS (
+            SELECT * FROM unnest($1::bigint[], $2::text[], $3::text[], $4::text[])
+                AS input(EventId, ActorName, ProjectorName, InitialStage)
+        ), inserted AS (
+            INSERT INTO event_projector_state (
+                EventId, ActorName, ProjectorName, IsReplay, AttemptNumber,
+                Outcome, Stage, ErrorMessage, CreatedTimestamp, UpdatedTimestamp,
+                EventStreamId, SourceEventName, UpdatedAtUtc, StreamVersion
+            )
+            SELECT input.EventId, input.ActorName, input.ProjectorName, false, 0,
+                CASE
+                    WHEN checkpoint.LastAppliedStreamVersion IS NULL
+                      OR checkpoint.LastAppliedStreamVersion < el.StreamVersion THEN 'Processing'
+                    WHEN checkpoint.LastAppliedStreamVersion = el.StreamVersion THEN 'AlreadyCompleted'
+                    ELSE 'Superseded'
+                END,
+                CASE WHEN checkpoint.LastAppliedStreamVersion >= el.StreamVersion
+                    THEN 'Completed' ELSE input.InitialStage END,
+                CASE WHEN checkpoint.LastAppliedStreamVersion >= el.StreamVersion
+                    THEN 'stream-checkpoint-covered' ELSE '' END,
+                $5, $5, el.EventStreamId, en.EventName, $6, el.StreamVersion
+            FROM requested input
+            JOIN event_log el ON el.EventVersion = input.EventId
+            JOIN event_name_id en ON en.EventNameId = el.EventNameId
+            LEFT JOIN event_projector_stream_checkpoint checkpoint
+                ON checkpoint.ProjectorName = input.ProjectorName
+               AND checkpoint.EventStreamId = el.EventStreamId
+            ON CONFLICT (EventId, ProjectorName) DO NOTHING
+            RETURNING EventId
+        )
+        SELECT count(*) FROM inserted;
+        """;
+
+    /// <summary>Parameter-bound persistence statement.</summary>
+    internal const string BinaryCopyEventLogAppender_LockStreamsAsync_1 = """
+            SELECT EventStreamId, CurrentVersion
+            FROM event_stream_id
+            WHERE EventStreamId = ANY($1)
+            ORDER BY EventStreamId
+            FOR UPDATE;
+            """;
+
+    /// <summary>Parameter-bound persistence statement.</summary>
+    internal const string BinaryCopyEventLogAppender_ReserveEventIdsAsync_1 = "SELECT nextval('public.event_log_eventversion_seq') FROM generate_series(1, $1);";
+
+    internal const string ReserveCopiedStreamVersions = """
+            UPDATE event_stream_id AS stream
+            SET CurrentVersion = updates.FinalVersion
+            FROM unnest($1::bigint[], $2::bigint[]) AS updates(EventStreamId, FinalVersion)
+            WHERE stream.EventStreamId = updates.EventStreamId;
+            """;
 }

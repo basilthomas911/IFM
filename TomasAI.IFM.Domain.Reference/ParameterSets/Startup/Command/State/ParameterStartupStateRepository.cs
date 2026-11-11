@@ -93,11 +93,11 @@ public sealed class ParameterStartupStateRepository(
             var version = state.CommittedStreamVersion;
             foreach (var source in pending)
             {
-                var eventId = await transaction.AppendAsync(command.StreamId, command.CommandId, source, version++, token).ConfigureAwait(false);
+                var eventId = await transaction.AppendAsync(new EnlistedEventAppend(command.StreamId, command.CommandId, source, version++), token).ConfigureAwait(false);
                 await database.MarkParameterProjectionPendingAsync(transaction, eventId, token).ConfigureAwait(false);
             }
             if (snapshot is not null)
-                await transaction.AppendAsync(command.StreamId, command.CommandId, snapshot, version, token).ConfigureAwait(false);
+                await transaction.AppendAsync(new EnlistedEventAppend(command.StreamId, command.CommandId, snapshot, version), token).ConfigureAwait(false);
             await database.AdvanceParameterRevisionFenceAsync(transaction, token).ConfigureAwait(false);
             return true;
         }, cancellationToken).ConfigureAwait(false);

@@ -11,6 +11,8 @@ using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
+using TomasAI.IFM.Framework.SequenceId;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Realtime.Projector;
 
@@ -19,7 +21,7 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Realtime.Projector;
 /// projection replay infrastructure.
 /// </summary>
 public sealed class FuturesEodDataRealtimeProjector(
-    IDbContextFactory dbFactory,
+    IDbContextFactory dbFactory, ISequenceIdGenerator sequences,
     ILogger<FuturesEodDataRealtimeProjector> logger, IConfiguration? configuration = null)
     : BaseRealtimeProjector<FuturesEodDataRealtimeActor>(logger), IAsyncDisposable
 {
@@ -225,7 +227,10 @@ public sealed class FuturesEodDataRealtimeProjector(
                 var rows = batch.Where(item => item.Row is not null).Select(item => item.Row!).ToArray();
                 if (rows.Length > 0)
                 {
-                    await (dbFactory.MarketDataDb.PrepareRealtimeFuturesEodBatchAsync(rows)).ConfigureAwait(false);
+                    foreach (var row in rows)
+                        if (row.AppendHistory && row.HistorySequenceId is null)
+                            row.HistorySequenceId = await sequences.GetSequenceIdAsync(SequenceName.FuturesIntraDay_SequenceId)
+                                .ConfigureAwait(false);
                     // Persist allocated IDs before submitting mutations, including before an uncertain response.
                     foreach (var item in batch.Where(item => item.Row is not null)) await (EodHistorySpool.SaveAsync(item)).ConfigureAwait(false);
                     await (dbFactory.MarketDataDb.PersistRealtimeFuturesEodBatchAsync(rows)).ConfigureAwait(false);
@@ -241,22 +246,26 @@ public sealed class FuturesEodDataRealtimeProjector(
             FuturesEodDataInsertedEvent,
             FuturesEodDataInsertedCompleteEvent,
             FuturesEodDataInsertedFailEvent,
-            FuturesEodDataId>(e => dbFactory.MarketDataDb.InsertFuturesEodDataAsync(
-                e.FuturesEodData)),
+            FuturesEodDataId>(e => PersistOneAsync(dbFactory, sequences, e.FuturesEodData)),
         Describe<
             FuturesEodSessionStatisticsUpdatedEvent,
             FuturesEodDataInsertedCompleteEvent,
             FuturesEodDataInsertedFailEvent,
-            FuturesEodDataId>(e => dbFactory.MarketDataDb.InsertFuturesEodDataAsync(
-                e.FuturesEodData)),
+            FuturesEodDataId>(e => PersistOneAsync(dbFactory, sequences, e.FuturesEodData)),
         Describe<
             VixFuturesEodDataInsertedEvent,
             VixFuturesEodDataInsertedCompleteEvent,
             VixFuturesEodDataInsertedFailEvent,
-            FuturesEodDataId>(e => dbFactory.MarketDataDb.InsertVixFuturesEodDataAsync(
-                e.VixFuturesTickData,
-                e.SessionStatistics))
+            FuturesEodDataId>(e => dbFactory.MarketDataDb.InsertVixFuturesEodDataAsync(new VixTickObservation(e.VixFuturesTickData,
+                e.SessionStatistics)))
     ];
+
+    static async Task PersistOneAsync(IDbContextFactory dbFactory, ISequenceIdGenerator sequences,
+        FuturesEodDataV2ReadModel observation)
+    {
+        var sequenceId = await sequences.GetSequenceIdAsync(SequenceName.FuturesIntraDay_SequenceId).ConfigureAwait(false);
+        await dbFactory.MarketDataDb.InsertFuturesEodDataAsync(observation, sequenceId).ConfigureAwait(false);
+    }
 
     public override string ActorName => FuturesEodDataRealtimeActor.ActorName;
     public override string ProjectorName => nameof(FuturesEodDataRealtimeProjector);

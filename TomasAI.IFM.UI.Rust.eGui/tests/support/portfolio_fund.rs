@@ -221,3 +221,44 @@ async fn portfolio_fund_configuration_preserves_catalog_scope_and_partial_create
     }
     mode(&backend, "Reset").await;
 }
+
+
+/// Fund defaults persist as a new mandate version; unsupported or empty selections never write.
+#[tokio::test]
+#[ignore = "Requires isolated C# compatibility responder"]
+async fn portfolio_fund_base_contracts_preserve_defaults_and_reject_equities_or_empty_selection() {
+    let backend = Backend::connect(Settings { url: std::env::var("IFM_STANDALONE_TEST_NATS_URL").unwrap(),
+        credentials_file: None, token: None, request_timeout: Duration::from_secs(2) }).await.unwrap();
+    let registry = Registry::compiled().unwrap();
+    mode(&backend, "Reset").await;
+    mode(&backend, "FundCommands").await;
+    let mut state = PortfolioController::default();
+    let mut p = act(&mut state, &backend, &registry, 0, "load", json!({})).await;
+    p = act(&mut state, &backend, &registry, p.generation, "portfolio-open", json!({"view":"base-contracts"})).await;
+    assert_eq!(p.outcomes[0].state,"Completed","{}",p.status);
+    let initial_doc = document(&p);
+    let initial_fields = initial_doc["dialogs"][0]["fields"].as_array().unwrap();
+    for field in initial_fields.iter().filter(|f| f["key"].as_str().is_some_and(|k| k.starts_with("selected.")) && f["value"] == "false") {
+        let cycle_key = field["key"].as_str().unwrap().replace("selected.", "cycles.");
+        assert_eq!(initial_fields.iter().find(|f| f["key"] == cycle_key).unwrap()["value"], "2");
+    }
+    let old_revision = state.data.fund_revision;
+    for fields in [json!({"BaseAsset":"Equities","selected.ES":"true","cycles.ES":"1"}), json!({"BaseAsset":"Futures"})] {
+        p = act(&mut state, &backend, &registry, p.generation, "portfolio-save", fields).await;
+        assert_ne!(p.outcomes[0].state,"Completed");
+        assert_eq!(state.data.fund_revision,old_revision);
+    }
+    p = act(&mut state, &backend, &registry, p.generation, "portfolio-save",
+        json!({"BaseAsset":"Futures","selected.ES":"true","cycles.ES":"2","selected.VX":"true","cycles.VX":"1"})).await;
+    assert_eq!(p.outcomes[0].state,"Completed","{}",p.status);
+    assert_eq!(state.data.fund_revision,old_revision+1);
+    assert_eq!(document(&p)["dialogs"], json!([]), "Successful Save must close the editor");
+    p = act(&mut state, &backend, &registry, p.generation, "portfolio-open", json!({"view":"base-contracts"})).await;
+    assert_eq!(p.outcomes[0].state,"Completed","{}",p.status);
+    let doc = document(&p);
+    let fields = doc["dialogs"][0]["fields"].as_array().unwrap();
+    for (key,value) in [("selected.ES","true"),("cycles.ES","2"),("selected.VX","true"),("cycles.VX","1")] {
+        assert_eq!(fields.iter().find(|f|f["key"]==key).unwrap()["value"],value);
+    }
+    assert!(fields.iter().all(|f| f["key"] != "saved"));
+}
