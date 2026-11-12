@@ -196,7 +196,7 @@ public sealed class NativeEpochResources : IAsyncDisposable
         try
         {
             // Stable managed handles may outlive an inactive scope. Native hot
-            // capacity is independently capped at 2048 options + 64 dependencies.
+            // capacity is independently capped at the shared option maximum plus 64 dependencies.
             runtime.ConfigureLive(valueDate,Guid.NewGuid(),clock.GetUtcNow(),advancingClock,checked((uint)Math.Min(2112,options.LastPriceCapacity)));
             runtime.ConfigureCatalog(16384,16*1024*1024);runtime.ConfigureHistory(historyEndpoint,apiKey,numericDnsServers);
             var catalog=await NativeContractCatalog.CreateAsync(runtime,options,clock,Remaining(),bounded.Token).ConfigureAwait(false);

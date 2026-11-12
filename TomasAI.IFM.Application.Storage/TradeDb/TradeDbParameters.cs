@@ -3,6 +3,18 @@ using TomasAI.IFM.Shared.Storage;
 
 namespace TomasAI.IFM.Application.Storage.TradeDb;
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
+internal readonly record struct BrokerAccountReadParameters(string AccountAlias) : IBindValue
+{
+    public object Bind() => new object[] { AccountAlias };
+}
+
+[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
+internal readonly record struct BrokerAccountProjectionParameters(string AccountAlias, long Revision, byte[] Payload) : IBindValue
+{
+    public object Bind() => new object[] { AccountAlias, Revision, Payload };
+}
+
+[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct AssessmentValues(object[] Values) : IBindValue
 {
     public object Bind() => Values;

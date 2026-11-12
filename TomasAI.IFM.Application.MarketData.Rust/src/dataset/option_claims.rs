@@ -745,7 +745,7 @@ impl Coordinator {
         if id.trim().is_empty()
             || id.encode_utf16().count() > 128
             || scope.options.is_empty()
-            || scope.options.len() > 2048
+            || scope.options.len() > crate::option_chain::MAX_LIVE_OPTIONS
             || !scope.monitored.is_subset(&scope.options)
             || scope.caches.len() > 64
         {

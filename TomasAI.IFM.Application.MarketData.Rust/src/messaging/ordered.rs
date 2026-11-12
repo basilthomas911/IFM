@@ -66,7 +66,7 @@ impl Ordered {
             header,
             clock,
             sequence: Mutex::new(0),
-            current: Arc::new(Current::new(4096, 32 * 1024 * 1024)?),
+            current: Arc::new(Current::new(crate::option_chain::MAX_LIVE_OPTIONS, 32 * 1024 * 1024)?),
         }))
     }
     /// Atomically allocates and queues one sequence, with no asynchronous work

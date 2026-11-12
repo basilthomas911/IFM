@@ -1,14 +1,15 @@
+using TomasAI.IFM.Domain.MarketData.Shared;
 namespace TomasAI.IFM.Application.MarketData.Pricing;
 
 /// <summary>User-approved test defaults. Production needs an explicit reviewed policy/evidence identity.</summary>
 public sealed record OptionPricingRefreshPolicy
 {
-    public const int MaximumSupportedContracts = 4096;
+    public const int MaximumSupportedContracts = OptionFeedCapacity.MaximumContracts;
 
     public int PriceDeltaMilliseconds { get; init; } = 250;
     public int ImpliedVolatilityMilliseconds { get; init; } = 5000;
     public int FullRiskMilliseconds { get; init; } = 1000;
-    public int MaximumContracts { get; init; } = 2048;
+    public int MaximumContracts { get; init; } = OptionFeedCapacity.MaximumContracts;
     public int MaximumContractsPerPass { get; init; } = 16;
     public string Version { get; init; } = "OptionRefresh/TestDefaults/v1";
     public bool ProductionApproved { get; init; }

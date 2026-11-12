@@ -8,6 +8,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 
 using TomasAI.IFM.Application.MarketData.Pricing;
 using TomasAI.IFM.Shared.MarketData.Contracts.Pricing;
+using TomasAI.IFM.Domain.MarketData.Shared;
 
 namespace TomasAI.IFM.Application.MarketData.Rust.Publication;
 
@@ -39,7 +40,7 @@ public sealed class NativeOptionObservationPublisher
     public void RetainContracts(IReadOnlyCollection<string> contractIds)
     {
         ArgumentNullException.ThrowIfNull(contractIds);
-        if(contractIds.Count>2048)throw new ArgumentOutOfRangeException(nameof(contractIds));
+        if(contractIds.Count>OptionFeedCapacity.MaximumContracts)throw new ArgumentOutOfRangeException(nameof(contractIds));
         var retained=contractIds.ToHashSet(StringComparer.Ordinal);
         lock(publishedQuotes)foreach(var id in publishedQuotes.Keys.Where(id=>!retained.Contains(id)).ToArray())publishedQuotes.Remove(id);
     }
@@ -58,7 +59,7 @@ public sealed class NativeOptionObservationPublisher
         lock (publishedQuotes)
         {
             if(publishedGeneration!=generation){publishedQuotes.Clear();publishedGeneration=generation;}
-            if(!pricingUpdate&&!publishedQuotes.ContainsKey(tick.ContractId)&&publishedQuotes.Count>=2048)
+            if(!pricingUpdate&&!publishedQuotes.ContainsKey(tick.ContractId)&&publishedQuotes.Count>=OptionFeedCapacity.MaximumContracts)
                 throw new InvalidOperationException("Native option monitoring fingerprint capacity exhausted.");
             if (!pricingUpdate && publishedQuotes.TryGetValue(tick.ContractId, out var previous)
                 && previous.Bid == tick.BidPrice && previous.Ask == tick.AskPrice

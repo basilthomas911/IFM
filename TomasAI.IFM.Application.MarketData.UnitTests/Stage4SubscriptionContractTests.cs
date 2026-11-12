@@ -13,7 +13,7 @@ public sealed class Stage4SubscriptionContractTests
         new Stage4SubscriptionOptions().ValidateForApplicationStartup().Enabled.Should().BeFalse();
         Action enabled = () => new Stage4SubscriptionOptions { Enabled = true }.ValidateForApplicationStartup();
         enabled.Should().Throw<InvalidOperationException>().WithMessage("*Application enablement is prohibited*");
-        Action badBound = () => new TickerLeasePolicy { MaximumOptions = 2_049 }.Validate();
+        Action badBound = () => new TickerLeasePolicy { MaximumOptions = 4_097 }.Validate();
         badBound.Should().Throw<ArgumentOutOfRangeException>();
     }
 
@@ -35,7 +35,7 @@ public sealed class Stage4SubscriptionContractTests
     {
         var option = Ticker("call", true);
         Action duplicates = () => Chain([option, option]);
-        Action oversized = () => Chain(Enumerable.Range(0, 2049).Select(i => Ticker(i.ToString(), true)));
+        Action oversized = () => Chain(Enumerable.Range(0, 4097).Select(i => Ticker(i.ToString(), true)));
         Action foreign = () => Chain([new("databento", "OTHER", "call", "mbp-1", SubscriptionAssetKind.FuturesOption)]);
         duplicates.Should().Throw<ArgumentException>();
         oversized.Should().Throw<ArgumentException>();

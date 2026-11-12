@@ -28,6 +28,8 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.R
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.ViewModels;
 using TomasAI.IFM.Framework.Serialization;
+using TomasAI.IFM.Domain.BrokerAccount.Contracts;
+using MessagePack;
 
 namespace TomasAI.IFM.Application.Storage.TradeDb;
 /// <summary>
@@ -92,6 +94,26 @@ public sealed class TradeDbContext(IDbConnectionSettings connectionSettings, IDb
     public ITradeDbReadContext DbReader => this;
     /// <summary>Gets the write capability for this database context.</summary>
     public ITradeDbWriteContext DbWriter => this;
+
+    /// <inheritdoc/>
+    public async ValueTask<BrokerAccountDefinition?> GetBrokerAccountAsync(BrokerAccountId accountId, CancellationToken cancellationToken = default)
+        => await Use("BrokerAccount.Get", TradeDbSql.GetBrokerAccount)
+            .SetParameters(new BrokerAccountReadParameters(accountId.AccountAlias))
+            .ExecuteSingleAsync(MapToBrokerAccount, cancellationToken)
+            .ConfigureAwait(false);
+
+    /// <inheritdoc/>
+    public async ValueTask ProjectAsync(BrokerAccountDefinition brokerAccountDefinition, CancellationToken cancellationToken = default)
+    {
+        var payload = MessagePackSerializer.Serialize(brokerAccountDefinition, cancellationToken: cancellationToken);
+        await Use("BrokerAccount.Project", TradeDbSql.ProjectBrokerAccount)
+            .SetParameters(new BrokerAccountProjectionParameters(brokerAccountDefinition.Id.AccountAlias, brokerAccountDefinition.Revision, payload))
+            .ExecuteCommandAsync(cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    static BrokerAccountDefinition MapToBrokerAccount<TDataRecord>(TDataRecord row) where TDataRecord : IObjectDataRecord
+        => MessagePackSerializer.Deserialize<BrokerAccountDefinition>(row.GetBytes(0));
 
     static TradePlanForwardLossLimitReadModel MapToTradePlanForwardLossLimit<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord => new(orderId: e.GetInt(0), tradeId: e.GetInt(1), valueDate: e.GetDateOnly(2), tradeType: e.GetEnum<TradeType>(3), limitType: e.GetEnum<ForwardLossLimitType>(4));

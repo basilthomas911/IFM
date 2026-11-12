@@ -38,7 +38,7 @@ public sealed class StrategyOptionChainParameterSetTests
     public void Policy_units_quality_and_resource_bounds_are_validated()
     {
         var policy = Policy(); var row = policy.BiasRows[0];
-        Assert.Throws<ArgumentException>(() => (policy with { MaximumContracts = 2049 }).Validate());
+        Assert.Throws<ArgumentException>(() => (policy with { MaximumContracts = 4097 }).Validate());
         Assert.Throws<ArgumentException>(() => (policy with { CacheRangeMultiplier = double.NaN }).Validate());
         Assert.Throws<ArgumentException>(() => (row with { PreferredDte = 46 }).Validate());
         Assert.Throws<ArgumentException>(() => (row with { MaximumQuoteAgeMilliseconds = 6000 }).Validate());

@@ -187,7 +187,7 @@ impl Demand {
             .ok_or("Missing complete scope assertion")?;
         let rows = value["candidates"]
             .as_array()
-            .filter(|a| a.len() <= 2048)
+            .filter(|a| a.len() <= crate::option_chain::MAX_LIVE_OPTIONS)
             .ok_or("Native scope candidate capacity exceeded")?;
         let mut candidates = Vec::new();
         for row in rows {
@@ -322,7 +322,7 @@ impl Scopes {
                 .flat_map(|d| d.candidates.iter().map(|c| c.contract.as_str()))
                 .collect::<BTreeSet<_>>()
                 .len()
-                > 2048
+                > crate::option_chain::MAX_LIVE_OPTIONS
         {
             return Err("Native discovery scope capacity exceeded".into());
         }

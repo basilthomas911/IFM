@@ -2,13 +2,14 @@
 using MessagePack;
 using TomasAI.IFM.Shared.MarketData.Contracts.Pricing;
 using TomasAI.IFM.Framework.Serialization;
+using TomasAI.IFM.Domain.MarketData.Shared;
 
 namespace TomasAI.IFM.Application.MarketData.Pricing;
 
 [MessagePackObject]
 public sealed record CompositionSnapshotRequest([property: Key(0)] Guid SnapshotId, [property: Key(1)] string ScopeId, [property: Key(2)] string Horizon,
     [property: Key(3)] Guid GenerationId, [property: Key(4)] DateTimeOffset EvaluatedAtUtc, [property: Key(5)] DateTimeOffset DeadlineUtc,
-    [property: Key(6)] bool IncludeOptions, [property: Key(7)] int MaximumContracts = 2048, [property: Key(8)] int MaximumQuoteAgeMilliseconds = 1000,
+    [property: Key(6)] bool IncludeOptions, [property: Key(7)] int MaximumContracts = OptionFeedCapacity.MaximumContracts, [property: Key(8)] int MaximumQuoteAgeMilliseconds = 1000,
     [property: Key(9)] int MaximumQuoteSkewMilliseconds = 250,
     ImmutableArray<CompositionFutureDefinition> Futures = default)
 {

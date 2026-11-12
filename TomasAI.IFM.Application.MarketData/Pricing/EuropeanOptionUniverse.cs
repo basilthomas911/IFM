@@ -4,6 +4,7 @@ using MessagePack;
 using TomasAI.IFM.Shared.MarketData.Contracts.Pricing;
 using TomasAI.IFM.Framework.MarketData.DataBento;
 using TomasAI.IFM.Shared.MarketData.Pricing;
+using TomasAI.IFM.Domain.MarketData.Shared;
 
 namespace TomasAI.IFM.Application.MarketData.Pricing;
 
@@ -16,7 +17,7 @@ public sealed class EuropeanOptionUniverse(IOptionPricingConventionStore convent
         ArgumentNullException.ThrowIfNull(scope);
         EuropeanOptionUniverseResult Fail(string code, string id) => new([], [], new(code, "Definitions", id, "Complete qualified option scope is unavailable."));
         if (!complete) return Fail("IncompleteChain", "");
-        if (scope.Count > 2048) return Fail("SnapshotLimit", "");
+        if (scope.Count > OptionFeedCapacity.MaximumContracts) return Fail("SnapshotLimit", "");
         if (scope.Select(x => x.ContractId).Distinct(StringComparer.Ordinal).Count() != scope.Count
             || scope.Select(x => x.Definition.Instrument).Distinct().Count() != scope.Count)
             return Fail("ConflictingDefinition", "");

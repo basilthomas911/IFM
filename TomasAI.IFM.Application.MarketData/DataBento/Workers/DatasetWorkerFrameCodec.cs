@@ -3,6 +3,7 @@ using System.Buffers;
 using System.Buffers.Binary;
 using MessagePack;
 using TomasAI.IFM.Application.MarketData.Pricing;
+using TomasAI.IFM.Domain.MarketData.Shared;
 
 namespace TomasAI.IFM.Application.MarketData.Databento.Workers;
 
@@ -113,7 +114,7 @@ public static class DatasetWorkerFrameCodec
                 throw new InvalidDataException("Worker manifest identity does not match its control frame.");
         }
         if (frame.OptionChain is { } chain && (chain.GenerationId != frame.GenerationId || chain.ValueDate != frame.ValueDate
-            || chain.Options.IsDefaultOrEmpty || chain.Options.Length > 2048
+            || chain.Options.IsDefaultOrEmpty || chain.Options.Length > OptionFeedCapacity.MaximumContracts
             || chain.Options.Any(x => !string.Equals(x?.Pricing?.Contract?.Dataset,frame.Dataset,StringComparison.Ordinal))))
             throw new InvalidDataException("Option chain scope does not match the worker identity.");
         if (frame.CompositionRequest is { } capture && capture.GenerationId != frame.GenerationId

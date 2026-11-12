@@ -3,6 +3,7 @@ using MessagePack;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.MarketData.Pricing;
 using TomasAI.IFM.Application.MarketData.Rust.Delivery;
+using TomasAI.IFM.Domain.MarketData.Shared;
 namespace TomasAI.IFM.Application.MarketData.Rust.Api;
 
 /// <summary>Query-only public cache facade. Rust owns membership, preparation,
@@ -25,7 +26,7 @@ public sealed class NativeOwnedOptionChainCache(NativeMarketDataRuntime runtime)
         // business time, provider lookup or eligibility decision is introduced.
         var request=new OptionChainSnapshotRequest(scope.ScopeId,scope.GenerationId,default,"Daily",DateTimeOffset.UnixEpoch);
         var result=runtime.QueryDatasetOwnerPreparedCache<StatusResult>(Arguments(request,true));
-        if(result.Version<0 || result.Count is <0 or >2048 || result.Reason is null)throw new InvalidDataException("Malformed native prepared-cache status.");
+        if(result.Version<0 || result.Count is <0 or >OptionFeedCapacity.MaximumContracts || result.Reason is null)throw new InvalidDataException("Malformed native prepared-cache status.");
         return new(result.Published,result.Version,result.PublishedAt,result.Until,result.Count,result.Reason);
     }
     static byte[] Arguments(OptionChainSnapshotRequest r,bool status)=>JsonSerializer.SerializeToUtf8Bytes(new{

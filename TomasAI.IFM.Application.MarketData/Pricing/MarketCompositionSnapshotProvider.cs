@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using MessagePack;
 using TomasAI.IFM.Shared.MarketData.Contracts.Pricing;
 using TomasAI.IFM.Framework.Serialization;
+using TomasAI.IFM.Domain.MarketData.Shared;
 
 namespace TomasAI.IFM.Application.MarketData.Pricing;
 
@@ -18,7 +19,7 @@ public sealed class MarketCompositionSnapshotProvider(ICompositionMarketSource s
         CompositionSnapshotResult Fail(string code, string input = "Snapshot") => new(null, new(code, input, "", "Complete coherent composition evidence is unavailable."));
         if (request.SnapshotId == Guid.Empty || string.IsNullOrWhiteSpace(request.ScopeId) || request.ScopeId.Length > 128
             || request.GenerationId == Guid.Empty || request.Horizon is not ("Daily" or "Weekly" or "Monthly")
-            || request.MaximumContracts is < 1 or > 2048 || request.MaximumQuoteAgeMilliseconds is < 1 or > 5000
+            || request.MaximumContracts is < 1 or > OptionFeedCapacity.MaximumContracts || request.MaximumQuoteAgeMilliseconds is < 1 or > 5000
             || request.MaximumQuoteSkewMilliseconds is < 0 or > 2000
             || request.EvaluatedAtUtc.Offset != TimeSpan.Zero || request.DeadlineUtc.Offset != TimeSpan.Zero
             || request.EvaluatedAtUtc > clock.GetUtcNow() || request.DeadlineUtc <= clock.GetUtcNow()) return Fail("InvalidSnapshotRequest");

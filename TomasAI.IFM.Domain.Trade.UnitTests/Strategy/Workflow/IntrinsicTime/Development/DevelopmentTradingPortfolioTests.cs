@@ -43,6 +43,16 @@ public sealed class DevelopmentTradingPortfolioTests
     }
 
     [Fact]
+    public void Published_construction_hash_survives_a_feed_capacity_change()
+    {
+        var id = Guid.Parse("4e4b2777-5cc8-46d1-43ee-44f06b1e418d");
+        var policy = DevelopmentTradingPortfolioDefaults.ConstructionPolicies().Single(x => x.ParameterSetId == id);
+
+        policy.Version.Should().Be(3);
+        policy.Hash().Should().Be("f72606746079d99262927eab7013c04798575f2127110902565a06f6938583d5");
+    }
+
+    [Fact]
     public void Published_manifest_has_daily_futures_and_only_weekly_monthly_options_with_exact_profiles()
     {
         var method = typeof(DevelopmentTradingPortfolioProvisioner).GetMethod("BuildCatalog", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)!;

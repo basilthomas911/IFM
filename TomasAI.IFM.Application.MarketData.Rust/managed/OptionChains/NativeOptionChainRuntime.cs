@@ -8,6 +8,7 @@ using TomasAI.IFM.Application.MarketData.Rust.Delivery;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Shared.MarketData.Contracts.Pricing;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
+using TomasAI.IFM.Domain.MarketData.Shared;
 
 namespace TomasAI.IFM.Application.MarketData.Rust.OptionChains;
 
@@ -150,7 +151,7 @@ public sealed class NativeOptionChainRuntime : ICompositionMarketSource,IAsyncDi
     public Task<string[]> ResetContractsAsync(IReadOnlyCollection<string> contracts,TimeSpan remainingBudget,CancellationToken cancellationToken=default)
     {
         ArgumentNullException.ThrowIfNull(contracts);
-        if(contracts.Count is <1 or >2048||contracts.Any(string.IsNullOrWhiteSpace)||contracts.Distinct(StringComparer.Ordinal).Count()!=contracts.Count)throw new ArgumentException("A bounded unique option contract set is required.",nameof(contracts));
+        if(contracts.Count is <1 or >OptionFeedCapacity.MaximumContracts||contracts.Any(string.IsNullOrWhiteSpace)||contracts.Distinct(StringComparer.Ordinal).Count()!=contracts.Count)throw new ArgumentException("A bounded unique option contract set is required.",nameof(contracts));
         return ResetCoreAsync(contracts.ToHashSet(StringComparer.Ordinal),remainingBudget,cancellationToken);
     }
     async Task<string[]> ResetCoreAsync(HashSet<string>? contracts,TimeSpan remainingBudget,CancellationToken cancellationToken)
@@ -296,7 +297,7 @@ public sealed class NativeOptionChainRuntime : ICompositionMarketSource,IAsyncDi
             if(production&&!policy.IsProductionQualified)return Failure("PricingRefreshPolicyUnreviewed");
             if(request.GenerationId!=generation||request.ValueDate!=valueDate)return Failure("Recovering");
             if(string.IsNullOrWhiteSpace(request.ScopeId)||request.ScopeId.Length>128||request.LeaseId==Guid.Empty||request.LeaseExpiresAtUtc.Offset!=TimeSpan.Zero
-                ||request.LeaseExpiresAtUtc<=at||request.LeaseExpiresAtUtc>at.AddSeconds(120)||request.Options.IsDefaultOrEmpty||request.Options.Length>2048
+                ||request.LeaseExpiresAtUtc<=at||request.LeaseExpiresAtUtc>at.AddSeconds(120)||request.Options.IsDefaultOrEmpty||request.Options.Length>OptionFeedCapacity.MaximumContracts
                 ||MessagePackBinarySerializer.MeasureContent(request)>4*1024*1024)return Failure("InvalidChainRequest");
             if(ended.Contains(request.LeaseId))return Failure("LeaseEnded");
             if(ended.Count+scopes.Values.Sum(x=>x.Leases.Count)>=4096&&!scopes.Values.Any(x=>x.Leases.ContainsKey(request.LeaseId)))return Failure("LeaseCapacity");
@@ -356,7 +357,7 @@ public sealed class NativeOptionChainRuntime : ICompositionMarketSource,IAsyncDi
             var key=new PhysicalKey(underlying!,request.MaturityDate,request.SeparateContractConnection?ordered[0].Pricing.Contract.ContractId:"",request.IndependentChainConnection?request.ScopeId:"");
             if(scopes.Values.Any(x=>x.Key==key))return new(false,new("ConflictingChainScope","Chain",request.ScopeId,
                 $"Physical subscription already belongs to another scope; ScopeId={request.ScopeId}; LeaseId={request.LeaseId}; Underlying={underlying}; Maturity={request.MaturityDate}"));
-            if(scopes.Count>=16||scopes.Values.Sum(x=>x.Binding.Options.Length)+ordered.Length>2048)return Failure("ChainCapacity");
+            if(scopes.Count>=16||scopes.Values.Sum(x=>x.Binding.Options.Length)+ordered.Length>OptionFeedCapacity.MaximumContracts)return Failure("ChainCapacity");
             var under=resolveUnderlying(underlying!);
             if(under.Option||under.Instrument==0||under.Contract!=underlying)return Failure("UnderlyingQuoteUnavailable");
             var contexts=Prepare(ordered,[],request.SeparateContractConnection,at);

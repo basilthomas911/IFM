@@ -58,7 +58,7 @@ public sealed class OrderCompositionSnapshotTests
         if (change == "generation") b = b with { GenerationId = Guid.NewGuid() };
         if (change == "scope") b = b with { ScopeToken = "scope/v2" };
         if (change == "duplicate") b = b with { Instruments = [Instrument("a")] };
-        if (change == "overflow") a = a with { TotalContracts = 2049 };
+        if (change == "overflow") a = a with { TotalContracts = 4097 };
         var result = await Provider(a, b).CaptureAsync(Request(), default);
         Assert.Null(result.Snapshot); Assert.Equal(code, result.Failure!.Code);
     }

@@ -233,7 +233,7 @@ impl Book {
                 .ok_or("Invalid committed source descriptor")?;
             let candidates = plan["candidates"]
                 .as_array()
-                .filter(|v| v.len() <= 2048)
+                .filter(|v| v.len() <= crate::option_chain::MAX_LIVE_OPTIONS)
                 .ok_or("Committed option capacity exceeded")?;
             let definitions = if candidates.is_empty() {
                 vec![]
@@ -501,58 +501,44 @@ impl Discovery {
         let args =
             serde_json::to_vec(&serde_json::json!({"authority":authority,"dataset":"GLBX.MDP3"}))
                 .map_err(|_| "Invalid committed source arguments")?;
-        let header = crate::messaging::raw_io::read(
-            self.broker.clone(),
-            self.scope.clone(),
-            parent.clone(),
-            9,
-            &args,
-            stop,
-            deadline,
-        )
-        .await?;
-        let header: Value =
-            serde_json::from_slice(&header).map_err(|_| "Malformed committed source header")?;
-        let id = header["id"]
-            .as_str()
-            .filter(|v| v.len() == 32 && v.bytes().all(|b| b.is_ascii_hexdigit()))
-            .ok_or("Invalid committed snapshot identity")?;
-        let count = header["total"]
-            .as_u64()
-            .filter(|v| *v > 0 && *v <= 32 * 1024 * 1024)
-            .ok_or("Invalid committed source byte count")? as usize;
-        let digest = hex(&header["digest"])?;
-        if header["page_bytes"].as_u64() != Some(32768) {
-            return Err("Invalid committed source page size".into());
-        }
-        let mut bytes = Vec::with_capacity(count.min(65536));
-        let mut hash = Sha256::new();
-        for offset in (0..count).step_by(32768) {
-            let args = serde_json::to_vec(&serde_json::json!({"snapshot":id,"offset":offset}))
-                .map_err(|_| "Invalid committed source page arguments")?;
-            let page = crate::messaging::raw_io::read(
-                self.broker.clone(),
-                self.scope.clone(),
-                parent.clone(),
-                9,
-                &args,
-                stop,
-                deadline,
-            )
+        crate::messaging::raw_io::with_reader(self.broker.clone(), self.scope.clone(), parent, deadline, async |reader| {
+            let header = reader.read(9, &args, stop, deadline)
             .await?;
-            if page.len() != (count - offset).min(32768) {
-                return Err("Incomplete committed source page".into());
+            let header: Value =
+                serde_json::from_slice(&header).map_err(|_| "Malformed committed source header")?;
+            let id = header["id"]
+                .as_str()
+                .filter(|v| v.len() == 32 && v.bytes().all(|b| b.is_ascii_hexdigit()))
+                .ok_or("Invalid committed snapshot identity")?;
+            let count = header["total"]
+                .as_u64()
+                .filter(|v| *v > 0 && *v <= 32 * 1024 * 1024)
+                .ok_or("Invalid committed source byte count")? as usize;
+            let digest = hex(&header["digest"])?;
+            if header["page_bytes"].as_u64() != Some(32768) {
+                return Err("Invalid committed source page size".into());
             }
-            hash.update(&page);
-            bytes.extend_from_slice(&page);
-        }
-        if !format!("{:X}", hash.finalize()).eq_ignore_ascii_case(&digest) {
-            return Err("Committed source digest mismatch".into());
-        }
-        if stop.is_cancelled() || deadline.remaining().is_zero() {
-            return Err("Committed source cancelled/original deadline expired".into());
-        }
-        Book::parse(&bytes, authority)
+            let mut bytes = Vec::with_capacity(count.min(65536));
+            let mut hash = Sha256::new();
+            for offset in (0..count).step_by(32768) {
+                let args = serde_json::to_vec(&serde_json::json!({"snapshot":id,"offset":offset}))
+                    .map_err(|_| "Invalid committed source page arguments")?;
+                let page = reader.read(9, &args, stop, deadline)
+                .await?;
+                if page.len() != (count - offset).min(32768) {
+                    return Err("Incomplete committed source page".into());
+                }
+                hash.update(&page);
+                bytes.extend_from_slice(&page);
+            }
+            if !format!("{:X}", hash.finalize()).eq_ignore_ascii_case(&digest) {
+                return Err("Committed source digest mismatch".into());
+            }
+            if stop.is_cancelled() || deadline.remaining().is_zero() {
+                return Err("Committed source cancelled/original deadline expired".into());
+            }
+            Book::parse(&bytes, authority)
+        }).await
     }
 }
 

@@ -227,7 +227,16 @@ impl<T: Send + Sync + 'static> Supervisor<T> {
                         rebuild=true;continue;
                     }
                     if let Some(error)=state.failure {
-                        health.fault(resource_ticket,&error,state.deadline.map_or(deadline,|d|d.earliest(deadline)));
+                        let failure_deadline=state.deadline.map_or(deadline,|d|d.earliest(deadline));
+                        health.fault(resource_ticket,&error,failure_deadline);
+                        if error.starts_with(crate::messaging::raw_io::BROKER_UNAVAILABLE) {
+                            tokio::select! { biased;
+                                ()=root_stop.cancelled()=>break,
+                                result=failure_deadline.run(&stopping,tokio::time::sleep(Duration::from_secs(1)))=>{
+                                    if result.is_err() && stopping.is_cancelled(){break;}
+                                },
+                            }
+                        }
                         rebuild=true;continue;
                     }
                     // A nested bootstrap reader can report provider activity.

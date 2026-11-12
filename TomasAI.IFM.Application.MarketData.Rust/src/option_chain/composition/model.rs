@@ -294,7 +294,7 @@ impl Snapshot {
 
     /// Append one bounded snapshot to its enclosing compatible publication.
     pub(crate) fn encode_into(&self, output: &mut Vec<u8>) -> Result<(), &'static str> {
-        if self.instruments.len() > 2048 {
+        if self.instruments.len() > crate::option_chain::MAX_LIVE_OPTIONS {
             return Err("Native composition snapshot exceeds 4 MiB");
         }
         let start = output.len();
@@ -409,7 +409,7 @@ impl Snapshot {
             || self.token.trim().is_empty()
             || self.token.encode_utf16().count() > 128
             || !matches!(self.horizon.as_str(), "Daily" | "Weekly" | "Monthly")
-            || self.instruments.len() > 2048
+            || self.instruments.len() > crate::option_chain::MAX_LIVE_OPTIONS
         {
             return Err("Invalid native composition snapshot identity");
         }
@@ -429,7 +429,7 @@ impl Snapshot {
         self.digest.clear();
         // Preflight one bounded instrument at a time, before cloning/encoding a
         // complete graph. Large but valid calendars cannot force a giant rejected
-        // snapshot allocation merely because the scope has 2,048 contracts.
+        // snapshot allocation merely because the scope reaches its contract limit.
         let mut measured = codec::encode(&self.value_with(Value::Array(Vec::new()))?)?.len()
             + 65 // Empty digest becomes a 64-byte MessagePack string.
             + if self.instruments.len() >= 16 { 2 } else { 0 };

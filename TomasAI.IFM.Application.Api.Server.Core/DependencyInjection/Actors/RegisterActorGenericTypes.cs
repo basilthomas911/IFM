@@ -228,14 +228,9 @@ public static partial class CoreServiceRegistration
         var repositoryTypes = ObjectRepositoryDiscovery.Discover(assemblies)
         .Where(static type => type != typeof(TomasAI.IFM.Application.Storage.ScheduledTaskDb.ScheduledTaskDbContext)
         && type != typeof(SystemAdminDbContext)
-        && type != typeof(EventSourceActorDbContext)
-        && type != typeof(TomasAI.IFM.Domain.BrokerAccount.Query.Model.BrokerAccountReadStore))
+        && type != typeof(EventSourceActorDbContext))
         .ToArray();
         siContainer.Register(typeof(IObjectRepository<>), repositoryTypes, Lifestyle.Transient);
-        // The repository contract must use the same singleton as the account reader and projector.
-        siContainer.AddRegistration<IObjectRepository<TomasAI.IFM.Domain.BrokerAccount.Query.Model.BrokerAccountReadStore>>(
-        siContainer.GetCurrentRegistrations().Single(registration => registration.ServiceType ==
-        typeof(TomasAI.IFM.Domain.BrokerAccount.Query.Model.BrokerAccountReadStore)).Registration);
         siContainer.AddRegistration<IObjectRepository<TomasAI.IFM.Application.Storage.ScheduledTaskDb.ScheduledTaskDbContext>>(
         siContainer.GetCurrentRegistrations().Single(registration => registration.ServiceType ==
         typeof(TomasAI.IFM.Application.Storage.ScheduledTaskDb.ScheduledTaskDbContext)).Registration);

@@ -308,7 +308,7 @@ pub unsafe extern "C" fn ifm_market_data_owner_catalog_v1(
         } else {
             value["raw_contracts"]
                 .as_array()
-                .filter(|v| v.len() <= 2048)
+                .filter(|v| v.len() <= crate::option_chain::MAX_LIVE_OPTIONS)
                 .ok_or(Status::InvalidInput)?
                 .iter()
                 .map(|model| {
@@ -836,15 +836,15 @@ pub unsafe extern "C" fn ifm_market_data_owner_command_v1(
                 match command {
                     "configure" | "claim-scope" => {
                         let id = text(&value, "id", 512)?;
-                        let options = instruments(&value["options"], 2048)?;
-                        let monitored = instruments(&value["monitored"], 2048)?;
+                        let options = instruments(&value["options"], crate::option_chain::MAX_LIVE_OPTIONS)?;
+                        let monitored = instruments(&value["monitored"], crate::option_chain::MAX_LIVE_OPTIONS)?;
                         let cache_values = value["caches"]
                             .as_array()
                             .filter(|a| a.len() <= 64)
                             .ok_or(Status::InvalidInput)?;
                         let mut caches = Vec::with_capacity(cache_values.len());
                         for cache in cache_values {
-                            let contracts = strings(&cache["contracts"], 2048, 1024)?;
+                            let contracts = strings(&cache["contracts"], crate::option_chain::MAX_LIVE_OPTIONS, 1024)?;
                             let count = contracts.len();
                             let contracts = contracts.into_iter().collect::<BTreeSet<_>>();
                             if count != contracts.len() {

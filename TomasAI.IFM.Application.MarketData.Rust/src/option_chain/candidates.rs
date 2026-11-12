@@ -112,7 +112,7 @@ pub fn select(
     deadline: Deadline,
 ) -> Result<Vec<usize>, &'static str> {
     policy.validate()?;
-    if source.len() > 2048 {
+    if source.len() > crate::option_chain::MAX_LIVE_OPTIONS {
         return Err("Candidate universe capacity exceeded");
     }
     let mut usable = Vec::new();

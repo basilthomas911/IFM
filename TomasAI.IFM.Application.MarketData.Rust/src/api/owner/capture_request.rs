@@ -67,7 +67,7 @@ impl Command {
         }
         let risk = value["risk"]
             .as_array()
-            .filter(|a| a.len() <= 2048)
+            .filter(|a| a.len() <= crate::option_chain::MAX_LIVE_OPTIONS)
             .ok_or_else(invalid)?
             .iter()
             .map(|v| text(v, 1024))
@@ -92,7 +92,7 @@ impl Command {
         if !options {
             for definition in value["futures"]
                 .as_array()
-                .filter(|a| a.len() <= 2048)
+                .filter(|a| a.len() <= crate::option_chain::MAX_LIVE_OPTIONS)
                 .ok_or_else(invalid)?
             {
                 let fields = definition

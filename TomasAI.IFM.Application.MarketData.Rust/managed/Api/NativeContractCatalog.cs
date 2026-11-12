@@ -6,6 +6,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Framework.MarketData.DataBento;
 using TomasAI.IFM.Shared.MarketData.Definitions;
+using TomasAI.IFM.Domain.MarketData.Shared;
 
 namespace TomasAI.IFM.Application.MarketData.Rust.Api;
 
@@ -35,7 +36,7 @@ public sealed class NativeContractCatalog : IDatabentoMarketDataCatalog
         cancellationToken.ThrowIfCancellationRequested();
         var started = System.Diagnostics.Stopwatch.GetTimestamp();
         var registrations = options.Contracts.ToArray();
-        if (registrations.Length is < 1 or > 2048) throw new ArgumentOutOfRangeException(nameof(options));
+        if (registrations.Length is < 1 or > OptionFeedCapacity.MaximumContracts) throw new ArgumentOutOfRangeException(nameof(options));
         // Freeze configured registrations for the complete bootstrap.
         options = options with { Contracts = registrations };
         var groups = registrations.GroupBy(r => string.IsNullOrWhiteSpace(r.Dataset) ? options.FeedOptions.Dataset : r.Dataset, StringComparer.Ordinal).ToArray();

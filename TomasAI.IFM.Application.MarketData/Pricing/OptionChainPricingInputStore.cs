@@ -3,6 +3,7 @@ using TomasAI.IFM.Shared.MarketData.Contracts.LastPrice;
 using TomasAI.IFM.Shared.MarketData.Contracts.Pricing;
 using TomasAI.IFM.Framework.MarketData.DataBento;
 using TomasAI.IFM.Framework.MarketData.DataBento.OptionChain;
+using TomasAI.IFM.Domain.MarketData.Shared;
 
 namespace TomasAI.IFM.Application.MarketData.Pricing;
 
@@ -19,7 +20,7 @@ public sealed class OptionChainPricingInputStore
         if (string.IsNullOrWhiteSpace(id)) throw new ArgumentException("Exact contract identity is required.",nameof(value));
         lock (registration)
         {
-            if (!entries.ContainsKey(id) && entries.Count >= 2048) throw new InvalidOperationException("Option pricing input capacity exceeded.");
+            if (!entries.ContainsKey(id) && entries.Count >= OptionFeedCapacity.MaximumContracts) throw new InvalidOperationException("Option pricing input capacity exceeded.");
             // A reference update never retains Greeks or an independently captured option quote.
             entries[id] = value with { OptionQuote = null };
         }

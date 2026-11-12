@@ -197,7 +197,7 @@ async fn quote_metadata_request_and_deadline_boundaries_are_explicit() {
             1 => r.generation = [0; 16],
             2 => r.scope = " ".into(),
             3 => r.maximum = 0,
-            4 => r.maximum = 2049,
+            4 => r.maximum = 4097,
             5 => r.age = 0,
             6 => r.skew = 2001,
             7 => r.at = AT + 1,

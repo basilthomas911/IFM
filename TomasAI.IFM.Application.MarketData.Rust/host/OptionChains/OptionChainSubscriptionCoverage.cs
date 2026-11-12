@@ -1,6 +1,7 @@
 // Application persistence/reference policy adapted from the current Host.
 // Provider acquisition is supplied by the native IMarketDataApi composition.
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared;
 
 namespace TomasAI.IFM.Application.MarketData.Rust.Host.OptionChains;
 
@@ -22,7 +23,7 @@ public static class OptionChainSubscriptionCoverage
                     || ids.Contains(x.ContractId)))
             .DistinctBy(x => x.ContractId).OrderBy(x => x.StrikePrice).ThenBy(x => x.ContractId, StringComparer.Ordinal).ToArray();
         // The complete requested scope must never be clipped to satisfy the worker's bound.
-        return buffered.Length <= 2048 ? buffered : window.Contracts;
+        return buffered.Length <= OptionFeedCapacity.MaximumContracts ? buffered : window.Contracts;
     }
 
     /// <summary>Requires coverage of every requested ID with its exact immutable mapping and digest.</summary>

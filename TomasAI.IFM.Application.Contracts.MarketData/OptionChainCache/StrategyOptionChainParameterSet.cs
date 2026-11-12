@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Security.Cryptography;
 using System.Text;
 using MessagePack;
+using TomasAI.IFM.Domain.MarketData.Shared;
 
 namespace TomasAI.IFM.Domain.MarketData.Shared.OptionChainCache;
 
@@ -34,7 +35,7 @@ public sealed record StrategyOptionChainParameterSet
     /// <summary>Volatility envelope multiplier: F * IV * sqrt(T) * multiplier.</summary>
     [Key(9)] public double CacheRangeMultiplier { get; init; } = 2;
     /// <summary>Hard subscription bound; incomplete coverage cannot be called ready.</summary>
-    [Key(10)] public int MaximumContracts { get; init; } = 2048;
+    [Key(10)] public int MaximumContracts { get; init; } = OptionFeedCapacity.MaximumContracts;
     /// <summary>Hard number of expirations maintained for this strategy.</summary>
     [Key(11)] public int MaximumExpirations { get; init; } = 3;
     /// <summary>Wire schema of the configuration.</summary>
@@ -49,7 +50,7 @@ public sealed record StrategyOptionChainParameterSet
             || !Enabled && (StrategyDefinitionId == Guid.Empty ? StrategyDefinitionVersion != 0 : StrategyDefinitionVersion < 1) || string.IsNullOrWhiteSpace(Name)
             || (!string.Equals((InstrumentRoot),("ES"),StringComparison.Ordinal)) || Environment is not ("Development" or "Paper" or "Production")
             || !double.IsFinite(CacheRangeMultiplier) || CacheRangeMultiplier is < 1 or > 5
-            || MaximumContracts is < 4 or > 2048 || MaximumExpirations is < 1 or > 16
+            || MaximumContracts is < 4 or > OptionFeedCapacity.MaximumContracts || MaximumExpirations is < 1 or > 16
             || BiasRows.IsDefault || BiasRows.Length != 3
             || BiasRows.Any(x => x is null)
             || BiasRows.Select(x => x.MarketBias).Distinct().Count() != 3)

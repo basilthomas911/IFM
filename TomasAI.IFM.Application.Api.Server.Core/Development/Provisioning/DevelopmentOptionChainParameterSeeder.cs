@@ -1,9 +1,9 @@
 using TomasAI.IFM.Application.Api.Server.Core.Startup.Actors;
 using TomasAI.IFM.Application.Api.Nats.Client;
 using TomasAI.IFM.Application.Storage;
-using TomasAI.IFM.Domain.MarketData.Shared.OptionChainCache;
 using TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
 using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Development;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Application.Api.Server.Core.Development.Provisioning;
@@ -46,8 +46,8 @@ public sealed class DevelopmentOptionChainParameterSeeder(IHostEnvironment envir
             if (catalog is null) return false;
             var id = StrategyCatalogExamples.StableId("StrategyOptionChainCache/" + code);
             if ((await databases.MarketDataDb.ReadPublishedAsync("Development", token).ConfigureAwait(false)).Any(row => row.ParameterSetId == id && row.Version == 1)) continue;
-            var policy = (code == "DevelopmentIronCondor" ? StrategyOptionChainParameterDefaults.IronCondor(id, catalog.Key.Id, catalog.Key.Version)
-                : StrategyOptionChainParameterDefaults.VerticalSpread(id, catalog.Key.Id, catalog.Key.Version)) with { Enabled = true };
+            var policy = DevelopmentTradingPortfolioDefaults.OptionCacheProfile(
+                id, catalog.Key.Id, catalog.Key.Version, code == "DevelopmentIronCondor");
             var state = await api.StateAsync(id, token).ConfigureAwait(false);
             if (state.Value is null || state.Value.Versions.Length == 0)
             {

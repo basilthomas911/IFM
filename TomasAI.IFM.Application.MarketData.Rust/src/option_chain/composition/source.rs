@@ -41,6 +41,7 @@ pub fn read(
     data: &LiveData,
     engine: &Coalesced,
     reviewed: &ReviewedScope,
+    definitions: &[&crate::option_chain::preparation::Definition],
     generation: [u8; 16],
     token: &str,
     at: i64,
@@ -49,14 +50,12 @@ pub fn read(
         .queries(Lane::OptionsGlbx)
         .map_err(|_| failure("Recovering"))?
         .ok_or_else(|| failure("Recovering"))?;
-    read_queries(
+    read_definitions(
         &query,
         engine,
-        Metadata {
-            definitions: &reviewed.definitions,
-            policy_version: &reviewed.policy_version,
-            iv_ms: reviewed.iv_ms,
-        },
+        definitions.iter().copied(),
+        &reviewed.policy_version,
+        reviewed.iv_ms,
         generation,
         token,
         at,
@@ -74,10 +73,24 @@ pub fn read_queries(
     token: &str,
     at: i64,
 ) -> Result<Page, Failure> {
+    read_definitions(data, engine, metadata.definitions.iter(), metadata.policy_version,
+        metadata.iv_ms, generation, token, at)
+}
+
+fn read_definitions<'a>(
+    data: &crate::dataset::live::Queries,
+    engine: &Coalesced,
+    definitions: impl ExactSizeIterator<Item = &'a crate::option_chain::preparation::Definition>,
+    policy_version: &str,
+    iv_ms: u32,
+    generation: [u8; 16],
+    token: &str,
+    at: i64,
+) -> Result<Page, Failure> {
     if generation == [0; 16]
         || token.trim().is_empty()
         || token.encode_utf16().count() > 128
-        || metadata.definitions.len() > 2048
+        || definitions.len() > crate::option_chain::MAX_LIVE_OPTIONS
     {
         return Err(failure("InvalidSnapshotRequest"));
     }
@@ -88,8 +101,8 @@ pub fn read_queries(
     let identities = engine
         .context_identities()
         .map_err(|_| failure("Recovering"))?;
-    let mut items = Vec::with_capacity(metadata.definitions.len());
-    for definition in metadata.definitions {
+    let mut items = Vec::with_capacity(definitions.len());
+    for definition in definitions {
         let retained = engine
             .trade_context(definition.instrument, physical)
             .map_err(|_| failure("Recovering"))?
@@ -125,8 +138,8 @@ pub fn read_queries(
             selection = Selection::from_calculation(
                 &context,
                 &calculation,
-                metadata.policy_version,
-                metadata.iv_ms,
+                policy_version,
+                iv_ms,
             )
             .map_err(|_| failure("SelectionCalculationUnavailable"))?;
         }

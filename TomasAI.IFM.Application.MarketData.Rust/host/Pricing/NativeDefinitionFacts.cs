@@ -6,6 +6,7 @@ using System.Text.Json;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Application.MarketData.Rust.Publication;
+using TomasAI.IFM.Domain.MarketData.Shared;
 namespace TomasAI.IFM.Application.MarketData.Rust.Host;
 
 /// <summary>Passive immutable definition snapshots. Only compact copied bytes
@@ -113,8 +114,8 @@ public sealed class NativeDefinitionFacts(IDbContextFactory databases,TimeProvid
             yield break;
         }
 
-        var published = definitionReader?.ReadPublishedOptionDefinitionsAsync(root, first, last, 2048, roots, token)
-            ?? databases.SecuritiesDb.ReadPublishedOptionDefinitionsAsync(new OptionDefinitionExpiryRange(root, first, last, 2048), roots, token);
+        var published = definitionReader?.ReadPublishedOptionDefinitionsAsync(root, first, last, OptionFeedCapacity.MaximumContracts, roots, token)
+            ?? databases.SecuritiesDb.ReadPublishedOptionDefinitionsAsync(new OptionDefinitionExpiryRange(root, first, last, OptionFeedCapacity.MaximumContracts), roots, token);
         await foreach (var row in published
             .ConfigureAwait(false))
             yield return row;

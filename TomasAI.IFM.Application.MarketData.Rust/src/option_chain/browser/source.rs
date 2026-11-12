@@ -13,7 +13,6 @@ use crate::{
     reference::option_contract::{CoverageRow, OptionContract},
     runtime::{Deadline, owner::Child},
 };
-use futures_util::{StreamExt, TryStreamExt, stream};
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 /// Detached source facts may be cached by native control; they own no dataset
@@ -106,11 +105,11 @@ impl Facts {
             stop,
             deadline,
         )?;
-        if window.rows.len() > 2048 {
+        if window.rows.len() > crate::option_chain::MAX_LIVE_OPTIONS {
             return Err("Native browser displayed universe exceeds capacity".into());
         }
         let buffered = browser_window::buffer(&rows, &window, command.wing, stop, deadline)?;
-        if buffered.len() > 2048 {
+        if buffered.len() > crate::option_chain::MAX_LIVE_OPTIONS {
             return Err("Native browser subscription universe exceeds capacity".into());
         }
         Ok(Selection {
@@ -187,7 +186,7 @@ impl Discovery {
         stop: &CancellationToken,
         deadline: Deadline,
     ) -> Result<Vec<OptionContract>, String> {
-        if selection.buffered.len() > 2048 {
+        if selection.buffered.len() > crate::option_chain::MAX_LIVE_OPTIONS {
             return Err("Native browser full-model capacity exceeded".into());
         }
         let mut seen = std::collections::BTreeSet::new();
@@ -205,39 +204,32 @@ impl Discovery {
                 return Err("Selected browser definition is not reviewed".into());
             }
             let args = row.selected_model_request()?;
-            wanted.push((row.clone(), args));
+            wanted.push((row, args));
         }
-        stream::iter(wanted)
-            .map(|(row, args)| {
-                let parent = parent.clone();
-                async move {
-                    let bytes = raw_io::read(
-                        self.broker.clone(),
-                        self.scope.clone(),
-                        parent,
-                        6,
-                        &args,
-                        stop,
-                        deadline,
-                    )
-                    .await?;
-                    let raw: serde_json::Value = serde_json::from_slice(&bytes)
-                        .map_err(|_| "Malformed native exact browser model")?;
+        let lanes = (0..wanted.len().min(8)).map(|lane| {
+            let wanted = &wanted;
+            raw_io::with_reader(self.broker.clone(), self.scope.clone(), parent.clone(), deadline, async move |reader| {
+                let mut models = Vec::new();
+                for (index, (row, args)) in wanted.iter().enumerate().skip(lane).step_by(8) {
+                    let bytes = reader.read(6, args, stop, deadline).await?;
+                    let raw = serde_json::from_slice(&bytes).map_err(|_| "Malformed native exact browser model")?;
                     let model = OptionContract::from_command(&raw)?;
                     if !row.matches(&model)? {
-                        return Err(
-                            "Native browser source changed during exact metadata acquisition"
-                                .into(),
-                        );
+                        return Err("Native browser source changed during exact metadata acquisition".into());
                     }
                     if !model.errors().is_empty() {
                         return Err("Selected browser definition is not reviewed".into());
                     }
-                    Ok(model)
+                    models.push((index, model));
                 }
+                Ok(models)
             })
-            .buffered(8)
-            .try_collect()
-            .await
+        });
+        let mut models = Vec::with_capacity(wanted.len());
+        for result in futures_util::future::join_all(lanes).await {
+            models.extend(result?);
+        }
+        models.sort_unstable_by_key(|(index, _)| *index);
+        Ok(models.into_iter().map(|(_, model)| model).collect())
     }
 }

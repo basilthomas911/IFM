@@ -5,11 +5,16 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Hosting;
+using NSubstitute;
 using SimpleInjector;
+using TomasAI.IFM.Application.Storage.TradeDb;
+using TomasAI.IFM.Application.EventSourcing.Projections.BrokerAccount;
 using TomasAI.IFM.Application.TradeBroker.Contracts;
 using TomasAI.IFM.Domain.BrokerAccount.Command.Actor;
 using TomasAI.IFM.Domain.BrokerAccount.Event.Actor;
 using TomasAI.IFM.Domain.BrokerAccount.Query.Actor;
+using TomasAI.IFM.Domain.BrokerAccount.Query.Model;
 using TomasAI.IFM.Domain.Trade.Order.Broker.Command.Actor;
 using TomasAI.IFM.Domain.Trade.Order.Broker.Event.Actor;
 using TomasAI.IFM.Domain.Trade.Order.Broker.Query.Actor;
@@ -58,15 +63,20 @@ public sealed class TradeBrokerEmulatorRegistrationTests
         broker.Environment.Should().Be(BrokerEnvironment.Emulator);
     }
 
-    /// <summary>Prevents account repository discovery from creating a conflicting transient registration.</summary>
+    /// <summary>Verifies the account ports use the same application adapter over TradeDb.</summary>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Account_repository_and_reader_share_singleton_registration(bool productionHost)
+    public void Account_reader_and_projection_writer_share_TradeDb_adapter(bool productionHost)
     {
         using var container = new Container();
         container.Options.EnableAutoVerification = false;
         container.RegisterInstance<Microsoft.Extensions.Logging.ILogger>(NullLogger.Instance);
+        var tradeDb = Substitute.For<ITradeDbContext>();
+        tradeDb.DbReader.Returns(tradeDb);
+        tradeDb.DbWriter.Returns(tradeDb);
+        container.RegisterInstance(tradeDb);
+        container.RegisterInstance(Substitute.For<IHostEnvironment>());
         var startup = productionHost
             ? typeof(global::TomasAI.IFM.Application.Api.Server.Core.DependencyInjection.CoreServiceRegistration)
             : typeof(global::TomasAI.IFM.Application.Actor.IntegrationTests.Startup);
@@ -75,13 +85,9 @@ public sealed class TradeBrokerEmulatorRegistrationTests
                 ? [container, new ConfigurationManager(), NullLogger.Instance, TimeProvider.System]
                 : [container, new ConfigurationManager(), NullLogger.Instance]);
 
-        var registrations = container.GetCurrentRegistrations();
-        var reader = registrations.Single(registration => registration.ServiceType ==
-            typeof(TomasAI.IFM.Domain.BrokerAccount.Query.Model.BrokerAccountReadStore));
-        var repository = registrations.Single(registration => registration.ServiceType ==
-            typeof(TomasAI.IFM.Shared.Storage.IObjectRepository<TomasAI.IFM.Domain.BrokerAccount.Query.Model.BrokerAccountReadStore>));
-        repository.Registration.Should().BeSameAs(reader.Registration);
-        repository.Lifestyle.Should().Be(Lifestyle.Singleton);
+        var adapter = container.GetInstance<BrokerAccountProjectionService>();
+        container.GetInstance<IBrokerAccountReadStore>().Should().BeSameAs(adapter);
+        container.GetInstance<IBrokerAccountProjectionWriter>().Should().BeSameAs(adapter);
     }
 
     private static void ExactlyOne<T>(IEnumerable<InstanceProducer> registrations) =>

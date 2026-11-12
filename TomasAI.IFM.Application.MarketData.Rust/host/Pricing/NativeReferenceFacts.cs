@@ -74,11 +74,11 @@ public sealed class NativeReferenceFacts(IDbContextFactory databases,IOptionPric
                 var first=DateOnly.FromDayNumber(value.GetProperty("from").GetInt32());var last=DateOnly.FromDayNumber(value.GetProperty("until").GetInt32());
                 if(string.IsNullOrWhiteSpace(root)||root.Length>60||last<first||last.DayNumber-first.DayNumber>2000)throw new InvalidDataException("Invalid raw option definition range.");
                 var definitions = new List<object?[]>();
-                var publishedRows = definitionReader?.ReadPublishedOptionDefinitionsAsync(root, first, last, 2048, cancellationToken: cancellationToken)
-                    ?? databases.SecuritiesDb.ReadPublishedOptionDefinitionsAsync(new OptionDefinitionExpiryRange(root, first, last, 2048), cancellationToken: cancellationToken);
+                var publishedRows = definitionReader?.ReadPublishedOptionDefinitionsAsync(root, first, last, OptionFeedCapacity.MaximumContracts, cancellationToken: cancellationToken)
+                    ?? databases.SecuritiesDb.ReadPublishedOptionDefinitionsAsync(new OptionDefinitionExpiryRange(root, first, last, OptionFeedCapacity.MaximumContracts), cancellationToken: cancellationToken);
                 await foreach (var row in publishedRows.ConfigureAwait(false))
                 {
-                    if (definitions.Count == 2048)
+                    if (definitions.Count == OptionFeedCapacity.MaximumContracts)
                         throw new InvalidDataException("Raw option definition capacity exceeded.");
                     definitions.Add(NativeReferenceProjection.Option(row.Definition));
                 }

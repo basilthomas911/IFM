@@ -1,4 +1,5 @@
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
+using TomasAI.IFM.Domain.BrokerAccount.Contracts;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 
@@ -20,6 +21,12 @@ namespace TomasAI.IFM.Application.Storage.TradeDb;
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1716", Justification = "Keep the published context interface and named argument contract; inherited capability members intentionally describe the same database operation.")]
 public interface ITradeDbReadContext
 {
+    /// <summary>Reads the highest projected revision for an account.</summary>
+    /// <param name="accountId">The broker account identity.</param>
+    /// <param name="cancellationToken">Cancels the database read.</param>
+    /// <returns>The persisted definition, or null if the account has no projection.</returns>
+    ValueTask<BrokerAccountDefinition?> GetBrokerAccountAsync(BrokerAccountId accountId, CancellationToken cancellationToken = default);
+
     /// <summary>Get Order Composition Invocation through the typed trade persistence boundary.</summary>
     /// <param name="workflowId">The workflow id supplied by the caller.</param>
     /// <param name="invocationId">The invocation id supplied by the caller.</param>

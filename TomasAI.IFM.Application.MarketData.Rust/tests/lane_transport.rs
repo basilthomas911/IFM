@@ -6364,6 +6364,8 @@ async fn native_options_group_case(
     let policy_calls = Arc::new(AtomicUsize::new(0));
     let policy_count = policy_calls.clone();
     let counted = reference_calls.clone();
+    let reference_connections = Arc::new(AtomicUsize::new(0));
+    let accepted_references = reference_connections.clone();
     let block_references = Arc::new(std::sync::atomic::AtomicBool::new(stall_reference));
     let blocked = block_references.clone();
     let diagnostics = Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
@@ -6373,14 +6375,19 @@ async fn native_options_group_case(
         loop {
             tokio::select! {biased;()=broker_stop.cancelled()=>break,accepted=listener.accept()=>{
                 let (socket,_)=accepted.unwrap();let published=published.clone();let durable=durable.clone();let raw_reference=raw_reference.clone();let counted=counted.clone();let blocked=blocked.clone();let policy_count=policy_count.clone();let definition_count=definition_count.clone();let policy_body=policy_body.clone();let definitions_body=definitions_body.clone();let canonical_body=canonical_body.clone();let removed=removed.clone();let updated=updated.clone();let journal_body=current_journal.lock().unwrap().clone();let diagnostic_log=diagnostic_log.clone();
+                let accepted_references = accepted_references.clone();
                 clients.spawn(async move{let (read,mut write)=socket.into_split();let mut peer=BufReader::new(read);if write.write_all(b"INFO {\"server_id\":\"native-options\",\"version\":\"2.10.0\",\"proto\":1,\"max_payload\":1048576}\r\n").await.is_err(){return;}
                     let mut line=String::new();let mut subscription=None;
+                    let mut reference_connection = false;
                     loop{line.clear();if peer.read_line(&mut line).await.unwrap_or(0)==0{break;}let fields:Vec<_>=line.split_whitespace().collect();
                         if fields.first()==Some(&"PING"){if write.write_all(b"PONG\r\n").await.is_err(){break;}}
                         else if fields.first()==Some(&"SUB"){subscription=Some((fields[1].to_owned(),fields[2].to_owned()));}
-                        else if fields.first()==Some(&"PUB"){
-                            let count=fields.last().unwrap().parse::<usize>().unwrap();assert!(count<132096);let mut bytes=vec![0;count+2];if peer.read_exact(&mut bytes).await.is_err(){break;}bytes.truncate(count);
-                            if fields.len()==4 {
+                        else if matches!(fields.first(), Some(&"PUB") | Some(&"HPUB")){
+                            let headers = fields[0] == "HPUB";
+                            let count=fields.last().unwrap().parse::<usize>().unwrap();assert!(count<132096);let mut frame=vec![0;count+2];if peer.read_exact(&mut frame).await.is_err(){break;}
+                            let header_bytes = if headers { fields[fields.len()-2].parse::<usize>().unwrap() } else { 0 };
+                            let bytes = frame[header_bytes..count].to_vec();
+                            if fields.len()==4+usize::from(headers) {
                                 // This feed fixture deliberately has no audit service. Keep its
                                 // connection alive so audit unavailability cannot break the
                                 // independently tested reference/publication paths. Real durable
@@ -6390,6 +6397,10 @@ async fn native_options_group_case(
                                 let receipt=if fields[1].ends_with(".evidence.write") {assert_eq!(input.len(),4);durable.store(true,Ordering::SeqCst);
                                     codec::encode(&rmpv::Value::Array(vec![input[0].clone(),input[1].clone(),input[2].clone(),true.into(),rmpv::Value::Nil])).unwrap()
                                 }else if fields[1].ends_with(".reference.read"){
+                                    if !reference_connection {
+                                        accepted_references.fetch_add(1, Ordering::SeqCst);
+                                        reference_connection = true;
+                                    }
                                     let policy_request=input[1].as_u64()==Some(4);
                                     if policy_request{policy_count.fetch_add(1,Ordering::SeqCst);}else if input[1].as_u64()==Some(5) || input[1].as_u64()==Some(7){
                                         let args:serde_json::Value=serde_json::from_slice(input[2].as_slice().unwrap()).unwrap();
@@ -7900,6 +7911,16 @@ async fn native_options_group_case(
             monitored: [43].into_iter().collect(),
             caches: vec![
                 ifm_market_data_native::dataset::options_owner::CacheScope {
+                    scope: "invalid-cache-date".into(),
+                    horizon: "Weekly".into(),
+                    contracts: membership.clone(),
+                    ranking: Some(ifm_market_data_native::option_chain::strategy::Ranking {
+                        parameters: parameters.clone(),
+                        direction,
+                        date: date + time::Duration::days(1),
+                    }),
+                },
+                ifm_market_data_native::dataset::options_owner::CacheScope {
                     scope: "complete-cache".into(),
                     horizon: "Weekly".into(),
                     contracts: membership.clone(),
@@ -7937,7 +7958,7 @@ async fn native_options_group_case(
             market.wait_ready(Lane::OptionsGlbx, true),
         )
         .await
-        .unwrap()
+        .unwrap_or_else(|_| panic!("Options did not become ready: {:?}", market.health(Lane::OptionsGlbx).status()))
         .unwrap();
         // Feed readiness intentionally does not wait for financial evidence.
         let receipt = tokio::time::timeout(Duration::from_secs(6), async {
@@ -8005,6 +8026,8 @@ async fn native_options_group_case(
         );
         {
             let caches = published.caches.lock().unwrap();
+            assert!(!caches.contains_key("invalid-cache-date"));
+            assert_eq!(market.health(Lane::OptionsGlbx).status().phase, RecoveryPhase::Running);
             let empty = caches
                 .get("no-candidates")
                 .expect("Qualified no-candidate result must be explicit");
@@ -8362,6 +8385,11 @@ async fn native_options_group_case(
         if stage_reference { 3 } else { 2 },
         "native setup acquired exact mapping and calendar facts"
     );
+    assert_eq!(
+        reference_connections.load(Ordering::SeqCst),
+        1,
+        "mapping and calendar reads must share a single broker connection",
+    );
     block_references.store(true, Ordering::SeqCst);
     if stage_reference {
         let mut extended = (*intent).clone();
@@ -8617,6 +8645,14 @@ async fn native_options_group_case(
     );
     claims.release(trade_claim).unwrap();
     healthy(&health, &mut changes).await;
+    tokio::time::timeout(Duration::from_secs(4), async {
+        loop {
+            if factory.view().is_some_and(|view| view.caches.lock().unwrap().contains_key("native-background")) {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    }).await.expect("Optional cache was not published after live readiness");
     let current = factory.view().unwrap();
     let copied = current
         .caches

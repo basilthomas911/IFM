@@ -77,15 +77,17 @@ async fn native_paging_checks_integrity_errors_and_cancel_join_without_ffi_or_da
                     if write.write_all(b"PONG\r\n").await.is_err() {
                         break;
                     }
-                } else if line.starts_with("PUB ") {
+                } else if line.starts_with("PUB ") || line.starts_with("HPUB ") {
                     let fields = line.split_whitespace().collect::<Vec<_>>();
-                    assert_eq!(fields.len(), 4);
+                    let headers = fields[0] == "HPUB";
+                    assert_eq!(fields.len(), 4 + usize::from(headers));
                     assert!(fields[1].ends_with(".reference.read"));
-                    let length = fields[3].parse::<usize>().unwrap();
-                    assert!(length <= 16 * 1024 + 64);
+                    let length = fields.last().unwrap().parse::<usize>().unwrap();
+                    let header_bytes = if headers { fields[3].parse::<usize>().unwrap() } else { 0 };
+                    assert!(length - header_bytes <= 16 * 1024 + 64);
                     let mut body = vec![0; length + 2];
                     reader.read_exact(&mut body).await.unwrap();
-                    let request = rmpv::decode::read_value(&mut body[..length].as_ref()).unwrap();
+                    let request = rmpv::decode::read_value(&mut &body[header_bytes..length]).unwrap();
                     let request = request.as_array().unwrap();
                     assert_eq!(request.len(), 4);
                     let id = request[0].as_u64().unwrap();

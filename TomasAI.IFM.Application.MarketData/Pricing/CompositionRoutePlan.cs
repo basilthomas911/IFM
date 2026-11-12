@@ -2,6 +2,7 @@
 using TomasAI.IFM.Application.MarketData.Databento.Workers;
 using TomasAI.IFM.Shared.MarketData.Contracts;
 using TomasAI.IFM.Shared.MarketData.Contracts.Pricing;
+using TomasAI.IFM.Domain.MarketData.Shared;
 
 namespace TomasAI.IFM.Application.MarketData.Pricing;
 
@@ -27,7 +28,7 @@ public sealed record CompositionRoutePlan(int SchemaVersion, string PlanId, stri
             || Options.IsDefault || Futures.IsDefault || NativeFutures.IsDefaultOrEmpty
             || SeparateContractConnection && (Options.Length != 1 || IndependentChainConnection)
             || IndependentChainConnection && Options.IsEmpty
-            || Options.Length > 2048 || Futures.Length > 16 || NativeFutures.Length > 16
+            || Options.Length > OptionFeedCapacity.MaximumContracts || Futures.Length > 16 || NativeFutures.Length > 16
             || Options.IsEmpty == Futures.IsEmpty
             || NativeFutures.Select(x => x.DomainContractId).Distinct(StringComparer.Ordinal).Count() != NativeFutures.Length
             || NativeFutures.Any(x => !string.Equals(x.Dataset,Dataset,StringComparison.Ordinal) || x.OnTheRun || x.Rollover)

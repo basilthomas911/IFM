@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using System.Text;
 using System.Text.Json;
 using TomasAI.IFM.Application.MarketData.Rust.Interop;
+using TomasAI.IFM.Domain.MarketData.Shared;
 namespace TomasAI.IFM.Application.MarketData.Rust.Delivery;
 
 /// <summary>Independent logical dataset owners within the single native runtime.</summary>
@@ -25,7 +26,7 @@ public sealed partial class NativeMarketDataRuntime {
     static readonly UTF8Encoding StrictUtf8=new(false,true);
     static Guid Identity(ulong low,ulong high){Span<byte> bytes=stackalloc byte[16];BinaryPrimitives.WriteUInt64LittleEndian(bytes,low);BinaryPrimitives.WriteUInt64LittleEndian(bytes[8..],high);return new(bytes);}
     /// <summary>Configures one API-supplied ValueDate and business clock. Does not connect or infer local dates.</summary>
-    public void ConfigureLive(DateOnly valueDate,Guid identity,DateTimeOffset apiUtcTime,bool advanceClock=true,uint capacity=2048) {
+    public void ConfigureLive(DateOnly valueDate,Guid identity,DateTimeOffset apiUtcTime,bool advanceClock=true,uint capacity=OptionFeedCapacity.MaximumContracts) {
         Span<byte> bytes=stackalloc byte[16];identity.TryWriteBytes(bytes);
         var config=new NativeLiveConfiguration{Size=40,Date=(uint)(valueDate.Year*10000+valueDate.Month*100+valueDate.Day),UtcTicks=apiUtcTime.UtcTicks-DateTimeOffset.UnixEpoch.Ticks,IdentityLow=BinaryPrimitives.ReadUInt64LittleEndian(bytes),IdentityHigh=BinaryPrimitives.ReadUInt64LittleEndian(bytes[8..]),Capacity=capacity,Advancing=advanceClock?1u:0};
         lock(gate){EnsureLiveAccess();NativeMarketDataLibrary.Check(library.ConfigureLive(handle.Identity,in config),"configure live");liveValueDate=valueDate;}
@@ -39,7 +40,8 @@ public sealed partial class NativeMarketDataRuntime {
         if(remainingBudget<TimeSpan.Zero)throw new ArgumentOutOfRangeException(nameof(remainingBudget));
         if(remainingBudget>TimeSpan.FromMinutes(2))remainingBudget=TimeSpan.FromMinutes(2);
         // Bound before serialization too; the native side independently checks 2 MiB.
-        if(subscriptions.Length is <1 or >64||registrations.Length is <1 or >2048)throw new ArgumentOutOfRangeException(nameof(registrations));
+        var maximum = lane == MarketDataLane.OptionsGlbx ? OptionFeedCapacity.MaximumContracts : 2048;
+        if(subscriptions.Length is <1 or >64||registrations.Length<1||registrations.Length>maximum)throw new ArgumentOutOfRangeException(nameof(registrations));
         var started=System.Diagnostics.Stopwatch.GetTimestamp();
         var data=JsonSerializer.SerializeToUtf8Bytes(new{key,host,port,dns=numericDnsServers,evidence=requireObservations?"observations":"control",subscriptions=subscriptions.Select(s=>new{symbols=s.Symbols,schema=s.Schema,symbology=s.Symbology,replay_start_ns=s.ReplayStartNanoseconds}),registrations=registrations.Select(r=>new{instrument=r.Instrument,publisher=r.Publisher,contract=r.Contract,source=r.Source,asset=r.Option?"option":"futures",tick=r.Tick,vwap=r.Vwap,required=r.Required})});
         try{var remaining=remainingBudget-System.Diagnostics.Stopwatch.GetElapsedTime(started);return SubmitLiveAsync(lane,0,data,remaining>TimeSpan.Zero?remaining:TimeSpan.Zero,cancellationToken);}finally{System.Security.Cryptography.CryptographicOperations.ZeroMemory(data);}

@@ -24,7 +24,7 @@ impl Directory {
     ///
     /// # Errors
     /// More than 64 families/total views, 8,192 retained leg references, conflicting source identity or
-    /// more than 2,048 distinct required contracts across all owners.
+    /// more distinct required contracts than the shared option feed maximum.
     pub fn apply(&mut self, command: Command, _now: Instant) -> Result<bool, String> {
         let before = self.demands();
         let mut next = self.clone();
@@ -71,7 +71,7 @@ impl Directory {
             .values()
             .flat_map(|entry| entry.views.values().flat_map(|view| view.required.iter()))
             .collect::<BTreeSet<_>>();
-        if union.len() > 2048 {
+        if union.len() > crate::option_chain::MAX_LIVE_OPTIONS {
             return Err("Native browser required union capacity exceeded".into());
         }
         let after = next.demands();

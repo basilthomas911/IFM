@@ -3,6 +3,18 @@
 namespace TomasAI.IFM.Application.Storage.TradeDb;
 internal static class TradeDbSql
 {
+    public const string GetBrokerAccount = """
+        SELECT account_definition FROM trade.broker_account_read_model
+        WHERE account_alias = $1
+        ORDER BY revision DESC LIMIT 1;
+        """;
+
+    public const string ProjectBrokerAccount = """
+        INSERT INTO trade.broker_account_read_model (account_alias, revision, account_definition)
+        VALUES ($1, $2, $3)
+        ON CONFLICT (account_alias, revision) DO UPDATE SET account_definition = EXCLUDED.account_definition;
+        """;
+
     public const string DeleteOptionTrade = """
         delete from trade.option_trade
 where orderid = $1

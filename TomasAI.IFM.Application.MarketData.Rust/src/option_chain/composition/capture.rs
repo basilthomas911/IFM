@@ -30,7 +30,7 @@ pub struct Request {
     pub at: i64,
     /// Caller supplied UTC result expiry.
     pub until: i64,
-    /// Complete-scope capacity, at most 2,048.
+    /// Complete-scope capacity, bounded by the shared option feed maximum.
     pub maximum: usize,
     /// Stricter current quote age in milliseconds.
     pub age: u32,
@@ -227,12 +227,12 @@ pub fn validate_request(request: &Request, clock: &Clock) -> Result<i64, Failure
         || request.scope.trim().is_empty()
         || request.scope.encode_utf16().count() > 128
         || !matches!(request.horizon.as_str(), "Daily" | "Weekly" | "Monthly")
-        || !(1..=2048).contains(&request.maximum)
+        || !(1..=crate::option_chain::MAX_LIVE_OPTIONS).contains(&request.maximum)
         || !(1..=5000).contains(&request.age)
         || request.skew > 2000
         || request.at > now
         || request.until <= now
-        || request.risk.len() > 2048
+        || request.risk.len() > crate::option_chain::MAX_LIVE_OPTIONS
     {
         return Err(fail("InvalidSnapshotRequest", "Snapshot"));
     }
@@ -253,7 +253,7 @@ pub async fn capture(
     deadline: Deadline,
 ) -> Result<Snapshot, Failure> {
     let now = validate_request(&request, clock)?;
-    if pages.is_empty() || pages.len() > 2048 {
+    if pages.is_empty() || pages.len() > crate::option_chain::MAX_LIVE_OPTIONS {
         return Err(fail("IncompleteChain", "Snapshot"));
     }
     let mut values = Vec::new();

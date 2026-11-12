@@ -58,7 +58,7 @@ pub fn estimate_rows(
     forward: Decimal,
     evaluated: i64,
 ) -> Result<Option<f64>, String> {
-    if rows.len() > 2048 {
+    if rows.len() > crate::option_chain::MAX_LIVE_OPTIONS {
         return Err("Native ATM source capacity exceeded".into());
     }
     if forward.compare(Decimal::default()) != Some(std::cmp::Ordering::Greater) {

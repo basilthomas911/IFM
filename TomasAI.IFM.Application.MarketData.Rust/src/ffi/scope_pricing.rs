@@ -28,7 +28,7 @@ pub(super) fn risk_requirements(
         .ok_or(Status::InvalidInput)?;
     let rows = v["options"]
         .as_array()
-        .filter(|rows| !rows.is_empty() && rows.len() <= 2048)
+        .filter(|rows| !rows.is_empty() && rows.len() <= crate::option_chain::MAX_LIVE_OPTIONS)
         .ok_or(Status::InvalidInput)?;
     let updates = rows
         .iter()
@@ -156,7 +156,7 @@ pub(super) fn configuration(
 ) -> Result<PricingConfiguration, Status> {
     let rows = v["options"]
         .as_array()
-        .filter(|rows| !rows.is_empty() && rows.len() <= 2048)
+        .filter(|rows| !rows.is_empty() && rows.len() <= crate::option_chain::MAX_LIVE_OPTIONS)
         .ok_or(Status::InvalidInput)?;
     let options = rows
         .iter()
@@ -191,7 +191,7 @@ pub(super) fn statistics(
         Vec::new()
     } else {
         v.as_array()
-            .filter(|rows| rows.len() <= 2048)
+            .filter(|rows| rows.len() <= crate::option_chain::MAX_LIVE_OPTIONS)
             .ok_or(Status::InvalidInput)?
             .iter()
             .map(|row| {
@@ -222,7 +222,7 @@ pub(super) fn refresh(
 ) -> Result<PreparedRefresh, Status> {
     let rows = v["options"]
         .as_array()
-        .filter(|rows| !rows.is_empty() && rows.len() <= 2048)
+        .filter(|rows| !rows.is_empty() && rows.len() <= crate::option_chain::MAX_LIVE_OPTIONS)
         .ok_or(Status::InvalidInput)?;
     let updates = rows
         .iter()

@@ -441,7 +441,7 @@ pub fn buffer(
     }
     ordered(&mut out, rows, false);
     interrupted(stop, deadline)?;
-    Ok(if out.len() <= 2048 {
+    Ok(if out.len() <= crate::option_chain::MAX_LIVE_OPTIONS {
         out
     } else {
         window.rows.clone()

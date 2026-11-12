@@ -1,13 +1,14 @@
 ﻿using System.Security.Cryptography;
 using System.Text;
 using TomasAI.IFM.Shared.MarketData.Contracts.Ticker;
+using TomasAI.IFM.Domain.MarketData.Shared;
 
 namespace TomasAI.IFM.Application.MarketData.Contracts;
 
 /// <summary>Immutable exact discovery universe. Provider mapping/expiry validation is a separate admission step.</summary>
 public sealed class SubscriptionChainKey : IEquatable<SubscriptionChainKey>
 {
-    public const int MaximumContracts = 2048;
+    public const int MaximumContracts = OptionFeedCapacity.MaximumContracts;
     public SubscriptionTickerKey Underlying { get; }
     public DateOnly MaturityDate { get; }
     public DateOnly ValueDate { get; }

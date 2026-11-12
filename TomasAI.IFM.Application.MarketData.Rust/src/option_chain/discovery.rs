@@ -101,7 +101,7 @@ pub fn definitions(bytes: &[u8]) -> Result<Vec<OptionContract>, String> {
         serde_json::from_slice(bytes).map_err(|_| "Malformed native raw definitions")?;
     let rows = value
         .as_array()
-        .filter(|v| v.len() <= 2048)
+        .filter(|v| v.len() <= crate::option_chain::MAX_LIVE_OPTIONS)
         .ok_or("Native raw definition capacity exceeded")?;
     let mut identities = BTreeSet::new();
     let mut bindings = BTreeMap::new();
@@ -253,72 +253,58 @@ impl Discovery {
         deadline: Deadline,
     ) -> Result<Vec<crate::reference::option_contract::CoverageRow>, String> {
         use sha2::{Digest, Sha256};
-        let bytes = raw_io::read(
-            self.broker.clone(),
-            self.scope.clone(),
-            parent.clone(),
-            7,
-            &args,
-            stop,
-            deadline,
-        )
-        .await?;
-        let header: serde_json::Value =
-            serde_json::from_slice(&bytes).map_err(|_| "Malformed compact definition header")?;
-        let id = header["id"]
-            .as_str()
-            .filter(|s| s.len() == 32 && s.bytes().all(|b| b.is_ascii_hexdigit()))
-            .ok_or("Invalid compact snapshot identity")?;
-        let count = header["count"]
-            .as_u64()
-            .filter(|n| *n <= 100000)
-            .ok_or("Invalid compact snapshot row count")? as usize;
-        let digest = header["digest"]
-            .as_str()
-            .filter(|s| s.len() == 64 && s.bytes().all(|b| b.is_ascii_hexdigit()))
-            .ok_or("Invalid compact snapshot digest")?;
-        let mut rows = Vec::new();
-        let mut hash = Sha256::new();
-        let mut total = 0usize;
-        let mut identities = BTreeSet::new();
-        for offset in (0..count).step_by(256) {
-            let args = serde_json::to_vec(&serde_json::json!({"snapshot":id,"offset":offset}))
-                .map_err(|_| "Invalid compact definition page arguments")?;
-            let bytes = raw_io::read(
-                self.broker.clone(),
-                self.scope.clone(),
-                parent.clone(),
-                7,
-                &args,
-                stop,
-                deadline,
-            )
+        raw_io::with_reader(self.broker.clone(), self.scope.clone(), parent, deadline, async |reader| {
+            let bytes = reader.read(7, &args, stop, deadline)
             .await?;
-            total = total
-                .checked_add(bytes.len())
-                .ok_or("Compact source byte overflow")?;
-            if total > 64 * 1024 * 1024 {
-                return Err("Compact source byte capacity exceeded".into());
-            }
-            hash.update(&bytes);
-            let page: serde_json::Value =
-                serde_json::from_slice(&bytes).map_err(|_| "Malformed compact definition page")?;
-            let page = page
-                .as_array()
-                .filter(|p| p.len() == (count - offset).min(256))
-                .ok_or("Incomplete compact definition page")?;
-            for value in page {
-                let row = crate::reference::option_contract::CoverageRow::from_command(value)?;
-                if !identities.insert(row.coverage_definition()?.contract.to_owned()) {
-                    return Err("Duplicate compact source identity".into());
+            let header: serde_json::Value =
+                serde_json::from_slice(&bytes).map_err(|_| "Malformed compact definition header")?;
+            let id = header["id"]
+                .as_str()
+                .filter(|s| s.len() == 32 && s.bytes().all(|b| b.is_ascii_hexdigit()))
+                .ok_or("Invalid compact snapshot identity")?;
+            let count = header["count"]
+                .as_u64()
+                .filter(|n| *n <= 100000)
+                .ok_or("Invalid compact snapshot row count")? as usize;
+            let digest = header["digest"]
+                .as_str()
+                .filter(|s| s.len() == 64 && s.bytes().all(|b| b.is_ascii_hexdigit()))
+                .ok_or("Invalid compact snapshot digest")?;
+            let mut rows = Vec::new();
+            let mut hash = Sha256::new();
+            let mut total = 0usize;
+            let mut identities = BTreeSet::new();
+            for offset in (0..count).step_by(256) {
+                let args = serde_json::to_vec(&serde_json::json!({"snapshot":id,"offset":offset}))
+                    .map_err(|_| "Invalid compact definition page arguments")?;
+                let bytes = reader.read(7, &args, stop, deadline)
+                .await?;
+                total = total
+                    .checked_add(bytes.len())
+                    .ok_or("Compact source byte overflow")?;
+                if total > 64 * 1024 * 1024 {
+                    return Err("Compact source byte capacity exceeded".into());
                 }
-                rows.push(row);
+                hash.update(&bytes);
+                let page: serde_json::Value =
+                    serde_json::from_slice(&bytes).map_err(|_| "Malformed compact definition page")?;
+                let page = page
+                    .as_array()
+                    .filter(|p| p.len() == (count - offset).min(256))
+                    .ok_or("Incomplete compact definition page")?;
+                for value in page {
+                    let row = crate::reference::option_contract::CoverageRow::from_command(value)?;
+                    if !identities.insert(row.coverage_definition()?.contract.to_owned()) {
+                        return Err("Duplicate compact source identity".into());
+                    }
+                    rows.push(row);
+                }
             }
-        }
-        if !format!("{:X}", hash.finalize()).eq_ignore_ascii_case(digest) {
-            return Err("Compact source snapshot digest mismatch".into());
-        }
-        Ok(rows)
+            if !format!("{:X}", hash.finalize()).eq_ignore_ascii_case(digest) {
+                return Err("Compact source snapshot digest mismatch".into());
+            }
+            Ok(rows)
+        }).await
     }
     /// Acquires copied global policy facts inside the dataset's cancellable IO.
     ///

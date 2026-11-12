@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Application.MarketData.Pricing;
 using TomasAI.IFM.Shared.MarketData.Contracts.Pricing;
+using TomasAI.IFM.Domain.MarketData.Shared;
 
 namespace TomasAI.IFM.Application.MarketData.OptionChainCache;
 
@@ -91,7 +92,7 @@ public sealed class OptionChainBackgroundUpdater(IOptionUniverseSource universes
             var plan = universe.MarketData;
             if (!string.Equals(plan.Dataset,"GLBX.MDP3",StringComparison.Ordinal) || !plan.IncludeOptions || !plan.ScopeComplete || plan.ValueDate != admission.ValueDate
                 || plan.Calendar is null || plan.Publication is null || plan.Conversion is null || !plan.Futures.IsEmpty
-                || universe.Horizons.IsDefaultOrEmpty || universe.Horizons.Length > 3 || plan.Options.IsDefault || plan.Options.Length > 2048
+                || universe.Horizons.IsDefaultOrEmpty || universe.Horizons.Length > 3 || plan.Options.IsDefault || plan.Options.Length > OptionFeedCapacity.MaximumContracts
                 || universe.Horizons.Any(x => x is not ("Daily" or "Weekly" or "Monthly")))
                 throw new InvalidDataException("Published option universe is not qualified for the admitted date.");
             var ownerScope = PricingSemanticHash.Compute(plan);
@@ -178,7 +179,7 @@ public sealed class OptionChainBackgroundUpdater(IOptionUniverseSource universes
             var options = group.SelectMany(x => x.MarketData.Options).GroupBy(x => x.ContractId)
                 .Select(x => x.Distinct().Count() == 1 ? x.First() : throw new InvalidDataException("Conflicting option definitions in background coverage batch."))
                 .OrderBy(x => x.ContractId, StringComparer.Ordinal).ToImmutableArray();
-            if (options.Length > 2048) throw new InvalidDataException("Batched option coverage exceeds the worker capacity.");
+            if (options.Length > OptionFeedCapacity.MaximumContracts) throw new InvalidDataException("Batched option coverage exceeds the worker capacity.");
             foreach (var universe in group)
                 result.Add(universe with { MarketData = universe.MarketData with { Options = options } });
         }

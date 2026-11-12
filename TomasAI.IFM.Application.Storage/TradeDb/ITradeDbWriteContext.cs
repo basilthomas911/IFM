@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.BrokerAccount.Query.Model;
 using TomasAI.IFM.Domain.Trade.Shared;
 
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
@@ -13,7 +14,7 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.R
 
 namespace TomasAI.IFM.Application.Storage.TradeDb;
 /// <summary>Typed trade mutations and caller-owned transaction projection writes.</summary>
-public interface ITradeDbWriteContext : IEnlistedTradeDbWriter
+public interface ITradeDbWriteContext : IEnlistedTradeDbWriter, IBrokerAccountProjectionWriter
 {
     /// <summary>Upsert Order Composition through the typed trade persistence boundary.</summary>
     /// <param name="completed">The completed supplied by the caller.</param>

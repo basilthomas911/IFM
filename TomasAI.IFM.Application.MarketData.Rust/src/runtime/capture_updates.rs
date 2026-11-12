@@ -7,7 +7,7 @@ use std::sync::{
 use tokio::sync::watch;
 
 const MAX_WAITERS: usize = 128;
-const MAX_INSTRUMENTS: usize = 4096;
+const MAX_INSTRUMENTS: usize = crate::option_chain::MAX_LIVE_OPTIONS;
 
 #[derive(Default)]
 pub(crate) struct CaptureUpdates {

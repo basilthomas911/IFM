@@ -5,6 +5,7 @@ using TomasAI.IFM.Shared.MarketData.Contracts.Pricing;
 using TomasAI.IFM.Shared.MarketData.Contracts;
 using TomasAI.IFM.Shared.OptionPricing;
 using TomasAI.IFM.Framework.Serialization;
+using TomasAI.IFM.Domain.MarketData.Shared;
 namespace TomasAI.IFM.Application.MarketData.Rust.Delivery;
 
 /// <summary>One frozen application-qualified context. QualifiedUntilUtc bounds
@@ -30,7 +31,7 @@ public sealed partial class NativeMarketDataRuntime
     {
         ArgumentNullException.ThrowIfNull(demands);ArgumentException.ThrowIfNullOrWhiteSpace(expectedPricingDigest);
         if(generation==Guid.Empty||expectedPricingDigest.Length!=64||!expectedPricingDigest.All(Uri.IsHexDigit)
-            ||demands.Length is <1 or >2048||demands.Any(x=>x is null||x.Instrument==0||x.ContextIdentity==Guid.Empty)
+            ||demands.Length is <1 or >OptionFeedCapacity.MaximumContracts||demands.Any(x=>x is null||x.Instrument==0||x.ContextIdentity==Guid.Empty)
             ||demands.Select(x=>x.Instrument).Distinct().Count()!=demands.Length)throw new ArgumentException("Complete qualified risk demand is required.",nameof(demands));
         return SubmitScope(6,generation,new{scope,pricing=new{expected_digest=expectedPricingDigest,
             options=demands.Select(x=>new{instrument=x.Instrument,identity=IdentityWords(x.ContextIdentity),required=x.Required})}},remainingBudget,cancellationToken);
@@ -83,7 +84,7 @@ public sealed partial class NativeMarketDataRuntime
         if(StrictUtf8.GetByteCount(policy.Version)>1024)throw new ArgumentException("Refresh policy identity exceeds native UTF-8 capacity.",nameof(policy));
         ArgumentNullException.ThrowIfNull(contexts); ArgumentNullException.ThrowIfNull(registrations); ArgumentNullException.ThrowIfNull(subscriptions);
         if (remainingBudget < TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(remainingBudget));
-        if (generation == Guid.Empty || contexts.Length is < 1 or > 2048 || contexts.Length > policy.MaximumContracts || qualifiedAt.Offset != TimeSpan.Zero
+        if (generation == Guid.Empty || contexts.Length is < 1 or > OptionFeedCapacity.MaximumContracts || contexts.Length > policy.MaximumContracts || qualifiedAt.Offset != TimeSpan.Zero
             || registrations.Length is < 1 or > 2112 || registrations.Any(r=>r.Publisher==0)
             || subscriptions.Length is < 1 or > 64 || string.IsNullOrWhiteSpace(scope) || scope.Length > 128)
             throw new ArgumentException("Invalid qualified options scope.");
@@ -97,7 +98,7 @@ public sealed partial class NativeMarketDataRuntime
                 throw new ArgumentException("Qualified pricing does not match the physical canonical registrations.", nameof(contexts));
             prepared.Add(value);
         }
-        if(statistics?.Length>2048)throw new ArgumentOutOfRangeException(nameof(statistics));
+        if(statistics?.Length>OptionFeedCapacity.MaximumContracts)throw new ArgumentOutOfRangeException(nameof(statistics));
         static int? DateNumber(DateOnly? date)=>date is{}d?d.Year*10000+d.Month*100+d.Day:null;
         var saved=(statistics??[]).SelectMany(value=>registrations.Where(r=>r.Option&&r.Contract==value.ContractId).Select(r=>new{
             instrument=r.Instrument,publisher=r.Publisher,volume=value.Volume,volume_date=DateNumber(value.VolumeValueDate),open_interest=value.OpenInterest,
@@ -115,7 +116,7 @@ public sealed partial class NativeMarketDataRuntime
     {
         var started = Stopwatch.GetTimestamp(); cancellationToken.ThrowIfCancellationRequested(); ArgumentNullException.ThrowIfNull(contexts);
         if (remainingBudget < TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(remainingBudget));
-        if (contexts.Length is < 1 or > 2048 || generation == Guid.Empty || qualifiedAt.Offset != TimeSpan.Zero) throw new ArgumentException("Invalid context refresh.");
+        if (contexts.Length is < 1 or > OptionFeedCapacity.MaximumContracts || generation == Guid.Empty || qualifiedAt.Offset != TimeSpan.Zero) throw new ArgumentException("Invalid context refresh.");
         var prepared = new List<Dictionary<string, object>>(contexts.Length);
         foreach (var entry in contexts)
         {

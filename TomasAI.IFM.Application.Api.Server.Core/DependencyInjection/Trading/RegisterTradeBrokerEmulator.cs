@@ -1,4 +1,5 @@
 using TomasAI.IFM.Application.Api.Server.Core.Trading.Emulation;
+using TomasAI.IFM.Application.EventSourcing.Projections.BrokerAccount;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Function.Actor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Function.Actor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.Function.Actor;
@@ -16,6 +17,7 @@ using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Hosting;
 using Serilog;
 using Serilog.Events;
 using SimpleInjector;
@@ -176,11 +178,17 @@ public static partial class CoreServiceRegistration
         container.RegisterSingleton<TomasAI.IFM.Domain.Trade.Order.Broker.Realtime.BrokerOrderObservationBridge>();
         container.RegisterSingleton<TomasAI.IFM.Domain.Trade.Order.Broker.Query.Model.IBrokerOrderReadStore,
         TomasAI.IFM.Domain.Trade.Order.Broker.Query.Model.BrokerOrderReadStore>();
-        container.RegisterSingleton<TomasAI.IFM.Domain.BrokerAccount.Query.Model.BrokerAccountReadStore>();
+        container.RegisterSingleton(() =>
+        {
+            var tradeDb = container.GetInstance<ITradeDbContext>();
+            var host = container.GetInstance<IHostEnvironment>();
+            return new BrokerAccountProjectionService(
+                tradeDb.DbReader, tradeDb.DbWriter, host.IsDevelopment());
+        });
         container.RegisterSingleton<TomasAI.IFM.Domain.BrokerAccount.Query.Model.IBrokerAccountProjectionWriter>(
-        () => container.GetInstance<TomasAI.IFM.Domain.BrokerAccount.Query.Model.BrokerAccountReadStore>());
+        () => container.GetInstance<BrokerAccountProjectionService>());
         container.RegisterSingleton<TomasAI.IFM.Domain.BrokerAccount.Query.Model.IBrokerAccountReadStore>(
-        () => container.GetInstance<TomasAI.IFM.Domain.BrokerAccount.Query.Model.BrokerAccountReadStore>());
+        () => container.GetInstance<BrokerAccountProjectionService>());
         container.RegisterSingleton<TomasAI.IFM.Domain.BrokerAccount.Realtime.BrokerAccountObservationBridge>();
     }
 }

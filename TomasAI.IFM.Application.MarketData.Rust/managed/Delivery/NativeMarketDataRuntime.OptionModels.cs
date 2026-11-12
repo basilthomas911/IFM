@@ -5,6 +5,7 @@ using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.MarketData.Rust.Interop;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Framework.MarketData.DataBento;
+using TomasAI.IFM.Domain.MarketData.Shared;
 namespace TomasAI.IFM.Application.MarketData.Rust.Delivery;
 /// <summary>Copied canonical/provider reference mapping, not a source or lease.</summary>
 public sealed record NativeOptionModelUnderlying(string Source,string Contract,ushort Publisher);
@@ -49,7 +50,7 @@ public sealed partial class NativeMarketDataRuntime
                 fixed(byte* input=bytes)fixed(byte* output=buffer)NativeMarketDataLibrary.Check(call(handle.Identity,token,input,(uint)bytes.Length,output,maximum,out length),"project native option models");
                 if(length is 0 or >maximum)throw new InvalidDataException("Native option models exceed query bounds.");
                 var result=MessagePackSerializer.Deserialize<NativeOptionModelsResult>(buffer.AsMemory(0,(int)length),MessagePackSerializerOptions.Standard.WithSecurity(MessagePackSecurity.UntrustedData));
-                if(result is null || result.Models?.Length>4096)throw new InvalidDataException("Malformed native option model result.");
+                if(result is null || result.Models?.Length>OptionFeedCapacity.MaximumContracts)throw new InvalidDataException("Malformed native option model result.");
                 return result.Failure switch{
                     null=>result.Models??throw new InvalidDataException("Missing native option models."),
                     "InvalidMaturity"=>throw new DatabentoFeedException(DatabentoFeedStatus.AbiMismatch,"A native contract detail marked an invalid maturity date as present."),

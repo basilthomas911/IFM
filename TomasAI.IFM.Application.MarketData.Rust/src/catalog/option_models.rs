@@ -271,7 +271,7 @@ pub fn query(
             .checked_add(codec::encode(&model)?.len())
             .filter(|v| *v <= 4 * 1024 * 1024 - 1024)
             .ok_or("Option model encoded capacity exceeded")?;
-        if output.len() == 4096 {
+        if output.len() == crate::option_chain::MAX_LIVE_OPTIONS {
             return Err("Option model result capacity exceeded");
         }
         output.push(model);

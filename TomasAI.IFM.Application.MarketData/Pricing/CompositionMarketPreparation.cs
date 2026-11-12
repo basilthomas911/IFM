@@ -4,6 +4,7 @@ using TomasAI.IFM.Application.MarketData.Databento.Workers;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Shared.MarketData.Contracts;
 using TomasAI.IFM.Shared.MarketData.Contracts.Pricing;
+using TomasAI.IFM.Domain.MarketData.Shared;
 
 namespace TomasAI.IFM.Application.MarketData.Pricing;
 
@@ -35,7 +36,7 @@ public sealed class CompositionMarketPreparation(QualifiedCompositionDiscovery d
         }
         if (plan.SchemaVersion != 1 || !string.Equals(plan.Dataset,"GLBX.MDP3",StringComparison.Ordinal) || !string.Equals(plan.Root,"ES",StringComparison.Ordinal) || !plan.ScopeComplete
             || horizon is not ("Daily" or "Weekly" or "Monthly") || deadline <= clock.GetUtcNow()
-            || plan.Options.IsDefault || plan.Futures.IsDefault || plan.Options.Length > 2048 || plan.Futures.Length > 16)
+            || plan.Options.IsDefault || plan.Futures.IsDefault || plan.Options.Length > OptionFeedCapacity.MaximumContracts || plan.Futures.Length > 16)
             return Failed("CompositionUniverseUnqualified");
         if (!admissions.TryGet(plan.Dataset, out var admitted) || admitted.ValueDate != plan.ValueDate)
             return Failed("Recovering");

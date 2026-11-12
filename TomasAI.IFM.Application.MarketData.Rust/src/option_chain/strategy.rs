@@ -214,7 +214,7 @@ impl Parameters {
             || !matches!(bounded(&v[6])?, "Development" | "Paper" | "Production")
             || !multiplier.is_finite()
             || !(1.0..=5.0).contains(&multiplier)
-            || !(4..=2048).contains(&int(&v[10])?)
+            || !(4..=crate::option_chain::MAX_LIVE_OPTIONS as i64).contains(&int(&v[10])?)
             || !(1..=16).contains(&int(&v[11])?)
             || int(&v[12])? != 1
             || enabled && (!definition || version < 1)

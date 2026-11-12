@@ -32,7 +32,7 @@ impl Monitoring {
         Ok(next)
     }
     fn validate(&self) -> Result<(), String> {
-        if self.members.len() > 4096
+        if self.members.len() > crate::option_chain::MAX_LIVE_OPTIONS
             || self
                 .members
                 .values()

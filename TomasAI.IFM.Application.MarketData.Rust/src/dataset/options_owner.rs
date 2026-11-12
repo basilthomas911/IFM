@@ -32,7 +32,7 @@ use crate::{
 };
 use futures_util::future::BoxFuture;
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet},
     sync::{Arc, Mutex},
 };
 use tokio::{sync::watch, task::JoinHandle};
@@ -556,31 +556,6 @@ impl Factory for OptionsFactory {
         }) {
             return Err("Unknown individually monitored native option".into());
         }
-        let mut scopes = BTreeSet::new();
-        for cache in &intent.caches {
-            if let Some(ranking) = &cache.ranking {
-                ranking.bias()?;
-                if ranking.date != intent.date {
-                    return Err("Strategy cache ValueDate differs from dataset intent".into());
-                }
-            }
-            if cache.scope.trim().is_empty()
-                || cache.scope.encode_utf16().count() > 128
-                || !scopes.insert(cache.scope.clone())
-                || !matches!(cache.horizon.as_str(), "Daily" | "Weekly" | "Monthly")
-                || cache.contracts.is_empty()
-                || cache.contracts.len() > 2048
-                || cache.contracts.iter().any(|id| {
-                    !intent
-                        .source
-                        .registrations
-                        .iter()
-                        .any(|r| r.asset == Asset::Option && r.contract == *id)
-                })
-            {
-                return Err("Invalid native prepared-cache membership".into());
-            }
-        }
         if intent.monitored.iter().any(|id| {
             !intent
                 .reviewed
@@ -849,6 +824,8 @@ impl Run {
             return Ok(());
         }
         *setup = Some(initial);
+        self.stage(stage, "Validating option source registrations")?;
+        wanted.source.validate(crate::option_chain::MAX_OPTION_REGISTRATIONS)?;
         if let Some(background) = &self.intent.background {
             // A proposed refresh cannot evict the recipe for the active feed.
             background.remember_reference_recipe(&wanted)?;
@@ -1082,25 +1059,30 @@ impl Run {
             initial,
             &self.parent,
         )?;
-        let mut cache_writer = cache_delivery::Delivery::start(
-            intent.broker.clone(),
-            intent.scope.clone(),
-            &self.parent,
-            initial,
-        )?;
-        let cache_port = cache_writer.port();
-        let mut cache_status = cache_writer.changes();
+        let mut cache_writer = match cache_delivery::Delivery::start(
+            intent.broker.clone(), intent.scope.clone(), &self.parent, initial,
+        ) {
+            Ok(writer) => Some(writer),
+            Err(error) => {
+                let _ = self.stage(stage, &format!("Optional cache delivery unavailable: {error}"));
+                None
+            }
+        };
+        let cache_port = cache_writer.as_ref().map(cache_delivery::Delivery::port);
+        let mut cache_status = cache_writer.as_ref().map(cache_delivery::Delivery::changes);
+        let mut reported_delivery_error = None;
         let cache_directory = Arc::new(Mutex::new(std::collections::BTreeMap::<
             String,
             Arc<CachePublication>,
         >::new()));
         let mut cache_version = 0i64;
         let mut cache_dirty = true;
-        let mut cache_evaluated = false;
         let mut cache_cadence = crate::option_chain::cadence::Cadence::new();
         // Cache membership depends on the immutable generation intent, not
         // on incoming quotes or refreshed pricing context.
         let mut cache_memberships = None;
+        let mut cache_results = cache_delivery::Batch::new();
+        let mut reported_cache_errors = BTreeMap::new();
         let header = Header {
             lane: Lane::OptionsGlbx,
             value_date: intent.date.to_julian_day() - 1721426,
@@ -1217,7 +1199,13 @@ impl Run {
                 let background=background_changes.as_mut().map(|changes|changes.borrow_and_update().clone()).unwrap_or_default();
                 let logging=logs.borrow_and_update().clone();
                 if logging.fatal{return Err(logging.error.unwrap_or_else(||"Native diagnostic component failed".into()));}
-                let cache_broker=cache_status.borrow_and_update().clone();
+                let cache_broker = cache_status.as_mut().map(|status| status.borrow_and_update().clone()).unwrap_or_default();
+                if let Some(error) = cache_broker.error.as_ref()
+                    && reported_delivery_error.as_ref() != Some(error)
+                {
+                    let _ = self.stage(stage, &format!("Optional cache delivery unavailable: {error}"));
+                    reported_delivery_error = Some(error.clone());
+                }
                 // Only failed components contribute a failure deadline. A
                 // pending publication may retain an old business-data budget
                 // while heartbeats remain healthy; it cannot expire a new fault.
@@ -1227,7 +1215,6 @@ impl Run {
                     (reference.error.clone(),engine.reference_deadline()?),
                     (broker.failure.map(|text|broker.detail.clone().unwrap_or_else(||text.into())),broker.pending_since.map(Deadline::recovery_from)),
                     (io.error.clone().filter(|_|io.recovering||io.terminal),io.deadline),
-                    (cache_broker.error.clone(),cache_broker.deadline),
                     (background.error,background.deadline),
                 ],*setup);
                 if let Some((error,deadline))=failure {
@@ -1255,7 +1242,7 @@ impl Run {
                 // it cannot turn this operation into an immediate dataset fault.
                 // Actual component failures above still retain their first budget.
                 let components_ready=transport.phase==super::lanes::Phase::Running
-                    && broker.connected && cache_broker.connected && io.running
+                    && broker.connected && io.running
                     && !reference.recovering && !numerical.recovering;
                 let budget=cache_capture_budget(*setup,components_ready);
                 let mut drained=0;
@@ -1285,92 +1272,137 @@ impl Run {
                     // Optional cache work has its own bounded sweep. It
                     // never consumes or renews the worker's recovery timer.
                     let cache_budget=Deadline::after(std::time::Duration::from_secs(5));
-                    let mut retry_cache=false;
-                    let token=configuration.lock().map_err(|_|"Native cache configuration interrupted")?.clone();
-                    let complete=source::read(&data,&engine,&intent.reviewed,self.generation,&token,at)
-                        .map_err(|error|format!("Native cache source failed: {}: {}",error.code,error.input))?;
+                    let mut retry_cache = false;
                     if cache_memberships.is_none() {
-                        cache_memberships=Some(intent.caches.iter().map(|cache|
-                            crate::option_chain::cache_scopes::choices(cache,&intent.reviewed,intent.date)
-                        ).collect::<Result<Vec<_>,_>>()?);
-                    }
-                    let mut next=std::collections::BTreeMap::new();let mut retained=0usize;
-                    let memberships=cache_memberships.as_ref().expect("generation cache memberships initialized");
-                    for (cache,choices) in intent.caches.iter().zip(memberships) {
-                        let mut prepared=None;
-                        let mut no_candidate:Option<crate::option_chain::composition::model::Snapshot>=None;
-                        let mut complete_choices=true;
-                        for membership in choices {
-                        if stop.is_cancelled(){break 'worker;}
-                        if cache_budget.remaining().is_zero(){
-                            retry_cache=true;
-                            complete_choices=false;
-                            break;
-                        }
-                        let items=complete.instruments.iter().filter(|i|membership.contains(&i.contract)).cloned().collect::<Vec<_>>();
-                        if items.len()!=membership.len(){return Err("Native cache complete membership changed".into());}
-                        // Source/evidence draining and preceding cache calculations may
-                        // consume the earlier loop timestamp's entire validity.
-                        // Freeze this request immediately before capture; no
-                        // recovery deadline or source timestamp is extended.
-                        let capture_at=self.clock.utc_ticks().map_err(|_|"Native cache API clock unavailable")?;
-                        let request=capture::Request{id:rand::random::<u128>().max(1).to_le_bytes(),scope:cache.scope.clone(),generation:self.generation,
-                            horizon:cache.horizon.clone(),at:capture_at,until:capture_at.checked_add(50_000_000).ok_or("Native cache validity overflow")?,maximum:2048,
-                            age:5000,skew:2000,options:true,selection:false,allow_missing:cache.ranking.is_some(),risk:Default::default()};
-                        let page=capture::Page{generation:self.generation,token:token.clone(),total:items.len(),instruments:items,continuation:None};
-                        let snapshot=match capture::capture(request,vec![page],&self.clock,stop,cache_budget).await {
-                            Ok(snapshot)=>snapshot,
-                            Err(_) if stop.is_cancelled()=>break 'worker,
-                            Err(error) if cache_can_defer(&error.code)=>{
-                                retry_cache|=error.code=="SnapshotTimeout";
-                                complete_choices=false;
-                                continue;
-                            },
-                            Err(error)=>return Err(format!("Native cache capture failed: {}: {}; horizon={}; scope_chars={}; capture_age_ms={}",error.code,error.input,cache.horizon,cache.scope.encode_utf16().count(),self.clock.utc_ticks().unwrap_or(capture_at).saturating_sub(capture_at)/10_000)),
-                        };
-                        let snapshot=if let Some(ranking)=&cache.ranking {
-                            match crate::option_chain::strategy::prepare(&snapshot,ranking.clone(),capture_at,stop,cache_budget){
-                                Ok(snapshot)=>snapshot,
-                                Err(_) if stop.is_cancelled()=>break 'worker,
-                                Err("Candidate selection original deadline expired")=>{
-                                    retry_cache=true;
-                                    complete_choices=false;
-                                    continue;
-                                },
-                                Err("CandidateCoverageUnavailable")=>{
-                                    match qualified_empty_scope(&snapshot,ranking,capture_at)? {
-                                        Some(mut empty)=>{
-                                            if let Some(previous)=&no_candidate {empty.until=empty.until.min(previous.until);empty.seal()?;}
-                                            no_candidate=Some(empty);
-                                        },
-                                        None=>complete_choices=false,
-                                    }
-                                    // A later expiry choice may have executable
-                                    // candidates. Empty is a fallback, never an
-                                    // early exit that hides those candidates.
-                                    continue;
-                                },
-                                Err("QuoteStale")=>{complete_choices=false;continue;},
-                                Err(error)=>return Err(format!("Native candidate preparation failed: {error}")),
+                        let definitions = intent.reviewed.definitions.iter()
+                            .map(|definition| (definition.blueprint.contract.contract(), definition))
+                            .collect::<BTreeMap<_, _>>();
+                        let mut seen = BTreeSet::new();
+                        cache_memberships = Some(intent.caches.iter().map(|cache| {
+                            if !seen.insert(cache.scope.as_str()) {
+                                return Err("duplicate cache scope".to_string());
                             }
-                        }else{snapshot};
-                            prepared=Some(snapshot);break;
-                        }
-                        let Some(snapshot)=prepared.or(if complete_choices{no_candidate}else{None}) else{continue;};
-                        cache_version=cache_version.checked_add(1).ok_or("Native cache version overflow")?;
-                        let digest=cache.ranking.as_ref().map(|r|r.parameters.hash()).transpose()?.unwrap_or_else(||token.clone());
-                        let publication=Arc::new(CachePublication::owned(snapshot,intent.date.to_julian_day()-1721426,&digest,cache_version,&cache.scope)?);
-                        retained=retained.checked_add(publication.len()).ok_or("Native cache size overflow")?;
-                        if retained>16*1024*1024{return Err("Native cache retained-byte capacity exceeded".into());}
-                        next.insert(cache.scope.clone(),publication);
+                            crate::option_chain::cache_scopes::members(&cache.contracts, &definitions)?;
+                            crate::option_chain::cache_scopes::choices(cache, &intent.reviewed, intent.date)?
+                                .iter().map(|ids| crate::option_chain::cache_scopes::members(ids, &definitions))
+                                .collect::<Result<Vec<_>, _>>()
+                        }).collect::<Vec<_>>());
                     }
-                    // Each lookup is complete independently. An explicitly known
-                    // no-candidate result must not gate unrelated ready scopes.
-                    let complete=next.len()==intent.caches.len();
-                    cache_port.submit(next.clone())?;
-                    *cache_directory.lock().map_err(|_|"Native cache directory interrupted")?=next;
-                    if retry_cache {cache_cadence.attempted();}
-                    cache_dirty=retry_cache;cache_evaluated=complete;
+                    let memberships = cache_memberships.as_ref().expect("cache memberships initialized");
+                    let mut changed = false;
+                    for (cache, choices) in intent.caches.iter().zip(memberships) {
+                        if stop.is_cancelled() { break 'worker; }
+                        let result: Result<Option<Arc<CachePublication>>, String> = async {
+                            let choices = choices.as_ref().map_err(Clone::clone)?;
+                            let mut no_candidate: Option<crate::option_chain::composition::model::Snapshot> = None;
+                            let mut complete_choices = true;
+                            let mut prepared = None;
+                            for definitions in choices {
+                                if cache_budget.remaining().is_zero() {
+                                    retry_cache = true;
+                                    complete_choices = false;
+                                    break;
+                                }
+                                let token = configuration.lock().map_err(|_| "Native cache configuration interrupted")?.clone();
+                                let capture_at = self.clock.utc_ticks().map_err(|_| "Native cache API clock unavailable")?;
+                                let page = match source::read(&data, &engine, &intent.reviewed, definitions, self.generation, &token, capture_at) {
+                                    Ok(page) => page,
+                                    Err(error) if cache_can_defer(&error.code) || error.code == "Recovering" => {
+                                        complete_choices = false;
+                                        continue;
+                                    },
+                                    Err(error) => return Err(format!("{}: {}", error.code, error.input)),
+                                };
+                                let request = capture::Request {
+                                    id: rand::random::<u128>().max(1).to_le_bytes(),
+                                    scope: cache.scope.clone(), generation: self.generation,
+                                    horizon: cache.horizon.clone(), at: capture_at,
+                                    until: capture_at.checked_add(50_000_000).ok_or("Native cache validity overflow")?,
+                                    maximum: crate::option_chain::MAX_LIVE_OPTIONS, age: 5000, skew: 2000,
+                                    options: true, selection: false, allow_missing: cache.ranking.is_some(), risk: Default::default(),
+                                };
+                                let snapshot = match capture::capture(request, vec![page], &self.clock, stop, cache_budget).await {
+                                    Ok(snapshot) => snapshot,
+                                    Err(error) if cache_can_defer(&error.code) => {
+                                        retry_cache |= error.code == "SnapshotTimeout";
+                                        complete_choices = false;
+                                        continue;
+                                    },
+                                    Err(error) => return Err(format!("{}: {}", error.code, error.input)),
+                                };
+                                if let Some(ranking) = &cache.ranking {
+                                    match crate::option_chain::strategy::prepare(&snapshot, ranking.clone(), capture_at, stop, cache_budget) {
+                                        Ok(snapshot) => { prepared = Some(snapshot); break; },
+                                        Err("Candidate selection original deadline expired") => {
+                                            retry_cache = true;
+                                            complete_choices = false;
+                                        },
+                                        Err("CandidateCoverageUnavailable") => {
+                                            match qualified_empty_scope(&snapshot, ranking, capture_at)? {
+                                                Some(mut empty) => {
+                                                    if let Some(previous) = &no_candidate {
+                                                        empty.until = empty.until.min(previous.until);
+                                                        empty.seal()?;
+                                                    }
+                                                    no_candidate = Some(empty);
+                                                },
+                                                None => complete_choices = false,
+                                            }
+                                        },
+                                        Err("QuoteStale") => complete_choices = false,
+                                        Err(error) => return Err(format!("Native candidate preparation failed: {error}")),
+                                    }
+                                } else {
+                                    prepared = Some(snapshot);
+                                    break;
+                                }
+                            }
+                            let Some(snapshot) = prepared.or(if complete_choices { no_candidate } else { None }) else {
+                                return Ok(None);
+                            };
+                            cache_version = cache_version.checked_add(1).ok_or("Native cache version overflow")?;
+                            let digest = cache.ranking.as_ref().map(|r| r.parameters.hash()).transpose()?
+                                .unwrap_or(snapshot.token.clone());
+                            let publication = CachePublication::owned(snapshot, intent.date.to_julian_day()-1721426,
+                                &digest, cache_version, &cache.scope)?;
+                            let retained = cache_results.iter().filter(|(scope, _)| *scope != &cache.scope)
+                                .map(|(_, result)| result.len()).sum::<usize>();
+                            if retained + publication.len() > 16 * 1024 * 1024 {
+                                return Err("Native cache retained-byte capacity exceeded".into());
+                            }
+                            Ok(Some(Arc::new(publication)))
+                        }.await;
+                        if stop.is_cancelled() { break 'worker; }
+                        match result {
+                            Ok(Some(publication)) => {
+                                cache_results.insert(cache.scope.clone(), publication);
+                                reported_cache_errors.remove(&cache.scope);
+                                changed = true;
+                            },
+                            Ok(None) => {},
+                            Err(error) => {
+                                if reported_cache_errors.get(&cache.scope) != Some(&error) {
+                                    let _ = self.stage(stage, &format!(
+                                        "Optional cache scope {:?} rejected: horizon={}, contracts={}, limit={}: {error}",
+                                        cache.scope, cache.horizon, cache.contracts.len(), crate::option_chain::MAX_LIVE_OPTIONS));
+                                    reported_cache_errors.insert(cache.scope.clone(), error);
+                                }
+                            },
+                        }
+                    }
+                    if changed {
+                        let submission = cache_port.as_ref().ok_or("Native cache writer unavailable")
+                            .and_then(|port| port.submit(cache_results.clone()));
+                        match submission {
+                            Ok(()) => {
+                                if let Ok(mut directory) = cache_directory.lock() { *directory = cache_results.clone(); }
+                            },
+                            Err(error) => {
+                                let _ = self.stage(stage, &format!("Optional cache publication unavailable: {error}"));
+                            },
+                        }
+                    }
+                    cache_dirty = retry_cache;
                 }
                 let mut proofs=Vec::new();
                 if transport.phase==super::lanes::Phase::Running{proofs.push(Proof::Transport);}
@@ -1393,20 +1425,16 @@ impl Run {
                 if ready&&!numerical.recovering{proofs.push(Proof::Pricing);}
                 if io.running&&outbox.retained_bytes()?==0{proofs.push(Proof::Persistence);}
                 let quotes_published=intent.monitored.is_empty() || qualified_threshold.is_some_and(|threshold|broker.flushed>=threshold);
-                // Loaded-trade monitoring is certified by its own delivered
-                // current-generation leg quotes. Optional chain composition
-                // cannot block that proof. Background-only demand must have
-                // actual published results, never an empty pending directory.
-                let cache_published=intent.caches.is_empty() || !intent.monitored.is_empty()
-                    || cache_evaluated && cache_broker.published;
-                if broker.connected && cache_broker.connected && (quiet || quotes_published&&cache_published){proofs.push(Proof::Publication);}
+                // Optional prepared chains report their own readiness. Only the
+                // live publication path and monitored leg evidence prove this component.
+                if broker.connected && (quiet || quotes_published) { proofs.push(Proof::Publication); }
                 if proofs.len()==5{
                     if !business_ready {business_ready=match &self.intent.background{Some(background)=>background.acknowledge_committed(self.parent.clone(),stop,if initial.remaining().is_zero(){Deadline::recovery()}else{initial},initial_physical).await?,None=>true};}
                     if business_ready{*setup=None;}else{proofs.retain(|proof|*proof!=Proof::Persistence);}
                 }
                 // Setup proof may have cleared its deadline in this iteration.
                 // Never retain that spent setup timer in a healthy notification.
-                let published_deadline=[*setup,transport.deadline,numerical.deadline,engine.reference_deadline()?,io.deadline,broker.pending_since.map(Deadline::recovery_from),cache_broker.deadline,background.deadline].into_iter().flatten().reduce(Deadline::earliest);
+                let published_deadline=[*setup,transport.deadline,numerical.deadline,engine.reference_deadline()?,io.deadline,broker.pending_since.map(Deadline::recovery_from),background.deadline].into_iter().flatten().reduce(Deadline::earliest);
                 // These are component/setup facts, independent of whether an
                 // option currently has a quote or produces an executable plan.
                 let setup_complete=components_ready;
@@ -1430,7 +1458,10 @@ impl Run {
                     result=calculations.changed()=>{result.map_err(|_|"Native options calculation observation closed")?;dirty=true;cache_dirty=true;},
                     result=reference_changes.changed()=>{result.map_err(|_|"Native options reference observation closed")?;dirty=true;cache_dirty=true;},
                     result=lifecycle.changed()=>{result.map_err(|_|"Native options lifecycle observation closed")?;dirty=true;cache_dirty=true;},
-                    result=cache_status.changed()=>{result.map_err(|_|"Native cache publication observation closed")?;},
+                    result=async { match cache_status.as_mut() {
+                        Some(status) => status.changed().await,
+                        None => std::future::pending().await,
+                    }} => { if result.is_err() { cache_status=None; } },
                     result=publication.changed()=>{result.map_err(|_|"Native options publication observation closed")?;},
                     result=storage.changed()=>{result.map_err(|_|"Native options persistence observation closed")?;},
                     result=persisted.changed()=>{result.map_err(|_|"Native options outbox observation closed")?;},
@@ -1478,7 +1509,10 @@ impl Run {
         let (a, b, c, e, f) = tokio::join!(
             evidence.shutdown(cleanup),
             actor.shutdown(cleanup),
-            cache_writer.shutdown(cleanup),
+            async { match cache_writer.as_mut() {
+                Some(writer) => writer.shutdown(cleanup).await,
+                None => Ok(()),
+            } },
             references.stop(&cleanup_token, cleanup),
             pricing.stop(&cleanup_token, cleanup)
         );
@@ -1493,7 +1527,7 @@ impl Run {
             errors.push(format!("actor publisher cleanup: {error}"));
         }
         if let Err(error) = c {
-            errors.push(format!("cache publisher cleanup: {error}"));
+            let _ = self.stage(stage, &format!("Optional cache publisher cleanup: {error}"));
         }
         if let Err(error) = e {
             errors.push(format!("reference cleanup: {error}"));

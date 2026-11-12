@@ -155,7 +155,7 @@ impl MarketData {
                 .clock_ticks()?
                 .checked_add(1_200_000_000)
                 .ok_or("Native browser time overflow")?,
-            maximum: 2048,
+            maximum: crate::option_chain::MAX_LIVE_OPTIONS,
             age: 5000,
             skew: 1000,
             options: true,

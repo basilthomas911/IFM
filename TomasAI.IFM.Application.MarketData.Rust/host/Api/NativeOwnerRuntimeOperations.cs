@@ -1,5 +1,6 @@
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.MarketData.Rust.Delivery;
+using TomasAI.IFM.Domain.MarketData.Shared;
 namespace TomasAI.IFM.Application.MarketData.Rust.Host;
 
 /// <summary>Thin Host control/observation of native dataset authority. No
@@ -37,7 +38,7 @@ public sealed class NativeOwnerRuntimeOperations(NativeDatasetBackend backend,
         var status=await GetBackendStatusAsync(token).ConfigureAwait(false);
         var options=status.Datasets.Single(dataset=>dataset.Role=="Options"&&dataset.Dataset=="GLBX.MDP3");
         if(request.ValueDate!=status.ValueDate||request.GenerationId!=options.GenerationId||request.OperationId==Guid.Empty)throw new InvalidOperationException("Option repair identity is stale.");
-        if(request.Contracts is null||request.Contracts.Length>2048||request.Contracts.Any(string.IsNullOrWhiteSpace))throw new ArgumentException("Invalid option repair contracts.",nameof(request));
+        if(request.Contracts is null||request.Contracts.Length>OptionFeedCapacity.MaximumContracts||request.Contracts.Any(string.IsNullOrWhiteSpace))throw new ArgumentException("Invalid option repair contracts.",nameof(request));
         if(request.Contracts.Length==0)return new([],[]);
         // Binding reads are deliberately unavailable during retirement. They
         // cannot be a precondition for repairing that same unhealthy dataset.

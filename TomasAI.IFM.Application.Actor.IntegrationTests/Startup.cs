@@ -31,6 +31,7 @@ using TomasAI.IFM.Application.MarketData.MarketOutlook;
 using TomasAI.IFM.Application.MarketData.FinancialModelingPrep;
 using TomasAI.IFM.Framework.MarketData.FinancialModelingPrep;
 using TomasAI.IFM.Application.EventProjector;
+using TomasAI.IFM.Application.EventSourcing.Projections.BrokerAccount;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
@@ -750,14 +751,9 @@ public static class Startup
         assemblies.AddRange(domainAssemblies);
         var repositoryTypes = ObjectRepositoryDiscovery.Discover(assemblies)
             .Where(static type => type != typeof(SystemAdminDbContext)
-                                  && type != typeof(EventSourceActorDbContext)
-                                  && type != typeof(TomasAI.IFM.Domain.BrokerAccount.Query.Model.BrokerAccountReadStore))
+                                  && type != typeof(EventSourceActorDbContext))
             .ToArray();
         siContainer.Register(typeof(IObjectRepository<>), repositoryTypes, Lifestyle.Transient);
-        // The repository contract must use the same singleton as the account reader and projector.
-        siContainer.AddRegistration<IObjectRepository<TomasAI.IFM.Domain.BrokerAccount.Query.Model.BrokerAccountReadStore>>(
-            siContainer.GetCurrentRegistrations().Single(registration => registration.ServiceType ==
-                typeof(TomasAI.IFM.Domain.BrokerAccount.Query.Model.BrokerAccountReadStore)).Registration);
         var eventSourceRegistration = Lifestyle.Singleton.CreateRegistration<EventSourceActorDbContext>(siContainer);
         siContainer.AddRegistration<IObjectRepository<EventSourceActorDbContext>>(eventSourceRegistration);
         var systemAdminRegistration = Lifestyle.Singleton.CreateRegistration<SystemAdminDbContext>(siContainer);
@@ -885,11 +881,17 @@ public static class Startup
         container.RegisterSingleton<TomasAI.IFM.Domain.Trade.Order.Broker.Realtime.BrokerOrderObservationBridge>();
         container.RegisterSingleton<TomasAI.IFM.Domain.Trade.Order.Broker.Query.Model.IBrokerOrderReadStore,
             TomasAI.IFM.Domain.Trade.Order.Broker.Query.Model.BrokerOrderReadStore>();
-        container.RegisterSingleton<TomasAI.IFM.Domain.BrokerAccount.Query.Model.BrokerAccountReadStore>();
+        container.RegisterSingleton(() =>
+        {
+            var tradeDb = container.GetInstance<ITradeDbContext>();
+            var host = container.GetInstance<IHostEnvironment>();
+            return new BrokerAccountProjectionService(
+                tradeDb.DbReader, tradeDb.DbWriter, host.IsDevelopment());
+        });
         container.RegisterSingleton<TomasAI.IFM.Domain.BrokerAccount.Query.Model.IBrokerAccountProjectionWriter>(
-            () => container.GetInstance<TomasAI.IFM.Domain.BrokerAccount.Query.Model.BrokerAccountReadStore>());
+            () => container.GetInstance<BrokerAccountProjectionService>());
         container.RegisterSingleton<TomasAI.IFM.Domain.BrokerAccount.Query.Model.IBrokerAccountReadStore>(
-            () => container.GetInstance<TomasAI.IFM.Domain.BrokerAccount.Query.Model.BrokerAccountReadStore>());
+            () => container.GetInstance<BrokerAccountProjectionService>());
         container.RegisterSingleton<TomasAI.IFM.Domain.BrokerAccount.Realtime.BrokerAccountObservationBridge>();
     }
 

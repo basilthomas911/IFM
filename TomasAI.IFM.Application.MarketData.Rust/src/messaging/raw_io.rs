@@ -17,6 +17,7 @@ use tokio_util::sync::CancellationToken;
 pub const MAXIMUM: usize = 4 * 1024 * 1024;
 /// A response page fits the independently bounded broker inbound frame.
 pub const PAGE: usize = 4096;
+pub(crate) const BROKER_UNAVAILABLE: &str = "Native raw-reference broker unavailable:";
 /// Copied response page. It is not a native provider/resource handle.
 pub struct Page {
     /// Request identity; responses to retired requests cannot satisfy this one.
@@ -136,32 +137,34 @@ pub fn decode(bytes: &[u8]) -> Result<Page, &'static str> {
         error,
     })
 }
-/// Reads one complete immutable reference response under the original native
-/// dataset deadline, joining its socket before returning copied bytes.
-///
-/// # Errors
-/// Cancellation, source/storage error, conflict, bounds or original expiry.
-pub async fn read(
+/// One sequential reference exchange owned by a bounded operation.
+pub(crate) struct Reader {
     broker: BrokerSettings,
     scope: String,
     parent: Arc<Child>,
-    kind: u8,
-    args: &[u8],
-    stop: &CancellationToken,
-    deadline: Deadline,
-) -> Result<Vec<u8>, String> {
-    let id = rand::random::<u64>().max(1);
-    let origin = super::wire::control_origin_json()?;
-    let mut first = Some(request(id, kind, args, 0)?);
-    let (mut publisher, mut replies) =
-        Publisher::start_evidence_exchange(broker, scope, 1, 32 * 1024, deadline, &parent)?;
-    let mut progress = publisher.changes();
-    let result = async {
+    exchange: Option<(Publisher, tokio::sync::mpsc::Receiver<Vec<u8>>)>,
+}
+
+impl Reader {
+    /// Reads one complete immutable response, reusing the connection across calls.
+    pub(crate) async fn read(
+        &mut self, kind: u8, args: &[u8], stop: &CancellationToken, deadline: Deadline,
+    ) -> Result<Vec<u8>, String> {
+        let id = rand::random::<u64>().max(1);
+        let origin = super::wire::control_origin_json()?;
+        let mut first = Some(request(id, kind, args, 0)?);
+        if self.exchange.is_none() {
+            self.exchange = Some(Publisher::start_evidence_exchange(
+                self.broker.clone(), self.scope.clone(), 1, 32 * 1024, deadline, &self.parent,
+            )?);
+        }
+        let (publisher, replies) = self.exchange.as_mut().expect("reference exchange initialized");
+        let mut progress = publisher.changes();
         loop {
             let state = progress.borrow_and_update().clone();
             if state.failure.is_some() || state.stopped {
                 return Err(format!(
-                    "Native raw-reference broker unavailable: {}",
+                    "{BROKER_UNAVAILABLE} {}",
                     state
                         .detail
                         .as_deref()
@@ -223,13 +226,46 @@ pub async fn read(
         }
         Ok(payload)
     }
-    .await;
-    // Shutdown signals cancellation before joining; it never asks the external
-    // database worker to acknowledge retirement or finish its own blocked job.
-    let joined = publisher.shutdown(deadline).await;
+}
+
+/// Runs sequential raw-reference requests on one lazily opened connection.
+/// Every request retains its own correlation ID and the caller's original budget.
+pub(crate) async fn with_reader<T>(
+    broker: BrokerSettings,
+    scope: String,
+    parent: Arc<Child>,
+    deadline: Deadline,
+    work: impl AsyncFnOnce(&mut Reader) -> Result<T, String>,
+) -> Result<T, String> {
+    let mut reader = Reader { broker, scope, parent, exchange: None };
+    let result = work(&mut reader).await;
+    // Join the connection even when a later page fails qualification.
+    let joined = match reader.exchange.as_mut() {
+        Some((publisher, _)) => publisher.shutdown(deadline).await,
+        None => Ok(()),
+    };
     match (result, joined) {
-        (Ok(bytes), Ok(())) => Ok(bytes),
+        (Ok(value), Ok(())) => Ok(value),
         (Err(error), _) => Err(error),
         (Ok(_), Err(error)) => Err(error.into()),
     }
+}
+
+/// Reads one complete immutable reference response under the original native
+/// dataset deadline, joining its socket before returning copied bytes.
+///
+/// # Errors
+/// Cancellation, source/storage error, conflict, bounds or original expiry.
+pub async fn read(
+    broker: BrokerSettings,
+    scope: String,
+    parent: Arc<Child>,
+    kind: u8,
+    args: &[u8],
+    stop: &CancellationToken,
+    deadline: Deadline,
+) -> Result<Vec<u8>, String> {
+    with_reader(broker, scope, parent, deadline, async |reader| {
+        reader.read(kind, args, stop, deadline).await
+    }).await
 }

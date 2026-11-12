@@ -1,6 +1,9 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using TomasAI.IFM.Application.Storage.MarketDataServiceDb;
+using TomasAI.IFM.Application.Storage.SchemaDb;
+using TomasAI.IFM.Framework.Storage;
 using Xunit;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.Conventions;
@@ -27,15 +30,24 @@ public sealed class AllDbContextConventionTests
     }
 
     [Fact]
-    public void Inventory_covers_every_concrete_context_without_omitting_sequence_allocation()
+    public void Inventory_covers_every_concrete_runtime_repository_regardless_of_filename()
     {
-        var sourceRoot = Path.Combine(DbContextConventionSource.RepositoryRoot, "TomasAI.IFM.Application.Storage");
-        var actual = Directory.GetFiles(sourceRoot, "*DbContext.cs", SearchOption.AllDirectories)
-            .SelectMany(path => StorageSource.Parse(path, File.ReadAllText(path)).Root.DescendantNodes().OfType<ClassDeclarationSyntax>())
-            .Where(type => !type.Modifiers.Any(SyntaxKind.AbstractKeyword) && type.BaseList?.Types.Any(item => item.Type.ToString().Contains("ObjectDataRepository<", StringComparison.Ordinal)) == true)
-            .Select(type => type.Identifier.ValueText).Order(StringComparer.Ordinal).ToArray();
+        var actual = typeof(DbContextFactory).Assembly.GetTypes()
+            .Where(type => !type.IsAbstract && !typeof(IDbSchemaContext).IsAssignableFrom(type)
+                // This helper is bound to a transaction owned by MarketDataServiceDbContext.
+                && type != typeof(MarketDataServiceTransactionRepository)
+                && DerivesFromObjectDataRepository(type))
+            .Select(type => type.Name).Order(StringComparer.Ordinal).ToArray();
         Assert.Equal(StorageConventionAudit.Contexts.Select(context => context.Context).Order(StringComparer.Ordinal), actual);
         Assert.Equal(13, actual.Length);
+    }
+
+    private static bool DerivesFromObjectDataRepository(Type type)
+    {
+        for (var baseType = type.BaseType; baseType is not null; baseType = baseType.BaseType)
+            if (baseType.IsGenericType && baseType.GetGenericTypeDefinition() == typeof(ObjectDataRepository<>))
+                return true;
+        return false;
     }
 
     [Fact]

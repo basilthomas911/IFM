@@ -249,187 +249,165 @@ impl Bootstrap {
         {
             return Ok(rebase(template, reviewed.clone()));
         }
-        let mut mappings = Vec::with_capacity(template.definitions.len());
-        for batch in template.definitions.chunks(16) {
-            let args=serde_json::to_vec(&serde_json::json!({"contracts":batch.iter().map(|d|{let v=d.blueprint.contract.value();let v=v.as_array().unwrap();serde_json::json!({"contract":d.blueprint.contract.contract(),"version":v[20].as_str().unwrap()})}).collect::<Vec<_>>()})).map_err(|_|"Native reference request encoding failed")?;
-            let bytes = raw_io::read(
-                self.broker.clone(),
-                self.scope.clone(),
-                parent.clone(),
-                2,
-                &args,
-                stop,
-                deadline,
-            )
-            .await?;
-            let values: serde_json::Value =
-                serde_json::from_slice(&bytes).map_err(|_| "Malformed raw convention reply")?;
-            let values = values
-                .as_array()
-                .filter(|v| v.len() == batch.len())
-                .ok_or("Incomplete raw convention reply")?;
-            for (value, input) in values.iter().zip(batch) {
-                let mapping = if value.is_null() {
-                    let model = self
-                        .raw_models
-                        .lock()
-                        .map_err(|_| "Raw option model directory interrupted")?
-                        .get(input.blueprint.contract.contract())
-                        .cloned();
-                    let Some(model) = model else {
-                        return Err(format!(
-                            "Exact reviewed option mapping is unavailable: {}",
-                            input.blueprint.contract.contract()
-                        ));
-                    };
-                    let convention = model.convention()?;
-                    if convention.value() != input.blueprint.contract.value() {
-                        return Err(
-                            "Raw staging model differs from accepted native option reference"
-                                .into(),
-                        );
-                    }
-                    use base64::Engine;
-                    let expected = convention.value();
-                    let fields = expected.as_array().ok_or("Invalid staging convention")?;
-                    let args=serde_json::to_vec(&serde_json::json!({"contract":convention.contract(),"version":fields[20].as_str(),"model":base64::engine::general_purpose::STANDARD.encode(codec::encode(&model.value())?)})).map_err(|_|"Native reference staging request encoding failed")?;
-                    let bytes = raw_io::read(
-                        self.broker.clone(),
-                        self.scope.clone(),
-                        parent.clone(),
-                        3,
-                        &args,
-                        stop,
-                        deadline,
-                    )
-                    .await?;
-                    serde_json::from_slice::<serde_json::Value>(&bytes)
-                        .map_err(|_| "Malformed staged convention reply")?
-                } else {
-                    value.clone()
-                };
-                mappings.push(Convention::from_command(&mapping)?);
-            }
-        }
-        let mut candidates = Vec::with_capacity(mappings.len());
-        for (input, mapping) in template.definitions.iter().zip(&mappings) {
-            let expected = input.blueprint.contract.value();
-            let v = expected.as_array().unwrap();
-            candidates.push(Candidate {
-                contract: input.blueprint.contract.contract().into(),
-                mapping_version: v[20].as_str().unwrap().into(),
-                definition_digest: v[19].as_str().unwrap().into(),
-                dataset: input.blueprint.contract.dataset().into(),
-                publisher: input.blueprint.contract.publisher(),
-                instrument: input.instrument,
-                raw_symbol: input.blueprint.contract.raw_symbol().into(),
-                underlying: input.blueprint.contract.underlying().into(),
-                right: if input.call { 1 } else { 2 },
-                strike: input.strike,
-                expiration_ns: u64::try_from(input.blueprint.contract.expiration())
-                    .ok()
-                    .and_then(|t| t.checked_mul(100)),
-                mapping: Some(mapping.clone()),
-            });
-        }
-        let at = clock
-            .utc_ticks()
-            .map_err(|_| "Native reference clock unavailable")?;
-        let qualified = universe::qualify(&candidates, true, at, 0, stop, deadline)?;
-        if let Some(error) = qualified.failure {
-            return Err(format!(
-                "Native reference qualification failed: {}: {}",
-                error.code, error.contract
-            ));
-        }
-        if qualified.definitions.len() != template.definitions.len() {
-            return Err(
-                "Raw reference scope contains excluded/unavailable requested contracts".into(),
-            );
-        }
-        let mut calendars = BTreeMap::new();
-        let mut definitions = Vec::with_capacity(mappings.len());
-        for (input, mapping) in template.definitions.iter().zip(mappings) {
-            let original = input.blueprint.calendar.value();
-            let fields = original.as_array().ok_or("Invalid raw calendar template")?;
-            let timezone = fields[1].as_str().ok_or("Invalid raw calendar timezone")?;
-            let expiration = time::OffsetDateTime::from_unix_timestamp_nanos(
-                i128::from(mapping.expiration()) * 100,
-            )
-            .map_err(|_| "Invalid raw calendar maturity")?
-            .date();
-            let key = (
-                mapping.calendar_version().to_owned(),
-                timezone.to_owned(),
-                expiration,
-            );
-            if pinned.contains(mapping.contract()) {
-                if fields[0].as_str() != Some(mapping.calendar_version()) {
-                    return Err("Frozen calendar version changed".into());
-                }
-                calendars.insert(key.clone(), input.blueprint.calendar.clone());
-            } else if !calendars.contains_key(&key) {
-                let args=serde_json::to_vec(&serde_json::json!({"from":date.to_julian_day()-1721426,"until":expiration.to_julian_day()-1721426})).map_err(|_|"Native calendar request encoding failed")?;
-                let bytes = raw_io::read(
-                    self.broker.clone(),
-                    self.scope.clone(),
-                    parent.clone(),
-                    1,
-                    &args,
-                    stop,
-                    deadline,
-                )
+        raw_io::with_reader(self.broker.clone(), self.scope.clone(), parent, deadline, async |reader| {
+            let mut mappings = Vec::with_capacity(template.definitions.len());
+            for batch in template.definitions.chunks(16) {
+                let args=serde_json::to_vec(&serde_json::json!({"contracts":batch.iter().map(|d|{let v=d.blueprint.contract.value();let v=v.as_array().unwrap();serde_json::json!({"contract":d.blueprint.contract.contract(),"version":v[20].as_str().unwrap()})}).collect::<Vec<_>>()})).map_err(|_|"Native reference request encoding failed")?;
+                let bytes = reader.read(2, &args, stop, deadline)
                 .await?;
-                let value: serde_json::Value =
-                    serde_json::from_slice(&bytes).map_err(|_| "Malformed raw calendar reply")?;
-                let dates = value["dates"]
+                let values: serde_json::Value =
+                    serde_json::from_slice(&bytes).map_err(|_| "Malformed raw convention reply")?;
+                let values = values
                     .as_array()
-                    .filter(|v| v.len() <= 2000)
-                    .ok_or("Raw calendar capacity exceeded")?
-                    .iter()
-                    .map(|n| {
-                        n.as_i64()
-                            .and_then(|n| n.checked_add(1721426))
-                            .and_then(|n| i32::try_from(n).ok())
-                            .and_then(|n| time::Date::from_julian_day(n).ok())
-                            .ok_or("Invalid raw trading date")
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
-                let calendar = Calendar::new(
-                    mapping.calendar_version().into(),
-                    timezone,
-                    date,
-                    expiration,
-                    fields[4].as_u64().ok_or("Invalid raw calendar rollover")?,
-                    dates,
-                )
-                .map_err(|_| "Invalid raw calendar coverage")?;
-                calendars.insert(key.clone(), calendar);
+                    .filter(|v| v.len() == batch.len())
+                    .ok_or("Incomplete raw convention reply")?;
+                for (value, input) in values.iter().zip(batch) {
+                    let mapping = if value.is_null() {
+                        let model = self
+                            .raw_models
+                            .lock()
+                            .map_err(|_| "Raw option model directory interrupted")?
+                            .get(input.blueprint.contract.contract())
+                            .cloned();
+                        let Some(model) = model else {
+                            return Err(format!(
+                                "Exact reviewed option mapping is unavailable: {}",
+                                input.blueprint.contract.contract()
+                            ));
+                        };
+                        let convention = model.convention()?;
+                        if convention.value() != input.blueprint.contract.value() {
+                            return Err(
+                                "Raw staging model differs from accepted native option reference"
+                                    .into(),
+                            );
+                        }
+                        use base64::Engine;
+                        let expected = convention.value();
+                        let fields = expected.as_array().ok_or("Invalid staging convention")?;
+                        let args=serde_json::to_vec(&serde_json::json!({"contract":convention.contract(),"version":fields[20].as_str(),"model":base64::engine::general_purpose::STANDARD.encode(codec::encode(&model.value())?)})).map_err(|_|"Native reference staging request encoding failed")?;
+                        let bytes = reader.read(3, &args, stop, deadline)
+                        .await?;
+                        serde_json::from_slice::<serde_json::Value>(&bytes)
+                            .map_err(|_| "Malformed staged convention reply")?
+                    } else {
+                        value.clone()
+                    };
+                    mappings.push(Convention::from_command(&mapping)?);
+                }
             }
-            definitions.push(Definition {
-                instrument: input.instrument,
-                underlying: input.underlying,
-                strike: input.strike,
-                call: input.call,
-                required: input.required,
-                blueprint: Blueprint {
-                    contract: mapping,
-                    calendar: calendars.get(&key).unwrap().clone(),
-                    publications: input.blueprint.publications.clone(),
-                    conversion: input.blueprint.conversion.clone(),
-                    maximum_lead: input.blueprint.maximum_lead,
-                },
-            });
-        }
-        if stop.is_cancelled() || deadline.remaining().is_zero() {
-            return Err("Reference bootstrap original deadline expired".into());
-        }
-        *self
-            .cache
-            .lock()
-            .map_err(|_| "Native reference cache interrupted")? =
-            Some((identity, definitions.clone()));
-        Ok(rebase(template, definitions))
+            let mut candidates = Vec::with_capacity(mappings.len());
+            for (input, mapping) in template.definitions.iter().zip(&mappings) {
+                let expected = input.blueprint.contract.value();
+                let v = expected.as_array().unwrap();
+                candidates.push(Candidate {
+                    contract: input.blueprint.contract.contract().into(),
+                    mapping_version: v[20].as_str().unwrap().into(),
+                    definition_digest: v[19].as_str().unwrap().into(),
+                    dataset: input.blueprint.contract.dataset().into(),
+                    publisher: input.blueprint.contract.publisher(),
+                    instrument: input.instrument,
+                    raw_symbol: input.blueprint.contract.raw_symbol().into(),
+                    underlying: input.blueprint.contract.underlying().into(),
+                    right: if input.call { 1 } else { 2 },
+                    strike: input.strike,
+                    expiration_ns: u64::try_from(input.blueprint.contract.expiration())
+                        .ok()
+                        .and_then(|t| t.checked_mul(100)),
+                    mapping: Some(mapping.clone()),
+                });
+            }
+            let at = clock
+                .utc_ticks()
+                .map_err(|_| "Native reference clock unavailable")?;
+            let qualified = universe::qualify(&candidates, true, at, 0, stop, deadline)?;
+            if let Some(error) = qualified.failure {
+                return Err(format!(
+                    "Native reference qualification failed: {}: {}",
+                    error.code, error.contract
+                ));
+            }
+            if qualified.definitions.len() != template.definitions.len() {
+                return Err(
+                    "Raw reference scope contains excluded/unavailable requested contracts".into(),
+                );
+            }
+            let mut calendars = BTreeMap::new();
+            let mut definitions = Vec::with_capacity(mappings.len());
+            for (input, mapping) in template.definitions.iter().zip(mappings) {
+                let original = input.blueprint.calendar.value();
+                let fields = original.as_array().ok_or("Invalid raw calendar template")?;
+                let timezone = fields[1].as_str().ok_or("Invalid raw calendar timezone")?;
+                let expiration = time::OffsetDateTime::from_unix_timestamp_nanos(
+                    i128::from(mapping.expiration()) * 100,
+                )
+                .map_err(|_| "Invalid raw calendar maturity")?
+                .date();
+                let key = (
+                    mapping.calendar_version().to_owned(),
+                    timezone.to_owned(),
+                    expiration,
+                );
+                if pinned.contains(mapping.contract()) {
+                    if fields[0].as_str() != Some(mapping.calendar_version()) {
+                        return Err("Frozen calendar version changed".into());
+                    }
+                    calendars.insert(key.clone(), input.blueprint.calendar.clone());
+                } else if !calendars.contains_key(&key) {
+                    let args=serde_json::to_vec(&serde_json::json!({"from":date.to_julian_day()-1721426,"until":expiration.to_julian_day()-1721426})).map_err(|_|"Native calendar request encoding failed")?;
+                    let bytes = reader.read(1, &args, stop, deadline)
+                    .await?;
+                    let value: serde_json::Value =
+                        serde_json::from_slice(&bytes).map_err(|_| "Malformed raw calendar reply")?;
+                    let dates = value["dates"]
+                        .as_array()
+                        .filter(|v| v.len() <= 2000)
+                        .ok_or("Raw calendar capacity exceeded")?
+                        .iter()
+                        .map(|n| {
+                            n.as_i64()
+                                .and_then(|n| n.checked_add(1721426))
+                                .and_then(|n| i32::try_from(n).ok())
+                                .and_then(|n| time::Date::from_julian_day(n).ok())
+                                .ok_or("Invalid raw trading date")
+                        })
+                        .collect::<Result<Vec<_>, _>>()?;
+                    let calendar = Calendar::new(
+                        mapping.calendar_version().into(),
+                        timezone,
+                        date,
+                        expiration,
+                        fields[4].as_u64().ok_or("Invalid raw calendar rollover")?,
+                        dates,
+                    )
+                    .map_err(|_| "Invalid raw calendar coverage")?;
+                    calendars.insert(key.clone(), calendar);
+                }
+                definitions.push(Definition {
+                    instrument: input.instrument,
+                    underlying: input.underlying,
+                    strike: input.strike,
+                    call: input.call,
+                    required: input.required,
+                    blueprint: Blueprint {
+                        contract: mapping,
+                        calendar: calendars.get(&key).unwrap().clone(),
+                        publications: input.blueprint.publications.clone(),
+                        conversion: input.blueprint.conversion.clone(),
+                        maximum_lead: input.blueprint.maximum_lead,
+                    },
+                });
+            }
+            if stop.is_cancelled() || deadline.remaining().is_zero() {
+                return Err("Reference bootstrap original deadline expired".into());
+            }
+            *self
+                .cache
+                .lock()
+                .map_err(|_| "Native reference cache interrupted")? =
+                Some((identity, definitions.clone()));
+            Ok(rebase(template, definitions))
+        }).await
     }
 }
 

@@ -3,6 +3,7 @@ using TomasAI.IFM.Application.MarketData.Pricing;
 using TomasAI.IFM.Application.MarketData.Rust.Delivery;
 using TomasAI.IFM.Shared.MarketData.Contracts.Pricing;
 using TomasAI.IFM.Shared.MarketData.Contracts.LastPrice;
+using TomasAI.IFM.Domain.MarketData.Shared;
 
 namespace TomasAI.IFM.Application.MarketData.Rust.Api;
 
@@ -31,7 +32,7 @@ public sealed class NativeOptionCompositionSource : ICompositionMarketSource
         ArgumentNullException.ThrowIfNull(runtime);ArgumentNullException.ThrowIfNull(clock);ArgumentNullException.ThrowIfNull(policy);
         ArgumentNullException.ThrowIfNull(isCurrent);
         ArgumentException.ThrowIfNullOrWhiteSpace(scope);ArgumentException.ThrowIfNullOrWhiteSpace(digest);policy.Validate();
-        if(generation==Guid.Empty||options.IsDefaultOrEmpty||options.Length>2048||scope.Length>128||digest.Length>128
+        if(generation==Guid.Empty||options.IsDefaultOrEmpty||options.Length>OptionFeedCapacity.MaximumContracts||scope.Length>128||digest.Length>128
             ||options.Any(x=>x is null||x.Context.GenerationId!=generation)
             ||options.Select(x=>x.Context.Contract.ContractId).Distinct(StringComparer.Ordinal).Count()!=options.Length
             ||options.Select(x=>x.Context.Contract.InstrumentId).Distinct().Count()!=options.Length

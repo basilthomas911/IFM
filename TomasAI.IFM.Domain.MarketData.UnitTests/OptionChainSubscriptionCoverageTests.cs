@@ -28,13 +28,17 @@ public sealed class OptionChainSubscriptionCoverageTests
         Assert.False(OptionChainSubscriptionCoverage.Covers(identities, [contract with { MappingVersion = "v2" }]));
         Assert.False(OptionChainSubscriptionCoverage.Covers(identities, [contract with { DefinitionDigest = "d2" }]));
     }
-    [Fact]
-    public void Buffer_does_not_clip_requested_contracts_to_worker_limit()
+    [Theory]
+    [InlineData(2200, true)]
+    [InlineData(4096, true)]
+    [InlineData(4097, false)]
+    public void Buffer_uses_the_shared_worker_capacity_without_clipping(int contracts, bool fits)
     {
-        var definitions = Enumerable.Range(0, 2200).Select(i => Contract("C", 4000 + i)).ToArray();
+        var definitions = Enumerable.Range(0, contracts).Select(i => Contract("C", 4000 + i)).ToArray();
         var window = OptionChainStrikeWindow.Select(definitions, 5000, 200, 2.5, [definitions[^1].ContractId]);
-        var buffered = OptionChainSubscriptionCoverage.Buffer(definitions, window, 2000);
-        Assert.Equal(window.Contracts, buffered);
+        var buffered = OptionChainSubscriptionCoverage.Buffer(definitions, window, 5000);
+        if (fits) Assert.Equal(contracts, buffered.Length);
+        else Assert.Equal(window.Contracts, buffered);
     }
     [Fact]
     public void Ownership_and_wing_width_round_trip_without_changing_existing_keys()

@@ -3,6 +3,7 @@ using System.Buffers.Binary;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using TomasAI.IFM.Application.MarketData.Rust.Interop;
+using TomasAI.IFM.Domain.MarketData.Shared;
 
 namespace TomasAI.IFM.Application.MarketData.Rust.Delivery;
 
@@ -153,7 +154,7 @@ public sealed partial class NativeMarketDataRuntime
         TimeSpan remainingBudget, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(dataset); ArgumentNullException.ThrowIfNull(symbols);
-        if (dataset.Length > 64 || symbols.Length is < 1 or > 2048 || symbols.Any(s => string.IsNullOrWhiteSpace(s) || s.Length > 70))
+        if (dataset.Length > 64 || symbols.Length is < 1 or > OptionFeedCapacity.MaximumContracts || symbols.Any(s => string.IsNullOrWhiteSpace(s) || s.Length > 70))
             throw new ArgumentOutOfRangeException(nameof(symbols));
         return AcquireDefinitions(new { dataset, symbols }, remainingBudget, cancellationToken);
     }

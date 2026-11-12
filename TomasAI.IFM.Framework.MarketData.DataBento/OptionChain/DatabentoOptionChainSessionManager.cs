@@ -4,6 +4,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Framework.MarketData.DataBento.Interop;
 using TomasAI.IFM.Framework.MarketData.DataBento.LastPrice;
 using TomasAI.IFM.Framework.MarketData.DataBento.TickAggregation.Contracts;
+using TomasAI.IFM.Domain.MarketData.Shared;
 
 namespace TomasAI.IFM.Framework.MarketData.DataBento.OptionChain;
 
@@ -170,7 +171,7 @@ _capacity = capacity;
             selections.Add(key, request.Routes);
             var routes = selections.Values.SelectMany(x => x)
                 .GroupBy(x => x.Definition.Instrument.InstrumentId).ToDictionary(x => x.Key, x => x.First());
-            if (routes.Count > 2048) throw new InvalidOperationException("The shared discovery connection capacity of 2048 contracts has been reached.");
+            if (routes.Count > OptionFeedCapacity.MaximumContracts) throw new InvalidOperationException($"The shared discovery connection capacity of {OptionFeedCapacity.MaximumContracts} contracts has been reached.");
             foreach (var route in request.Routes)
                 if (shared is not null && shared.Routes.TryGetValue(route.Definition.Instrument.InstrumentId, out var previous) && previous != route)
                     throw new InvalidOperationException("Conflicting definitions for a shared provider instrument.");

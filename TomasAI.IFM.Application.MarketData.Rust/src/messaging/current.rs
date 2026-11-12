@@ -21,7 +21,7 @@ impl Current {
     /// # Errors
     /// Rejects zero/unbounded limits; futures use 128 and 16 MiB as today.
     pub fn new(maximum_contracts: usize, maximum_bytes: usize) -> Result<Self, &'static str> {
-        if !(1..=4096).contains(&maximum_contracts)
+        if !(1..=crate::option_chain::MAX_LIVE_OPTIONS).contains(&maximum_contracts)
             || !(1..=64 * 1024 * 1024).contains(&maximum_bytes)
         {
             return Err("Invalid retained publication capacity");

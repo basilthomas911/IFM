@@ -79,7 +79,7 @@ impl Command {
         providers.dedup_by(|a, b| a.eq_ignore_ascii_case(b));
         let rows = value["required"]
             .as_array()
-            .filter(|a| a.len() <= 2048)
+            .filter(|a| a.len() <= crate::option_chain::MAX_LIVE_OPTIONS)
             .ok_or("Native browser required-leg capacity exceeded")?;
         let required = rows
             .iter()

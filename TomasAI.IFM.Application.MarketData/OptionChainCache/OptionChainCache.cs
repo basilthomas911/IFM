@@ -5,6 +5,7 @@ using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.MarketData.Pricing;
 using TomasAI.IFM.Framework.MarketData.OptionChainCache;
 using TomasAI.IFM.Shared.MarketData.Contracts.Pricing;
+using TomasAI.IFM.Domain.MarketData.Shared;
 
 namespace TomasAI.IFM.Application.MarketData.OptionChainCache;
 
@@ -87,7 +88,7 @@ public sealed class OptionChainCache : IOptionChainCache, IOptionChainSnapshotPu
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         ArgumentException.ThrowIfNullOrWhiteSpace(configurationDigest);
-        if (valueDate == default || snapshot.Instruments.IsDefault || snapshot.Instruments.Length > 2048
+        if (valueDate == default || snapshot.Instruments.IsDefault || snapshot.Instruments.Length > OptionFeedCapacity.MaximumContracts
             || snapshot.SnapshotId == Guid.Empty || snapshot.GenerationId == Guid.Empty || snapshot.SchemaVersion != 1
             || snapshot.EvaluatedAtUtc.Offset != TimeSpan.Zero || snapshot.ValidUntilUtc <= snapshot.EvaluatedAtUtc
             || !string.Equals(snapshot.Digest,PricingSemanticHash.Compute(snapshot with { Digest = "" }),StringComparison.Ordinal))

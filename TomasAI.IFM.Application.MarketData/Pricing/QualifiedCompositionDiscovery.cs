@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.MarketData.Databento.Workers;
 using TomasAI.IFM.Shared.MarketData.Contracts;
 using TomasAI.IFM.Shared.MarketData.Contracts.Pricing;
+using TomasAI.IFM.Domain.MarketData.Shared;
 
 namespace TomasAI.IFM.Application.MarketData.Pricing;
 /// <summary>
@@ -42,7 +43,7 @@ public sealed class QualifiedCompositionDiscovery(EuropeanOptionUniverse univers
         {
             var discoveryTimer = Stopwatch.StartNew();
             // Copy before awaiting any external operation, so a caller cannot change enumeration mid-discovery.
-            if (request.Definitions.Count > 2048)
+            if (request.Definitions.Count > OptionFeedCapacity.MaximumContracts)
                 return Failed("SnapshotLimit");
             var definitions = request.Definitions.ToArray();
             using var qualification = new OptionFeedTrace("option.discovery.qualify_reference", logger, request.LeaseId.ToString());

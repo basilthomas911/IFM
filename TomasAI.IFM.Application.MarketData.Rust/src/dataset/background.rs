@@ -664,44 +664,43 @@ impl Configuration {
             .lock()
             .map_err(|_| "Native background reference cache interrupted")?
             .clone();
-        let mut full = Vec::new();
-        for indices in selected.into_iter().collect::<Vec<_>>().chunks(8) {
-            let requests = indices.iter().map(|index| async {
-                let compact = &models[*index];
-                let contract = compact.coverage_definition()?.contract;
-                let known = retained
-                    .as_ref()
-                    .map(|cache| cache.option_model(contract))
-                    .transpose()?
-                    .flatten();
-                if let Some(known) = known
-                    && compact.matches(&known)?
-                {
-                    return Ok::<_, String>(known);
-                }
-                let args = compact.selected_model_request()?;
-                let bytes = crate::messaging::raw_io::read(
-                    self.discovery.broker.clone(),
-                    self.discovery.scope.clone(),
-                    parent.clone(),
-                    6,
-                    &args,
-                    stop,
-                    deadline,
-                )
-                .await?;
-                let value = serde_json::from_slice(&bytes)
-                    .map_err(|_| "Malformed selected option source")?;
-                let model =
-                    crate::reference::option_contract::OptionContract::from_command(&value)?;
-                if !compact.matches(&model)? {
-                    return Err("Selected option source changed since compact snapshot".into());
-                }
-                Ok(model)
-            });
-            full.extend(futures_util::future::try_join_all(requests).await?);
+        // Each lane reuses its broker connection across selected models. Keep
+        // the existing eight-way concurrency without one socket per contract.
+        let selected = selected.into_iter().collect::<Vec<_>>();
+        let mut full = Vec::with_capacity(selected.len());
+        let lanes = (0..selected.len().min(8)).map(|lane| {
+            let retained = &retained;
+            let selected = &selected;
+            crate::messaging::raw_io::with_reader(
+                self.discovery.broker.clone(), self.discovery.scope.clone(), parent.clone(), deadline,
+                async move |reader| {
+                    let mut rows = Vec::new();
+                    for index in selected.iter().copied().skip(lane).step_by(8) {
+                        let compact = &models[index];
+                        let contract = compact.coverage_definition()?.contract;
+                        let known = retained.as_ref().map(|cache| cache.option_model(contract)).transpose()?.flatten();
+                        if let Some(known) = known && compact.matches(&known)? {
+                            rows.push((index, known));
+                            continue;
+                        }
+                        let args = compact.selected_model_request()?;
+                        let bytes = reader.read(6, &args, stop, deadline).await?;
+                        let value = serde_json::from_slice(&bytes).map_err(|_| "Malformed selected option source")?;
+                        let model = crate::reference::option_contract::OptionContract::from_command(&value)?;
+                        if !compact.matches(&model)? {
+                            return Err("Selected option source changed since compact snapshot".into());
+                        }
+                        rows.push((index, model));
+                    }
+                    Ok(rows)
+                },
+            )
+        });
+        for result in futures_util::future::join_all(lanes).await {
+            full.extend(result?);
         }
-        let mut selected = full;
+        full.sort_unstable_by_key(|(index, _)| *index);
+        let mut selected = full.into_iter().map(|(_, model)| model).collect::<Vec<_>>();
         // A missing/stale price pauses replanning; it must not unsubscribe
         // already acquired coverage. Retain only current-source background
         // contracts, never removed policies or released monitored legs.
@@ -1080,7 +1079,8 @@ impl Configuration {
                 // Unrelated health traffic must not renew a maintenance sleep.
                 let mut maintenance_at=tokio::time::Instant::now()+period;
                 let mut pending_coverage = None;
-                let mut capacity_retry_at = None;
+                let mut proposal_retry_at = None;
+                let mut last_rejection = None;
                 loop {
                     let event=tokio::select!{biased;
                         ()=stopping.cancelled()=>return Ok(()),
@@ -1092,7 +1092,7 @@ impl Configuration {
                     let maintenance=event==0;
                     // A rejected optional proposal cannot churn the live feed or
                     // replan once per quote. Explicit committed handoffs still run.
-                    if event!=1 && capacity_retry_at.is_some_and(|at|tokio::time::Instant::now()<at){continue;}
+                    if event!=1 && proposal_retry_at.is_some_and(|at|tokio::time::Instant::now()<at){continue;}
                     if event==3 {
                         // Coalesce market ticks; metadata IO and replanning never
                         // run once per quote or hold the provider writer.
@@ -1104,6 +1104,7 @@ impl Configuration {
                     let deadline=pending.unwrap_or_else(Deadline::recovery);
                     let mut replacement = None;
                     let mut replacement_reason = "effective option coverage";
+                    let mut rejected_source = false;
                     let attempt:Result<bool,String>=async{
                         let mut changed = false;
                         if let Some(directory)=&config.committed {
@@ -1161,12 +1162,18 @@ impl Configuration {
                             _=>false,
                         };
                         if changed {replacement_reason = "committed physical handoff changed";}
+                        if !unchanged && let Some(candidate) = &next
+                            && let Err(error) = candidate.source.validate(crate::option_chain::MAX_OPTION_REGISTRATIONS)
+                        {
+                            rejected_source = true;
+                            return Err(error);
+                        }
                         replacement=next;
                         Ok(unchanged)
                     }.await;
                     if stopping.is_cancelled(){return Ok(());}
                     match attempt {
-                        Ok(true)=>{capacity_retry_at=None;state.send_modify(|_|{});},
+                        Ok(true)=>{proposal_retry_at=None;last_rejection=None;state.send_modify(|_|{});},
                         Ok(false)=>{
                             let mut status=replacement_status(replacement,pending);
                             if let Some(error)=&mut status.error {
@@ -1180,9 +1187,13 @@ impl Configuration {
                             // pricing/publication evidence. Its own readiness and
                             // failures remain authoritative; optional expansion
                             // must not destroy it before that evidence arrives.
-                            if retain_active_on_capacity(&error,active.is_some(),pending.is_some()) {
-                                report_capacity_rejection(&config.setup_diagnostics,&error,&clock)?;
-                                capacity_retry_at=Some(tokio::time::Instant::now()+period);
+                            if retain_active_on_rejection(&error,rejected_source,active.is_some(),pending.is_some()) {
+                                if last_rejection.as_ref() != Some(&error) {
+                                    report_proposal_rejection(&config.setup_diagnostics,&error,&clock)?;
+                                    last_rejection = Some(error);
+                                }
+                                pending_coverage = None;
+                                proposal_retry_at=Some(tokio::time::Instant::now()+period);
                                 maintenance_at=tokio::time::Instant::now()+period;
                                 continue;
                             }
@@ -1201,16 +1212,17 @@ impl Configuration {
     }
 }
 
-/// Only optional expansion may retain a qualified active recipe; initialization,
-/// committed handoffs and identity/reference failures remain strict failures.
-fn retain_active_on_capacity(error: &str, active: bool, committed_pending: bool) -> bool {
-    active && !committed_pending
-        && error.starts_with("Native selected background option capacity exceeded")
+/// A rejected source plan never displaces active subscriptions. Capacity
+/// rejection is also non-fatal for optional background expansion.
+fn retain_active_on_rejection(error: &str, rejected_source: bool, active: bool, committed_pending: bool) -> bool {
+    active && (rejected_source || (!committed_pending
+        && (error.starts_with("Native selected background option capacity exceeded")
+            || error.starts_with(crate::messaging::raw_io::BROKER_UNAVAILABLE))))
 }
 
 /// Reports rejected background work without falsely declaring that the live
 /// transport or its accepted subscriptions have failed.
-fn report_capacity_rejection(diagnostics: &SetupDiagnostics, error: &str, clock: &Clock) -> Result<(), String> {
+fn report_proposal_rejection(diagnostics: &SetupDiagnostics, error: &str, clock: &Clock) -> Result<(), String> {
     let binding = diagnostics.lock().map_err(|_| "Native setup diagnostics interrupted")?.clone();
     if let Some((sink, worker, generation, revision)) = binding
         && let Some(sink) = sink.upgrade()
@@ -1227,8 +1239,8 @@ fn report_capacity_rejection(diagnostics: &SetupDiagnostics, error: &str, clock:
 }
 
 #[cfg(test)]
-mod capacity_rejection_tests {
-    use super::retain_active_on_capacity;
+mod proposal_rejection_tests {
+    use super::retain_active_on_rejection;
 
     #[test]
     fn native_pricing_admits_the_reported_oversize_generation_and_enforces_the_new_limit() {
@@ -1241,12 +1253,28 @@ mod capacity_rejection_tests {
     #[test]
     fn oversized_optional_expansion_retains_live_subscriptions_only() {
         let error="Native selected background option capacity exceeded: selected=4200; maximum=4096";
-        assert!(retain_active_on_capacity(error,true,false));
-        assert!(!retain_active_on_capacity(error,false,false));
-        assert!(!retain_active_on_capacity(error,true,true));
-        assert!(!retain_active_on_capacity("Provider/IFM identity collision",true,false));
-        assert!(!retain_active_on_capacity("Conflicting immutable reference recipes for a shared option",true,false));
-        assert!(!retain_active_on_capacity("Native reference bootstrap original deadline expired",true,false));
+        assert!(retain_active_on_rejection(error,false,true,false));
+        assert!(!retain_active_on_rejection(error,false,false,false));
+        assert!(!retain_active_on_rejection(error,false,true,true));
+        assert!(!retain_active_on_rejection("Provider/IFM identity collision",false,true,false));
+        assert!(!retain_active_on_rejection("Conflicting immutable reference recipes for a shared option",false,true,false));
+        assert!(!retain_active_on_rejection("Native reference bootstrap original deadline expired",false,true,false));
+    }
+
+    #[test]
+    fn invalid_source_never_displaces_active_subscriptions() {
+        let error = "Invalid native registration: provider suffix does not match the option publisher and instrument";
+        assert!(retain_active_on_rejection(error, true, true, false));
+        assert!(retain_active_on_rejection(error, true, true, true));
+        assert!(!retain_active_on_rejection(error, true, false, false));
+    }
+
+    #[test]
+    fn optional_reference_broker_failure_keeps_the_active_worker() {
+        let error = "Native raw-reference broker unavailable: connection failed";
+        assert!(retain_active_on_rejection(error, false, true, false));
+        assert!(!retain_active_on_rejection(error, false, false, false));
+        assert!(!retain_active_on_rejection(error, false, true, true));
     }
 }
 

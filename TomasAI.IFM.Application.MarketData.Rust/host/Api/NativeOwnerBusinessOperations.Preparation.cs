@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.MarketData.Pricing;
 using TomasAI.IFM.Application.MarketData.Rust.Delivery;
+using TomasAI.IFM.Domain.MarketData.Shared;
 namespace TomasAI.IFM.Application.MarketData.Rust.Host;
 
 public sealed partial class NativeOwnerBusinessOperations
@@ -26,7 +27,7 @@ public sealed partial class NativeOwnerBusinessOperations
         if(saved is not null){CompositionPreparationService.Validate(saved);return saved.Snapshot.ValidUntilUtc>clock.GetUtcNow()?new(saved,null):PreparationFailure("AcceptedSnapshotExpired");}
         if(plan.SchemaVersion!=1||plan.Dataset!="GLBX.MDP3"||plan.Root!="ES"||!plan.ScopeComplete
             ||horizon is not("Daily" or "Weekly" or "Monthly")||deadline<=clock.GetUtcNow()
-            ||plan.Options.IsDefault||plan.Futures.IsDefault||plan.Options.Length>2048||plan.Futures.Length>16)
+            ||plan.Options.IsDefault||plan.Futures.IsDefault||plan.Options.Length>OptionFeedCapacity.MaximumContracts||plan.Futures.Length>16)
             return PreparationFailure("CompositionUniverseUnqualified");
         RequireDate(plan.ValueDate);
         var preparations=new CompositionPreparationService(new PreparationSnapshots(backend.Runtime),store,clock);

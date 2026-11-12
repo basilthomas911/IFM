@@ -67,6 +67,142 @@ pub struct Start {
     /// API-selected native evidence policy.
     pub evidence: Evidence,
 }
+
+impl Start {
+    /// Checks the complete source plan before opening a socket or retiring a live generation.
+    pub(super) fn validate(&self, capacity: usize) -> Result<(), String> {
+        self.plan.validate().map_err(|error| format!("{error:?}"))?;
+        if self.registrations.is_empty() || self.registrations.len() > capacity {
+            return Err("Invalid native registration count".into());
+        }
+        if self.evidence == Evidence::Observations && !self.registrations.iter().any(|row| row.required) {
+            return Err("Observation evidence requires explicit required contracts".into());
+        }
+
+        let subscribed = self.plan.subscriptions.iter()
+            .flat_map(|subscription| subscription.symbols.iter().map(String::as_str))
+            .collect::<BTreeSet<_>>();
+        let mut contracts = BTreeSet::new();
+        let mut instruments = BTreeSet::new();
+        for row in &self.registrations {
+            let reject = |reason| format!(
+                "Invalid native registration: contract={:?}, instrument={}, publisher={}, source={:?}, asset={:?}: {reason}",
+                row.contract, row.instrument, row.publisher, row.source, row.asset,
+            );
+            if row.contract.len() > 256 {
+                return Err(reject("contract ID exceeds the native book limit"));
+            }
+            // Published option IDs may include an immutable provider suffix
+            // when two distinct instruments share the same expiry/right/strike.
+            let (canonical, provider) = row.contract.split_once('~')
+                .map_or((row.contract.as_str(), None), |(id, suffix)| (id, Some(suffix)));
+            let identity = crate::catalog::selection::parse(canonical)
+                .map_err(|_| reject("invalid canonical contract ID"))?;
+            if !contracts.insert(&row.contract) {
+                return Err(reject("duplicate canonical contract ID"));
+            }
+            if row.instrument == 0 || !instruments.insert(row.instrument) {
+                return Err(reject("zero or duplicate provider instrument ID"));
+            }
+            if (identity.kind == 1) != (row.asset == Asset::Futures)
+                || (self.plan.lane != Lane::OptionsGlbx && row.asset == Asset::Option)
+            {
+                return Err(reject("contract kind does not match the registration or dataset lane"));
+            }
+            if row.vwap && row.asset != Asset::Futures {
+                return Err(reject("VWAP registration requires a futures contract"));
+            }
+            if let Some(provider) = provider {
+                let valid_binding = row.asset == Asset::Option && row.publisher != 0
+                    && provider.split_once('-').is_some_and(|(publisher, instrument)| {
+                        publisher.bytes().all(|byte| byte.is_ascii_digit())
+                            && instrument.bytes().all(|byte| byte.is_ascii_digit())
+                            && publisher.parse::<u16>() == Ok(row.publisher)
+                            && instrument.parse::<u32>() == Ok(row.instrument)
+                    });
+                if !valid_binding {
+                    return Err(reject("provider suffix does not match the option publisher and instrument"));
+                }
+            }
+            if !subscribed.contains(row.source.as_str()) {
+                return Err(reject("provider source is missing from subscriptions"));
+            }
+        }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod registration_tests {
+    use super::*;
+    use crate::dataset::transport::SubscriptionSpec;
+    use databento::dbn::{SType, Schema};
+
+    fn option_plan() -> Start {
+        let registrations = [
+            ("ES20261218C10000", 42474200),
+            ("ES20261218C10000~1-42474429", 42474429),
+        ].into_iter().map(|(contract, instrument)| Registration {
+            instrument,
+            publisher: 1,
+            contract: contract.into(),
+            source: instrument.to_string(),
+            asset: Asset::Option,
+            tick: None,
+            vwap: false,
+            required: false,
+        }).collect::<Vec<_>>();
+        Start {
+            plan: SessionPlan {
+                lane: Lane::OptionsGlbx,
+                subscriptions: vec![SubscriptionSpec {
+                    symbols: registrations.iter().map(|row| row.source.clone()).collect(),
+                    symbology: SType::InstrumentId,
+                    schema: Schema::Mbp1,
+                    replay_start_ns: None,
+                }],
+            },
+            registrations,
+            key: String::new(),
+            gateway: Gateway {
+                host: "127.0.0.1".into(),
+                port: 1,
+                resolver: Arc::new(crate::dns::Resolver::new(vec!["127.0.0.1:53".parse().unwrap()]).unwrap()),
+            },
+            evidence: Evidence::ControlOnly,
+        }
+    }
+
+    #[test]
+    fn published_provider_qualified_option_is_distinct_from_legacy_contract() {
+        assert!(option_plan().validate(2).is_ok());
+    }
+
+    #[test]
+    fn malformed_or_mismatched_provider_suffix_reports_the_registration() {
+        for suffix in ["2-42474429", "1-42474200", "1-0", "1-42474429~1-42474429", "+1-42474429"] {
+            let mut plan = option_plan();
+            let contract = format!("ES20261218C10000~{suffix}");
+            plan.registrations[1].contract = contract.clone();
+            let error = plan.validate(2).unwrap_err();
+            assert!(error.contains(&contract), "{error}");
+            assert!(error.contains("instrument=42474429, publisher=1"), "{error}");
+            assert!(error.contains("provider suffix does not match"), "{error}");
+        }
+    }
+
+    #[test]
+    fn validates_canonical_identity_and_subscription_membership_before_setup() {
+        let mut plan = option_plan();
+        plan.registrations[1].contract = "ES20261318C10000~1-42474429".into();
+        assert!(plan.validate(2).unwrap_err().contains("invalid canonical contract ID"));
+
+        let mut plan = option_plan();
+        plan.plan.subscriptions[0].symbols.pop();
+        assert!(plan.validate(2).unwrap_err().contains("provider source is missing"));
+    }
+}
+
 struct BookState {
     attempt: u64,
     generation: u128,
@@ -708,6 +844,7 @@ impl LiveData {
         deadline: Deadline,
         parent: Option<&crate::runtime::owner::Child>,
     ) -> Result<Status, String> {
+        request.validate(self.capacity)?;
         let Start {
             plan,
             registrations,
@@ -717,36 +854,6 @@ impl LiveData {
         } = request;
         let deadline = deadline.earliest(Deadline::recovery());
         let lane = plan.lane;
-        plan.validate().map_err(|e| format!("{e:?}"))?;
-        if registrations.is_empty() || registrations.len() > self.capacity {
-            return Err("Invalid native registration count".into());
-        }
-        if matches!(evidence, Evidence::Observations) && !registrations.iter().any(|r| r.required) {
-            return Err("Observation evidence requires explicit required contracts".into());
-        }
-        let mut ids = BTreeSet::new();
-        let mut instruments = BTreeSet::new();
-        for r in &registrations {
-            let identity =
-                crate::catalog::selection::parse(&r.contract).map_err(|e| format!("{e:?}"))?;
-            if !ids.insert(r.contract.clone())
-                || !instruments.insert(r.instrument)
-                || r.instrument == 0
-                || (identity.kind == 1) != (r.asset == Asset::Futures)
-                // The options owner also owns its exact-underlying quote
-                // dependency. That dependency is distinct from the independent
-                // primary GLBX futures owner and is retired with options only.
-                || (lane != Lane::OptionsGlbx && r.asset == Asset::Option)
-                || !plan
-                    .subscriptions
-                    .iter()
-                    .any(|s| s.symbols.contains(&r.source))
-            {
-                return Err(
-                    "Native mapping is duplicate, unsupported or absent from subscriptions".into(),
-                );
-            }
-        }
         let mut lanes = deadline
             .run(token, self.lanes.lock())
             .await

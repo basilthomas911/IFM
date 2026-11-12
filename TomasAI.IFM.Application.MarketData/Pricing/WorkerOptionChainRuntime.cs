@@ -8,6 +8,7 @@ using TomasAI.IFM.Framework.MarketData.DataBento.LastPrice;
 using TomasAI.IFM.Framework.MarketData.DataBento.OptionChain;
 using TomasAI.IFM.Framework.MarketData.DataBento.TickAggregation.Contracts;
 using TomasAI.IFM.Framework.Serialization;
+using TomasAI.IFM.Domain.MarketData.Shared;
 
 namespace TomasAI.IFM.Application.MarketData.Pricing;
 
@@ -79,7 +80,7 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
             if (string.IsNullOrWhiteSpace(request.ScopeId) || request.ScopeId.Length > 128 || request.LeaseId == Guid.Empty
                 || request.LeaseExpiresAtUtc.Offset != TimeSpan.Zero || request.LeaseExpiresAtUtc <= at
                 || request.LeaseExpiresAtUtc > at.AddSeconds(120) || request.Options.IsDefaultOrEmpty
-                || request.Options.Length > 2048 || MessagePackBinarySerializer.MeasureContent(request) > 4 * 1024 * 1024)
+                || request.Options.Length > OptionFeedCapacity.MaximumContracts || MessagePackBinarySerializer.MeasureContent(request) > 4 * 1024 * 1024)
                 return Failure("InvalidChainRequest");
             if (endedLeases.Contains(request.LeaseId)) return Failure("LeaseEnded");
             if (endedLeases.Count + scopes.Values.Sum(s => s.Leases.Count) >= 4096
@@ -148,7 +149,7 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
             // A physical session has one canonical scope; a second scope cannot alter or release it.
             if (scopes.Values.Any(s => s.Key == key)) return new(false, new("ConflictingChainScope", "Chain", request.ScopeId,
                 $"Physical subscription already belongs to another scope; ScopeId={request.ScopeId}; LeaseId={request.LeaseId}; Underlying={underlying}; Maturity={request.MaturityDate}"));
-            if (scopes.Count >= 16 || scopes.Values.Sum(s => s.Options.Length) + ordered.Length > 2048) return Failure("ChainCapacity");
+            if (scopes.Count >= 16 || scopes.Values.Sum(s => s.Options.Length) + ordered.Length > OptionFeedCapacity.MaximumContracts) return Failure("ChainCapacity");
             var quote = ReadUnderlying(underlying!);
             if (quote is null || quote.Bid <= 0 || quote.Ask < quote.Bid
                 || quote.ReceivedAtUtc > at || ordered.Any(o =>
