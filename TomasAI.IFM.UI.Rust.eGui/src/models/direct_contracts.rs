@@ -254,6 +254,10 @@ impl DirectRecord for EvaluatedOptionContractReadModel {
                     .next_element::<Scalar<Option<OffsetText>>>()?
                     .map(|v| v.0)
                     .unwrap_or_default();
+                let cash_multiplier = seq
+                    .next_element::<Scalar<Option<DecimalText>>>()?
+                    .map(|v| v.0)
+                    .unwrap_or_default();
                 while seq.next_element::<IgnoredAny>()?.is_some() {}
                 Ok(EvaluatedOptionContractReadModel {
                     contract_id,
@@ -285,6 +289,7 @@ impl DirectRecord for EvaluatedOptionContractReadModel {
                     quote_unavailable_reason,
                     last_quote_event_at_utc,
                     last_quote_received_at_utc,
+                    cash_multiplier,
                 })
             }
         }

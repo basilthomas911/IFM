@@ -10,15 +10,17 @@ internal static class OptionChainResponder {
  static bool offline;
  internal static bool LongOffline {get;private set;}
  static readonly HashSet<string> leases=[];
+ static int reads;
  static readonly DateOnly date=new(2026,10,26);
  static readonly DateTimeOffset at=new(2026,10,26,12,30,0,TimeSpan.Zero);
  public static byte[]? Handle(string subject,byte[] payload) {
   var options=MessagePackBinarySerializer.Options;
   byte[] Result<T>(T value)=>MessagePackSerializer.Serialize(new ServiceResult<T>{Success=true,ErrorMessage="",Value=value},options);
   byte[] Error()=>MessagePackSerializer.Serialize(new ServiceResult<EvaluatedOptionChainReadModel>{Success=false,ErrorCode=1065,ErrorMessage="Fixture unavailable"},options);
-  if(subject=="Query.NativeCompatibility.OptionChainMode.none") {mode=MessagePackSerializer.Deserialize<string>(payload,options);return Result(new ScalarReadModel<bool>(true));}
+  if(subject=="Query.NativeCompatibility.OptionChainMode.none") {mode=MessagePackSerializer.Deserialize<string>(payload,options);reads=0;return Result(new ScalarReadModel<bool>(true));}
   if(subject=="Query.NativeCompatibility.OptionChainOffline.none"){var scenario=MessagePackSerializer.Deserialize<string>(payload,options);offline=scenario is "Enabled" or "Long";LongOffline=scenario=="Long";return Result(new ScalarReadModel<bool>(true));}
   if(subject=="Query.NativeCompatibility.OptionChainCount.none")return Result(new ScalarReadModel<int>(leases.Count));
+  if(subject=="Query.NativeCompatibility.OptionChainReads.none")return Result(new ScalarReadModel<int>(reads));
   if(subject=="Query.ParameterStartupQuery.GetParameterStartupRuns.none"){
    var q=MessagePackSerializer.Deserialize<TomasAI.IFM.Domain.Reference.Shared.ParameterSets.GetParameterStartupRunsQuery>(payload,options);
    if(q.Subject.ToString()!=subject||q.Limit!=20||q.AfterRunId is not null||q.AfterCreatedAtUtc is not null)throw new InvalidDataException("Incorrect applied-default query");
@@ -46,17 +48,24 @@ internal static class OptionChainResponder {
   }
   if(subject=="Query.MarketDataQuery.GetDatabentoOptionChainRange.none") {
    var q=MessagePackSerializer.Deserialize<GetDatabentoOptionChainRangeQuery>(payload,options);
-   if(q.Subject.ToString()!=subject||q.EntityId.Format()!="none"||q.UnderlyingSymbol!="ES"||q.FromMaturityDate!=date||q.ThroughMaturityDate!=date.AddDays(mode=="ComposeCloseOptions"?2:4))throw new InvalidDataException("Option expiry request did not use canonical API dates/scope");
+   if(mode=="ComposeOptions") {
+    var next=new DateOnly(2027,3,19);
+    if(q.Subject.ToString()!=subject||q.EntityId.Format()!="none"||q.UnderlyingSymbol!="ES"||q.ThroughMaturityDate!=next||q.FromMaturityDate<date)throw new InvalidDataException("Option expiry range did not use the selected Trade Date and next futures cycle");
+    OptionContractExpiryReadModel Series(DateOnly expiry,string contract)=>new(){Symbol="ES",ContractId=contract,ExpiryDate=expiry,ProviderRoot="EW",RefreshedAtUtc=at.UtcDateTime};
+    return Result(new[]{Series(date.AddDays(2),"ESZ6"),Series(next,"ESH7"),Series(next,"ESM7"),Series(next.AddDays(1),"ESM7")});
+   }
+   if(q.Subject.ToString()!=subject||q.EntityId.Format()!="none"||q.UnderlyingSymbol!="ES"||q.FromMaturityDate!=date.AddDays(mode=="ComposeCloseOptions"?2:0)||q.ThroughMaturityDate!=date.AddDays(mode=="ComposeCloseOptions"?2:4))throw new InvalidDataException("Option expiry request did not use canonical API dates/scope");
    return Result(new[]{new OptionContractExpiryReadModel{Symbol=mode=="WrongExpirySymbol"?"VX":"ES",ContractId="ESZ6",ExpiryDate=date.AddDays(2),ProviderRoot="EW",RefreshedAtUtc=at.UtcDateTime},new OptionContractExpiryReadModel{Symbol="ES",ContractId="ESZ6",ExpiryDate=date.AddDays(-1),ProviderRoot="OLD",RefreshedAtUtc=at.UtcDateTime}});
   }
   if(subject!="Query.MarketDataQuery.GetEvaluatedOptionChain.none")throw new InvalidDataException("Invalid option-chain route");
   var query=MessagePackSerializer.Deserialize<GetEvaluatedOptionChainQuery>(payload,options);
-  if(query.Subject.ToString()!=subject||query.EntityId.Format()!="none"||query.UnderlyingContractId!="ESZ6"||query.UnderlyingSymbol!="ES"||query.ExpiryDate<date||!Guid.TryParseExact(query.SubscriptionOwnerId,"N",out _)||query.StandardDeviationMultiplier!=2.5)throw new InvalidDataException("Invalid evaluated-chain scope/defaults/owner");
+  if(query.Subject.ToString()!=subject||query.EntityId.Format()!="none"||query.UnderlyingContractId!="ESZ6"||query.UnderlyingSymbol!="ES"||query.ExpiryDate<date||!Guid.TryParseExact(query.SubscriptionOwnerId,"N",out _)||!query.ReleaseOnly&&query.StandardDeviationMultiplier!=(query.FrozenEmulatorPreviewOnly?2.5:3.0))throw new InvalidDataException("Invalid evaluated-chain scope/defaults/owner");
   if(query.ReleaseOnly) {
    if(query.RequiredContractIds.Length!=0||query.ProviderRoots.Length!=0||query.SpreadWingWidth!=0||query.AllowFrozenEmulatorPreview||query.FrozenEmulatorPreviewOnly)throw new InvalidDataException("Release request retained acquisition fields");
    if(mode=="ReleaseUnavailable")return Error();
    leases.Remove(query.SubscriptionOwnerId);return Result<EvaluatedOptionChainReadModel?>(null);
   }
+  reads++;
   if(mode is "ComposeOptions" or "ComposeCloseOptions"){
    if(query.SpreadWingWidth!=50||query.ProviderRoots is not ["EW"]||query.AllowFrozenEmulatorPreview!=query.FrozenEmulatorPreviewOnly)throw new InvalidDataException("Incorrect composed chain intent");
    if(offline&&!query.FrozenEmulatorPreviewOnly)throw new InvalidDataException("Offline test must request frozen emulator liquidity");
@@ -66,7 +75,7 @@ internal static class OptionChainResponder {
   leases.Add(query.SubscriptionOwnerId);
   if(mode=="Unavailable")return Error();
   if(mode=="LostReply")return null;
-  var row=new EvaluatedOptionContractReadModel("ES-C",6050,true,1.25m,1.5m,1,2,null,null,.2,1.4,.16,.01,.3,-.1,0,null,null,true,false,at,null,at);
+  var row=new EvaluatedOptionContractReadModel("ES-C",6050,true,1.25m,1.5m,1,2,null,null,.2,1.4,.16,.01,.3,-.1,0,null,null,true,false,at,null,at,CashMultiplier:50);
   return Result(new EvaluatedOptionChainReadModel(mode=="WrongContract"?"VXQ6":"ESZ6",query.ExpiryDate,6000,null,null,query.FrozenEmulatorPreviewOnly?"Frozen emulator preview fixture":"Live",at,mode=="Duplicate"?[row,row]:[row]));
  }
 }

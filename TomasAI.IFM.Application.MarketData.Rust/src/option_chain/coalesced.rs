@@ -251,7 +251,7 @@ impl Coalesced {
         if version.trim().is_empty() || version.len() > 1024 {
             return Err("Invalid refresh policy identity");
         }
-        if !(1..=2048).contains(&maximum)
+        if !(1..=crate::option_chain::MAX_LIVE_OPTIONS).contains(&maximum)
             || !(1..=64).contains(&batch)
             || !(10..=60000).contains(&iv_milliseconds)
         {
@@ -756,7 +756,7 @@ impl Coalesced {
     /// duplicate or stale batches change no entry. This is cold control work;
     /// tick ingress and numerical passes never allocate this validation set.
     pub fn set_risk_requirements(&self, updates: &[RiskRequirement]) -> Result<(), &'static str> {
-        if updates.is_empty() || updates.len() > 2048 {
+        if updates.is_empty() || updates.len() > crate::option_chain::MAX_LIVE_OPTIONS {
             return Err("Invalid complete risk requirement batch");
         }
         let mut state = self

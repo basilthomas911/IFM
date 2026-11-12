@@ -159,13 +159,22 @@ struct LiveChainRetry {
 impl LiveChainRetry {
     fn defer(&mut self, error: &str) -> Option<String> {
         const LIMIT: u8 = 3;
-        let temporary = error.starts_with("Backend request deadline expired")
-            || error == "Trade workspace deadline expired"
-            || error == "Backend error 1065: A task was canceled."
-            || error == "Backend error 503: No reply received"
-            || error.starts_with("Backend error 503: Native browser capture Recovering:")
+        let timed_out = matches!(error,
+            "Trade workspace deadline expired"
+            | "Backend error 1065: A task was canceled."
+            | "Backend error 503: A task was canceled."
+            | "Backend error 503: Live option quote request timed out after 30 seconds."
+            | "Backend error 503: No reply received")
+            || error.starts_with("Backend request deadline expired")
             || error.starts_with("Backend error 503: Native browser capture SnapshotTimeout:")
-            || error.starts_with("Backend error 503: Native browser capture DeadlineExpired:")
+            || error.starts_with("Backend error 503: Native browser capture DeadlineExpired:");
+        if timed_out {
+            self.attempts = 0;
+            self.status = "Live option quotes timed out. Waiting up to another 30 seconds.".into();
+            return Some(self.status.clone());
+        }
+
+        let temporary = error.starts_with("Backend error 503: Native browser capture Recovering:")
             || error.starts_with("Backend error 503: Native browser source is unavailable");
         if !temporary || self.attempts >= LIMIT {
             *self = Self::default();
@@ -185,15 +194,33 @@ mod live_chain_retry_tests {
     fn temporary_reads_retry_three_times_and_terminal_errors_surface() {
         let mut retry = LiveChainRetry::default();
         for error in [
-            "Backend error 1065: A task was canceled.",
             "Backend error 503: Native browser capture Recovering: GenerationId",
-            "Backend error 503: No reply received",
+            "Backend error 503: Native browser source is unavailable",
+            "Backend error 503: Native browser capture Recovering: GenerationId",
         ] {
             assert!(retry.defer(error).is_some());
         }
-        assert!(retry.defer("Trade workspace deadline expired").is_none());
+        assert!(retry.defer("Backend error 503: Native browser source is unavailable").is_none());
         assert!(retry.status.is_empty());
         assert!(retry.defer("Backend error 503: Native browser capture IncompleteChain: Snapshot").is_none());
+    }
+
+    #[test]
+    fn quote_deadlines_keep_waiting_past_the_other_recovery_retry_limit() {
+        let mut retry = LiveChainRetry::default();
+        for _ in 0..4 {
+            for error in [
+                "Backend error 503: Live option quote request timed out after 30 seconds.",
+                "Backend error 503: A task was canceled.",
+                "Backend error 1065: A task was canceled.",
+                "Backend error 503: No reply received",
+                "Backend error 503: Native browser capture DeadlineExpired: Snapshot",
+                "Trade workspace deadline expired",
+            ] {
+                assert_eq!(retry.defer(error).as_deref(), Some("Live option quotes timed out. Waiting up to another 30 seconds."));
+            }
+        }
+        assert!(retry.defer("Backend error 503: Native browser capture ConflictingDefinition: Snapshot").is_none());
     }
 }
 
@@ -293,18 +320,6 @@ impl Composer {
             .filter(|v| *v > 0)
             .ok_or("Invalid selected trade")?;
         let future = self.market.strategy == "FuturesOutright";
-        let requested = crate::backend::date_input::parse(
-            self.trade
-                .cell("RequestedTradeDate")
-                .as_str()
-                .ok_or("Missing requested trade date")?,
-        )?;
-        let through = crate::backend::date_input::parse(
-            self.trade
-                .cell("RequestedMaturityDate")
-                .as_str()
-                .unwrap_or(&requested.to_string()),
-        )?;
         if let Some(primary) = &self.opening {
             let strategy = if future {
                 "FuturesOutright"
@@ -375,9 +390,6 @@ impl Composer {
                     .initialize(
                         backend,
                         registry,
-                        context,
-                        self.market.fixed_expiry.unwrap_or(requested),
-                        self.market.fixed_expiry.unwrap_or(through),
                         deadline,
                     )
                     .await
@@ -597,7 +609,7 @@ impl Composer {
             .into_iter()
             .max()
         {
-            self.market.expiry = expiry;
+            self.market.expiry = Some(expiry);
         }
         self.quantity = if quantity == i32::MAX {
             1
@@ -620,11 +632,16 @@ impl Composer {
         context: &BusinessContext,
         deadline: tokio::time::Instant,
     ) -> Result<(), String> {
+        if self.market.expiry.is_none() {
+            self.totals = None;
+            return Ok(());
+        }
         if self.market.live {
             self.market.draft.expire_live_quotes(context.as_of_utc);
         }
         let selected = &self.market.draft.legs;
-        let legs = if selected.len() == self.required_legs() {
+        let legs = if selected.len() == self.required_legs()
+            && selected.iter().all(|leg| leg.quote.is_future || leg.quote.multiplier.is_some()) {
             selected.iter().map(|leg| leg.quote.clone()).collect::<Vec<_>>()
         } else {
             Vec::new()
@@ -719,6 +736,14 @@ impl Composer {
             );
         }
         match intent["intent"].as_str().ok_or("Missing Blotter action")? {
+            "trade-date" => {
+                let date = crate::backend::date_input::parse(field(intent, "tradeDate"))?;
+                self.market.change_trade_date(backend, registry, date, deadline).await?;
+                if self.market.expiry.is_none() {
+                    self.totals = None;
+                }
+                return Ok("Trade Date updated".into());
+            }
             "refresh-chain" => {
                 if self.market.live && self.market.strategy != "FuturesOutright" {
                     self.market.refresh(backend, registry, deadline).await?;
@@ -748,7 +773,6 @@ impl Composer {
                     .defaults
                     .as_ref()
                     .ok_or("Applied startup defaults are unavailable")?;
-                let multiplier = exact_cell(self.market.underlying.cell("Multiplier"))?;
                 self.market.draft.select(
                     field(intent, "contractId"),
                     field(intent, "role"),
@@ -758,7 +782,6 @@ impl Composer {
                         put_delta: &d.put_delta,
                         call_width: &d.call_width,
                         put_width: &d.put_width,
-                        multiplier: &multiplier,
                         live: self.market.live,
                         development: self.market.development,
                         editable: self.market.editable,
@@ -781,7 +804,7 @@ impl Composer {
                 self.market
                     .select_source(
                         backend, registry, live,
-                        self.trade.cell("TradeState").text() != "NewTrade", deadline,
+                        deadline,
                     )
                     .await?;
                 // Chain browsing remains available without configured order
@@ -794,7 +817,6 @@ impl Composer {
             "chain" => {
                 let number =
                     |key: &str| entered(field(intent, key)).ok_or(format!("Invalid {key}"));
-                let expiry = crate::backend::date_input::parse(field(intent, "expiry"))?;
                 let defaults = Defaults {
                     call_delta: number("callDelta")?,
                     put_delta: number("putDelta")?,
@@ -802,18 +824,27 @@ impl Composer {
                     put_width: number("putWidth")?,
                 };
                 self.totals = None;
+                let previous_underlying = self.market.underlying.contract_id.clone();
                 self.market
                     .change(
                         backend,
                         registry,
                         context,
-                        expiry,
+                        field(intent, "expiry"),
                         field(intent, "live") == "true",
                         defaults,
-                        self.trade.cell("TradeState").text() != "NewTrade",
                         deadline,
                     )
                     .await?;
+                if self.market.underlying.contract_id != previous_underlying {
+                    let contract = self.market.underlying.contract_id.as_deref()
+                        .ok_or("Missing underlying identity")?;
+                    let trade_id = self.trade.trade_id.ok_or("Missing trade identity")?;
+                    self.initialization = Some(broker_initialization::load(
+                        backend, registry, context, self.scope, trade_id, contract, false,
+                        &self.execution.account_alias, deadline,
+                    ).await?);
+                }
             }
             "preview-draft" => {
                 let quantity = field(intent, "quantity")
@@ -1067,20 +1098,7 @@ impl Composer {
                 &self.report_document(),
             )?);
         }
-        result.choices.insert(
-            "expiry".into(),
-            self.market
-                .expirations
-                .iter()
-                .filter_map(|e| {
-                    e.expiry_date
-                        .as_ref()
-                        .map(|value| value.as_str().to_string())
-                })
-                .collect::<std::collections::BTreeSet<_>>()
-                .into_iter()
-                .collect(),
-        );
+        result.choices.insert("expiry".into(), self.market.expiry_choices().into_keys().collect());
         let defaults = self.market.defaults.as_ref();
         let loaded = defaults.is_some()
             || self.market.strategy == "FuturesOutright"
@@ -1097,6 +1115,7 @@ impl Composer {
             && self.market.draft.legs.iter().all(|l| {
                 l.quote.is_future
                     || l.quote.side != 0 && l.quote.bid.is_some() && l.quote.ask.is_some()
+                        && l.quote.multiplier.is_some()
             });
         for (key, value) in [
             ("composerSessionId", self.session.clone()),
@@ -1111,13 +1130,20 @@ impl Composer {
                         && self.preparation.is_none(),
                 ),
             ),
-            ("expiry", self.market.expiry.to_string()),
+            ("expiry", self.market.expiry_label()),
+            ("tradeDate", self.market.trade_date.to_string()),
+            ("canEditTradeDate", flag(self.market.editable && self.preparation.is_none()
+                && self.accepted_orders.is_empty() && !self.submission_unknown)),
             ("compositionType", self.market.strategy.clone()),
             ("brokerMode", self.execution.environment.clone()),
             (
                 "composerStatus",
                 if !self.live_chain_retry.status.is_empty() {
                     self.live_chain_retry.status.clone()
+                } else if self.market.draft.legs.iter()
+                    .any(|leg| !leg.quote.is_future && leg.quote.multiplier.is_none())
+                {
+                    "Option contract cash multiplier is unavailable".into()
                 } else if self.status.is_empty() {
                     self.market.status.clone()
                 } else {
@@ -1195,7 +1221,11 @@ impl Composer {
             ("symbol", self.market.underlying.cell("Symbol").text()),
             (
                 "multiplier",
-                self.market.underlying.cell("Multiplier").text(),
+                if self.market.strategy == "FuturesOutright" {
+                    self.market.underlying.cell("Multiplier").text()
+                } else {
+                    crate::services::broker_market_metrics::option_multiplier(self.market.draft.raw.as_deref()).unwrap_or_default()
+                },
             ),
             ("venue", self.market.underlying.cell("Exchange").text()),
             ("valueDate", context.value_date.to_string()),
@@ -1323,6 +1353,7 @@ impl Composer {
         let price = entered(field(intent, "price")).ok_or("Enter an explicit order price")?;
         let draft = crate::services::order_preparation::Draft {
             scope: self.scope,
+            draft_revision: self.trade.draft_revision.unwrap_or_default(),
             trade: self
                 .trade
                 .cell("TradeId")
@@ -1338,7 +1369,7 @@ impl Composer {
                 "VerticalSpread"
             }
             .into(),
-            expiry: self.market.expiry,
+            expiry: self.market.expiry.ok_or("Select an expiry before preparing the order")?,
             quantity: self.quantity,
             price,
             legs,

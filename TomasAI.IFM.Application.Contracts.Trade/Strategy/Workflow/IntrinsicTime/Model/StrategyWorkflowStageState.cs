@@ -77,4 +77,8 @@ public sealed record StrategyWorkflowStageState
     /// <summary>Gets the accepted terminal pipeline notification identity for idempotency.</summary>
     [Key(15)]
     public Guid SourceEventId { get; init; }
+
+    /// <summary>Gets the short user-facing reason recorded with this stage transition.</summary>
+    [Key(16)]
+    public string? ReasonSentence { get; init; }
 }

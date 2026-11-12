@@ -5,6 +5,18 @@ namespace TomasAI.IFM.Domain.MarketData.UnitTests;
 
 public sealed class FrozenEmulatorOptionChainTests
 {
+    [Theory]
+    [InlineData("1", 50, 50)]
+    [InlineData("50", null, 50)]
+    [InlineData("50", 0, null)]
+    [InlineData("invalid", null, null)]
+    public void Frozen_preview_publishes_the_exact_option_multiplier(
+        string legacy, int? reviewed, int? expected)
+    {
+        var at = new DateTimeOffset(2026, 10, 2, 23, 0, 0, TimeSpan.Zero);
+        var definition = Contract("C", at.AddDays(7)) with { Multiplier = legacy, MultiplierValue = reviewed };
+        Assert.Equal((decimal?)expected, FrozenEmulatorOptionChain.Evaluate(definition, null, 5000m, 50m, at).CashMultiplier);
+    }
     [Fact]
     public void Frozen_preview_calculates_opposing_deltas_and_marks_quotes_stale()
     {

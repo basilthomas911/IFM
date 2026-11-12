@@ -225,6 +225,61 @@ public sealed class PortfolioFundCompositionAggregate
         var order = RequireManualOrder(request.PortfolioId, request.FundId, request.OrderId, request.ExpectedOrderVersion);
         return AddManualTradeCore(order, request, principal.Trim());
     }
+    /// <summary>Edits the terms of an unsubmitted manual trade without allocating a new identity.</summary>
+    public FundCompositionReservationResult ChangeManualTrade(ChangeManualFundOrderTradeRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var order = RequireManualOrder(request.PortfolioId, request.FundId, request.OrderId, request.ExpectedOrderVersion);
+        var trades = _trades[order.OrderId];
+        var trade = trades.SingleOrDefault(x => x.TradeId == request.TradeId)
+            ?? throw new KeyNotFoundException($"FundOrderTrade {request.TradeId} was not found.");
+        if (trade.AggregateVersion != request.ExpectedTradeVersion)
+            throw new InvalidOperationException("The trade changed while the editor was open.");
+        if (trade.TradeState != nameof(TradeState.NewTrade) || trade.ExecutionAttemptId != Guid.Empty ||
+            trade.ExecutionOrderId != 0 || trade.ExecutionTradeId != 0 || trade.TradeDate is not null)
+            throw new InvalidOperationException("Only a new trade without execution evidence can be changed.");
+        if (string.IsNullOrWhiteSpace(request.Reference) || request.Reference.Length > 2048)
+            throw new ArgumentException("Enter a trade reference of at most 2048 characters.", nameof(request));
+        if (request.TradeType is not (nameof(TradeType.ShortIronCondor) or nameof(TradeType.LongIronCondor) or
+            nameof(TradeType.PutCreditSpread) or nameof(TradeType.PutDebitSpread) or
+            nameof(TradeType.CallCreditSpread) or nameof(TradeType.CallDebitSpread) or nameof(TradeType.FuturesOutright)))
+            throw new ArgumentException("Select a supported trade type.", nameof(request));
+
+        var others = trades.Where(x => x.TradeId != trade.TradeId).ToArray();
+        var proposed = new AddManualFundOrderTradeRequest
+        {
+            TradeId = trade.TradeId, TradeType = request.TradeType, TradeState = trade.TradeState,
+            TradeAction = trade.TradeAction, PrimaryTrade = trade.PrimaryTrade, EffectiveDate = request.EffectiveDate,
+            MaturityDate = trade.RequestedMaturityDate, BaseContractId = request.BaseContractId,
+            BaseContractSymbol = request.BaseContractSymbol,
+        };
+        if (!trade.PrimaryTrade && others is [{ PrimaryTrade: true } opening])
+        {
+            var maturity = opening.MaturityDate ?? opening.RequestedMaturityDate;
+            if (proposed.MaturityDate != maturity || request.BaseContractId != trade.BaseContractId ||
+                request.TradeType != trade.TradeType)
+                throw new InvalidOperationException("The closing draft must retain the opening trade's contract, type and maturity.");
+        }
+        ValidateManualTrade(proposed);
+        ValidateManualTradeAddition(others, proposed);
+        var nextVersion = checked(order.AggregateVersion + 1);
+        var changed = trade with
+        {
+            AggregateVersion = nextVersion, DraftRevision = nextVersion,
+            TradeType = request.TradeType, TradeFamily = request.TradeType,
+            TradeAction = trade.PrimaryTrade && request.TradeType != trade.TradeType
+                ? request.TradeType is nameof(TradeType.ShortIronCondor) or nameof(TradeType.PutCreditSpread)
+                    or nameof(TradeType.CallCreditSpread) ? nameof(TradeAction.Sell) : nameof(TradeAction.Buy)
+                : trade.TradeAction,
+            EffectiveDate = request.EffectiveDate, TradeReference = request.Reference.Trim(),
+            BaseContractId = request.BaseContractId, BaseContractSymbol = request.BaseContractSymbol,
+            UnderlyingRoot = request.BaseContractSymbol,
+            InstructionReference = FundOrderTradeReference.Create(request.BaseContractId, request.EffectiveDate, trade.RequestedMaturityDate),
+        };
+        return SaveReservation(order with { AggregateVersion = nextVersion },
+            trades.Select(x => x.TradeId == changed.TradeId ? changed : x).ToArray());
+    }
+
     /// <summary>Removes an economically inactive trade from an open manual Portfolio Fund order.</summary>
     /// <param name="request">The scoped trade-removal request.</param>
     /// <returns>The updated canonical order composition.</returns>
@@ -309,6 +364,9 @@ public sealed class PortfolioFundCompositionAggregate
         // A workflow-generated closing order inherits the opening setup reference.
         var trade = evidence.ClosingExecution && reference.PrimaryTrade
             ? trades.SingleOrDefault(x => !x.PrimaryTrade) ?? reference : reference;
+        if (trade.DraftRevision != 0 && trade.ExecutionAttemptId != evidence.ExecutionAttemptId &&
+            (trade.TradeId != reference.TradeId || trade.DraftRevision != evidence.SetupTrade.DraftRevision))
+            throw new InvalidOperationException("The execution was prepared from an older draft. Reload and prepare the order again.");
         if (opening && (evidence.ClosingExecution || !trade.PrimaryTrade || evidence.TradeDate is null))
             throw new InvalidOperationException("Opening establishment requires a primary setup and actual trade date.");
         if (closing && !evidence.ClosingExecution)

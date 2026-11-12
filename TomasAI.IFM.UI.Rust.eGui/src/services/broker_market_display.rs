@@ -91,7 +91,7 @@ pub fn last_known_leg(
     saved: Option<&FuturesOptionTickDataV2ReadModel>,
 ) -> Result<LegDisplay, String> {
     let mut display = leg(selected)?;
-    if selected.quote.is_future || selected.quote.bid.is_some() && selected.quote.ask.is_some() {
+    if selected.quote.is_future || selected.frozen {
         return Ok(display);
     }
     let chain = chain.and_then(|row| {
@@ -106,10 +106,12 @@ pub fn last_known_leg(
             row.observed_at_utc.as_ref()?,
         ))
     });
-    let quote = chain.into_iter().chain(saved).max_by_key(|(_, _, at)| {
-        chrono::DateTime::parse_from_rfc3339(at.as_str()).ok()
-    });
-    if let Some((bid, ask, at)) = quote {
+    let received = |at: &OffsetText| chrono::DateTime::parse_from_rfc3339(at.as_str()).ok();
+    let quote = chain.into_iter().chain(saved).max_by_key(|(_, _, at)| received(at));
+    if let Some((bid, ask, at)) = quote
+        && (display.bid.is_none() || display.ask.is_none()
+            || received(at) > selected.quote_at.as_ref().and_then(received))
+    {
         display.bid = Some(bid);
         display.ask = Some(ask);
         display.quote_at_utc = stamp(Some(at))?;

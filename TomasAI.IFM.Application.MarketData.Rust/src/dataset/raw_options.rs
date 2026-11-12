@@ -21,7 +21,7 @@ impl Plan {
     /// # Errors
     /// Missing review evidence, wrong dataset or conflicting/excessive bindings.
     pub fn from_models(models: &[OptionContract]) -> Result<Self, String> {
-        if models.is_empty() || models.len() > 2048 {
+        if models.is_empty() || models.len() > crate::option_chain::MAX_LIVE_OPTIONS {
             return Err("Invalid native option model capacity".into());
         }
         let mut registrations = BTreeMap::new();
@@ -65,7 +65,7 @@ impl Plan {
                 }
             }
         }
-        if registrations.len() > 2112 {
+        if registrations.len() > crate::option_chain::MAX_OPTION_REGISTRATIONS {
             return Err("Native option dependency capacity exceeded".into());
         }
         let symbols = registrations.keys().map(u32::to_string).collect::<Vec<_>>();

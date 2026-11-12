@@ -471,7 +471,7 @@ impl LogicalStatistics {
         date: time::Date,
         desired: std::collections::BTreeMap<u32, (u16, String)>,
     ) -> Result<crate::option_chain::statistics::Bank, String> {
-        if desired.len() > 2048 {
+        if desired.len() > crate::option_chain::MAX_LIVE_OPTIONS {
             return Err("Native logical statistics capacity exceeded".into());
         }
         if self.date != Some(date) {
@@ -534,8 +534,8 @@ impl Factory for OptionsFactory {
     ) -> Result<Box<dyn Resources>, String> {
         if intent.source.plan.lane != Lane::OptionsGlbx
             || intent.revision <= 0
-            || intent.source.registrations.len() > 2112
-            || intent.monitored.len() > 2048
+            || intent.source.registrations.len() > crate::option_chain::MAX_OPTION_REGISTRATIONS
+            || intent.monitored.len() > crate::option_chain::MAX_LIVE_OPTIONS
             || intent.caches.len() > 64
         {
             return Err("Invalid native options desired configuration".into());
@@ -960,7 +960,7 @@ impl Run {
         let mut data = LiveData::new(
             intent.date,
             u128::from_le_bytes(self.generation),
-            2112,
+            crate::option_chain::MAX_OPTION_REGISTRATIONS,
             self.clock.clone(),
             self.parent.owner().clone(),
         )
@@ -1663,7 +1663,8 @@ mod logical_statistics_tests {
         let date = time::Date::from_calendar_date(2026, time::Month::October, 27).unwrap();
         let mut logical = LogicalStatistics::default();
         logical.retain(date, identity(3, "put")).unwrap();
-        let invalid = (1..=2049)
+        let over_capacity = u32::try_from(crate::option_chain::MAX_LIVE_OPTIONS + 1).unwrap();
+        let invalid = (1..=over_capacity)
             .map(|id| (id, (3, format!("option-{id}"))))
             .collect();
         assert!(logical.retain(date, invalid).is_err());

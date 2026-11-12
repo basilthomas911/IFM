@@ -23,8 +23,55 @@ fn order_price_tracks_mid_until_deliberately_overridden() {
 
 /// Provides chain for the option draft implementation.
 fn chain() -> Json {
-    let row = |id: &str, strike: &str, call: bool, delta: f64| json!({"ContractId":id,"Strike":strike,"IsCall":call,"Delta":delta,"Vega":0.3,"IsStale":false,"GreeksValid":true,"SelectionValid":false,"Bid":"1.25","Ask":"1.5","QuoteAtUtc":"2026-10-26T12:30:00Z"});
+    let row = |id: &str, strike: &str, call: bool, delta: f64| json!({"ContractId":id,"Strike":strike,"IsCall":call,"Delta":delta,"Vega":0.3,"IsStale":false,"GreeksValid":true,"SelectionValid":false,"CashMultiplier":"50","Bid":"1.25","Ask":"1.5","QuoteAtUtc":"2026-10-26T12:30:00Z"});
     json!({"UnderlyingContractId":"ESZ6","ExpiryDate":"2026-10-28","UnderlyingPrice":"6000","WindowMethod":"Live","Contracts":[row("C-HIGH","6100",true,0.10),row("C-LOW","6050",true,0.16),row("P-HIGH","5950",false,-0.16),row("P-LOW","5900",false,-0.10)]})
+}
+
+#[test]
+fn live_display_replaces_quotes_only_with_complete_non_older_books() {
+    use ifm_ui_egui::services::option_chain::merge_display;
+    let original = chain();
+    let previous = serde_json::from_value(original.clone()).unwrap();
+    let mut update = original;
+    update["Contracts"][0]["Bid"] = Json::Null;
+    update["Contracts"][1]["QuoteAtUtc"] = "2026-10-26T12:29:59Z".into();
+    update["Contracts"][1]["Bid"] = "0.50".into();
+    update["Contracts"][2]["QuoteAtUtc"] = "2026-10-26T12:30:01Z".into();
+    update["Contracts"][2]["Bid"] = "1.30".into();
+    let next = serde_json::from_value(update).unwrap();
+    let merged = merge_display(Some(&previous), &next).unwrap();
+    let contracts = merged.contracts.unwrap();
+    for id in ["C-HIGH", "C-LOW"] {
+        let row = contracts.iter().find(|row| row.contract_id.as_deref() == Some(id)).unwrap();
+        assert_eq!(row.bid.as_ref().unwrap().as_str(), "1.25");
+        assert_eq!(row.ask.as_ref().unwrap().as_str(), "1.5");
+        assert_eq!(row.is_stale, Some(true));
+    }
+    let row = contracts.iter().find(|row| row.contract_id.as_deref() == Some("P-HIGH")).unwrap();
+    assert_eq!(row.bid.as_ref().unwrap().as_str(), "1.30");
+}
+
+#[test]
+fn option_legs_use_their_own_cash_multiplier_on_selection_and_refresh() {
+    let delta = ExactDecimal::parse("16").unwrap();
+    let width = ExactDecimal::parse("50").unwrap();
+    let settings = Settings {
+        strategy: "ShortIronCondor", call_delta: &delta, put_delta: &delta,
+        call_width: &width, put_width: &width, live: true, development: true, editable: true,
+    };
+    let mut data = chain();
+    data["Contracts"][0]["CashMultiplier"] = "25".into();
+    let mut draft = Draft::default();
+    draft.accept(serde_json::from_value(data.clone()).unwrap(), &settings).unwrap();
+    assert_eq!(draft.legs.len(), 4);
+    assert_eq!(draft.legs.iter().find(|leg| leg.quote.contract == "C-HIGH")
+        .unwrap().quote.multiplier.as_ref().unwrap().as_str(), "25");
+    draft.manual = true;
+    data["Contracts"][0]["CashMultiplier"] = Json::Null;
+    draft.accept(serde_json::from_value(data).unwrap(), &settings).unwrap();
+    let leg = draft.legs.iter().find(|leg| leg.quote.contract == "C-HIGH").unwrap();
+    assert!(leg.quote.bid.is_some());
+    assert!(leg.quote.multiplier.is_none());
 }
 
 
@@ -41,7 +88,7 @@ fn frozen_closing_legs_retain_prices_without_weakening_live_freshness() {
     ] {
         let mut settings = Settings {
             strategy: "ShortIronCondor", call_delta: &delta, put_delta: &delta,
-            call_width: &width, put_width: &width, multiplier: &width,
+            call_width: &width, put_width: &width,
             live: true, development: true, editable: true,
         };
         let mut draft = Draft::default();
@@ -87,7 +134,7 @@ fn saved_legs_keep_display_quotes_without_reusing_them_for_order_price() {
         put_delta: &delta,
         call_width: &width,
         put_width: &width,
-        multiplier: &width,
+
         live: true,
         development: false,
         editable: true,
@@ -126,6 +173,16 @@ fn saved_legs_keep_display_quotes_without_reusing_them_for_order_price() {
     assert_eq!(reopened.ask.as_ref().unwrap().as_str(), "3.5");
     assert_eq!(reopened.stale, Some(true));
     assert!(draft.legs[0].quote.bid.is_none());
+    let mut older = chain();
+    older["Contracts"][1]["QuoteAtUtc"] = json!("2026-10-26T12:29:59Z");
+    draft.accept(serde_json::from_value(older).unwrap(), &settings).unwrap();
+    let short_call = draft.legs.iter().find(|leg| leg.quote.contract == "C-LOW").unwrap();
+    let rows = draft.display.as_ref().unwrap().contracts.as_ref().unwrap();
+    let displayed = last_known_leg(short_call, rows.iter().find(|row|
+        row.contract_id.as_deref() == Some(&short_call.quote.contract)), None).unwrap();
+    assert_eq!(displayed.bid.as_ref().unwrap().as_str(), "2.25");
+    assert_eq!(displayed.ask.as_ref().unwrap().as_str(), "2.50");
+    assert_eq!(displayed.stale, Some(true));
     draft.accept(serde_json::from_value(chain()).unwrap(), &settings).unwrap();
     assert!(draft.legs.iter().all(|leg| leg.quote.bid.is_some() && leg.quote.ask.is_some()));
     draft.expire_live_quotes("2026-10-26T12:30:05Z".parse().unwrap());
@@ -141,7 +198,7 @@ fn all_manual_roles_match_unchanged_managed_normalizer() {
     let cases: Json = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
     let delta = ExactDecimal::parse("16").unwrap();
     let width = ExactDecimal::parse("50").unwrap();
-    let multiplier = ExactDecimal::parse("50").unwrap();
+
     for case in cases.as_array().unwrap() {
         let settings = Settings {
             strategy: case["strategy"].as_str().unwrap(),
@@ -149,7 +206,7 @@ fn all_manual_roles_match_unchanged_managed_normalizer() {
             put_delta: &delta,
             call_width: &width,
             put_width: &width,
-            multiplier: &multiplier,
+
             live: true,
             development: false,
             editable: true,
@@ -184,14 +241,14 @@ fn all_manual_roles_match_unchanged_managed_normalizer() {
 fn automatic_selection_keeps_price_for_same_identity_and_preserves_raw_authority() {
     let delta = ExactDecimal::parse("16").unwrap();
     let width = ExactDecimal::parse("50").unwrap();
-    let multiplier = ExactDecimal::parse("50").unwrap();
+
     let settings = Settings {
         strategy: "ShortIronCondor",
         call_delta: &delta,
         put_delta: &delta,
         call_width: &width,
         put_width: &width,
-        multiplier: &multiplier,
+
         live: true,
         development: false,
         editable: true,
@@ -210,8 +267,7 @@ fn automatic_selection_keeps_price_for_same_identity_and_preserves_raw_authority
     d.accept(serde_json::from_value(update).unwrap(), &settings)
         .unwrap();
     assert_eq!(d.entered_price.as_ref().unwrap().as_str(), "-3.25");
-    // Raw missing contracts are not restored from the display cache or selected
-    // simply because a previously displayed quote remains visible.
+    // A quiet strike stays selected and visible while its executable quote is invalidated.
     let mut missing = chain();
     missing["Contracts"]
         .as_array_mut()
@@ -219,8 +275,10 @@ fn automatic_selection_keeps_price_for_same_identity_and_preserves_raw_authority
         .retain(|r| r["ContractId"] != "C-HIGH");
     d.accept(serde_json::from_value(missing).unwrap(), &settings)
         .unwrap();
-    assert_eq!(d.legs.len(), 2);
-    assert!(d.entered_price.is_none());
+    assert_eq!(d.legs.len(), 4);
+    assert_eq!(d.entered_price.as_ref().unwrap().as_str(), "-3.25");
+    let wing = d.legs.iter().find(|leg| leg.quote.contract == "C-HIGH").unwrap();
+    assert!(wing.quote.bid.is_none() && wing.quote.ask.is_none());
     assert_eq!(d.raw.as_ref().unwrap().contracts.as_ref().unwrap().len(), 3);
     assert_eq!(
         d.display
@@ -286,14 +344,14 @@ fn emulator_and_live_select_the_same_four_condor_legs_from_delta_and_width() {
                 defaults.call_width = ExactDecimal::parse(width_text).unwrap();
                 defaults.put_width = ExactDecimal::parse(width_text).unwrap();
             }
-            let multiplier = ExactDecimal::parse("50").unwrap();
+
             let settings = Settings {
                 strategy,
                 call_delta: &defaults.call_delta,
                 put_delta: &defaults.put_delta,
                 call_width: &defaults.call_width,
                 put_width: &defaults.put_width,
-                multiplier: &multiplier,
+
                 live,
                 development: true,
                 editable: true,

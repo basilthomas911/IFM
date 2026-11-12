@@ -41,7 +41,7 @@ impl Ingress {
         if !(1..=9999).contains(&date.year())
             || generation == [0; 16]
             || registrations.is_empty()
-            || registrations.len() > 2112
+            || registrations.len() > crate::option_chain::MAX_OPTION_REGISTRATIONS
         {
             return Err("Invalid native option ingress identity");
         }

@@ -1215,18 +1215,10 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
         _dailyStandardDeviationValue.AccessibleDescription = $"EMA20 Bollinger estimate, futures points, as of {chain.BollingerAsOfUtc:O}";
         SetTextIfChanged(_ivRankValue, chain.IvRank?.ToString("0.0") ?? (chain.IvRankStatus.StartsWith("InsufficientHistory", StringComparison.Ordinal) ? "History needed" : "N/A"));
         _ivRankValue.AccessibleDescription = chain.IvRankStatus;
-        if (chain.LastUnderlyingPrice is { } underlyingPrice)
-        {
-            SetTextIfChanged(_lastPriceValue, underlyingPrice.ToString("0.00"));
-            SetTextIfChanged(_changeValue, chain.PreviousSessionClose is > 0
-                ? $"{underlyingPrice - chain.PreviousSessionClose.Value:+0.00;-0.00;0.00} ({(underlyingPrice / chain.PreviousSessionClose.Value - 1):+0.00%;-0.00%;0.00%})" : "N/A");
-            _changeValue.AccessibleDescription = "Underlying futures points and percent versus previous completed session close";
-        }
-        else
-        {
-            SetTextIfChanged(_lastPriceValue, "N/A");
-            SetTextIfChanged(_changeValue, "N/A");
-        }
+        SetTextIfChanged(_lastPriceValue, chain.LastUnderlyingPrice?.ToString("0.00") ?? "N/A");
+        SetTextIfChanged(_changeValue, chain.DailyPriceChange is { } points && chain.DailyPriceChangeFraction is { } fraction
+            ? $"{points:+0.00;-0.00;0.00} ({fraction:+0.00%;-0.00%;0.00%})" : "N/A");
+        _changeValue.AccessibleDescription = "Underlying futures points and percent since the current session open";
         _lastPriceValue.AccessibleDescription = $"Latest underlying trade, as of {chain.LastUnderlyingTradeAtUtc:O}";
         var representativeIv = RepresentativeImpliedVolatility(chain);
         if (representativeIv is not null)

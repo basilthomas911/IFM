@@ -193,7 +193,7 @@ pub struct Options {
 impl Options {
     /// Starts the in-memory supervisor, consuming one of three logical dataset
     /// slots. No provider connection is opened until install. At most 64 scopes
-    /// and 2048 option registrations plus at most 64 underlying dependencies
+    /// and 4096 option registrations plus at most 64 underlying dependencies
     /// are admitted. Dependency slots do not consume the advertised option limit.
     pub fn new(
         date: time::Date,
@@ -676,11 +676,11 @@ impl Options {
         if configuration.digest.len() != 64
             || !configuration.digest.bytes().all(|b| b.is_ascii_hexdigit())
             || configuration.options.is_empty()
-            || configuration.options.len() > 2048
+            || configuration.options.len() > crate::option_chain::MAX_LIVE_OPTIONS
             || !(10..=5000).contains(&configuration.selection_ms)
             || !(10..=60000).contains(&configuration.risk_ms)
             || configuration.iv_ms < configuration.selection_ms
-            || configuration.statistics.len() > 2048
+            || configuration.statistics.len() > crate::option_chain::MAX_LIVE_OPTIONS
         {
             return Err("Invalid qualified pricing configuration".into());
         }
@@ -773,7 +773,7 @@ impl Options {
             .validate()
             .map_err(|error| format!("Invalid options physical plan: {error:?}"))?;
         if request.registrations.is_empty()
-            || request.registrations.len() > 2112
+            || request.registrations.len() > crate::option_chain::MAX_OPTION_REGISTRATIONS
             || request.key.len() != 32
             || !request.key.is_ascii()
         {
@@ -984,7 +984,7 @@ impl Options {
                 let data = LiveData::scoped(
                     date,
                     instance,
-                    2112,
+                    crate::option_chain::MAX_OPTION_REGISTRATIONS,
                     clock.clone(),
                     root.clone(),
                     &id,
@@ -1010,7 +1010,7 @@ impl Options {
                         .map_err(|_| "Options scope registry interrupted")?;
                     if state.scopes.len() >= 64
                         || members == 0
-                        || members > 2112
+                        || members > crate::option_chain::MAX_OPTION_REGISTRATIONS
                         || state
                             .scopes
                             .values()
@@ -1025,14 +1025,14 @@ impl Options {
                             .map(|scope| scope.option_members)
                             .sum::<usize>()
                             + option_members
-                            > 2048
+                            > crate::option_chain::MAX_LIVE_OPTIONS
                         || state
                             .scopes
                             .values()
                             .map(|scope| scope.members)
                             .sum::<usize>()
                             + members
-                            > 2112
+                            > crate::option_chain::MAX_OPTION_REGISTRATIONS
                     {
                         return Err("Options physical scope capacity exhausted".into());
                     }

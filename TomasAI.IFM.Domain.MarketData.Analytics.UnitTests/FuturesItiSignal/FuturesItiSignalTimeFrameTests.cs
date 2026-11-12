@@ -63,10 +63,10 @@ public sealed class FuturesItiSignalTimeFrameTests
     {
         var current = Signal(TimeFrameType.Daily, Tuesday, Tuesday, groupId: 2) with
         {
-            IntrinsicTimeTrend = IntrinsicTimeTrendType.UpTrend,
-            DownTrendTrigger = 4_900,
-            TrendExtreme = 5_010,
-            TrendReversal = 4_990,
+            IntrinsicTimeTrend = IntrinsicTimeTrendType.DownTrend,
+            UpTrendTrigger = 5_100,
+            TrendExtreme = 4_990,
+            TrendReversal = 5_010,
             BandAnchorPrice = 5_000,
             BandSize = 2
         };
@@ -74,20 +74,20 @@ public sealed class FuturesItiSignalTimeFrameTests
         FuturesItiSignalCompute.TryCompute(Command(TimeFrameType.Daily, 5_001.99), current, out _)
             .Should().BeFalse();
 
-        FuturesItiSignalCompute.TryCompute(Command(TimeFrameType.Daily, 5_012), current, out var extreme)
+        FuturesItiSignalCompute.TryCompute(Command(TimeFrameType.Daily, 4_988), current, out var extreme)
             .Should().BeTrue();
         extreme.IntrinsicTimeMode.Should().Be(IntrinsicTimeModeType.TrendOvershootExtended);
         extreme.IntrinsicTimeGroupId.Should().Be(2);
 
-        FuturesItiSignalCompute.TryCompute(Command(TimeFrameType.Daily, 4_988), current, out var reversal)
+        FuturesItiSignalCompute.TryCompute(Command(TimeFrameType.Daily, 5_012), current, out var reversal)
             .Should().BeTrue();
         reversal.IntrinsicTimeMode.Should().Be(IntrinsicTimeModeType.TrendReversalChanged);
         reversal.IntrinsicTimeGroupId.Should().Be(2);
 
         var rangeCurrent = current with
         {
-            TrendExtreme = 5_100,
-            TrendReversal = 4_900
+            TrendExtreme = 4_900,
+            TrendReversal = 5_100
         };
         FuturesItiSignalCompute.TryCompute(Command(TimeFrameType.Daily, 5_002), rangeCurrent, out var trending)
             .Should().BeTrue();
@@ -96,45 +96,71 @@ public sealed class FuturesItiSignalTimeFrameTests
     }
 
     [Theory]
-    [InlineData(IntrinsicTimeTrendType.UpTrend, 5_002, 0.85)]
-    [InlineData(IntrinsicTimeTrendType.DownTrend, 4_998, 1.15)]
-    public void Evaluator_AppliesDirectionalFactorToThresholdTriggersAndBands(
-        IntrinsicTimeTrendType trend, double price, double factor)
+    [InlineData(TimeFrameType.Daily, 1)]
+    [InlineData(TimeFrameType.Weekly, 20)]
+    [InlineData(TimeFrameType.Monthly, 60)]
+    public void Evaluator_ThresholdChangesOnlyWhenDirectionChanges(TimeFrameType period, int tradingDays)
     {
-        var current = Signal(TimeFrameType.Daily, Tuesday, Tuesday, groupId: 2) with
-        {
-            IntrinsicTimeTrend = trend,
-            UpTrendTrigger = 5_100,
-            DownTrendTrigger = 4_900
-        };
+        var lambda = 0.002 * Math.Sqrt(20.0 / 15.7);
+        double BaseThreshold(double price, int days) => price * lambda + 0.25 * Math.Pow(days, 1.5);
+        double UpThreshold(double price) => 5 * BaseThreshold(price, tradingDays) / BaseThreshold(price, 1);
 
-        FuturesItiSignalCompute.TryCompute(Command(TimeFrameType.Daily, price), current, out var changed)
+        FuturesItiSignalCompute.TryCompute(Command(period, 5_000), null, out var started).Should().BeTrue();
+        started.Threshold.Should().BeApproximately(UpThreshold(5_000), 1e-10);
+        started.BandSize.Should().BeApproximately(UpThreshold(5_000) * 0.20, 1e-10);
+        started.DownTrendTrigger.Should().BeApproximately(5_000 - UpThreshold(5_000), 1e-10);
+
+        var downPrice = started.DownTrendTrigger;
+        FuturesItiSignalCompute.TryCompute(Command(period, downPrice), started, out var down).Should().BeTrue();
+        var expectedThreshold = BaseThreshold(downPrice, tradingDays) * 1.15;
+        down.IntrinsicTimeMode.Should().Be(IntrinsicTimeModeType.TrendDirectionChanged);
+        down.Threshold.Should().BeApproximately(expectedThreshold, 1e-10);
+        down.BandSize.Should().BeApproximately(expectedThreshold * 0.20, 1e-10);
+        down.UpTrendTrigger.Should().BeApproximately(downPrice + expectedThreshold, 1e-10);
+
+        var newExtreme = down.TrendExtreme - down.BandSize * 1.01;
+        FuturesItiSignalCompute.TryCompute(Command(period, newExtreme) with { VixFuturesPrice = 40 }, down, out var extended)
             .Should().BeTrue();
+        extended.Threshold.Should().Be(down.Threshold);
+        extended.BandSize.Should().Be(down.BandSize);
+        extended.UpTrendTrigger.Should().BeApproximately(newExtreme + expectedThreshold, 1e-10);
 
-        var expectedThreshold = (price * (0.002 * Math.Sqrt(20.0 / 15.7)) + 0.25) * factor;
-        changed.IntrinsicTimeMode.Should().Be(IntrinsicTimeModeType.TrendExtremeChanged);
-        changed.Threshold.Should().BeApproximately(expectedThreshold, 1e-10);
-        changed.BandSize.Should().BeApproximately(expectedThreshold * 0.20, 1e-10);
-        changed.UpTrendTrigger.Should().BeApproximately(
-            trend == IntrinsicTimeTrendType.UpTrend ? price : price + expectedThreshold, 1e-10);
-        changed.DownTrendTrigger.Should().BeApproximately(
-            trend == IntrinsicTimeTrendType.DownTrend ? price : price - expectedThreshold, 1e-10);
+        FuturesItiSignalCompute.TryCompute(Command(period, extended.UpTrendTrigger), extended, out var up).Should().BeTrue();
+        up.IntrinsicTimeMode.Should().Be(IntrinsicTimeModeType.TrendDirectionChanged);
+        up.IntrinsicTimeTrend.Should().Be(IntrinsicTimeTrendType.UpTrend);
+        up.Threshold.Should().BeApproximately(UpThreshold(up.IntrinsicPrice), 1e-10);
+        up.BandSize.Should().BeApproximately(up.Threshold * 0.20, 1e-10);
+        up.DownTrendTrigger.Should().Be(up.IntrinsicPrice - up.Threshold);
     }
 
-    [Fact]
-    public void Evaluator_AppliesUptrendFactorAfterSelectingLargerTrendDelta()
+    [Theory]
+    [InlineData(TimeFrameType.Daily)]
+    [InlineData(TimeFrameType.Weekly)]
+    [InlineData(TimeFrameType.Monthly)]
+    public void Evaluator_UptrendSuppressesOrdinaryEventsAndTrailsOnlyOnOvershoot(TimeFrameType period)
     {
-        var current = Signal(TimeFrameType.Daily, Tuesday, Tuesday, groupId: 2) with
-        {
-            TrendExtreme = 5_200,
-            DownTrendTrigger = 4_900
-        };
+        FuturesItiSignalCompute.TryCompute(Command(period, 5_000), null, out var started).Should().BeTrue();
+        var threshold = started.Threshold;
+        FuturesItiSignalCompute.TryCompute(Command(period, 5_000 + threshold * 0.99), started, out _).Should().BeFalse();
+        FuturesItiSignalCompute.TryCompute(Command(period, 5_000 - started.BandSize * 1.01), started, out _).Should().BeFalse();
+        FuturesItiSignalCompute.TryCompute(Command(period, started.DownTrendTrigger), started, out var down).Should().BeTrue();
+        down.IntrinsicTimeTrend.Should().Be(IntrinsicTimeTrendType.DownTrend);
 
-        FuturesItiSignalCompute.TryCompute(Command(TimeFrameType.Daily, 5_100), current, out var changed)
+        var high = 5_000 + threshold * 1.6;
+        FuturesItiSignalCompute.TryCompute(Command(period, high) with { VixFuturesPrice = 40 }, started, out var extension)
             .Should().BeTrue();
-
-        changed.IntrinsicTimeMode.Should().Be(IntrinsicTimeModeType.Trending);
-        changed.Threshold.Should().BeApproximately(85.0, 1e-10);
+        extension.IntrinsicTimeMode.Should().Be(IntrinsicTimeModeType.TrendOvershootExtended);
+        extension.Threshold.Should().Be(threshold);
+        extension.BandSize.Should().Be(started.BandSize);
+        extension.DownTrendTrigger.Should().Be(high - threshold);
+        FuturesItiSignalCompute.TryCompute(Command(period, 5_000 + threshold * 1.2), extension, out var reversal).Should().BeTrue();
+        reversal.IntrinsicTimeMode.Should().Be(IntrinsicTimeModeType.TrendOvershootReversal);
+        reversal.Threshold.Should().Be(threshold);
+        reversal.DownTrendTrigger.Should().Be(extension.DownTrendTrigger);
+        FuturesItiSignalCompute.TryCompute(Command(period, high), reversal, out _).Should().BeFalse();
+        FuturesItiSignalCompute.TryCompute(Command(period, 5_000 + threshold * 0.95), reversal, out _).Should().BeFalse();
+        FuturesItiSignalCompute.TryCompute(Command(period, reversal.DownTrendTrigger), reversal, out down).Should().BeTrue();
+        down.IntrinsicTimeTrend.Should().Be(IntrinsicTimeTrendType.DownTrend);
     }
 
     [Theory]

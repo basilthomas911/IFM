@@ -68,6 +68,7 @@ pub fn prepare(
         "ConfigureFundBaseContractsCommand"
         | "AddFundMandateVersionCommand"
         | "AddManualFundOrderTradeCommand"
+        | "ChangeManualFundOrderTradeCommand"
         | "RemoveManualFundOrderTradeCommand"
         | "DeleteManualFundOrderCommand" => ("PortfolioFundCommand", 34003, true),
         "ChangeFundOperatingStateCommand" => ("PortfolioFundCommand", 34005, true),

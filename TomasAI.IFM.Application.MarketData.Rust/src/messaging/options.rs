@@ -57,7 +57,7 @@ impl Options {
         registrations: Vec<Registration>,
         revisions: Arc<Revisions>,
     ) -> Result<Self, &'static str> {
-        if registrations.len() > 2112 {
+        if registrations.len() > crate::option_chain::MAX_OPTION_REGISTRATIONS {
             return Err("Invalid native option publication capacity");
         }
         let mut seen = std::collections::BTreeSet::new();
@@ -80,7 +80,7 @@ impl Options {
                     raw: None,
                 },
             );
-            if entries.len() > 2048 {
+            if entries.len() > crate::option_chain::MAX_LIVE_OPTIONS {
                 return Err("Native option publication capacity exhausted");
             }
         }

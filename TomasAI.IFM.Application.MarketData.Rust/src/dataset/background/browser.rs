@@ -426,7 +426,7 @@ impl Configuration {
                     model.clone(),
                 );
             }
-            if models.len() > 2048 {
+            if models.len() > crate::option_chain::MAX_LIVE_OPTIONS {
                 return Err("Native browser model union capacity exceeded".into());
             }
         }

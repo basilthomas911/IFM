@@ -15,6 +15,8 @@ pub struct Draft {
     pub scope: Scope,
     /// Trade associated with this draft.
     pub trade: i32,
+    /// Revision of the edited setup used by the Fund execution guard.
+    pub draft_revision: i64,
     /// Underlying associated with this draft.
     pub underlying: String,
     /// Strategy associated with this draft.
@@ -137,7 +139,9 @@ impl Draft {
             return Err("A vertical requires opposing legs on the same side".into());
         }
         let legs=self.legs.iter().map(|leg|json!({"TradeLegId":guid(),"AssetFamily":if leg.is_future{"Futures"}else{"FuturesOption"},"SignedQuantity":leg.side*self.quantity,"ContractKey":leg.contract,"ContractId":leg.contract,"Expiry":self.expiry.to_string(),"Strike":leg.strike.as_ref().map(dec),"PutCall":(!leg.is_future).then_some(if leg.is_call{1}else{2}),"CashMultiplier":dec(leg.multiplier.as_ref().unwrap())})).collect::<Vec<_>>();
-        let draft = json!({"CompositionId":self.composition.to_string(),"WorkflowId":self.workflow.to_string(),"StrategyKind":self.strategy,"Origin":"DesktopTradeOrder","ValueDate":"0001-01-01","ValidUntilUtc":"0001-01-01T00:00:00Z","DecisionHorizon":"","EvidenceHash":"","ProductSymbol":"","ProductExchange":"","ProductCurrency":"","MicroExecutionProfileId":"","MicroExecutionProfileHash":"","AccountPromotionApprovalReference":"","SetupTrade":{"OrderId":self.scope.order,"TradeId":self.trade,"FundId":self.scope.fund},"Components":[{"ComponentId":self.component.to_string(),"StrategyKind":self.strategy,"Legs":legs,"SignedNetDebitLimit":dec(&self.price)}],"PositionType":"Opening","BrokerAccountAlias":route.account_alias,"BrokerEnvironment":route.environment,"BrokerOrderType":self.order_type,"BrokerAlgorithm":self.algorithm,"TimeInForce":self.tif,"AlgorithmPace":self.pace});
+        let setup = json!({"OrderId":self.scope.order,"TradeId":self.trade,"FundId":self.scope.fund,
+            "DraftRevision": self.draft_revision});
+        let draft = json!({"CompositionId":self.composition.to_string(),"WorkflowId":self.workflow.to_string(),"StrategyKind":self.strategy,"Origin":"DesktopTradeOrder","ValueDate":"0001-01-01","ValidUntilUtc":"0001-01-01T00:00:00Z","DecisionHorizon":"","EvidenceHash":"","ProductSymbol":"","ProductExchange":"","ProductCurrency":"","MicroExecutionProfileId":"","MicroExecutionProfileHash":"","AccountPromotionApprovalReference":"","SetupTrade":setup,"Components":[{"ComponentId":self.component.to_string(),"StrategyKind":self.strategy,"Legs":legs,"SignedNetDebitLimit":dec(&self.price)}],"PositionType":"Opening","BrokerAccountAlias":route.account_alias,"BrokerEnvironment":route.environment,"BrokerOrderType":self.order_type,"BrokerAlgorithm":self.algorithm,"TimeInForce":self.tif,"AlgorithmPace":self.pace});
         let wire = parameters::from_document(registry, CANDIDATE, &draft)?;
         let request = registry.encode(
             &format!("{ROOT}.TradeOrderPreparationRequest"),

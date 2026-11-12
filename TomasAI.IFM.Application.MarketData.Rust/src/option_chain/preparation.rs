@@ -54,7 +54,7 @@ impl RawPolicy {
         date: time::Date,
         models: &[crate::reference::option_contract::OptionContract],
     ) -> Result<Vec<Definition>, String> {
-        if models.is_empty() || models.len() > 2048 {
+        if models.is_empty() || models.len() > crate::option_chain::MAX_LIVE_OPTIONS {
             return Err("Invalid raw definition capacity".into());
         }
         let mut identities = std::collections::BTreeSet::new();
@@ -162,10 +162,10 @@ impl ReviewedScope {
         deadline: Deadline,
     ) -> Result<PreparedBatch, String> {
         use std::collections::{BTreeMap, BTreeSet};
-        if registrations.len() > 2112
+        if registrations.len() > crate::option_chain::MAX_OPTION_REGISTRATIONS
             || generation == 0
             || self.definitions.is_empty()
-            || !(1..=2048).contains(&self.maximum_contracts)
+            || !(1..=crate::option_chain::MAX_LIVE_OPTIONS).contains(&self.maximum_contracts)
             || self.definitions.len() > self.maximum_contracts
             || !(10..=5000).contains(&self.selection_ms)
             || !(self.selection_ms..=60000).contains(&self.iv_ms)
@@ -173,7 +173,7 @@ impl ReviewedScope {
             || !(1..=64).contains(&self.batch)
             || self.policy_version.trim().is_empty()
             || self.policy_version.len() > 1024
-            || self.statistics.len() > 2048
+            || self.statistics.len() > crate::option_chain::MAX_LIVE_OPTIONS
         {
             return Err("Invalid native reviewed scope bounds".into());
         }

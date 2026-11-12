@@ -7,6 +7,26 @@ use crate::{
 };
 use rmpv::Value;
 use tokio_util::sync::CancellationToken;
+
+const COVERAGE_PENDING: &str = "Native browser capture CoveragePending: Snapshot";
+
+fn pending_capture(error: &str) -> bool {
+    error == COVERAGE_PENDING || error.starts_with("Native browser capture Recovering:")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{COVERAGE_PENDING, pending_capture};
+
+    #[test]
+    fn browser_only_reobserves_coverage_and_generation_changes() {
+        assert!(pending_capture(COVERAGE_PENDING));
+        assert!(pending_capture("Native browser capture Recovering: GenerationId"));
+        assert!(!pending_capture("Native browser capture InvalidSnapshotRequest: Snapshot"));
+        assert!(!pending_capture("Native browser capture ConflictingDefinition: Snapshot"));
+    }
+}
+
 fn reply(model: Value, code: i32, message: Option<&str>) -> Value {
     Value::Array(vec![
         model,
@@ -52,9 +72,14 @@ impl MarketData {
                 .await
                 .map_err(|_| "Native browser capture DeadlineExpired: Snapshot".to_owned())?;
             match result {
-                Err(error) if error == "Native browser capture Recovering: GenerationId" => {
+                Err(error) if pending_capture(&error) => {
                     deadline
-                        .run(stop, changes.changed())
+                        .run(stop, async {
+                            tokio::select! {
+                                result = changes.changed() => result,
+                                () = tokio::time::sleep(std::time::Duration::from_millis(250)) => Ok(()),
+                            }
+                        })
                         .await
                         .map_err(|_| "Native browser capture DeadlineExpired: Snapshot".to_owned())?
                         .map_err(|_| "Native browser source ended".to_owned())?;
@@ -86,7 +111,7 @@ impl MarketData {
             .and_then(|intent| intent.background.clone())
             .ok_or("Native browser source ended")?;
         let Some(resolved) = background.browser_result(&command.family)? else {
-            return Ok(rejected("Native browser scope is unavailable"));
+            return Err(COVERAGE_PENDING.into());
         };
         let live = self
             .contract_price(&command.family.contract, false, 9_000_000_000)?
@@ -114,7 +139,7 @@ impl MarketData {
             .iter()
             .any(|index| !physical.contains(index))
         {
-            return Ok(rejected("Native browser window changed during capture"));
+            return Err(COVERAGE_PENDING.into());
         }
         let generation = self
             .publication_identity(Lane::OptionsGlbx)
@@ -142,19 +167,28 @@ impl MarketData {
             .capture_options_ready(request, stop, deadline)
             .await
             .map_err(|failure| {
-                format!("Native browser capture {}: {}", failure.code, failure.input)
+                if failure.code == "IncompleteChain" {
+                    COVERAGE_PENDING.to_owned()
+                } else {
+                    format!("Native browser capture {}: {}", failure.code, failure.input)
+                }
             })?;
+        let actual = snapshot.instruments.iter()
+            .map(|item| item.instrument.contract.as_str())
+            .collect::<std::collections::BTreeSet<_>>();
+        let expected = resolved.demand.candidates.iter()
+            .map(|item| item.contract.as_str())
+            .collect::<std::collections::BTreeSet<_>>();
+        if actual != expected {
+            return Err(COVERAGE_PENDING.into());
+        }
         background.observe_browser_iv(&command.family, &snapshot, selected.price)?;
-        // The current public API returns the complete buffered snapshot, not
-        // only the narrower window rows. Preserve that observable UI contract.
+        // Return the complete buffered snapshot, including the displayed strike window.
         let models = snapshot
             .instruments
             .iter()
             .map(project)
             .collect::<Result<Vec<_>, _>>()?;
-        if models.len() != resolved.models.len() {
-            return Ok(rejected("Native browser snapshot membership is incomplete"));
-        }
         let mut model = empty(command, snapshot.at, &selected.window.method)?
             .as_array()
             .ok_or("Invalid browser model")?
@@ -270,5 +304,8 @@ fn project(item: &crate::option_chain::composition::model::Valued) -> Result<Val
             .map_or(Value::Nil, Value::from),
         instant(instrument.last_event)?,
         instant(instrument.last_received)?,
+        instrument.context.as_ref()
+            .and_then(|context| context.convention().cash_multiplier())
+            .map_or(Ok(Value::Nil), codec::decimal_bits)?,
     ]))
 }

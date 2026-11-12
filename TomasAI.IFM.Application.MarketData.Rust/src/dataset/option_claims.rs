@@ -75,7 +75,7 @@ impl State {
         {
             return Ok(None);
         }
-        if ids.len() > 2048 || caches.len() > 64 {
+        if ids.len() > crate::option_chain::MAX_LIVE_OPTIONS || caches.len() > 64 {
             return Err("Native desired options union exceeds capacity".into());
         }
         let mut definitions = self
@@ -94,7 +94,7 @@ impl State {
         }
         let mut needed = ids;
         needed.extend(definitions.iter().map(|d| d.underlying));
-        if needed.len() > 2112 {
+        if needed.len() > crate::option_chain::MAX_OPTION_REGISTRATIONS {
             return Err("Native underlying dependency union exceeds capacity".into());
         }
         let mut registrations = self
@@ -275,8 +275,8 @@ impl Coordinator {
         base: Arc<Intent>,
     ) -> Result<Self, String> {
         if base.source.plan.lane != super::transport::Lane::OptionsGlbx
-            || base.reviewed.definitions.len() > 2048
-            || base.source.registrations.len() > 2112
+            || base.reviewed.definitions.len() > crate::option_chain::MAX_LIVE_OPTIONS
+            || base.source.registrations.len() > crate::option_chain::MAX_OPTION_REGISTRATIONS
             || base.reviewed.definitions.is_empty() && base.background.is_none()
         {
             return Err("Invalid native business claim catalog".into());
@@ -408,8 +408,8 @@ impl Coordinator {
                 .map_err(|e| format!("Invalid native option catalog plan: {e:?}"))?;
         }
         if base.source.plan.lane != super::transport::Lane::OptionsGlbx
-            || base.reviewed.definitions.len() > 2048
-            || base.source.registrations.len() > 2112
+            || base.reviewed.definitions.len() > crate::option_chain::MAX_LIVE_OPTIONS
+            || base.source.registrations.len() > crate::option_chain::MAX_OPTION_REGISTRATIONS
             || base.reviewed.definitions.is_empty() && base.background.is_none()
         {
             return Err("Invalid native replacement option catalog".into());
@@ -521,7 +521,7 @@ impl Coordinator {
             }
             definitions.insert(definition.instrument, definition.clone());
         }
-        if definitions.len() > 2048 {
+        if definitions.len() > crate::option_chain::MAX_LIVE_OPTIONS {
             return Err("Native option catalog capacity exceeded".into());
         }
         // Background configuration is valid before any contract is known. Its
@@ -563,7 +563,7 @@ impl Coordinator {
             }
             registrations.insert(registration.instrument, registration.clone());
         }
-        if registrations.len() > 2112
+        if registrations.len() > crate::option_chain::MAX_OPTION_REGISTRATIONS
             || registrations
                 .values()
                 .map(|r| r.contract.as_str())

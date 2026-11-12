@@ -41,6 +41,10 @@ public sealed record FundOrderTradeProjectionReadModel
     [Key(25)] public string TradeStatus { get; init; } = string.Empty;
     /// <summary>The operator-entered trade reference, separate from the generated instruction reference.</summary>
     [Key(26)] public string TradeReference { get; init; } = string.Empty;
+    /// <summary>Revision of the last operator edit, carried by new execution preparations.</summary>
+    [Key(27)]
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public long DraftRevision { get; init; }
     /// <summary>The intended effective date; the existing wire slot is retained for historical compatibility.</summary>
     [IgnoreMember] public DateOnly EffectiveDate { get => RequestedTradeDate; init => RequestedTradeDate = value; }
 }

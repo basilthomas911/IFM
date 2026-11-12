@@ -12,7 +12,7 @@ public sealed partial class NativeMarketDataRuntime
     {
         ArgumentNullException.ThrowIfNull(request);cancellationToken.ThrowIfCancellationRequested();
         static int[] GuidBytes(Guid value)=>value.ToByteArray().Select(b=>(int)b).ToArray();
-        var bytes=JsonSerializer.SerializeToUtf8Bytes(new{operation=GuidBytes(request.OperationId),worker=GuidBytes(request.ExpectedWorkerInstanceId),generation=GuidBytes(request.ExpectedGenerationId),role=request.Role,dataset=request.Dataset,date=OwnerDate(request.ValueDate)});
+        var bytes=JsonSerializer.SerializeToUtf8Bytes(new{operation=GuidBytes(request.OperationId),worker=GuidBytes(request.ExpectedWorkerInstanceId),generation=GuidBytes(request.ExpectedGenerationId),role=request.Role,dataset=request.Dataset,date=OwnerDate(request.ValueDate),manual=request.Reason=="Manual dataset restart"});
         var operation=SubmitOwnerRecovery(bytes,cancellationToken);
         try
         {

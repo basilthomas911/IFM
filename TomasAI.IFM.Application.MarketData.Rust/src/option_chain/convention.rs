@@ -212,6 +212,11 @@ impl Convention {
     pub fn underlying(&self) -> &str {
         self.text(9)
     }
+    /// The option's reviewed cash value per premium point.
+    pub fn cash_multiplier(&self) -> Option<Decimal> {
+        self.amount(16)
+            .filter(|amount| amount.compare(Decimal::default()) == Some(Ordering::Greater))
+    }
     /// Explicit convention/calendar version; no root-derived fallback is inferred.
     pub fn calendar_version(&self) -> &str {
         self.text(15)

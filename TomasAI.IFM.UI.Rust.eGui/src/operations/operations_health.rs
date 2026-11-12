@@ -182,6 +182,9 @@ impl OperationsHealth {
                         .map(String::as_str)
                         .unwrap_or(""),
                 );
+                if let Some(status) = s.result.context.get("restartStatus") {
+                    ui.trading_label(status);
+                }
             } else {
                 ui.trading_label(&s.status);
             }
@@ -211,6 +214,18 @@ impl OperationsHealth {
                 }
                 if ui.add_enabled(live && self.pending.is_none(), egui::Button::new("Refresh")).clicked() {
                     intent = Some(self.request(s, now));
+                }
+                if self.datasets {
+                    let fields = self.restart_fields(s);
+                    if ui.add_enabled(live && !s.busy && self.pending.is_none() && fields.is_some(),
+                        egui::Button::new("Restart")).clicked()
+                        && let Some(fields) = fields
+                    {
+                        let id = new_request_id();
+                        self.pending = Some(id.clone());
+                        intent = Some(serde_json::json!({"schema":1,"requestId":id,"view":"operations-health",
+                            "intent":"restart-dataset","expectedGeneration":s.generation,"fields":fields}).to_string());
+                    }
                 }
             });
             let kind = if self.datasets { "dataset" } else { "stage" };
@@ -253,6 +268,9 @@ impl OperationsHealth {
                         .clicked()
                     {
                         self.selected = Some(row.id.clone());
+                        if self.datasets && live && !s.busy && self.pending.is_none() {
+                            intent = Some(self.request(s, now));
+                        }
                     }
                     self.drawn_rows += 1;
                 }
@@ -297,11 +315,55 @@ impl OperationsHealth {
         self.next_refresh = Some(now + std::time::Duration::from_secs(5));
         serde_json::json!({"schema":1,"requestId":id,"view":"operations-health","intent":"load","expectedGeneration":publication.generation,"originalId":null,"fields":{}}).to_string()
     }
+
+    fn restart_fields(&self, publication: &ContractPublication) -> Option<serde_json::Value> {
+        if publication.result.view != "operations-health" {
+            return None;
+        }
+        let row = publication.result.rows.iter().find(|row| Some(&row.id) == self.selected.as_ref())?;
+        let field = |key| row.fields.get(key).map(String::as_str);
+        if field("kind") != Some("dataset") || field("Running") != Some("False")
+            || !matches!(field("Status"), Some("Red" | "Down" | "Failed"))
+        {
+            return None;
+        }
+        Some(serde_json::json!({"dataset":field("Dataset")?,"valueDate":field("ValueDate")?,
+            "worker":field("WorkerInstance")?,"generation":field("Generation")?}))
+    }
 }
 
 #[cfg(test)]
 mod native_refresh_tests {
     use super::*;
+
+    #[test]
+    fn restart_requires_the_explicit_selection_of_a_down_worker() {
+        let mut publication = ContractPublication::default();
+        publication.result.view = "operations-health".into();
+        publication.result.rows.push(crate::contract_editor::ContractRow {
+            id: "dataset:Options/GLBX.MDP3".into(),
+            fields: std::collections::BTreeMap::from([
+                ("kind".into(), "dataset".into()), ("Dataset".into(), "Options/GLBX.MDP3".into()),
+                ("Running".into(), "False".into()), ("Status".into(), "Red".into()),
+                ("ValueDate".into(), "2026-11-12".into()),
+                ("WorkerInstance".into(), uuid::Uuid::from_u128(1).to_string()),
+                ("Generation".into(), uuid::Uuid::from_u128(2).to_string()),
+            ]),
+            ..Default::default()
+        });
+        let mut view = OperationsHealth { datasets: true, ..Default::default() };
+        assert!(view.restart_fields(&publication).is_none());
+        view.selected = Some(publication.result.rows[0].id.clone());
+        assert_eq!(view.restart_fields(&publication).unwrap()["dataset"], "Options/GLBX.MDP3");
+        for status in ["Green", "Orange", "Inactive"] {
+            publication.result.rows[0].fields.insert("Status".into(), status.into());
+            assert!(view.restart_fields(&publication).is_none());
+        }
+        let fields = &mut publication.result.rows[0].fields;
+        fields.insert("Status".into(), "Red".into());
+        fields.insert("Running".into(), "True".into());
+        assert!(view.restart_fields(&publication).is_none());
+    }
 
     /// Dataset diagnostics remain frozen until the next view opening or Refresh.
     #[test]

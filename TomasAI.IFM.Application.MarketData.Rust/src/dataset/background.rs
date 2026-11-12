@@ -656,8 +656,8 @@ impl Configuration {
                 return Err("Native complete ranked scope capacity exceeded".into());
             }
         }
-        if selected.len() > 2048 {
-            return Err(format!("Native selected background option capacity exceeded: selected={}; maximum=2048", selected.len()));
+        if selected.len() > crate::option_chain::MAX_LIVE_OPTIONS {
+            return Err(format!("Native selected background option capacity exceeded: selected={}; maximum={}", selected.len(), crate::option_chain::MAX_LIVE_OPTIONS));
         }
         let retained = self
             .reference_cache
@@ -791,7 +791,7 @@ impl Configuration {
         {
             merged_registration(&mut rows, row, &monitored)?;
         }
-        if rows.len() > 2112 {
+        if rows.len() > crate::option_chain::MAX_OPTION_REGISTRATIONS {
             return Err("Native complete dataset dependency capacity exceeded".into());
         }
         let mut definitions = base
@@ -808,7 +808,7 @@ impl Configuration {
                 return Err("Conflicting native background pricing convention".into());
             }
         }
-        if definitions.len() > 2048 {
+        if definitions.len() > crate::option_chain::MAX_LIVE_OPTIONS {
             return Err("Native complete dataset option capacity exceeded".into());
         }
         let mut reviewed = base.reviewed.as_ref().clone();
@@ -1231,8 +1231,16 @@ mod capacity_rejection_tests {
     use super::retain_active_on_capacity;
 
     #[test]
+    fn native_pricing_admits_the_reported_oversize_generation_and_enforces_the_new_limit() {
+        use crate::option_chain::coalesced::Coalesced;
+        assert!(Coalesced::new(2266, 16, 5000).is_ok());
+        assert!(Coalesced::new(4096, 16, 5000).is_ok());
+        assert!(Coalesced::new(4097, 16, 5000).is_err());
+    }
+
+    #[test]
     fn oversized_optional_expansion_retains_live_subscriptions_only() {
-        let error="Native selected background option capacity exceeded: selected=2300; maximum=2048";
+        let error="Native selected background option capacity exceeded: selected=4200; maximum=4096";
         assert!(retain_active_on_capacity(error,true,false));
         assert!(!retain_active_on_capacity(error,false,false));
         assert!(!retain_active_on_capacity(error,true,true));

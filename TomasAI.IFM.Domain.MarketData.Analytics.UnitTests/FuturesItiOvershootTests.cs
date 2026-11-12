@@ -50,11 +50,18 @@ public sealed class FuturesItiOvershootTests
     {
         var sign = up ? 1d : -1d;
         var start = Start(period, up);
-        var ordinary = Next(start, start.TrendExtreme + sign * start.BandSize * 1.01);
-        Assert.Equal(IntrinsicTimeModeType.TrendExtremeChanged, ordinary.IntrinsicTimeMode);
-        Assert.True(ordinary.BandLevel < 1);
+        var ordinaryPrice = start.TrendExtreme + sign * start.BandSize * 1.01;
+        var previous = start;
+        if (up)
+            Assert.False(FuturesItiSignalCompute.TryCompute(Command(period, ordinaryPrice, 1), start, out _));
+        else
+        {
+            previous = Next(start, ordinaryPrice);
+            Assert.Equal(IntrinsicTimeModeType.TrendExtremeChanged, previous.IntrinsicTimeMode);
+            Assert.True(previous.BandLevel < 1);
+        }
 
-        var extended = Next(ordinary, start.TrendPrice + sign * start.Threshold * 1.4);
+        var extended = Next(previous, start.TrendPrice + sign * start.Threshold * 1.4);
         Assert.Equal(IntrinsicTimeModeType.TrendOvershootExtended, extended.IntrinsicTimeMode);
         Assert.True(extended.BandLevel > 1);
         Assert.Equal(extended.IntrinsicPrice, extended.TrendExtreme);
@@ -79,11 +86,18 @@ public sealed class FuturesItiOvershootTests
         Assert.True(sign * (secondPullback.IntrinsicPrice - pullback.IntrinsicPrice) > 0,
             "The new extreme resets reversal tracking even when this pullback has not passed the previous pullback.");
 
-        var returned = Next(secondPullback, start.TrendPrice + sign * start.Threshold * 0.85);
-        Assert.True(returned.BandLevel < 1);
-        Assert.Equal(IntrinsicTimeModeType.TrendReversalChanged, returned.IntrinsicTimeMode);
-        Assert.Equal(higherExtreme.TrendExtreme, returned.TrendExtreme);
-        Assert.Equal(start.IntrinsicTimeGroupId, returned.IntrinsicTimeGroupId);
+        var returnPrice = start.TrendPrice + sign * start.Threshold * 0.85;
+        var returned = secondPullback;
+        if (up)
+            Assert.False(FuturesItiSignalCompute.TryCompute(Command(period, returnPrice, 5), secondPullback, out _));
+        else
+        {
+            returned = Next(secondPullback, returnPrice);
+            Assert.True(returned.BandLevel < 1);
+            Assert.Equal(IntrinsicTimeModeType.TrendReversalChanged, returned.IntrinsicTimeMode);
+            Assert.Equal(higherExtreme.TrendExtreme, returned.TrendExtreme);
+            Assert.Equal(start.IntrinsicTimeGroupId, returned.IntrinsicTimeGroupId);
+        }
 
         var reentered = Next(returned, returned.TrendExtreme + sign * returned.BandSize * 1.01);
         Assert.Equal(IntrinsicTimeModeType.TrendOvershootExtended, reentered.IntrinsicTimeMode);
@@ -99,11 +113,13 @@ public sealed class FuturesItiOvershootTests
     public void Exact_band_qualifies_but_inside_band_and_level_changes_alone_do_not(TimeFrameType period, bool up)
     {
         var start = Start(period, up);
+        if (up)
+            start = Next(start, start.TrendPrice + start.Threshold * 1.4);
         var boundary = start.TrendExtreme + (up ? start.BandSize : -start.BandSize);
         var inside = up ? Math.BitDecrement(boundary) : Math.BitIncrement(boundary);
         Assert.False(FuturesItiSignalCompute.TryCompute(Command(period, inside, 1), start, out _));
         Assert.True(FuturesItiSignalCompute.TryCompute(Command(period, boundary, 1), start, out var moved));
-        Assert.Equal(IntrinsicTimeModeType.TrendExtremeChanged, moved.IntrinsicTimeMode);
+        Assert.Equal(up ? IntrinsicTimeModeType.TrendOvershootExtended : IntrinsicTimeModeType.TrendExtremeChanged, moved.IntrinsicTimeMode);
         var levelOnly = Command(period, moved.IntrinsicPrice, 2) with { VixFuturesPrice = 1 };
         Assert.False(FuturesItiSignalCompute.TryCompute(levelOnly, moved, out _));
     }
@@ -153,6 +169,8 @@ public sealed class FuturesItiOvershootTests
         Assert.True(FuturesItiSignalCompute.TryCompute(command, current, out var next));
         Assert.Equal(0.20, next.BandPercentage);
         Assert.Equal(next.Threshold * 0.20, next.BandSize);
+        if (next.IntrinsicTimeMode != IntrinsicTimeModeType.TrendDirectionChanged)
+            Assert.Equal(current.Threshold, next.Threshold);
         var progress = next.IntrinsicTimeTrend == IntrinsicTimeTrendType.UpTrend ? next.IntrinsicPrice - next.TrendPrice : next.TrendPrice - next.IntrinsicPrice;
         Assert.Equal(progress / next.Threshold, next.BandLevel);
         return next;

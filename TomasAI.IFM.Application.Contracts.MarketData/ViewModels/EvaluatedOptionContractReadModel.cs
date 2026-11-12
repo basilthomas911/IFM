@@ -32,4 +32,5 @@ public sealed record EvaluatedOptionContractReadModel(
     [property: Key(25)] bool SelectionValid = false,
     [property: Key(26)] string? QuoteUnavailableReason = null,
     [property: Key(27)] DateTimeOffset? LastQuoteEventAtUtc = null,
-    [property: Key(28)] DateTimeOffset? LastQuoteReceivedAtUtc = null);
+    [property: Key(28)] DateTimeOffset? LastQuoteReceivedAtUtc = null,
+    [property: Key(29)] decimal? CashMultiplier = null);

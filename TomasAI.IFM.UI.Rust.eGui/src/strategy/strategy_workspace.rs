@@ -610,11 +610,7 @@ impl StrategyWorkspace {
                                             table_row.col(|ui| {
                                                 ui.horizontal(|ui| {
                                                     ui.spacing_mut().item_spacing.x = 6.0;
-                                                    for actor in row
-                                                        .actors
-                                                        .iter()
-                                                        .take(visible_pipeline_count(&row.actors))
-                                                    {
+                                                    for actor in &row.actors {
                                                         let color = pipeline_color(&actor.state);
                                                         let (rect, response) = ui.allocate_exact_size(
                                                             egui::vec2(12.0, 12.0),
@@ -633,7 +629,9 @@ impl StrategyWorkspace {
                                                                 },
                                                             ),
                                                         );
-                                                        response.on_hover_text(&actor.value);
+                                                        if !actor.value.is_empty() {
+                                                            response.on_hover_text(&actor.value);
+                                                        }
                                                     }
                                                 });
                                             });
@@ -705,13 +703,4 @@ pub fn pipeline_color(state: &str) -> egui::Color32 {
         "No Trade" => egui::Color32::from_rgb(90, 155, 255),
         _ => egui::Color32::RED,
     }
-}
-
-
-/// Return the number of indicators through the first terminal decision, including that stage.
-pub fn visible_pipeline_count(actors: &[WorkflowActor]) -> usize {
-    actors
-        .iter()
-        .position(|actor| !matches!(actor.state.as_str(), "Processing" | "Continued" | "Continue"))
-        .map_or(actors.len(), |index| index + 1)
 }

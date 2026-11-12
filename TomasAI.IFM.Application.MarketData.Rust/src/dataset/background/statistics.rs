@@ -90,7 +90,7 @@ impl Configuration {
                 .or_default()
                 .push((id, definition.instrument));
         }
-        if wanted.len() > 2048 {
+        if wanted.len() > crate::option_chain::MAX_LIVE_OPTIONS {
             return Err("Native saved statistics desired capacity exceeded".into());
         }
         self.statistics

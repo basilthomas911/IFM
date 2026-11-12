@@ -29,10 +29,10 @@ impl Selected {
     fn from_contract(
         row: &EvaluatedOptionContractReadModel,
         role: &str,
-        multiplier: &ExactDecimal,
         frozen: bool,
     ) -> Result<Self, String> {
         let c = Contract::from_backend(row)?;
+        let zero = ExactDecimal::parse("0")?;
         Ok(Self {
             quote: broker_preview::Leg {
                 contract: c.id,
@@ -52,7 +52,8 @@ impl Selected {
                 },
                 delta: c.delta,
                 vega: row.vega,
-                multiplier: Some(multiplier.clone()),
+                multiplier: decimal(row, "CashMultiplier")?.filter(|value|
+                    option_selection::compare(value, &zero).is_gt()),
             },
             role: role.into(),
             quote_at: row.quote_at_utc.clone(),
@@ -74,6 +75,8 @@ pub struct Draft {
     pub entered_price: Option<ExactDecimal>,
     /// Whether manual is enabled or currently true.
     pub manual: bool,
+    /// Parameters used for the last complete automatic selection.
+    automatic_parameters: Option<[ExactDecimal; 4]>,
 }
 
 /// Settings used by the option draft component.
@@ -88,8 +91,6 @@ pub struct Settings<'a> {
     pub call_width: &'a ExactDecimal,
     /// Put width associated with this settings.
     pub put_width: &'a ExactDecimal,
-    /// Multiplier associated with this settings.
-    pub multiplier: &'a ExactDecimal,
     /// Whether live is enabled or currently true.
     pub live: bool,
     /// Whether development is enabled or currently true.
@@ -258,10 +259,29 @@ impl Draft {
                 &incoming,
             )?)
         };
-        let mut next = vec![];
+        // Refresh pricing for the existing selection before filling any
+        // unselected side. A quiet or temporarily missing strike stays selected.
+        let mut next = self.legs.iter().map(|leg| {
+            if let Some(row) = rows.iter().find(|row|
+                row.contract_id.as_deref() == Some(leg.quote.contract.as_str()))
+            {
+                Selected::from_contract(row, &leg.role, frozen)
+            } else {
+                let mut missing = leg.clone();
+                missing.quote.bid = None;
+                missing.quote.ask = None;
+                missing.quote_at = None;
+                Ok(missing)
+            }
+        }).collect::<Result<Vec<_>, _>>()?;
         if !self.manual && settings.editable {
+            let parameters = [settings.call_delta, settings.put_delta, settings.call_width, settings.put_width];
+            let reselect = self.automatic_parameters.as_ref().is_some_and(|previous|
+                previous.iter().zip(parameters).any(|(old, new)| option_selection::compare(old, new).is_ne()));
+            let retained = reselect.then(|| std::mem::take(&mut next));
             for is_call in [true, false] {
-                if !settings.strategy.ends_with("IronCondor")
+                if next.iter().any(|leg| leg.quote.is_call == is_call)
+                    || !settings.strategy.ends_with("IronCondor")
                     && is_call != settings.strategy.starts_with("Call")
                 {
                     continue;
@@ -309,12 +329,17 @@ impl Draft {
                         next.push(Selected::from_contract(
                             row,
                             role,
-                            settings.multiplier,
                             frozen,
                         )?);
                     }
                     break;
                 }
+            }
+            let required = if settings.strategy.ends_with("IronCondor") { 4 } else { 2 };
+            if next.len() == required {
+                self.automatic_parameters = Some(parameters.map(Clone::clone));
+            } else if let Some(retained) = retained {
+                next = retained;
             }
             if self
                 .legs
@@ -323,28 +348,6 @@ impl Draft {
                 .ne(next.iter().map(|l| (&l.quote.contract, &l.role)))
             {
                 self.entered_price = None;
-            }
-        } else {
-            for leg in &self.legs {
-                next.push(
-                    if let Some(row) = rows
-                        .iter()
-                        .find(|r| r.contract_id.as_deref() == Some(leg.quote.contract.as_str()))
-                    {
-                        Selected::from_contract(
-                            row,
-                            &leg.role,
-                            settings.multiplier,
-                            frozen,
-                        )?
-                    } else {
-                        let mut missing = leg.clone();
-                        missing.quote.bid = None;
-                        missing.quote.ask = None;
-                        missing.quote_at = None;
-                        missing
-                    },
-                );
             }
         }
         self.legs = next;
@@ -414,7 +417,6 @@ impl Draft {
         self.legs.push(Selected::from_contract(
             row,
             role,
-            settings.multiplier,
             !settings.live && settings.development
                 && self.raw.as_ref().and_then(|chain| chain.window_method.as_deref())
                     .is_some_and(|method| method.starts_with("Frozen emulator preview")),

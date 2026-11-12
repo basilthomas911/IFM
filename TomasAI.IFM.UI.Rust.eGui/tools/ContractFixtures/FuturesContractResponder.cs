@@ -15,9 +15,10 @@ internal sealed class FuturesContractResponder(FuturesContractV3ReadModel provid
     readonly Dictionary<string,FuturesContractV3ReadModel> rows=new(){{provider.Id.Format(),provider}};
     readonly HashSet<Guid> submissions=[];
     public bool HoldReads {get;set;}
+    public bool IncludeNextCycle {get;set;}
     // Each trade scenario has a frozen catalog independent of reference-import
     // scenarios that may have run earlier in the same isolated responder.
-    public void Reset(){rows.Clear();rows[provider.Id.Format()]=provider;submissions.Clear();HoldReads=false;}
+    public void Reset(){rows.Clear();rows[provider.Id.Format()]=provider;submissions.Clear();HoldReads=false;IncludeNextCycle=false;}
     public FuturesContractV3ReadModel? Find(string id)=>rows.Values.SingleOrDefault(row=>row.ContractId==id);
     public void ChangeDescription(string id){var old=Find(id)??throw new InvalidDataException("Missing fixture future");rows[old.Id.Format()]=old with{Description="Changed outside preview"};}
     public async Task<byte[]?> Handle(NatsConnection connection,string subject,byte[] payload,CancellationToken token)
@@ -31,7 +32,10 @@ internal sealed class FuturesContractResponder(FuturesContractV3ReadModel provid
         if(subject.StartsWith("Query.FuturesContractQuery.GetFuturesContracts.",StringComparison.Ordinal)){
             var query=MessagePackSerializer.Deserialize<GetFuturesContractsQuery>(payload,options);
             if(subject!="Query.FuturesContractQuery.GetFuturesContracts.none"||query.Subject.ToString()!=subject)throw new InvalidDataException("Invalid futures list route");
-            return HoldReads?null:MessagePackSerializer.Serialize(new ServiceResult<FuturesContractV3ReadModel[]>{Success=true,ErrorMessage="",Value=rows.Values.ToArray()},options);
+            var catalog=IncludeNextCycle
+                ? rows.Values.Append(provider with { ContractId="ESH7", LocalSymbol="ESH7", LastTradeDate=new(2027,3,19), OnTheRun=false, Rollover=false }).ToArray()
+                : rows.Values.ToArray();
+            return HoldReads?null:MessagePackSerializer.Serialize(new ServiceResult<FuturesContractV3ReadModel[]>{Success=true,ErrorMessage="",Value=catalog},options);
         }
         try{
             var verb=subject.Split('.')[2];ICommand<FuturesContractId> command;FuturesContractV3ReadModel? value;FuturesContractId original;bool overwrite;

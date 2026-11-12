@@ -44,7 +44,7 @@ fn complete_source_rejects_unreviewed_duplicate_conflicting_and_oversized_input(
     let model = OptionContract::from_command(&first).unwrap();
     assert!(Plan::from_models(&[]).is_err());
     assert!(Plan::from_models(&[model.clone(), model.clone()]).is_err());
-    assert!(Plan::from_models(&vec![model; 2049]).is_err());
+    assert!(Plan::from_models(&vec![model; 4097]).is_err());
     for index in [0, 14, 17, 19, 20, 23, 28, 29, 30, 33] {
         let mut invalid = first.clone();
         invalid[index] = serde_json::json!("");

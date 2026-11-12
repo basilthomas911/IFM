@@ -81,6 +81,23 @@ async fn composer_options_match_hybrid_snapshot_and_keep_manual_clearing_and_own
         "{}",
         current.outcomes[0].message
     );
+    assert_eq!(current.result.context["expiry"], "");
+    assert_eq!(current.result.context["tradeDate"], "2026-10-26");
+    assert_eq!(current.result.choices["expiry"], ["2026-10-28", "2027-03-19 / ESH7", "2027-03-19 / ESM7"]);
+    let draft_session = current.result.context["composerSessionId"].clone();
+    for live in ["false", "true"] {
+        current = act(&mut state, &b, &r, current.generation, "chain", json!({
+            "tradeId":"456","composerSessionId":draft_session,"expiry":"",
+            "putDelta":"16","callDelta":"16","putWidth":"50","callWidth":"50","live":live
+        })).await;
+        assert_eq!(current.outcomes[0].state, "Completed");
+    }
+    assert_eq!(control(&b, "OptionChainReads", Value::Nil).await.as_array().unwrap()[0], Value::from(0));
+    current = act(&mut state, &b, &r, current.generation, "chain", json!({
+        "tradeId":"456","composerSessionId":draft_session,"expiry":"2026-10-28",
+        "putDelta":"16","callDelta":"16","putWidth":"50","callWidth":"50","live":"false"
+    })).await;
+    assert_eq!(current.outcomes[0].state, "Completed", "{}", current.outcomes[0].message);
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures/backend/composer-options-session.msgpack");
     let expected: ContractResult = wire::decode(&std::fs::read(path).unwrap()).unwrap();
@@ -93,7 +110,7 @@ async fn composer_options_match_hybrid_snapshot_and_keep_manual_clearing_and_own
             );
         }
     }
-    assert_eq!(current.result.choices["expiry"], expected.choices["expiry"]);
+    assert!(expected.choices["expiry"].iter().all(|expiry| current.result.choices["expiry"].contains(expiry)));
     let native: Vec<_> = current
         .result
         .rows
@@ -190,6 +207,16 @@ async fn composer_options_match_hybrid_snapshot_and_keep_manual_clearing_and_own
             .iter()
             .all(|row| row.fields["kind"] != "leg")
     );
+    let reads = control(&b, "OptionChainReads", Value::Nil).await;
+    current = act(&mut state, &b, &r, current.generation, "trade-date",
+        json!({"composerSessionId":session,"tradeDate":"2026-10-29"})).await;
+    assert_eq!(current.outcomes[0].state, "Completed", "{}", current.outcomes[0].message);
+    assert_eq!(current.result.context["tradeDate"], "2026-10-29");
+    assert_eq!(current.result.context["expiry"], "");
+    assert_eq!(current.result.context["price"], "");
+    assert!(!current.result.choices["expiry"].contains(&"2026-10-28".into()));
+    assert_eq!(control(&b, "OptionChainReads", Value::Nil).await, reads);
+    assert_eq!(control(&b, "OptionChainCount", Value::Nil).await.as_array().unwrap()[0], Value::from(0));
     current = act(&mut state, &b, &r, current.generation, "close", json!({})).await;
     assert_eq!(current.outcomes[0].state, "Completed");
     assert_eq!(

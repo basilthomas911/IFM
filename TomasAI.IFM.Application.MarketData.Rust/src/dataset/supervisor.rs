@@ -355,6 +355,21 @@ impl<T: Send + Sync + 'static> Supervisor<T> {
     pub fn recovery(&self) -> Arc<Recovery> {
         self.recovery.clone()
     }
+
+    /// Reopens a failed lane using its retained intent and one new recovery budget.
+    /// Healthy, idle and already-recovering lanes are never replaced here.
+    pub fn restart_failed(&self) -> Result<(), OwnerError> {
+        let _control = self.control.lock().map_err(|_| OwnerError::InternalFailure)?;
+        let mut desired = self.desired.borrow().clone();
+        if self.stop.is_cancelled() || desired.intent.is_none() || self.recovery.status().phase != Phase::Failed {
+            return Err(OwnerError::Closed);
+        }
+        desired.revision = desired.revision.checked_add(1).ok_or(OwnerError::Capacity)?;
+        self.recovery.replace(desired.required, Deadline::recovery()).ok_or(OwnerError::Closed)?;
+        self.desired.send_replace(desired);
+        Ok(())
+    }
+
     /// Reports an internal native processing/control fault and wakes whole-group
     /// reconstruction without changing accepted business intent. The earliest
     /// incident deadline is retained; terminal failures need an explicit retry.

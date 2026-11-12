@@ -44,6 +44,7 @@ async fn broker_order_preparation_uses_backend_economics_and_native_confirmation
     let context = BusinessContext::load(&b).await.unwrap();
     let deadline = || tokio::time::Instant::now() + Duration::from_secs(2);
     let draft = Draft {
+        draft_revision: 0,
         scope: Scope {
             portfolio: 1,
             fund: 2,

@@ -14043,6 +14043,9 @@ pub struct EvaluatedOptionContractReadModel {
         alias = "LastQuoteReceivedAtUtc"
     )]
     pub last_quote_received_at_utc: Option<OffsetText>,
+    /// C# CashMultiplier, wire slot 29.
+    #[serde(default, rename = "cashMultiplier", alias = "CashMultiplier")]
+    pub cash_multiplier: Option<DecimalText>,
 }
 impl FromBackend for EvaluatedOptionContractReadModel {
     const KIND: &'static str =
@@ -14143,6 +14146,10 @@ impl FromBackend for EvaluatedOptionContractReadModel {
             .map_err(|error| {
                 format!("EvaluatedOptionContractReadModel.LastQuoteReceivedAtUtc: {error}")
             })?,
+            cash_multiplier: FromBackend::from_backend(fields.get(29).unwrap_or(&Value::Nil))
+                .map_err(|error| {
+                    format!("EvaluatedOptionContractReadModel.CashMultiplier: {error}")
+                })?,
         })
     }
 }
@@ -14362,6 +14369,13 @@ impl PresentationRecord for EvaluatedOptionContractReadModel {
                 mode: child_mode,
             },
         )?;
+        map.serialize_entry(
+            "cashMultiplier",
+            &FieldValue {
+                value: &self.cash_multiplier,
+                mode: child_mode,
+            },
+        )?;
         self.serialize_extras(&mut map)?;
         map.end()
     }
@@ -14440,6 +14454,7 @@ impl BackendRecord for EvaluatedOptionContractReadModel {
             "LastQuoteReceivedAtUtc",
             &BackendDocument(&self.last_quote_received_at_utc),
         )?;
+        map.serialize_entry("CashMultiplier", &BackendDocument(&self.cash_multiplier))?;
         map.end()
     }
 }
@@ -14484,6 +14499,7 @@ impl Cells for EvaluatedOptionContractReadModel {
             "lastQuoteReceivedAtUtc" | "LastQuoteReceivedAtUtc" => {
                 self.last_quote_received_at_utc.scalar_cell()
             }
+            "cashMultiplier" | "CashMultiplier" => self.cash_multiplier.scalar_cell(),
             _ => Cell::Missing,
         }
     }
@@ -17170,6 +17186,9 @@ pub struct FundTradeSetupReference {
     /// C# FundId, wire slot 2.
     #[serde(default, rename = "fundId", alias = "FundId")]
     pub fund_id: Option<i32>,
+    /// C# DraftRevision, wire slot 3.
+    #[serde(default, rename = "draftRevision", alias = "DraftRevision")]
+    pub draft_revision: Option<i64>,
 }
 impl FromBackend for FundTradeSetupReference {
     const KIND: &'static str =
@@ -17188,6 +17207,8 @@ impl FromBackend for FundTradeSetupReference {
                 .map_err(|error| format!("FundTradeSetupReference.TradeId: {error}"))?,
             fund_id: FromBackend::from_backend(fields.get(2).unwrap_or(&Value::Nil))
                 .map_err(|error| format!("FundTradeSetupReference.FundId: {error}"))?,
+            draft_revision: FromBackend::from_backend(fields.get(3).unwrap_or(&Value::Nil))
+                .map_err(|error| format!("FundTradeSetupReference.DraftRevision: {error}"))?,
         })
     }
 }
@@ -17225,6 +17246,13 @@ impl PresentationRecord for FundTradeSetupReference {
                 mode: child_mode,
             },
         )?;
+        map.serialize_entry(
+            "draftRevision",
+            &FieldValue {
+                value: &self.draft_revision,
+                mode: child_mode,
+            },
+        )?;
         self.serialize_extras(&mut map)?;
         map.end()
     }
@@ -17259,6 +17287,7 @@ impl BackendRecord for FundTradeSetupReference {
         map.serialize_entry("OrderId", &BackendDocument(&self.order_id))?;
         map.serialize_entry("TradeId", &BackendDocument(&self.trade_id))?;
         map.serialize_entry("FundId", &BackendDocument(&self.fund_id))?;
+        map.serialize_entry("DraftRevision", &BackendDocument(&self.draft_revision))?;
         map.end()
     }
 }
@@ -17269,6 +17298,7 @@ impl Cells for FundTradeSetupReference {
             "orderId" | "OrderId" => self.order_id.scalar_cell(),
             "tradeId" | "TradeId" => self.trade_id.scalar_cell(),
             "fundId" | "FundId" => self.fund_id.scalar_cell(),
+            "draftRevision" | "DraftRevision" => self.draft_revision.scalar_cell(),
             _ => Cell::Missing,
         }
     }
@@ -22308,6 +22338,9 @@ pub struct FundOrderTradeProjectionReadModel {
     /// C# TradeReference, wire slot 26.
     #[serde(default, rename = "tradeReference", alias = "TradeReference")]
     pub trade_reference: Option<String>,
+    /// C# DraftRevision, wire slot 27.
+    #[serde(default, rename = "draftRevision", alias = "DraftRevision")]
+    pub draft_revision: Option<i64>,
 }
 impl FromBackend for FundOrderTradeProjectionReadModel {
     const KIND: &'static str =
@@ -22412,6 +22445,10 @@ impl FromBackend for FundOrderTradeProjectionReadModel {
             trade_reference: FromBackend::from_backend(fields.get(26).unwrap_or(&Value::Nil))
                 .map_err(|error| {
                     format!("FundOrderTradeProjectionReadModel.TradeReference: {error}")
+                })?,
+            draft_revision: FromBackend::from_backend(fields.get(27).unwrap_or(&Value::Nil))
+                .map_err(|error| {
+                    format!("FundOrderTradeProjectionReadModel.DraftRevision: {error}")
                 })?,
         })
     }
@@ -22618,6 +22655,13 @@ impl PresentationRecord for FundOrderTradeProjectionReadModel {
                 mode: child_mode,
             },
         )?;
+        map.serialize_entry(
+            "draftRevision",
+            &FieldValue {
+                value: &self.draft_revision,
+                mode: child_mode,
+            },
+        )?;
         self.serialize_extras(&mut map)?;
         map.end()
     }
@@ -22710,6 +22754,7 @@ impl BackendRecord for FundOrderTradeProjectionReadModel {
         )?;
         map.serialize_entry("TradeStatus", &BackendDocument(&self.trade_status))?;
         map.serialize_entry("TradeReference", &BackendDocument(&self.trade_reference))?;
+        map.serialize_entry("DraftRevision", &BackendDocument(&self.draft_revision))?;
         map.end()
     }
 }
@@ -22748,6 +22793,7 @@ impl Cells for FundOrderTradeProjectionReadModel {
             "executionAttemptId" | "ExecutionAttemptId" => self.execution_attempt_id.scalar_cell(),
             "tradeStatus" | "TradeStatus" => self.trade_status.scalar_cell(),
             "tradeReference" | "TradeReference" => self.trade_reference.scalar_cell(),
+            "draftRevision" | "DraftRevision" => self.draft_revision.scalar_cell(),
             _ => Cell::Missing,
         }
     }
@@ -51093,6 +51139,12 @@ pub const CONTRACT_FIELDS: &[(&str, &str, usize, &str)] = &[
         "System.Nullable`1[System.DateTimeOffset]",
     ),
     (
+        "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.EvaluatedOptionContractReadModel",
+        "CashMultiplier",
+        29,
+        "System.Nullable`1[System.Decimal]",
+    ),
+    (
         "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesContractV3ReadModel",
         "ContractId",
         0,
@@ -51727,6 +51779,12 @@ pub const CONTRACT_FIELDS: &[(&str, &str, usize, &str)] = &[
         "FundId",
         2,
         "System.Int32",
+    ),
+    (
+        "TomasAI.IFM.Domain.Portfolio.Shared.Contracts.FundTradeSetupReference",
+        "DraftRevision",
+        3,
+        "System.Int64",
     ),
     (
         "TomasAI.IFM.Domain.Portfolio.Shared.Financial.CapacityExposure",
@@ -52963,6 +53021,12 @@ pub const CONTRACT_FIELDS: &[(&str, &str, usize, &str)] = &[
         "TradeReference",
         26,
         "System.String",
+    ),
+    (
+        "TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundOrderTradeProjectionReadModel",
+        "DraftRevision",
+        27,
+        "System.Int64",
     ),
     (
         "TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundRiskEnvelopeReadModel",

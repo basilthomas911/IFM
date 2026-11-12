@@ -132,6 +132,7 @@ internal static class FrozenEmulatorOptionChain
             hasStoredGreeks ? stored!.Vega : greeks.Value?.Vega,
             hasStoredGreeks ? stored!.Theta : greeks.Value?.Theta,
             hasStoredGreeks ? stored!.Rho : greeks.Value?.Rho, stored?.Volume, stored?.OpenInterest,
-            hasStoredGreeks || greeks.Success, true, stored is { TickId: > 100000000000000000 } ? DateTimeOffset.UnixEpoch.AddTicks(stored.TickId / 100) : null, null, model is null ? null : at, stored?.VolumeValueDate, stored?.OpenInterestValueDate);
+            hasStoredGreeks || greeks.Success, true, stored is { TickId: > 100000000000000000 } ? DateTimeOffset.UnixEpoch.AddTicks(stored.TickId / 100) : null, null, model is null ? null : at, stored?.VolumeValueDate, stored?.OpenInterestValueDate,
+            CashMultiplier: definition.GetCashMultiplier());
     }
 }

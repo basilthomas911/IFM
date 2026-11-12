@@ -173,6 +173,7 @@ async fn closed_health_channel_after_hours_idle_starts_a_full_recovery_window() 
     .unwrap();
     settle().await;
     assert_eq!(controller.recovery().status().phase, Phase::Running);
+    assert!(controller.restart_failed().is_err());
     advance(Duration::from_secs(3600)).await;
     // Keep replacement setup failing so its actual allowance can be inspected.
     factory.failures.store(10000, Ordering::SeqCst);
@@ -194,6 +195,14 @@ async fn closed_health_channel_after_hours_idle_starts_a_full_recovery_window() 
     advance(Duration::from_secs(120)).await;
     settle().await;
     assert_eq!(controller.recovery().status().phase, Phase::Failed);
+    let failed = controller.recovery().status().ticket;
+    factory.failures.store(0, Ordering::SeqCst);
+    controller.restart_failed().unwrap();
+    assert!(controller.restart_failed().is_err());
+    settle().await;
+    assert_eq!(controller.recovery().status().phase, Phase::Running);
+    assert_ne!(controller.recovery().status().ticket, failed);
+    assert_eq!(controller.intent().as_deref(), Some(&1));
     controller.cancel();
     controller.join(Deadline::recovery()).await.unwrap();
     root.stop().unwrap();

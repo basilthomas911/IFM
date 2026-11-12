@@ -166,6 +166,7 @@ impl TradeWorkspace {
                                 || text(&display.row(&r.id), "source") == self.source_filter)
                     })
                 }),
+            "canChangeTrade" => s.result.context.get(flag_key).is_some_and(|value| value == "True"),
             "canRemoveTrade" => {
                 let mut trades = s.result.rows.iter().filter(|r| {
                     r.fields.get("kind").is_some_and(|kind| kind == "trade")
@@ -470,11 +471,18 @@ impl TradeWorkspace {
                 trade_top + 44.,
             ),
             (
+                "btnChangeTrade",
+                "Change Trade...",
+                "canChangeTrade",
+                "prepare-change-trade",
+                trade_top + 88.,
+            ),
+            (
                 "btnRemoveTrade",
                 "Remove Trade",
                 "canRemoveTrade",
                 "remove-trade",
-                trade_top + 88.,
+                trade_top + 132.,
             ),
         ] {
             let r = rect(o, p, bx, y, 140., 32.);
@@ -497,6 +505,7 @@ impl TradeWorkspace {
                         self.draft.remove("tradeReferenceDefault");
                         action = Some(intent);
                     }
+                    "prepare-change-trade" => action = Some(intent),
                     "load-trade" => {
                         self.open = false;
                         action = Some(intent);
@@ -1064,6 +1073,7 @@ impl TradeWorkspace {
         let p = ui.ctx().pixels_per_point();
         let o = ui.cursor().min;
         let order = kind == "create-order";
+        let changing = kind == "change-trade";
         let font = egui::TextStyle::Body.resolve(ui.style());
         let layout = draft_layout(ui.ctx(), order, self.draft.get("tradeReference")
             .or_else(|| s.result.context.get("preparedTradeLabel")).map(String::as_str));
@@ -1099,13 +1109,16 @@ impl TradeWorkspace {
             })
             .fold(if order { 112_f32 } else { 137_f32 }, f32::max)
             + 20.;
-        let closing = s
-            .result
-            .context
-            .get("closingType")
-            .cloned()
-            .unwrap_or_default();
-        if !order && !closing.is_empty() {
+        let closing = if changing {
+            if s.result.context.get("changeTradeClosing").is_some_and(|value| value == "true") {
+                s.result.context.get("changeTradeType").cloned().unwrap_or_default()
+            } else {
+                String::new()
+            }
+        } else {
+            s.result.context.get("closingType").cloned().unwrap_or_default()
+        };
+        if !order && !changing && !closing.is_empty() {
             self.draft.insert("tradeType".into(), closing.clone());
             self.draft.insert(
                 "baseContract".into(),
@@ -1207,13 +1220,17 @@ impl TradeWorkspace {
                     match i {
                         0 | 5 | 6 => {
                             let value = match i {
-                                0 => s.result.context.get("preparedTradeId").cloned().unwrap_or_default(),
+                                0 => s.result.context.get(if changing { "tradeId" } else { "preparedTradeId" }).cloned().unwrap_or_default(),
                                 5 => "NewTrade".into(),
                                 _ => {
+                                    if changing && self.draft.get("tradeType") == s.result.context.get("changeTradeType") {
+                                        s.result.context.get("tradeAction").cloned().unwrap_or_default()
+                                    } else {
                                     let credit = self.draft.get("tradeType").is_none_or(|kind| matches!(
                                         kind.as_str(), "ShortIronCondor" | "PutCreditSpread" | "CallCreditSpread"
                                     ));
                                     if credit { "Sell" } else { "Buy" }.into()
+                                    }
                                 }
                             };
                             let size = ui.painter().layout_no_wrap(value.clone(), font.clone(), Color32::WHITE).size();
@@ -1329,7 +1346,7 @@ impl TradeWorkspace {
                             let default = format!("{action} {label}");
                             let unedited = self.draft.get("tradeReference").is_none()
                                 || self.draft.get("tradeReference") == self.draft.get("tradeReferenceDefault");
-                            if unedited {
+                            if !changing && unedited {
                                 self.draft.insert("tradeReference".into(), default.clone());
                             }
                             self.draft.insert("tradeReferenceDefault".into(), default);
@@ -1376,11 +1393,13 @@ impl TradeWorkspace {
                         .rows
                         .iter()
                         .any(|r| r.fields.get("kind").is_some_and(|k| k == "order-draft")))
-                && (order
+                && (order || changing
                     || s.result
                         .context
                         .get("preparedTradeId")
-                        .is_some_and(|v| !v.is_empty()));
+                        .is_some_and(|v| !v.is_empty()))
+                && (!changing || (!closing.is_empty() || self.draft.get("baseContract").is_some_and(|contract|
+                    s.result.choices.get("baseContract").is_some_and(|choices| choices.contains(contract)))));
             let response = form_at(ui, r, label, |ui| {
                 ui.add_enabled(
                     label == "Cancel" || ready,
@@ -1396,6 +1415,8 @@ impl TradeWorkspace {
                     "cancel-draft"
                 } else if order {
                     "create-order"
+                } else if changing {
+                    "change-trade"
                 } else {
                     "create-trade"
                 });

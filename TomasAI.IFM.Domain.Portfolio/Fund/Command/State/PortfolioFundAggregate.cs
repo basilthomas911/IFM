@@ -290,6 +290,11 @@ public sealed class PortfolioFundAggregate
         return new FundManualOrderChangedCompute(
             Guid.NewGuid(), commandId, Revision + 1, nowUtc, principal, reservation);
     }
+    /// <summary>Computes the replacement terms without mutating the current Fund.</summary>
+    internal IPortfolioFundChange ComputeChangeManualTrade(
+        Guid commandId, ChangeManualFundOrderTradeRequest request, DateTime nowUtc, string principal) =>
+        ComputeManualCompositionChange(commandId, nowUtc, principal, () => CreateCompositionComputation().ChangeManualTrade(request));
+
     /// <summary>Removes an economically inactive trade from a manual Portfolio Fund order.</summary>
     /// <param name="commandId">The stable command identifier.</param>
     /// <param name="request">The scoped trade-removal request.</param>

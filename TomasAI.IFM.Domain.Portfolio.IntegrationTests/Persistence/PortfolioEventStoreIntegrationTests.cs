@@ -3,6 +3,8 @@ using FluentAssertions;
 using System.Diagnostics;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Domain.Portfolio.Command.State;
+using TomasAI.IFM.Domain.Portfolio.Fund.Command;
+using TomasAI.IFM.Domain.Portfolio.Shared.Commands;
 using TomasAI.IFM.Domain.Portfolio.Financial.Repository;
 using TomasAI.IFM.Domain.Portfolio.Shared.Events;
 using TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events;
@@ -21,6 +23,57 @@ namespace TomasAI.IFM.Domain.Portfolio.IntegrationTests.Persistence;
 public sealed class PortfolioEventStoreIntegrationTests(PortfolioEventStoreFixture fixture, ITestOutputHelper output)
     : IClassFixture<PortfolioEventStoreFixture>
 {
+    [Fact]
+    public async Task PostgreSQL_reloads_an_edited_manual_trade_from_latest_Fund_snapshot()
+    {
+        var value = Random.Shared.Next(100_000, 1_000_000_000);
+        var id = new PortfolioFundId(value, value + 1);
+        var now = new DateTime(2026, 11, 11, 14, 0, 0, DateTimeKind.Utc);
+        var day = DateOnly.FromDateTime(now);
+        var store = new PortfolioEventStore(fixture.EventSourceDb);
+        var fund = new PortfolioFundAggregate();
+        var created = fund.Create(Guid.NewGuid(), Mandate(id, now), now, "integration");
+        await store.AppendFundAsync(id, created, 0);
+        var activated = fund.ChangeState(Guid.NewGuid(), 1, FundOperatingState.Active, "activate",
+            new(true, 1, true, true), now, "integration");
+        await store.AppendFundAsync(id, activated, 1);
+        var order = fund.CreateManualOrder(Guid.NewGuid(), new()
+        {
+            PortfolioId = id.PortfolioId, FundId = id.FundId, PortfolioVersion = 1, FundMandateVersion = 1,
+            IdempotencyKey = Guid.NewGuid(), RequestedAtUtc = now, ExpiresAtUtc = now.AddDays(1), Reference = "Edit draft",
+        }, 4001, now, "integration");
+        await store.AppendFundAsync(id, order, 2);
+        var added = fund.AddManualTrade(Guid.NewGuid(), new()
+        {
+            PortfolioId = id.PortfolioId, FundId = id.FundId, OrderId = 4001, TradeId = 4301,
+            ExpectedOrderVersion = 1, BaseContractId = "ES20311219", BaseContractSymbol = "ES",
+            TradeType = "ShortIronCondor", TradeAction = "Sell", TradeState = "NewTrade",
+            PrimaryTrade = true, EffectiveDate = day, RequestedAtUtc = now, Reference = "Original",
+        }, now, "integration");
+        await store.AppendFundAsync(id, added, 3);
+        await store.SaveFundSnapshotAsync(id, fund, now, "integration");
+        var reloaded = await store.LoadFundAsync(id);
+        var prior = reloaded.Composition(4001);
+        var command = new ChangeManualFundOrderTradeCommand(new()
+        {
+            PortfolioId = id.PortfolioId, FundId = id.FundId, OrderId = 4001, TradeId = 4301,
+            ExpectedOrderVersion = prior.AggregateVersion, ExpectedTradeVersion = prior.Trades[0].AggregateVersion,
+            BaseContractId = "ES20261218", BaseContractSymbol = "ES", TradeType = "ShortIronCondor",
+            Reference = "Changed", EffectiveDate = day,
+        }) { CommandId = Guid.NewGuid(), EntityId = id };
+        command.Execute(reloaded, now.AddSeconds(1), "integration").Success.Should().BeTrue();
+        await store.AppendFundAsync(id, reloaded.PendingEvent!, 4);
+        var replayed = await store.LoadFundAsync(id);
+        await store.SaveFundSnapshotAsync(id, replayed, now.AddSeconds(2), "integration");
+        var trade = (await store.LoadFundAsync(id)).Composition(4001).Trades.Should().ContainSingle().Which;
+        trade.Should().BeEquivalentTo(replayed.Composition(4001).Trades.Single());
+        trade.TradeId.Should().Be(4301);
+        trade.BaseContractId.Should().Be("ES20261218");
+        trade.TradeState.Should().Be("NewTrade");
+        trade.DraftRevision.Should().Be(prior.AggregateVersion + 1);
+        (await store.FindCommittedFundCommandAsync(id, command.CommandId)).Should().BeOfType<FundManualOrderChangedEvent>();
+    }
+
     [Fact]
     [Trait("Gate", "PF-24")]
     [Trait("Gate", "PF-25")]

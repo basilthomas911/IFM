@@ -79,8 +79,19 @@ fn qualification_capacity_cancellation_and_original_deadline_have_no_partial_suc
     ))
     .unwrap();
     let valid = candidate(&fixtures[0]["universes"][0]["candidates"][0]);
-    let too_many = vec![valid.clone(); 2049];
+    let too_many = vec![valid.clone(); 4097];
     let stop = CancellationToken::new();
+    // Duplicate validation runs only after admitting a scope within capacity.
+    for capacity in [2049, 4096] {
+        assert_eq!(
+            qualify(&too_many[..capacity], true, 0, 0, &stop, Deadline::recovery())
+                .unwrap()
+                .failure
+                .unwrap()
+                .code,
+            "ConflictingDefinition"
+        );
+    }
     assert_eq!(
         qualify(&too_many, true, 0, 0, &stop, Deadline::recovery())
             .unwrap()

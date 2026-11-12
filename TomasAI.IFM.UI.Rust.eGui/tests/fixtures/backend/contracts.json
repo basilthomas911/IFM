@@ -55471,91 +55471,91 @@
         "name": "Bid",
         "index": 3,
         "mapKey": null,
-        "type": "System.Nullable\u00601[System.Decimal]"
+        "type": "System.Nullable`1[System.Decimal]"
       },
       {
         "name": "Ask",
         "index": 4,
         "mapKey": null,
-        "type": "System.Nullable\u00601[System.Decimal]"
+        "type": "System.Nullable`1[System.Decimal]"
       },
       {
         "name": "BidSize",
         "index": 5,
         "mapKey": null,
-        "type": "System.Nullable\u00601[System.UInt32]"
+        "type": "System.Nullable`1[System.UInt32]"
       },
       {
         "name": "AskSize",
         "index": 6,
         "mapKey": null,
-        "type": "System.Nullable\u00601[System.UInt32]"
+        "type": "System.Nullable`1[System.UInt32]"
       },
       {
         "name": "Last",
         "index": 7,
         "mapKey": null,
-        "type": "System.Nullable\u00601[System.Decimal]"
+        "type": "System.Nullable`1[System.Decimal]"
       },
       {
         "name": "LastSize",
         "index": 8,
         "mapKey": null,
-        "type": "System.Nullable\u00601[System.UInt32]"
+        "type": "System.Nullable`1[System.UInt32]"
       },
       {
         "name": "ImpliedVolatility",
         "index": 9,
         "mapKey": null,
-        "type": "System.Nullable\u00601[System.Double]"
+        "type": "System.Nullable`1[System.Double]"
       },
       {
         "name": "TheoreticalPrice",
         "index": 10,
         "mapKey": null,
-        "type": "System.Nullable\u00601[System.Double]"
+        "type": "System.Nullable`1[System.Double]"
       },
       {
         "name": "Delta",
         "index": 11,
         "mapKey": null,
-        "type": "System.Nullable\u00601[System.Double]"
+        "type": "System.Nullable`1[System.Double]"
       },
       {
         "name": "Gamma",
         "index": 12,
         "mapKey": null,
-        "type": "System.Nullable\u00601[System.Double]"
+        "type": "System.Nullable`1[System.Double]"
       },
       {
         "name": "Vega",
         "index": 13,
         "mapKey": null,
-        "type": "System.Nullable\u00601[System.Double]"
+        "type": "System.Nullable`1[System.Double]"
       },
       {
         "name": "Theta",
         "index": 14,
         "mapKey": null,
-        "type": "System.Nullable\u00601[System.Double]"
+        "type": "System.Nullable`1[System.Double]"
       },
       {
         "name": "Rho",
         "index": 15,
         "mapKey": null,
-        "type": "System.Nullable\u00601[System.Double]"
+        "type": "System.Nullable`1[System.Double]"
       },
       {
         "name": "Volume",
         "index": 16,
         "mapKey": null,
-        "type": "System.Nullable\u00601[System.Int64]"
+        "type": "System.Nullable`1[System.Int64]"
       },
       {
         "name": "OpenInterest",
         "index": 17,
         "mapKey": null,
-        "type": "System.Nullable\u00601[System.Int64]"
+        "type": "System.Nullable`1[System.Int64]"
       },
       {
         "name": "GreeksValid",
@@ -55573,31 +55573,31 @@
         "name": "QuoteAtUtc",
         "index": 20,
         "mapKey": null,
-        "type": "System.Nullable\u00601[System.DateTimeOffset]"
+        "type": "System.Nullable`1[System.DateTimeOffset]"
       },
       {
         "name": "TradeAtUtc",
         "index": 21,
         "mapKey": null,
-        "type": "System.Nullable\u00601[System.DateTimeOffset]"
+        "type": "System.Nullable`1[System.DateTimeOffset]"
       },
       {
         "name": "EvaluatedAtUtc",
         "index": 22,
         "mapKey": null,
-        "type": "System.Nullable\u00601[System.DateTimeOffset]"
+        "type": "System.Nullable`1[System.DateTimeOffset]"
       },
       {
         "name": "VolumeValueDate",
         "index": 23,
         "mapKey": null,
-        "type": "System.Nullable\u00601[System.DateOnly]"
+        "type": "System.Nullable`1[System.DateOnly]"
       },
       {
         "name": "OpenInterestValueDate",
         "index": 24,
         "mapKey": null,
-        "type": "System.Nullable\u00601[System.DateOnly]"
+        "type": "System.Nullable`1[System.DateOnly]"
       },
       {
         "name": "SelectionValid",
@@ -55615,13 +55615,19 @@
         "name": "LastQuoteEventAtUtc",
         "index": 27,
         "mapKey": null,
-        "type": "System.Nullable\u00601[System.DateTimeOffset]"
+        "type": "System.Nullable`1[System.DateTimeOffset]"
       },
       {
         "name": "LastQuoteReceivedAtUtc",
         "index": 28,
         "mapKey": null,
-        "type": "System.Nullable\u00601[System.DateTimeOffset]"
+        "type": "System.Nullable`1[System.DateTimeOffset]"
+      },
+      {
+        "name": "CashMultiplier",
+        "index": 29,
+        "mapKey": null,
+        "type": "System.Nullable`1[System.Decimal]"
       }
     ],
     "actor": null,
@@ -58692,6 +58698,79 @@
     "verb": "ChangePortfolioOperatingState"
   },
   {
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.Commands.ChangeManualFundOrderTradeCommand",
+    "isEnum": false,
+    "errorId": 34000,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "CommandId",
+        "index": 0,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "Subject",
+        "index": 1,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventModelActor.ActorSubject"
+      },
+      {
+        "name": "PostEvents",
+        "index": 2,
+        "mapKey": null,
+        "type": "System.Boolean"
+      },
+      {
+        "name": "EntityId",
+        "index": 3,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Portfolio.Shared.Identities.PortfolioFundId"
+      },
+      {
+        "name": "ErrorCode",
+        "index": 4,
+        "mapKey": null,
+        "type": "System.Int32"
+      },
+      {
+        "name": "RouteTo",
+        "index": 5,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Shared.EventSourcing.BoundedContextName"
+      },
+      {
+        "name": "Request",
+        "index": 6,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Portfolio.Shared.Contracts.ChangeManualFundOrderTradeRequest"
+      },
+      {
+        "name": "CorrelationId",
+        "index": 7,
+        "mapKey": null,
+        "type": "System.Guid"
+      },
+      {
+        "name": "RequestedOnUtc",
+        "index": 8,
+        "mapKey": null,
+        "type": "System.DateTime"
+      },
+      {
+        "name": "Access",
+        "index": 9,
+        "mapKey": null,
+        "type": "TomasAI.IFM.Domain.Portfolio.Shared.Common.PortfolioAccessContext"
+      }
+    ],
+    "actor": "PortfolioFundCommand",
+    "verb": "ChangeManualFundOrderTrade"
+  },
+  {
     "type": "TomasAI.IFM.Domain.Portfolio.Shared.Commands.ConfigureFundBaseContractsCommand",
     "isEnum": false,
     "errorId": 34000,
@@ -60854,6 +60933,85 @@
     "verb": null
   },
   {
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.Contracts.ChangeManualFundOrderTradeRequest",
+    "isEnum": false,
+    "errorId": null,
+    "mapByName": false,
+    "genericParameters": [],
+    "unions": [],
+    "enumValues": null,
+    "members": [
+      {
+        "name": "PortfolioId",
+        "index": 0,
+        "mapKey": null,
+        "type": "System.Int32"
+      },
+      {
+        "name": "FundId",
+        "index": 1,
+        "mapKey": null,
+        "type": "System.Int32"
+      },
+      {
+        "name": "OrderId",
+        "index": 2,
+        "mapKey": null,
+        "type": "System.Int32"
+      },
+      {
+        "name": "ExpectedOrderVersion",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "TradeId",
+        "index": 4,
+        "mapKey": null,
+        "type": "System.Int32"
+      },
+      {
+        "name": "ExpectedTradeVersion",
+        "index": 5,
+        "mapKey": null,
+        "type": "System.Int64"
+      },
+      {
+        "name": "TradeType",
+        "index": 6,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "EffectiveDate",
+        "index": 7,
+        "mapKey": null,
+        "type": "System.DateOnly"
+      },
+      {
+        "name": "Reference",
+        "index": 8,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "BaseContractId",
+        "index": 9,
+        "mapKey": null,
+        "type": "System.String"
+      },
+      {
+        "name": "BaseContractSymbol",
+        "index": 10,
+        "mapKey": null,
+        "type": "System.String"
+      }
+    ],
+    "actor": null,
+    "verb": null
+  },
+  {
     "type": "TomasAI.IFM.Domain.Portfolio.Shared.Contracts.CreateManualFundOrderRequest",
     "isEnum": false,
     "errorId": null,
@@ -61315,6 +61473,12 @@
         "index": 2,
         "mapKey": null,
         "type": "System.Int32"
+      },
+      {
+        "name": "DraftRevision",
+        "index": 3,
+        "mapKey": null,
+        "type": "System.Int64"
       }
     ],
     "actor": null,
@@ -79499,6 +79663,12 @@
         "index": 26,
         "mapKey": null,
         "type": "System.String"
+      },
+      {
+        "name": "DraftRevision",
+        "index": 27,
+        "mapKey": null,
+        "type": "System.Int64"
       }
     ],
     "actor": null,
@@ -157733,6 +157903,12 @@
         "index": 15,
         "mapKey": null,
         "type": "System.Guid"
+      },
+      {
+        "name": "ReasonSentence",
+        "index": 16,
+        "mapKey": null,
+        "type": "System.String"
       }
     ],
     "actor": null,
@@ -176013,6 +176189,12 @@
         "index": 7,
         "mapKey": null,
         "type": "System.String[]"
+      },
+      {
+        "name": "ReasonSentence",
+        "index": 8,
+        "mapKey": null,
+        "type": "System.String"
       }
     ],
     "actor": null,

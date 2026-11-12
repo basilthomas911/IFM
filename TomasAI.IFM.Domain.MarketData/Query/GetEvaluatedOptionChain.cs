@@ -31,13 +31,14 @@ public static class GetEvaluatedOptionChain
                 }
                 catch (Exception e) when (e is not OperationCanceledException)
                 { Microsoft.Extensions.Logging.LoggerExtensions.LogError(c.Logger, e, "Bollinger estimate lookup failed for {ContractId}", q.UnderlyingContractId); }
+                decimal? sessionOpen = null;
                 try
                 {
-                    var prior = await c.DbFactory.MarketDataDb.DbReader.GetLastFuturesEodDataAsync(q.UnderlyingContractId, date).ConfigureAwait(false);
-                    model = model with { PreviousSessionClose = prior is { ClosePrice: > 0 } ? (decimal)prior.ClosePrice : null };
+                    var current = await c.DbFactory.MarketDataDb.DbReader.GetFuturesEodDataAsync(q.UnderlyingContractId, date).ConfigureAwait(false);
+                    sessionOpen = current?.OpenPrice;
                 }
                 catch (Exception e) when (e is not OperationCanceledException)
-                { Microsoft.Extensions.Logging.LoggerExtensions.LogError(c.Logger, e, "Previous session close lookup failed for {ContractId}", q.UnderlyingContractId); }
+                { Microsoft.Extensions.Logging.LoggerExtensions.LogError(c.Logger, e, "Session open lookup failed for {ContractId} on {ValueDate}", q.UnderlyingContractId, date); }
                 try
                 {
                     if (c.IvCollector is { } collector && !q.FrozenEmulatorPreviewOnly)
@@ -56,7 +57,7 @@ public static class GetEvaluatedOptionChain
                     Microsoft.Extensions.Logging.LoggerExtensions.LogError(c.Logger, e, "IV metric lookup failed for {ContractId}", q.UnderlyingContractId);
                     model = model with { IvRankStatus = "IV metric lookup failed" };
                 }
-                result = new ServiceOk<EvaluatedOptionChainReadModel>(EvaluatedOptionChainSummary.Apply(model, date));
+                result = new ServiceOk<EvaluatedOptionChainReadModel>(EvaluatedOptionChainSummary.Apply(model, date, sessionOpen));
             }
             return result;
         }

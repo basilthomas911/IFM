@@ -12,6 +12,23 @@ namespace TomasAI.IFM.Domain.Portfolio.UnitTests.Workflow;
 
 public sealed class FundTradeExecutionLifecycleTests
 {
+    [Theory]
+    [InlineData("TradeToOpen")]
+    [InlineData("OrderSubmitted")]
+    [InlineData("Rejected")]
+    [InlineData("Open")]
+    [InlineData("Closed")]
+    public void Changing_trade_requires_a_new_unsubmitted_draft(string state)
+    {
+        var (aggregate, _) = Fixture(false, state);
+        var order = aggregate.ReservationForOrder(10);
+        var edit = new ChangeManualFundOrderTradeRequest { PortfolioId = 1, FundId = 2, OrderId = 10,
+            TradeId = 20, ExpectedOrderVersion = order.AggregateVersion, ExpectedTradeVersion = order.Trades[0].AggregateVersion,
+            BaseContractId = "ESH27", BaseContractSymbol = "ES", TradeType = "ShortIronCondor",
+            EffectiveDate = new(2026, 10, 9), Reference = "Edited" };
+        FluentActions.Invoking(() => aggregate.ChangeManualTrade(edit)).Should().Throw<InvalidOperationException>();
+        aggregate.ReservationForOrder(10).Trades[0].BaseContractId.Should().Be("ESZ26");
+    }
     [Fact]
     public void Operator_trade_reference_is_separate_from_the_generated_instruction_reference()
     {
@@ -52,7 +69,8 @@ public sealed class FundTradeExecutionLifecycleTests
         }
     }
     static readonly DateTime Now = new(2026, 10, 9, 14, 0, 0, DateTimeKind.Utc);
-    static (PortfolioFundCompositionAggregate Aggregate, FundTradeExecutionEvidence Opening) Fixture(bool includeClosing = true)
+    static (PortfolioFundCompositionAggregate Aggregate, FundTradeExecutionEvidence Opening) Fixture(bool includeClosing = true,
+        string openingState = nameof(TradeState.TradeToOpen))
     {
         var aggregate = new PortfolioFundCompositionAggregate();
         var draft = aggregate.CreateManualDraft(new() { PortfolioId = 1, PortfolioVersion = 1, FundId = 2,
@@ -60,7 +78,7 @@ public sealed class FundTradeExecutionLifecycleTests
             RequestedAtUtc = Now, ExpiresAtUtc = Now.AddDays(1) }, 10, Now, "test");
         var open = aggregate.AddManualTrade(new() { PortfolioId = 1, FundId = 2, OrderId = 10,
             ExpectedOrderVersion = draft.AggregateVersion, TradeId = 20, TradeType = nameof(TradeType.ShortIronCondor),
-            TradeState = nameof(TradeState.TradeToOpen), TradeAction = nameof(TradeAction.Sell), PrimaryTrade = true,
+            TradeState = openingState, TradeAction = nameof(TradeAction.Sell), PrimaryTrade = true,
             EffectiveDate = new(2026,10,9), Reference = "Open", BaseContractSymbol = "ES", BaseContractId = "ESZ26", RequestedAtUtc = Now }, "test");
         if (includeClosing) aggregate.AddManualTrade(new() { PortfolioId = 1, FundId = 2, OrderId = 10,
             ExpectedOrderVersion = open.AggregateVersion, TradeId = 21, TradeType = nameof(TradeType.LongIronCondor),

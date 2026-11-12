@@ -38,6 +38,7 @@ public sealed class PortfolioCommandWireConventionTests
         typeof(AuthorizeFundOrderRiskCommand),
         typeof(AssignTradeTemplateCommand),
         typeof(AddManualFundOrderTradeCommand),
+        typeof(ChangeManualFundOrderTradeCommand),
         typeof(AddFundMandateVersionCommand),
         typeof(RetirePortfolioFinancialPolicyCommand),
         typeof(DeleteDraftPortfolioFinancialPolicyCommand),

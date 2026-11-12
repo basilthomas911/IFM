@@ -47,9 +47,9 @@ impl OperationsHealthController {
     ) -> Result<ContractPublication, String> {
         if intent["schema"] != 1
             || intent["view"] != "operations-health"
-            || intent["intent"] != "load"
+            || !matches!(intent["intent"].as_str(), Some("load" | "restart-dataset"))
         {
-            return Err("Operations health is read-only".into());
+            return Err("Invalid Operations Health action".into());
         }
         let id = intent["requestId"]
             .as_str()
@@ -57,6 +57,11 @@ impl OperationsHealthController {
             .filter(|id| !id.is_nil())
             .ok_or("RequestId is required")?
             .to_string();
+        let restart = if intent["intent"] == "restart-dataset" {
+            Some(restart_dataset(backend, &id, &intent["fields"]).await)
+        } else {
+            None
+        };
         let deadline = tokio::time::Instant::now() + backend.default_timeout();
         let result = tokio::time::timeout_at(deadline, async {
             let endpoint = self
@@ -91,12 +96,20 @@ impl OperationsHealthController {
         .map_err(|_| "Health request deadline expired".to_string())
         .and_then(|r| r);
         self.generation += 1;
-        let (result,state,message)=match result {
+        let (mut result,mut state,mut message)=match result {
             Ok(result)=>(result,"Completed","Completed".to_string()),
             Err(error)=>(ContractResult{view:"operations-health".into(),context:BTreeMap::from([
                 ("status".into(),"Unavailable".into()),("summary".into(),format!("Operations health: unavailable. {error}")),("observation".into(),"No current central observation. Previous green values are not retained.".into()),
             ]),..Default::default()},"Failed",error),
         };
+        if let Some(restart) = restart {
+            match restart {
+                Ok(status) if state == "Completed" => message = status,
+                Ok(status) => message = format!("{status} Worker health could not be refreshed. {message}"),
+                Err(error) => { state = "Failed"; message = error; }
+            }
+            result.context.insert("restartStatus".into(), message.clone());
+        }
         Ok(ContractPublication {
             schema: 1,
             generation: self.generation,
@@ -110,6 +123,54 @@ impl OperationsHealthController {
             ..Default::default()
         })
     }
+}
+
+/// Send a fenced restart through the native Host recovery RPC.
+async fn restart_dataset(backend: &Backend, id: &str, fields: &Value) -> Result<String, String> {
+    use crate::backend::contracts::{date_only_wire, timestamp_wire};
+    use rmpv::Value as Wire;
+    let target = fields["dataset"].as_str().ok_or("Select a failed dataset worker")?;
+    let (role, dataset) = target.split_once('/').ok_or("Invalid dataset worker identity")?;
+    if !matches!((role, dataset), ("Options" | "Futures", "GLBX.MDP3") | ("Futures", "XCBF.PITCH")) {
+        return Err("This dataset worker does not support restart".into());
+    }
+    let identity = |key: &str| fields[key].as_str().and_then(|value| uuid::Uuid::parse_str(value).ok())
+        .map(|value| value.to_string()).ok_or("Dataset worker identity is unavailable. Refresh worker health.");
+    let date = fields["valueDate"].as_str().and_then(|date| date.parse().ok())
+        .ok_or("Dataset value date is unavailable. Refresh worker health.")?;
+    let scope = crate::backend::configuration::value("IFM_UI_MARKETDATA_SCOPE")?
+        .or_else(|| (std::env::var("DOTNET_ENVIRONMENT").as_deref().unwrap_or("Development") == "Development")
+            .then(|| "development".into()))
+        .ok_or("Market Data Host scope is not configured")?;
+    let raw = |value: &Wire| crate::backend::codec::raw(value).map(Wire::Binary);
+    let request = Wire::Array(vec![id.into(),role.into(),dataset.into(),identity("worker")?.into(),
+        identity("generation")?.into(),date_only_wire(date),"Manual dataset restart".into(),false.into(),Wire::Nil]);
+    let call = Wire::Array(vec![
+        "RecoverMarketDataAsync(TomasAI.IFM.Application.MarketData.Contracts.MarketDataRecoveryRequest,System.Threading.CancellationToken)".into(),
+        Wire::Array(vec![raw(&request)?, Wire::Binary(Vec::new())]),
+    ]);
+    // The native recovery owns the business deadline. This envelope mirrors the Host's unbounded recovery deadline.
+    let until = DateTime::<Utc>::from_timestamp(253_402_300_799, 999_999_900).expect("valid .NET maximum time");
+    let reply = backend.marketdata_recovery_until(&scope,
+        &Wire::Array(vec!["api/RecoverMarketDataAsync".into(),raw(&call)?,id.into(),timestamp_wire(until)]),
+        tokio::time::Instant::now() + std::time::Duration::from_secs(245)).await?;
+    let parts = reply.as_array().filter(|parts| parts.len() == 2).ok_or("Invalid dataset restart reply")?;
+    if let Some(error) = parts[1].as_str() {
+        return Err(format!("{target} restart failed. {error}"));
+    }
+    let payload = parts[0].as_slice().ok_or("Missing dataset restart reply")?;
+    let decoded = crate::backend::codec::decode(payload)?;
+    let result = decoded.as_array().filter(|result| result.len() == 9 && result[0].as_str() == Some(id)
+        && result[1].as_str() == Some(role) && result[2].as_str() == Some(dataset))
+        .ok_or("Dataset restart reply identity did not match the request")?;
+    if result[3].as_bool() != Some(true) {
+        return Err(format!("{target} restart failed. {}", result[6].as_str().unwrap_or("Refresh worker health for details.")));
+    }
+    Ok(if result[5].as_bool() == Some(true) {
+        format!("{target} restarted.")
+    } else {
+        format!("{target} connection restored. Worker readiness is still being verified.")
+    })
 }
 
 

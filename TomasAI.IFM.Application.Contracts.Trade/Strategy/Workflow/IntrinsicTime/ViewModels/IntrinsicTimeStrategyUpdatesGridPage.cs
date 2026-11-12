@@ -29,13 +29,21 @@ public sealed record IntrinsicTimeStrategyUpdatesGridRow(
         view.WorkflowId, view.WorkflowRevision,
         view.TriggerEvent.CreatedOn == default ? view.StartedAtUtc : view.TriggerEvent.CreatedOn,
         view.Status.ToString(), view.Outcome.ToString(), view.TriggerEvent.FuturesItiSignal,
-        [IntrinsicTimeStrategyUpdatesGridStage.FromState(view.RegimeDiscovery, stopReason: view.StopReasonCode),
-         IntrinsicTimeStrategyUpdatesGridStage.FromState(view.MarketCondition,
-             view.Outcome == StrategyWorkflowOutcome.NoTrade ? view.RegimeDiscovery.Result?.RegimeResult : null,
-             view.Outcome == StrategyWorkflowOutcome.NoTrade ? view.StopReasonCode : null),
-         IntrinsicTimeStrategyUpdatesGridStage.FromState(view.TradeSelection, stopReason: view.StopReasonCode),
-         IntrinsicTimeStrategyUpdatesGridStage.FromState(view.OrderComposition, stopReason: view.StopReasonCode),
-         IntrinsicTimeStrategyUpdatesGridStage.FromState(view.RiskManagement, stopReason: view.StopReasonCode)]);
+        [ProjectStage(view, StrategyWorkflowStage.RegimeDiscovery, view.RegimeDiscovery),
+         ProjectStage(view, StrategyWorkflowStage.MarketCondition, view.MarketCondition),
+         ProjectStage(view, StrategyWorkflowStage.TradeSelection, view.TradeSelection),
+         ProjectStage(view, StrategyWorkflowStage.OrderComposition, view.OrderComposition),
+         ProjectStage(view, StrategyWorkflowStage.RiskManagement, view.RiskManagement)]);
+
+    static IntrinsicTimeStrategyUpdatesGridStage ProjectStage(IntrinsicTimeStrategyWorkflowView view,
+        StrategyWorkflowStage stage, StrategyWorkflowStageState state) =>
+        IntrinsicTimeStrategyUpdatesGridStage.FromState(state,
+            stage == StrategyWorkflowStage.MarketCondition && view.Outcome == StrategyWorkflowOutcome.NoTrade
+                ? view.RegimeDiscovery.Result?.RegimeResult : null,
+            view.StopReasonCode) with
+        {
+            ReasonSentence = state.ReasonSentence ?? StrategyWorkflowStageReasons.Describe(view, stage, state)
+        };
 }
 
 /// <summary>Contains the status and tooltip fields for one pipeline indicator.</summary>
@@ -48,7 +56,8 @@ public sealed record IntrinsicTimeStrategyUpdatesGridStage(
     [property: Key(4)] string? ErrorType,
     [property: Key(5)] string? ErrorCode,
     [property: Key(6)] string? ErrorMessage,
-    [property: Key(7)] string[]? DecisionReasons = null)
+    [property: Key(7)] string[]? DecisionReasons = null,
+    [property: Key(8)] string? ReasonSentence = null)
 {
     internal static IntrinsicTimeStrategyUpdatesGridStage FromState(StrategyWorkflowStageState state,
         RegimeDiscoveryResult? regime = null, string? stopReason = null)

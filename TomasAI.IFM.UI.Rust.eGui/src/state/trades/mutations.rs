@@ -126,6 +126,64 @@ impl TradeController {
             "OrderId",
             self.data.order,
         )?;
+        let mut edit = None;
+        if matches!(action, "prepare-change-trade" | "change-trade") {
+            let order = order.as_ref().ok_or("Select an order")?;
+            let trade = selected(registry, "FundOrderTradeProjectionReadModel",
+                &self.data.trades, "TradeId", self.data.trade)?.ok_or("Select a new trade")?;
+            let id = positive(&trade, "TradeId")?;
+            if intent["originalId"].as_str() != Some(text(&order["OrderId"]).as_str())
+                || field(intent, "tradeId").parse::<i32>().ok() != Some(id)
+            {
+                return Err("The selected trade changed; reopen Change Trade.".into());
+            }
+            if trade["TradeState"] != "NewTrade" || trade["ExecutionOrderId"].as_i64().unwrap_or_default() != 0
+                || trade["ExecutionTradeId"].as_i64().unwrap_or_default() != 0 || order["Origin"] != "ManualUi"
+            {
+                return Err("Only a manual NewTrade can be changed before execution.".into());
+            }
+            let revision = |row: &Json| row["AggregateVersion"].as_i64().filter(|v| *v > 0)
+                .ok_or("The selected draft has no valid version");
+            let versions = (id, revision(order)?, revision(&trade)?);
+            if action == "prepare-change-trade" {
+                self.prepared_trade_change = Some(versions);
+                self.data.context = Some(context);
+                self.data.refresh_contracts(backend, registry).await?;
+                return Ok("Trade editor opened".into());
+            }
+            if self.prepared_trade_change != Some(versions) {
+                return Err("The trade changed while the editor was open; reload before saving.".into());
+            }
+            self.load_submissions(registry).await?;
+            if self.submission_operations.values().any(|operation| self.matches_submission(registry, operation)) {
+                return Err("This trade has a retained submission. Reconcile the execution before continuing.".into());
+            }
+            let contract = field(intent, "baseContract");
+            let symbol = if trade["PrimaryTrade"] == true {
+                self.data.context = Some(context.clone());
+                self.data.refresh_contracts(backend, registry).await?;
+                self.data.contracts.iter()
+                    .map(|wire| registry.project("TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesContractV3ReadModel", wire))
+                    .collect::<Result<Vec<_>, _>>()?
+                    .into_iter().find(|row| row["ContractId"] == contract)
+                    .map(|row| text(&row["Symbol"]))
+                    .ok_or("Select a current or future base contract configured for this Fund.")?
+            } else {
+                text(&trade["BaseContractSymbol"])
+            };
+            let reference = field(intent, "tradeReference");
+            if reference.trim().is_empty() || reference.encode_utf16().count() > 2048 {
+                return Err("Enter a trade reference of at most 2048 characters.".into());
+            }
+            edit = Some(manual_orders::change(registry, &context, order, &trade, json!({
+                "TradeType": field(intent, "tradeType"),
+                "RequestedTradeDate": crate::backend::date_input::parse(field(intent, "effectiveDate"))?.to_string(),
+                "TradeReference": reference.trim(),
+                "BaseContractId": contract,
+                "BaseContractSymbol": symbol,
+            }), correlation)?);
+            self.release_preview(backend, registry, deadline).await?;
+        }
         if action == "prepare-trade" {
             if order.is_none() {
                 return Err("Select an order before adding a trade".into());
@@ -197,6 +255,7 @@ impl TradeController {
             return Ok("Trade identity allocated".into());
         }
         let operation = match action {
+            "change-trade" => edit.ok_or("Open Change Trade first")?,
             "create-order" => {
                 if self.order_draft.is_none() {
                     return Err("Open Create Order first".into());
@@ -313,6 +372,8 @@ impl TradeController {
             manual_orders::Proof::Added { order, trade, .. } => {
                 Some(format!("Trade {trade} added to Portfolio order {order}."))
             }
+            manual_orders::Proof::Changed { order, trade, .. } =>
+                Some(format!("Trade {trade} updated on Portfolio order {order}.")),
             manual_orders::Proof::Removed { order, trade, .. } => Some(format!(
                 "Trade {trade} removed from Portfolio order {order}."
             )),
@@ -343,6 +404,7 @@ impl TradeController {
         self.pending_manual = None;
         self.manual_request = None;
         self.order_draft = None;
+        self.prepared_trade_change = None;
         self.data.context = Some(context);
         self.message =
             success_message.unwrap_or_else(|| format!("Manual Portfolio order {order} created."));

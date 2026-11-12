@@ -7,7 +7,7 @@ internal static class ComposerOptionFixtures {
  static readonly DateOnly date=new(2026,10,26);
  static readonly DateTimeOffset at=new(StrategyFixtures.At);
  public static EvaluatedOptionChainReadModel Chain(bool frozen=true,bool longCondor=false){
-  EvaluatedOptionContractReadModel Leg(string id,decimal strike,bool call,decimal bid,decimal ask,double delta)=>new(id,strike,call,bid,ask,1,2,null,null,.2,null,delta,null,.3,null,null,null,null,true,frozen,at,null,at);
+ EvaluatedOptionContractReadModel Leg(string id,decimal strike,bool call,decimal bid,decimal ask,double delta)=>new(id,strike,call,bid,ask,1,2,null,null,.2,null,delta,null,.3,null,null,null,null,true,frozen,at,null,at,CashMultiplier:50);
   return new("ESZ6",date.AddDays(2),6000,5900,6100,frozen?"Frozen emulator preview fixture":"Live",at,longCondor?[Leg("C-SHORT",6100,true,10,11,.16),Leg("C-LONG",6050,true,13,14,.25),Leg("P-SHORT",5900,false,9,10,-.16),Leg("P-LONG",5950,false,12,13,-.25)]:[Leg("C-SHORT",6050,true,10,11,.16),Leg("C-LONG",6100,true,3,4,.10),Leg("P-SHORT",5950,false,9,10,-.16),Leg("P-LONG",5900,false,2,3,-.10)]){
    BollingerStandardDeviation20=25,PreviousSessionClose=6050.25m,LastUnderlyingPrice=6000,LastUnderlyingTradeAtUtc=at,AtmImpliedVolatility=.2m,IvRank=45,IvRankStatus="Ready",DaysToExpiry=2};
  }

@@ -66,7 +66,7 @@ impl Bootstrap {
             .pinned_calendars
             .lock()
             .map_err(|_| "Frozen calendar directory interrupted")?;
-        if pinned.len() == 2048 && !pinned.contains(contract) {
+        if pinned.len() == crate::option_chain::MAX_LIVE_OPTIONS && !pinned.contains(contract) {
             return Err("Frozen calendar capacity exceeded".into());
         }
         pinned.insert(contract.into());
@@ -113,7 +113,7 @@ impl Bootstrap {
             }
             return Ok(());
         }
-        if models.len() == 2048 {
+        if models.len() == crate::option_chain::MAX_LIVE_OPTIONS {
             return Err("Raw option model directory capacity exceeded".into());
         }
         models.insert(convention.contract().into(), Arc::new(model));
@@ -133,7 +133,7 @@ impl Bootstrap {
     /// rebuild fails the finite metadata capacity. No provider state is inherited.
     ///
     /// # Errors
-    /// Interrupted copied state or a selected union exceeding 2,048 definitions.
+    /// Interrupted copied state or a selected union exceeding the live option capacity.
     pub fn inherit_selected_models(
         &self,
         old: &Self,
@@ -167,7 +167,7 @@ impl Bootstrap {
             .filter(|id| !selected_current.contains(id))
             .count()
             + selected_current.len()
-            > 2048
+            > crate::option_chain::MAX_LIVE_OPTIONS
         {
             return Err("Raw option model directory capacity exceeded".into());
         }
@@ -217,7 +217,7 @@ impl Bootstrap {
         if stop.is_cancelled() || deadline.remaining().is_zero() {
             return Err("Reference bootstrap original deadline expired".into());
         }
-        if template.definitions.is_empty() || template.definitions.len() > 2048 {
+        if template.definitions.is_empty() || template.definitions.len() > crate::option_chain::MAX_LIVE_OPTIONS {
             return Err("Invalid raw reference scope capacity".into());
         }
         let pinned = self

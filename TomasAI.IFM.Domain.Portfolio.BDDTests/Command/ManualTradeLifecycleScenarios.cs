@@ -34,16 +34,34 @@ public sealed class ManualTradeLifecycleScenarios
         duplicate.Should().Throw<InvalidOperationException>();
         var prematureClose = () => aggregate.AddManualTrade(Request(21, false, closingType, closingAction, added.AggregateVersion), "operator");
         prematureClose.Should().Throw<InvalidOperationException>();
+        var edit = new ChangeManualFundOrderTradeRequest { PortfolioId = 1, FundId = 2, OrderId = 10,
+            TradeId = 20, ExpectedOrderVersion = added.AggregateVersion, ExpectedTradeVersion = added.Trades[0].AggregateVersion,
+            TradeType = openingType, EffectiveDate = valueDate, Reference = "Edited opening",
+            BaseContractId = "ESH7", BaseContractSymbol = "ES" };
+        var edited = aggregate.ChangeManualTrade(edit);
+        edited.Trades.Should().ContainSingle().Which.TradeId.Should().Be(20);
+        edited.Trades[0].BaseContractId.Should().Be("ESH7");
+        edited.Trades[0].CreatedOnUtc.Should().Be(added.Trades[0].CreatedOnUtc);
+        FluentActions.Invoking(() => aggregate.ChangeManualTrade(edit)).Should().Throw<InvalidOperationException>();
         var opening = new FundTradeExecutionEvidence { PortfolioId = 1, FundId = 2,
             SetupTrade = new() { OrderId = 10, TradeId = 20 }, ExecutionOrderId = 30,
             ExecutionTradeId = 40, ExecutionAttemptId = Guid.NewGuid(), OccurredAtUtc = now,
             TradeDate = valueDate, MaturityDate = maturity };
+        FluentActions.Invoking(() => aggregate.RecordFundTradeSubmission(opening))
+            .Should().Throw<InvalidOperationException>().WithMessage("*older draft*");
+        opening = opening with { SetupTrade = opening.SetupTrade with { DraftRevision = edited.Trades[0].DraftRevision } };
         aggregate.RecordFundTradeSubmission(opening).Order.Status.Should().Be("Opening");
         var opened = aggregate.RecordFundTradeOpening(opening);
         opened.Order.Status.Should().Be("Opened");
-        var close = aggregate.AddManualTrade(Request(21, false, closingType, closingAction, opened.AggregateVersion), "operator");
+        var close = aggregate.AddManualTrade(Request(21, false, closingType, closingAction, opened.AggregateVersion)
+            with { BaseContractId = "ESH7" }, "operator");
         close.Trades.Should().HaveCount(2);
-        var evidence = opening with { SetupTrade = new() { OrderId = 10, TradeId = 21 },
+        var closeEdit = edit with { TradeId = 21, ExpectedOrderVersion = close.AggregateVersion,
+            ExpectedTradeVersion = close.Trades[1].AggregateVersion, TradeType = closingType, Reference = "Edited close" };
+        FluentActions.Invoking(() => aggregate.ChangeManualTrade(closeEdit with { BaseContractId = "ESZ6" }))
+            .Should().Throw<InvalidOperationException>().WithMessage("*closing draft*");
+        var editedClose = aggregate.ChangeManualTrade(closeEdit);
+        var evidence = opening with { SetupTrade = new() { OrderId = 10, TradeId = 21, DraftRevision = editedClose.Trades[1].DraftRevision },
             ExecutionOrderId = 31, ExecutionAttemptId = Guid.NewGuid(), ClosingExecution = true,
             OpeningExecutionTradeId = 40, FullyClosed = true, ExecutionStatus = "Filled" };
         aggregate.RecordFundTradeSubmission(evidence).Order.Status.Should().Be("Closing");

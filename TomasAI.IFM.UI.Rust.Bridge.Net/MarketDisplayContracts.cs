@@ -34,7 +34,8 @@ internal sealed record OptionContractDisplay(
     [property:Key("selectionValid")] bool SelectionValid,
     [property:Key("quoteUnavailableReason")] string? QuoteUnavailableReason,
     [property:Key("lastQuoteEventAtUtc")] string? LastQuoteEventAtUtc,
-    [property:Key("lastQuoteReceivedAtUtc")] string? LastQuoteReceivedAtUtc)
+    [property:Key("lastQuoteReceivedAtUtc")] string? LastQuoteReceivedAtUtc,
+    [property:Key("cashMultiplier")] string? CashMultiplier)
 {
     public static OptionContractDisplay From(EvaluatedOptionContractReadModel v)=>new(
         v.ContractId,
@@ -65,7 +66,8 @@ internal sealed record OptionContractDisplay(
         v.SelectionValid,
         v.QuoteUnavailableReason,
         v.LastQuoteEventAtUtc?.ToString("O",CultureInfo.InvariantCulture),
-        v.LastQuoteReceivedAtUtc?.ToString("O",CultureInfo.InvariantCulture));
+        v.LastQuoteReceivedAtUtc?.ToString("O",CultureInfo.InvariantCulture),
+        v.CashMultiplier?.ToString(CultureInfo.InvariantCulture));
 }
 
 [MessagePackObject(AllowPrivate=true)]

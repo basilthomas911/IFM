@@ -63,7 +63,8 @@ fn editor_caption_gaps_and_font_baselines_follow_display_scale() {
             ("fund", "ddlFund"),
             ("source", "ddlCompositionSource"),
             ("Trade Id:", "Trade Id:"),
-            ("Effective Date:", "dtpTradeDate"),
+            ("Effective Date:", "Effective Date:"),
+            ("Trade Date:", "dtpTradeDate"),
             ("Order Action:", "parentOrderAction"),
             ("expiry", "expiry"),
             ("callDelta", "callDelta"),
@@ -87,7 +88,8 @@ fn editor_caption_gaps_and_font_baselines_follow_display_scale() {
         }
         let reference =
             text_baselines(&h.output().shapes, h.state().view.controls["Trade Id:"])[0].1;
-        for id in ["dtpTradeDate", "parentOrderAction"] {
+        assert!(h.state().view.controls["dtpTradeDate"].top() > h.state().view.controls["Effective Date:"].bottom());
+        for id in ["Effective Date:", "parentOrderAction"] {
             let baseline = text_baselines(&h.output().shapes, h.state().view.controls[id])[0].1;
             assert!(
                 ((reference - baseline) * dpi).abs() <= 1.,
@@ -520,7 +522,7 @@ fn order_editor_grid_split_and_actions_follow_available_height() {
             (orders, &["btnCreateOrder", "btnDeleteOrder"][..]),
             (
                 trades,
-                &["btnLoadOrder", "btnAddTrade", "btnRemoveTrade"][..],
+                &["btnLoadOrder", "btnAddTrade", "btnChangeTrade", "btnRemoveTrade"][..],
             ),
         ] {
             assert!((controls[ids[0]].top() - grid.top()).abs() < 1.);
@@ -851,6 +853,33 @@ fn live_checkbox_uses_the_same_chain_intent() {
 }
 
 
+#[test]
+fn live_quote_timeouts_keep_feed_checked_and_schedule_the_next_read() {
+    let mut h = harness();
+    h.get_by_label("Live Feed").click();
+    h.run();
+    let mut request = h.state().requests.last().unwrap().clone();
+    assert_eq!(request["fields"]["live"], "true");
+    for _ in 0..5 {
+        h.state_mut().snapshot.outcomes = serde_json::from_value(serde_json::json!([
+            {"requestId":request["requestId"],"state":"Completed",
+             "message":"Live option quotes timed out. Waiting up to another 30 seconds."}
+        ])).unwrap();
+        let mut errors = ifm_ui_egui::ui::errors::ErrorDialogs::default();
+        errors.outcomes("trade-orders", &h.state().snapshot.outcomes);
+        assert_eq!(errors.message(), None);
+        let before = h.state().requests.len();
+        let now = h.ctx.input(|input| input.time);
+        h.input_mut().time = Some(now + 2.);
+        h.run();
+        assert_eq!(h.state().requests.len(), before + 1);
+        request = h.state().requests[before].clone();
+        assert_eq!(request["intent"], "refresh-chain");
+        assert_eq!(request["fields"]["live"], "true");
+    }
+}
+
+
 /// A failed live read must stop timed polling before dismissal, retain its error,
 /// and let the operator explicitly re-enable the unchecked checkbox afterward.
 #[test]
@@ -1158,6 +1187,53 @@ fn add_trade_reference_defaults_to_action_and_tab_label_and_preserves_edits() {
     assert_eq!(request["fields"]["tradeReference"], format!("{expected} — my edited reference"));
 }
 
+
+#[test]
+fn change_trade_prefills_existing_draft_and_requires_a_fund_contract() {
+    let mut h = harness();
+    h.state_mut().snapshot.result.context.extend([
+        ("canChangeTrade".into(), "True".into()),
+        ("changeTradeType".into(), "ShortIronCondor".into()),
+        ("changeBaseContract".into(), "ES20311219".into()),
+        ("changeEffectiveDate".into(), "2026-11-09".into()),
+        ("changeTradeReference".into(), "Original draft".into()),
+        ("changeTradeClosing".into(), "false".into()),
+    ]);
+    h.state_mut().snapshot.result.choices.insert("baseContract".into(), vec!["ES20261218".into()]);
+    h.get_by_label("Trade Orders").click();
+    h.run();
+    h.get_by_label("Change Trade...").click();
+    h.run();
+    let request = h.state().requests.last().unwrap().clone();
+    assert_eq!(request["intent"], "prepare-change-trade");
+    h.state_mut().snapshot.outcomes = serde_json::from_value(serde_json::json!([
+        {"requestId":request["requestId"],"state":"Completed","message":"Trade editor opened"}
+    ])).unwrap();
+    h.run();
+    h.run();
+    assert!(h.query_by_label("Change Trade").is_some());
+    assert!(h.output().shapes.iter().any(|shape| matches!(
+        &shape.shape, egui::Shape::Text(text) if text.galley.job.text == "ES20311219"
+    )));
+    let point = h.state().view.controls["draft-field-7"].center();
+    h.input_mut().events.push(egui::Event::PointerMoved(point));
+    for pressed in [true, false] {
+        h.input_mut().events.push(egui::Event::PointerButton {
+            pos: point, button: egui::PointerButton::Primary, pressed, modifiers: egui::Modifiers::NONE,
+        });
+        h.run();
+    }
+    h.get_by_label("ES20261218").click();
+    h.run();
+    h.get_by_label("Save").click();
+    h.run();
+    let save = h.state().requests.last().unwrap();
+    assert_eq!(save["intent"], "change-trade");
+    assert_eq!(save["fields"]["tradeId"], request["fields"]["tradeId"]);
+    assert_eq!(save["fields"]["baseContract"], "ES20261218");
+    assert_eq!(save["fields"]["tradeReference"], "Original draft");
+    assert_eq!(save["fields"]["effectiveDate"], "2026-11-09");
+}
 
 #[test]
 fn rejected_trade_shows_status_and_confirms_removal_with_centered_buttons() {

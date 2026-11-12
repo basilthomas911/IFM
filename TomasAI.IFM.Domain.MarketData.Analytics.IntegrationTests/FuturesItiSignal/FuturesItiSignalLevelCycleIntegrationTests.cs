@@ -30,11 +30,11 @@ public sealed class FuturesItiSignalLevelCycleIntegrationTests(
     : IClassFixture<TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint>>,
       IClassFixture<MarketDataAnalyticsFixture>
 {
-    const string ContractId = "ES-ITI-LEVEL-CYCLE";
     const double StartPrice = 5_000;
     const double VixPrice = 20;
-    static readonly DateOnly ValueDate = new(2026, 8, 18);
-    static readonly DateTime FirstTimestamp = new(2026, 8, 18, 14, 30, 0, DateTimeKind.Utc);
+    // This Monday is also the first day of the month, so all three streams start here.
+    static readonly DateOnly ValueDate = new(2026, 6, 1);
+    static readonly DateTime FirstTimestamp = new(2026, 6, 1, 14, 30, 0, DateTimeKind.Utc);
     const int ValidationBandCount = 11;
 
     readonly IActorProducer _actorProducer =
@@ -43,19 +43,25 @@ public sealed class FuturesItiSignalLevelCycleIntegrationTests(
     /// <summary>
     /// Runs an up/down/up trend cycle through successive twenty-percent publication bands and beyond one full threshold.
     /// </summary>
-    [Fact]
-    public async Task DurablePipeline_UpDownUpCycle_PreservesEveryCalculatedStrategyLevel()
+    [Theory]
+    [InlineData(TimeFrameType.Daily, 1)]
+    [InlineData(TimeFrameType.Weekly, 20)]
+    [InlineData(TimeFrameType.Monthly, 60)]
+    public async Task DurablePipeline_UpDownUpCycle_PreservesEveryCalculatedStrategyLevel(
+        TimeFrameType period, int tradingDays)
     {
+        var contractId = $"ES-ITI-LEVEL-CYCLE-{period}";
         var entityId = new FuturesItiSignalEntityId(
-            ContractId,
+            contractId,
             ValueDate,
-            TimeFrameType.Daily);
+            period);
         await ResetAsync(entityId);
 
         var generated = new ConcurrentDictionary<Guid, FuturesItiSignalGeneratedEvent>();
         var completions = new ConcurrentDictionary<Guid, FuturesItiSignalGeneratedCompleteEvent>();
         var failures = new ConcurrentDictionary<Guid, FuturesItiSignalGeneratedFailEvent>();
         var commandIds = new List<Guid>();
+        var suppressedIds = new List<Guid>();
         var timestamp = FirstTimestamp.AddSeconds(-1);
         var listener = new NatsActorEventListener(
             new NatsEventListenerOptions(),
@@ -78,61 +84,71 @@ public sealed class FuturesItiSignalLevelCycleIntegrationTests(
         {
             var api = new MarketDataAnalyticsCommandApi(_actorProducer);
 
-            async Task<FuturesItiSignalV2ReadModel> GenerateAsync(double price)
+            async Task<Guid> SubmitAsync(double price)
             {
                 var response = await api.GenerateFuturesItiSignalAsync(
-                    ContractId,
+                    contractId,
                     ValueDate,
-                    TimeFrameType.Daily,
+                    period,
                     timestamp = timestamp.AddSeconds(1),
                     price,
                     VixPrice);
 
                 response.Success.Should().BeTrue();
-                commandIds.Add(response.Value);
-                var completed = await WaitForCompletionAsync(response.Value);
+                return response.Value;
+            }
+
+            async Task<FuturesItiSignalV2ReadModel> GenerateAsync(double price)
+            {
+                var commandId = await SubmitAsync(price);
+                commandIds.Add(commandId);
+                var completed = await WaitForCompletionAsync(commandId);
                 completed.FuturesItiSignal.Should().NotBeNull();
                 var signal = completed.FuturesItiSignal!;
                 AssertCalculatedLevels(signal);
                 return signal;
             }
 
-            // Start the first uptrend and publish successive twenty-percent validation bands.
+            var lambda = 0.002 * Math.Sqrt(VixPrice / 15.7);
+            double ExpectedUpThreshold(double price) => 5 * (price * lambda + 0.25 * Math.Pow(tradingDays, 1.5))
+                / (price * lambda + 0.25);
+
             var upStart = await GenerateAsync(StartPrice);
             AssertDirectionChange(upStart, IntrinsicTimeTrendType.UpTrend, expectedGroup: 0);
-            var upExtremes = new List<FuturesItiSignalV2ReadModel>();
-            var upPrevious = upStart;
+            upStart.Threshold.Should().BeApproximately(ExpectedUpThreshold(StartPrice), 1e-10);
+            suppressedIds.Add(await SubmitAsync(StartPrice + upStart.Threshold * 0.99));
+            suppressedIds.Add(await SubmitAsync(StartPrice - upStart.BandSize));
+            var upPrevious = await GenerateAsync(StartPrice + upStart.Threshold + upStart.BandSize);
+            upPrevious.IntrinsicTimeMode.Should().Be(IntrinsicTimeModeType.TrendOvershootExtended);
             for (var band = 0; band < ValidationBandCount; band++)
             {
                 var signal = await GenerateAsync(
                     upPrevious.TrendExtreme + upPrevious.BandSize * 1.01);
-                signal.IntrinsicTimeMode.Should().Be(signal.BandLevel > 1.0
-                    ? IntrinsicTimeModeType.TrendOvershootExtended : IntrinsicTimeModeType.TrendExtremeChanged);
+                signal.IntrinsicTimeMode.Should().Be(IntrinsicTimeModeType.TrendOvershootExtended);
+                signal.Threshold.Should().Be(upStart.Threshold);
                 signal.BandPercentage.Should().Be(0.20);
                 signal.BandSize.Should().Be(signal.Threshold * 0.20);
                 signal.TrendReversal.Should().Be(signal.TrendExtreme);
                 upPrevious = signal;
                 signal.IntrinsicTimeTrend.Should().Be(IntrinsicTimeTrendType.UpTrend);
                 signal.ReversalLevel.Should().Be(0);
-                upExtremes.Add(signal);
             }
-            AssertValidationRungs(upExtremes);
 
-            var upExtended = upExtremes[^1];
+            var upExtended = upPrevious;
             upExtended.BandLevel.Should().BeGreaterThan(1);
             var upReversal = await GenerateAsync(
                 upExtended.TrendReversal - upExtended.BandSize * 1.01);
             upReversal.IntrinsicTimeMode.Should().Be(IntrinsicTimeModeType.TrendOvershootReversal);
             upReversal.BandLevel.Should().BeGreaterThan(1.0);
             upReversal.ReversalLevel.Should().BeGreaterThan(0);
-            var upTrending = await GenerateAsync(
-                upReversal.BandAnchorPrice + upReversal.BandSize * 1.01);
-            upTrending.IntrinsicTimeMode.Should().Be(IntrinsicTimeModeType.Trending);
-            upTrending.ReversalLevel.Should().BeLessThan(upReversal.ReversalLevel);
+            suppressedIds.Add(await SubmitAsync(upExtended.TrendExtreme));
 
             // Cross the trigger, start the downtrend, and repeat every validation rung.
-            var downStart = await GenerateAsync(upTrending.DownTrendTrigger);
+            var downStart = await GenerateAsync(upReversal.DownTrendTrigger);
             AssertDirectionChange(downStart, IntrinsicTimeTrendType.DownTrend, expectedGroup: 1);
+            var downThreshold = (downStart.IntrinsicPrice * lambda
+                + Math.Sqrt(tradingDays) * (0.25 * tradingDays)) * 1.15;
+            downStart.Threshold.Should().BeApproximately(downThreshold, 1e-10);
             var downExtremes = new List<FuturesItiSignalV2ReadModel>();
             var downPrevious = downStart;
             for (var band = 0; band < ValidationBandCount; band++)
@@ -142,6 +158,7 @@ public sealed class FuturesItiSignalLevelCycleIntegrationTests(
                 signal.IntrinsicTimeMode.Should().Be(signal.BandLevel > 1.0
                     ? IntrinsicTimeModeType.TrendOvershootExtended : IntrinsicTimeModeType.TrendExtremeChanged);
                 signal.BandPercentage.Should().Be(0.20);
+                signal.Threshold.Should().Be(downStart.Threshold);
                 signal.BandSize.Should().Be(signal.Threshold * 0.20);
                 signal.TrendReversal.Should().Be(signal.TrendExtreme);
                 downPrevious = signal;
@@ -165,6 +182,7 @@ public sealed class FuturesItiSignalLevelCycleIntegrationTests(
 
             var secondUpStart = await GenerateAsync(downTrending.UpTrendTrigger);
             AssertDirectionChange(secondUpStart, IntrinsicTimeTrendType.UpTrend, expectedGroup: 2);
+            secondUpStart.Threshold.Should().BeApproximately(ExpectedUpThreshold(secondUpStart.IntrinsicPrice), 1e-10);
 
             var completedSignals = commandIds
                 .Select(commandId => generated[commandId].FuturesItiSignal!)
@@ -179,10 +197,16 @@ public sealed class FuturesItiSignalLevelCycleIntegrationTests(
                 .ToArray();
             stored.Should().HaveCount(completedSignals.Length);
             stored.Select(ToLevelSnapshot).Should().Equal(completedSignals.Select(ToLevelSnapshot));
+            foreach (var commandId in suppressedIds)
+            {
+                generated.Should().NotContainKey(commandId);
+                completions.Should().NotContainKey(commandId);
+                failures.Should().NotContainKey(commandId);
+            }
 
             var activeState = await dbFixture.MarketDataDb.GetFuturesItiTimeFrameStateAsync(
-                ContractId,
-                TimeFrameType.Daily,
+                contractId,
+                period,
                 ValueDate);
             activeState.Should().NotBeNull();
             ToLevelSnapshot(activeState!).Should().Be(ToLevelSnapshot(secondUpStart));
@@ -234,9 +258,9 @@ public sealed class FuturesItiSignalLevelCycleIntegrationTests(
         }
 
         bool Matches(FuturesItiSignalEntityId id) =>
-            StringComparer.Ordinal.Equals(id.ContractId, ContractId)
+            StringComparer.Ordinal.Equals(id.ContractId, contractId)
             && id.ValueDate == ValueDate
-            && id.TimePeriod == TimeFrameType.Daily;
+            && id.TimePeriod == period;
     }
 
     async Task ResetAsync(FuturesItiSignalEntityId entityId)

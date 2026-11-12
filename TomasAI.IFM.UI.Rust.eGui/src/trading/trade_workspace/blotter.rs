@@ -161,7 +161,7 @@ impl TradeWorkspace {
                 ui.visuals_mut().widgets.inactive.weak_bg_fill = Color32::BLACK;
                 let response = egui::ComboBox::from_id_salt(key)
                     .width(r.width())
-                    .selected_text(&*selected)
+                    .selected_text(if key == "expiry" && selected.is_empty() { "Select expiry" } else { selected.as_str() })
                     .show_ui(ui, |ui| {
                         for v in values {
                             if ui.selectable_value(selected, (*v).into(), *v).clicked()
@@ -197,9 +197,11 @@ impl TradeWorkspace {
         let header_height = form_rect(ui, rect(parent_o, p, 0., 0., 100., 27.)).height() * p;
         // Place the details row one control gap below the first header row.
         let header_offset = 9. + header_height + CONTROL_ROW_GAP - 10.;
-        let o = parent_o + egui::vec2(0., header_offset) / p;
+        let date_row = parent_o + egui::vec2(0., header_offset) / p;
+        let detail_offset = header_offset + header_height + CONTROL_ROW_GAP;
+        let o = parent_o + egui::vec2(0., detail_offset) / p;
         let w = ui.available_width() * p;
-        let h = ui.available_height() * p - header_offset;
+        let h = ui.available_height() * p - detail_offset;
         let mut action = None;
         self.controls.insert(
             "blotter-client".into(),
@@ -240,7 +242,6 @@ impl TradeWorkspace {
                 "putDelta",
                 "callWidth",
                 "putWidth",
-                "displayEffectiveDate",
                 "chainSelectionAnchor",
             ] {
                 self.draft.remove(key);
@@ -308,6 +309,9 @@ impl TradeWorkspace {
             };
             self.draft.entry(key.into()).or_insert(initial.into());
         }
+        if !session.is_empty() && self.pending.is_none() {
+            self.draft.insert("expiry".into(), context(s, "expiry").into());
+        }
         let execution_action = context(s, "executionAction");
         if matches!(execution_action, "Open" | "Close") {
             self.draft.insert("action".into(), execution_action.into());
@@ -318,9 +322,9 @@ impl TradeWorkspace {
         let mut header_x = [0.; 3];
         let mut right = 0.;
         for (i, captions) in [
-            ["Trade Id:", "Trade Strategy:"],
-            ["Effective Date:", "Trade Type:"],
-            ["Order Action:", "Broker Mode:"],
+            ["Trade Id:", "Trade Strategy:", "Trade Strategy:"],
+            ["Effective Date:", "Trade Date:", "Trade Type:"],
+            ["Order Action:", "Broker Mode:", "Broker Mode:"],
         ]
         .iter()
         .enumerate()
@@ -351,39 +355,8 @@ impl TradeWorkspace {
                 rect(parent_o, p, header_x[i], 9., [166., 217., 171.][i], 27.),
             );
             self.field_caption(ui, field, label, label);
-            self.controls.insert(
-                if i == 1 {
-                    "dtpTradeDate".into()
-                } else {
-                    label.into()
-                },
-                field,
-            );
-            if i == 1 {
-                let initial = context(s, "effectiveDate");
-                let stored = self
-                    .draft
-                    .entry("displayEffectiveDate".into())
-                    .or_insert(initial.into());
-                if stored.is_empty() {
-                    *stored = initial.into();
-                }
-                form_at(ui, field, "dtpTradeDate", |ui| {
-                    if let Ok(mut date) = chrono::NaiveDate::parse_from_str(stored, "%Y-%m-%d") {
-                        ui.add_enabled_ui(editable, |ui| {
-                            ui.add_sized(
-                                ui.available_size(),
-                                crate::date_picker::DatePickerButton::new(&mut date)
-                                    .id_salt("blotter-effective-date")
-                                    .calendar_week(false),
-                            );
-                        });
-                        *stored = date.to_string();
-                    } else {
-                        market_header_text(ui, ui.max_rect(), initial, egui::Align::LEFT);
-                    }
-                });
-            } else if i == 2 {
+            self.controls.insert(label.into(), field);
+            if i == 2 {
                 if self.choice(
                     ui,
                     field,
@@ -404,6 +377,26 @@ impl TradeWorkspace {
                 self.header_display(ui, field, label, v);
             }
         }
+        let trade_date_field = form_rect(ui, rect(date_row, p, header_x[1], 10., 217., 27.));
+        self.field_caption(ui, trade_date_field, "Trade Date:", "Trade Date:");
+        self.controls.insert("dtpTradeDate".into(), trade_date_field);
+        form_at(ui, trade_date_field, "dtpTradeDate", |ui| {
+            let published = context(s, "tradeDate");
+            let initial = if published.is_empty() { context(s, "valueDate") } else { published };
+            if let Ok(mut date) = chrono::NaiveDate::parse_from_str(initial, "%Y-%m-%d") {
+                let can_edit = if s.result.context.contains_key("canEditTradeDate") {
+                    flag(s, "canEditTradeDate") && self.interaction_ready(s)
+                } else { editable };
+                let response = ui.add_enabled_ui(can_edit, |ui| {
+                    ui.add_sized(ui.available_size(), crate::date_picker::DatePickerButton::new(&mut date)
+                        .id_salt("blotter-trade-date").calendar_week(false))
+                }).inner;
+                if response.changed() {
+                    self.draft.insert("tradeDate".into(), date.to_string());
+                    action = Some("trade-date");
+                }
+            }
+        });
         form_at(
             ui,
             form_rect(ui, rect(parent_o, p, right, 9., 112., 27.)),

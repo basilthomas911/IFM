@@ -411,9 +411,9 @@ impl LiveData {
         clock: Arc<Clock>,
         owner: Arc<Owner>,
     ) -> Result<Self, String> {
-        if capacity == 0 || capacity > 2112 {
+        if capacity == 0 || capacity > crate::option_chain::MAX_OPTION_REGISTRATIONS {
             return Err(
-                "Native contract capacity must be 1..2112 including underlying dependencies".into(),
+                format!("Native contract capacity must be 1..{} including underlying dependencies", crate::option_chain::MAX_OPTION_REGISTRATIONS),
             );
         }
         Book::<Values>::new(date, instance, capacity).map_err(|e| format!("{e:?}"))?;

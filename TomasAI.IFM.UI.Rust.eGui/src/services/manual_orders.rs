@@ -14,7 +14,7 @@ use serde_json::Value as Json;
 use std::collections::BTreeMap;
 
 /// Proof used by the manual orders component.
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub enum Proof {
     Created {
         /// Key associated with this proof.
@@ -38,6 +38,8 @@ pub enum Proof {
         /// Trade associated with this proof.
         trade: i32,
     },
+    /// A revision and the exact saved terms distinguish this edit from competing changes.
+    Changed { order: i32, version: i64, trade: i32, terms: Json },
     Deleted {
         /// Order associated with this proof.
         order: i32,
@@ -278,6 +280,39 @@ pub fn add(
     )
 }
 
+/// Prepares an in-place edit using the versions captured when the dialog opened.
+pub fn change(
+    registry: &Registry,
+    context: &BusinessContext,
+    order: &Json,
+    trade: &Json,
+    terms: Json,
+    correlation: uuid::Uuid,
+) -> Result<Operation, String> {
+    let p = positive(order, "PortfolioId")?;
+    let f = positive(order, "FundId")?;
+    let id = positive(order, "OrderId")?;
+    let version = revision(order, "AggregateVersion")?;
+    let trade_id = positive(trade, "TradeId")?;
+    let effective = crate::backend::date_input::parse(terms["RequestedTradeDate"].as_str().unwrap_or_default())?;
+    let payload = request(registry, "ChangeManualFundOrderTradeRequest", BTreeMap::from([
+        ("PortfolioId".into(), p.into()),
+        ("FundId".into(), f.into()),
+        ("OrderId".into(), id.into()),
+        ("ExpectedOrderVersion".into(), version.into()),
+        ("TradeId".into(), trade_id.into()),
+        ("ExpectedTradeVersion".into(), revision(trade, "AggregateVersion")?.into()),
+        ("TradeType".into(), terms["TradeType"].as_str().unwrap_or_default().into()),
+        ("EffectiveDate".into(), date_only_wire(effective)),
+        ("Reference".into(), terms["TradeReference"].as_str().unwrap_or_default().into()),
+        ("BaseContractId".into(), terms["BaseContractId"].as_str().unwrap_or_default().into()),
+        ("BaseContractSymbol".into(), terms["BaseContractSymbol"].as_str().unwrap_or_default().into()),
+    ]))?;
+    operation(registry, context, "ChangeManualFundOrderTradeCommand", p, f,
+        uuid::Uuid::new_v4(), correlation, payload,
+        Proof::Changed { order: id, version, trade: trade_id, terms })
+}
+
 /// Removes manual orders for manual orders.
 pub fn remove(
     registry: &Registry,
@@ -380,6 +415,7 @@ impl Operation {
         }
         let order = match self.proof {
             Proof::Added { order, .. }
+            | Proof::Changed { order, .. }
             | Proof::Removed { order, .. }
             | Proof::Deleted { order } => order,
             Proof::Created { .. } => unreachable!(),
@@ -399,6 +435,7 @@ impl Operation {
         }
         let (version, trade, added) = match self.proof {
             Proof::Added { version, trade, .. } => (version, trade, true),
+            Proof::Changed { version, trade, .. } => (version, trade, true),
             Proof::Removed { version, trade, .. } => (version, trade, false),
             _ => unreachable!(),
         };
@@ -425,6 +462,12 @@ impl Operation {
                 return Err("Trade commit evidence crossed its retained scope".into());
             }
             if projected["TradeId"] == trade {
+                if let Proof::Changed { terms, .. } = &self.proof {
+                    return Ok((projected["DraftRevision"].as_i64() == version.checked_add(1)
+                        && terms.as_object().is_some_and(|fields|
+                            fields.iter().all(|(key, value)| projected[key] == *value)))
+                        .then_some(order));
+                }
                 found = true;
             }
         }

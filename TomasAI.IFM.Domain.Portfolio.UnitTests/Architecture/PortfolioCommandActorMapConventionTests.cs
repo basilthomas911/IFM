@@ -55,6 +55,7 @@ public sealed class PortfolioCommandActorMapConventionTests
                 ReleaseExpiredStrategyFundOrderCommand.Verb,
                 CreateManualFundOrderCommand.Verb,
                 AddManualFundOrderTradeCommand.Verb,
+                ChangeManualFundOrderTradeCommand.Verb,
                 RemoveManualFundOrderTradeCommand.Verb,
                 RecordFundTradeSubmissionCommand.Verb,
                 RecordFundTradeOpeningCommand.Verb,

@@ -370,7 +370,8 @@ impl Notifications {
         {
             return Err("Invalid recovery ValueDate".into());
         }
-        if !matches!(value["Role"].as_str(), Some("Options" | "Futures"))
+        let role = value["Role"].as_str();
+        if !matches!(role, Some("Options" | "Futures"))
             || value["Dataset"]
                 .as_str()
                 .is_none_or(|s| s.is_empty() || s.len() > 64)
@@ -395,6 +396,10 @@ impl Notifications {
             .ok_or("Missing recovery outcome time")?;
         let at = chrono::DateTime::parse_from_rfc3339(occurred)
             .map_err(|_| "Invalid recovery outcome time")?;
+        // Successful Options recovery is available in the backend audit log.
+        if role == Some("Options") && severity == crate::status_dialog::Severity::Success {
+            return Ok(false);
+        }
         let identity = format!("outcome:{id}");
         if self.seen.contains(&identity) {
             return Ok(false);

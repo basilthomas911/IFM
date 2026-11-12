@@ -39,6 +39,8 @@ pub struct TradeController {
     prepared_trade: Option<i32>,
     /// Order and opening identity reviewed when Add Trade was prepared.
     prepared_trade_scope: Option<(i64, Option<i64>)>,
+    /// Trade identity and both revisions captured when Change Trade opened.
+    prepared_trade_change: Option<(i32, i64, i64)>,
     /// Established opening tab caption used as the closing trade reference default.
     prepared_trade_label: Option<String>,
     /// Optional pending manual; `None` represents an absent value.
@@ -321,6 +323,7 @@ impl TradeController {
                 | "clear-staged"
                 | "chain"
                 | "chain-source"
+                | "trade-date"
                 | "select-leg"
                 | "remove-leg"
                 | "account"
@@ -351,6 +354,8 @@ impl TradeController {
                 | "create-order"
                 | "remove-order"
                 | "prepare-trade"
+                | "prepare-change-trade"
+                | "change-trade"
                 | "create-trade"
                 | "remove-trade"
         ) {
@@ -419,6 +424,7 @@ impl TradeController {
                 self.order_draft = None;
                 self.prepared_trade = None;
                 self.prepared_trade_scope = None;
+                self.prepared_trade_change = None;
             }
             "close" => {}
             _ => return Err(format!("Trade action {action} is not yet implemented")),
@@ -433,6 +439,7 @@ impl TradeController {
             self.order_draft = None;
             self.prepared_trade = None;
             self.prepared_trade_scope = None;
+            self.prepared_trade_change = None;
         }
         self.message.clear();
         Ok("Trade workspace loaded".into())
@@ -660,6 +667,16 @@ impl TradeController {
             ("fundName", fund.cell("Name").text()),
             ("compositionType", trade.cell("TradeType").text()),
             ("tradeAction", trade.cell("TradeAction").text()),
+            ("changeTradeType", trade.cell("TradeType").text()),
+            ("changeBaseContract", trade.cell("BaseContractId").text()),
+            ("changeEffectiveDate", trade.cell("RequestedTradeDate").text()),
+            ("changeTradeReference", trade.cell("TradeReference").text()),
+            ("changeTradeClosing", (trade.as_ref().is_some_and(|row| row.primary_trade == Some(false))).to_string()),
+            ("canChangeTrade", (mutable && self.pending_manual.is_none() &&
+                order.cell("Origin").text() == "ManualUi" && trade.as_ref().is_some_and(|row|
+                    row.trade_state.as_deref() == Some("NewTrade") &&
+                    row.execution_order_id.unwrap_or_default() == 0 &&
+                    row.execution_trade_id.unwrap_or_default() == 0)).to_string()),
             ("status", self.message.clone()),
             ("canCreateOrder", "True".into()),
             ("canRemoveOrder", (!data.orders.is_empty()).to_string()),
@@ -685,6 +702,7 @@ impl TradeController {
         for key in [
             "canRemoveOrder",
             "canAddTrade",
+            "canChangeTrade",
             "canRemoveTrade",
             "canLoadTrade",
             "canSubmit",

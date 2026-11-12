@@ -39,7 +39,7 @@ pub struct Initialization {
 
 
 /// Provides basic for the broker initialization implementation.
-async fn basic<T: FromBackend>(
+pub(super) async fn basic<T: FromBackend>(
     backend: &Backend,
     registry: &Registry,
     kind: &str,

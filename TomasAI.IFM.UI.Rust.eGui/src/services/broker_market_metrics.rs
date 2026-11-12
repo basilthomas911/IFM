@@ -42,6 +42,21 @@ fn signed(value: Cell<'_>, percent: bool) -> Result<String, String> {
 }
 
 
+/// Displays a single cash multiplier when the listed option contracts agree.
+pub fn option_multiplier(chain: Option<&EvaluatedOptionChainReadModel>) -> Option<String> {
+    let rows = chain?.contracts.as_ref()?;
+    let value = rows.first()?.cash_multiplier.as_ref()?;
+    let exact = ExactDecimal::parse(value.as_str()).ok()?;
+    let zero = ExactDecimal::parse("0").ok()?;
+    if !compare(&exact, &zero).is_gt() {
+        return None;
+    }
+    rows.iter().all(|row| row.cash_multiplier.as_ref()
+        .and_then(|amount| ExactDecimal::parse(amount.as_str()).ok())
+        .is_some_and(|amount| compare(&amount, &exact).is_eq()))
+        .then(|| value.as_str().to_string())
+}
+
 /// Provides document for the broker market metrics implementation.
 pub fn document(
     chain: &EvaluatedOptionChainReadModel,
@@ -111,7 +126,7 @@ pub fn document(
             .map(|value| value.to_string())
             .unwrap_or("N/A".into()),
         underlying: underlying.contract_id.clone(),
-        multiplier: underlying.multiplier.clone(),
+        multiplier: option_multiplier(Some(chain)),
         tick: tick.unwrap_or("N/A").into(),
         settlement: "Unavailable".into(),
         daily_std_dev: fixed(chain.cell("BollingerStandardDeviation20"), 2)?,

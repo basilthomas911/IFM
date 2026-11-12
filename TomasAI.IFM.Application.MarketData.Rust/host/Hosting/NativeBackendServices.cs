@@ -64,7 +64,8 @@ public static class NativeBackendServices
                 FeedOptions = feed,
                 Contracts = config.GetSection("AppSettings:Databento:Contracts").Get<DatabentoContractRegistration[]>() ?? [],
                 TradeStrategySymbolDatasets = config.GetSection("AppSettings:Databento:TradeStrategySymbolDatasets").Get<string[]>() ?? [],
-                OptionPricingRefresh = config.GetSection("AppSettings:Databento:OptionPricingRefresh").Get<OptionPricingRefreshPolicy>() ?? new()
+                OptionPricingRefresh = config.GetSection("AppSettings:Databento:OptionPricingRefresh").Get<OptionPricingRefreshPolicy>()
+                    ?? new() { MaximumContracts = OptionPricingRefreshPolicy.MaximumSupportedContracts }
             };
             var registry = new DatabentoContractRegistrationRegistry(options.Contracts, options);
             services.AddSingleton<IDatabentoContractRegistrationRegistry>(registry);

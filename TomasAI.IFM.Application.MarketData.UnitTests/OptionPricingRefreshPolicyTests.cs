@@ -31,4 +31,12 @@ public sealed class OptionPricingRefreshPolicyTests
         { PriceDeltaMilliseconds = selection, ImpliedVolatilityMilliseconds = iv, FullRiskMilliseconds = risk };
         Assert.Throws<ArgumentException>(policy.Validate);
     }
+
+    [Fact]
+    public void Native_pricing_policy_can_cover_a_full_live_generation()
+    {
+        new OptionPricingRefreshPolicy { MaximumContracts = 4096 }.Validate();
+        Assert.Throws<ArgumentException>(
+            new OptionPricingRefreshPolicy { MaximumContracts = 4097 }.Validate);
+    }
 }

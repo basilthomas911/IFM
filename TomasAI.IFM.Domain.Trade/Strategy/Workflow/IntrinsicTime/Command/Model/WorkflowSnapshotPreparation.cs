@@ -13,7 +13,12 @@ internal sealed class WorkflowSnapshotPreparation(IntrinsicTimeStrategyWorkflowV
     public IReadOnlyList<WorkflowSnapshotChange> Freeze() => workflowChanges.ToArray();
     public bool Record(WorkflowSnapshotChange workflowChange, ICommand command)
     {
-        workflowChanges.Add(workflowChange);
+        workflowChanges.Add(workflowChange with
+        {
+            WorkflowDefinition = ReferenceEquals(CurrentView, workflowChange.WorkflowDefinition)
+                ? workflowChange.WorkflowDefinition
+                : StrategyWorkflowStageReasons.Record(workflowChange.WorkflowDefinition)
+        });
         return true;
     }
 }

@@ -182,7 +182,7 @@ impl Configuration {
                     .models
                     .lock()
                     .map_err(|_| "Native monitored facts interrupted")?;
-                if cached.len() == 2048 && !cached.contains_key(&monitor.contract) {
+                if cached.len() == crate::option_chain::MAX_LIVE_OPTIONS && !cached.contains_key(&monitor.contract) {
                     return Err("Native monitored fact capacity exceeded".into());
                 }
                 cached.insert(monitor.contract.clone(), model.clone());

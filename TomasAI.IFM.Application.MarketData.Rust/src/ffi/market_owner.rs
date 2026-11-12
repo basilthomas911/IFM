@@ -1762,7 +1762,13 @@ pub unsafe extern "C" fn ifm_market_data_owner_recovery_request_v1(
         let native = owner(handle)?;
         let mut retained = super::retained::Pending::reserve(&instance, operation)?;
         let mut reservation = instance.reserve_control(operation)?;
-        let rejected = match instance.enter(|| native.begin_recovery(&request)) {
+        let rejected = match instance.enter(|| {
+            if value["manual"].as_bool() == Some(true) {
+                native.begin_manual_restart(&request)
+            } else {
+                native.begin_recovery(&request)
+            }
+        }) {
             Ok(value) => value,
             Err(_) => {
                 drop(reservation);

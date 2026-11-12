@@ -34,7 +34,9 @@ public sealed class PortfolioFundCommandActor(
     IPortfolioEventStore eventStore,
     IEventProjector<PortfolioFundCommandActor> projector,
     IPortfolioOperationalGuard operationalGuard,
-    ILogger<PortfolioFundCommandActor> logger, TimeProvider? timeProvider = null)
+    ILogger<PortfolioFundCommandActor> logger, TimeProvider? timeProvider = null,
+    TomasAI.IFM.Application.Storage.IDbContextFactory? dbFactory = null,
+    TomasAI.IFM.Domain.MarketData.Shared.IValueDateProvider? valueDates = null)
     : BaseEventSourceCommandActor<PortfolioFundCommandActor>(context, logger)
 {
     readonly TimeProvider businessClock = timeProvider ?? TimeProvider.System;
@@ -61,6 +63,7 @@ public sealed class PortfolioFundCommandActor(
             [ReserveFundOrderCompositionCommand.Verb] = static message => message.AsCommand<ReserveFundOrderCompositionCommand>()!,
             [CreateManualFundOrderCommand.Verb] = static message => message.AsCommand<CreateManualFundOrderCommand>()!,
             [AddManualFundOrderTradeCommand.Verb] = static message => message.AsCommand<AddManualFundOrderTradeCommand>()!,
+            [ChangeManualFundOrderTradeCommand.Verb] = static message => message.AsCommand<ChangeManualFundOrderTradeCommand>()!,
             [RemoveManualFundOrderTradeCommand.Verb] = static message => message.AsCommand<RemoveManualFundOrderTradeCommand>()!,
 
             [RecordFundTradeSubmissionCommand.Verb] = static message => message.AsCommand<RecordFundTradeSubmissionCommand>()!,
@@ -155,6 +158,14 @@ public sealed class PortfolioFundCommandActor(
             [typeof(AddManualFundOrderTradeCommand)] = static command =>
             {
                 var typed = (AddManualFundOrderTradeCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed.EntityId, typed.CommandName)
+                    .ValidateFundCommand(typed);
+            },
+            [typeof(ChangeManualFundOrderTradeCommand)] = static command =>
+            {
+                var typed = (ChangeManualFundOrderTradeCommand)command;
                 return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
                     .ValidateEntityId(typed.EntityId, typed.CommandName)
@@ -273,6 +284,8 @@ public sealed class PortfolioFundCommandActor(
                 ((CreateManualFundOrderCommand)command).Execute(state.Aggregate, now, principal),
             [typeof(AddManualFundOrderTradeCommand)] = static (command, state, now, principal) =>
                 ((AddManualFundOrderTradeCommand)command).Execute(state.Aggregate, now, principal),
+            [typeof(ChangeManualFundOrderTradeCommand)] = static (command, state, now, principal) =>
+                ((ChangeManualFundOrderTradeCommand)command).Execute(state.Aggregate, now, principal),
             [typeof(RemoveManualFundOrderTradeCommand)] = static (command, state, now, principal) =>
                 ((RemoveManualFundOrderTradeCommand)command).Execute(state.Aggregate, now, principal),
             [typeof(RecordFundTradeSubmissionCommand)] = static (command, state, now, principal) =>
@@ -347,6 +360,16 @@ public sealed class PortfolioFundCommandActor(
         var committed = await _events.FindCommittedFundCommandAsync(state.IdValue, command.CommandId, cancellationToken).ConfigureAwait(false);
         if (committed is not null)
         {
+            if (command is ChangeManualFundOrderTradeCommand edit &&
+                (committed is not FundManualOrderChangedEvent changed ||
+                 changed.Reservation.Order.OrderId != edit.Request.OrderId ||
+                 changed.Reservation.Order.AggregateVersion != edit.Request.ExpectedOrderVersion + 1 ||
+                 !changed.Reservation.Trades.Any(trade => trade.TradeId == edit.Request.TradeId &&
+                     trade.DraftRevision == changed.Reservation.Order.AggregateVersion &&
+                     trade.BaseContractId == edit.Request.BaseContractId && trade.BaseContractSymbol == edit.Request.BaseContractSymbol &&
+                     trade.TradeType == edit.Request.TradeType && trade.EffectiveDate == edit.Request.EffectiveDate &&
+                     trade.TradeReference == edit.Request.Reference?.Trim())))
+                return new ServiceFailed<GuidResult>(PortfolioErrorCodes.IdempotencyConflict, "Trade change CommandId was used for different terms.");
             if (command is SynchronizeFundRiskOutcomeCommand sync &&
                 (committed is not FundCompositionStateChangedEvent terminal || terminal.Order.TerminalRisk != sync.Evidence || terminal.Order.AggregateVersion != sync.ExpectedVersion + 1))
                 return new ServiceFailed<GuidResult>(PortfolioErrorCodes.IdempotencyConflict, "Terminal CommandId was used for different input.");
@@ -374,6 +397,26 @@ public sealed class PortfolioFundCommandActor(
         }
         var now = businessClock.GetUtcNow().UtcDateTime;
         _=state.Aggregate;
+        if (command is ChangeManualFundOrderTradeCommand change &&
+            state.Aggregate.Orders.Any(order => order.OrderId == change.Request.OrderId) &&
+            state.Aggregate.Composition(change.Request.OrderId).Trades
+                .Any(trade => trade.TradeId == change.Request.TradeId && trade.PrimaryTrade))
+        {
+            if (dbFactory is null || valueDates is null)
+                return new ServiceFailed<GuidResult>(503, "Fund contract qualification is unavailable.");
+            var contracts = new TomasAI.IFM.Domain.Portfolio.Query.FundBaseContractQueryService(
+                dbFactory.PortfolioDb, dbFactory.SecuritiesDb, dbFactory.ReferenceDb, valueDates);
+            var result = await contracts.GetAsync(change.Request.PortfolioId, change.Request.FundId,
+                state.Aggregate.Current!.FundMandateVersion,
+                cancellationToken: cancellationToken).ConfigureAwait(false);
+            if (!result.Success || result.Value is not { } configured ||
+                !configured.Defaults.OrderBy(rule => rule.Symbol, StringComparer.Ordinal)
+                    .SequenceEqual(state.Aggregate.Current.BaseContracts.OrderBy(rule => rule.Symbol, StringComparer.Ordinal)))
+                return new ServiceFailed<GuidResult>(503, "The Fund's base contract configuration has not been projected yet.");
+            if (configured.Contracts.Count(contract =>
+                contract.ContractId == change.Request.BaseContractId && contract.Symbol == change.Request.BaseContractSymbol) != 1)
+                return new ServiceFailed<GuidResult>(34003, "Select a current or future contract configured for this Fund.");
+        }
         await VerifyReferencePreparationAsync(command, state.Aggregate, cancellationToken).ConfigureAwait(false);
         var receive = ResolveMappedCommandHandler(command, _receiveMap);
         using var transitionTrace = PortfolioTelemetry.ActivitySource.StartActivity("portfolio.fund.transition");

@@ -34,6 +34,15 @@ impl MarketData {
     /// # Errors
     /// Invalid command identity, date mismatch or unavailable native control.
     pub fn begin_recovery(&self, request: &Request) -> Result<Option<String>, String> {
+        self.begin_recovery_command(request, false)
+    }
+
+    /// Accepts an operator restart only for the selected failed lane.
+    pub fn begin_manual_restart(&self, request: &Request) -> Result<Option<String>, String> {
+        self.begin_recovery_command(request, true)
+    }
+
+    fn begin_recovery_command(&self, request: &Request, manual: bool) -> Result<Option<String>, String> {
         if request.operation == [0; 16] {
             return Err("Native recovery requires an operation identity".into());
         }
@@ -50,13 +59,25 @@ impl MarketData {
         let (worker, generation) =
             identity.map_or(([0; 16], [0; 16]), |i| (i.worker, i.generation));
         if worker != request.worker || generation != request.generation {
-            return Ok(None);
+            return Ok(manual.then(|| "Dataset worker changed. Refresh its health before restarting.".into()));
         }
         let mut commands = self
             .recovery_commands
             .lock()
             .map_err(|_| "Native recovery command authority interrupted")?;
         if commands.get(&request.lane) == Some(&request.operation) {
+            return Ok(None);
+        }
+        if manual {
+            let result = if request.lane == Lane::OptionsGlbx {
+                self.options.control.restart_failed()
+            } else {
+                self.futures.get(&request.lane).expect("exhaustive dataset lane").control.restart_failed()
+            };
+            if result.is_err() {
+                return Ok(Some("Only a failed dataset with active subscriptions can be restarted.".into()));
+            }
+            commands.insert(request.lane, request.operation);
             return Ok(None);
         }
         commands.insert(request.lane, request.operation);

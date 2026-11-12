@@ -296,13 +296,33 @@ impl Backend {
         body: &Value,
         deadline: tokio::time::Instant,
     ) -> Result<Value, String> {
+        self.marketdata_request_until(scope, "control", body, deadline).await
+    }
+
+    /// Sends one explicit dataset recovery request through the Host recovery lane.
+    pub async fn marketdata_recovery_until(
+        &self,
+        scope: &str,
+        body: &Value,
+        deadline: tokio::time::Instant,
+    ) -> Result<Value, String> {
+        self.marketdata_request_until(scope, "stop", body, deadline).await
+    }
+
+    async fn marketdata_request_until(
+        &self,
+        scope: &str,
+        channel: &str,
+        body: &Value,
+        deadline: tokio::time::Instant,
+    ) -> Result<Value, String> {
         let operation = uuid::Uuid::new_v4().to_string();
         let valid = !scope.is_empty()
             && scope
                 .bytes()
                 .all(|b| b.is_ascii_alphanumeric() || b == b'-');
         let subject = if valid {
-            format!("ifm.{scope}.marketdata.v1.control")
+            format!("ifm.{scope}.marketdata.v1.{channel}")
         } else {
             "invalid-marketdata-scope".into()
         };
@@ -320,9 +340,10 @@ impl Backend {
                     .request_with_headers(subject.clone(), headers, bytes.into()),
             )
             .await
-            .map_err(|_| {
-                "MarketData Host request deadline expired; reconcile saved live-feed intent"
-                    .to_string()
+            .map_err(|_| if channel == "stop" {
+                "Dataset restart reply timed out. Refresh worker health before trying again.".to_string()
+            } else {
+                "MarketData Host request deadline expired; reconcile saved live-feed intent".to_string()
             })?
             .map_err(|e| format!("MarketData Host request failed: {e}; details={e:?}"))?;
             let decoded = codec::decode(&reply.payload)?;

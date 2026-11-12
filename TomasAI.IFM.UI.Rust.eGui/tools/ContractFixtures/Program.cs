@@ -308,6 +308,7 @@ if (args.Length == 3 && args[1] is "--serve" or "--desktop-serve")
         else if(request.Subject=="Query.NativeCompatibility.TradeWorkspaceMode.none"){
             var tradeMode=MessagePackSerializer.Deserialize<string>(request.Data!,MessagePackBinarySerializer.Options);
             if(tradeMode is "Normal" or "ComposeFutures" or "ComposeOptions" or "ComposeCloseFutures" or "ComposeCloseOptions" or "Monitor")futuresContracts.Reset();
+            futuresContracts.IncludeNextCycle=tradeMode=="ComposeOptions";
             tradeWorkspace.Mode=tradeMode;
             response=MessagePackSerializer.Serialize(new ServiceResult<ScalarReadModel<bool>>{Success=true,ErrorMessage="",Value=new(true)},MessagePackBinarySerializer.Options);
         }

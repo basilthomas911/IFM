@@ -55,7 +55,7 @@ public static class PrepareTradeOrder
                     ?? throw new InvalidOperationException($"Option definition is unavailable: {leg.ContractId}");
                 if (option.UnderlyingContractId != underlying.ContractId || option.ExpirationUtc is null)
                     throw new ArgumentException("The selected option does not resolve to the requested underlying and expiry.");
-                if (!decimal.TryParse(option.Multiplier, NumberStyles.Number, CultureInfo.InvariantCulture, out var multiplier) || multiplier <= 0)
+                if (option.GetCashMultiplier() is not { } multiplier)
                     throw new InvalidOperationException("Option multiplier is unavailable.");
                 var right = option.OptionRight.ToString();
                 if (right is not ("Call" or "Put")) throw new InvalidOperationException("Option right is unavailable.");

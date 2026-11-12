@@ -41,6 +41,7 @@ async fn closing_order_reverses_remaining_position_and_restores_exact_uncertain_
     let deadline = || tokio::time::Instant::now() + Duration::from_secs(2);
     control(&b, "OrderPreparationMode", "Normal").await;
     let draft = Draft {
+        draft_revision: 0,
         scope: Scope {
             portfolio: 1,
             fund: 2,

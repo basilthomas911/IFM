@@ -64,7 +64,21 @@ pub fn merge_display(
             continue;
         };
         let mut merged = next.clone();
-        // Missing quote fields keep their last accepted values for this contract.
+        let prior = &rows[index];
+        let received = |value: &crate::models::trade_contracts::EvaluatedOptionContractReadModel| {
+            value.quote_at_utc.as_ref().and_then(|at|
+                chrono::DateTime::parse_from_rfc3339(at.as_str()).ok())
+        };
+        if next.bid.is_none() || next.ask.is_none() || received(next) < received(prior) {
+            merged.bid = prior.bid.clone();
+            merged.ask = prior.ask.clone();
+            merged.bid_size = prior.bid_size;
+            merged.ask_size = prior.ask_size;
+            merged.quote_at_utc = prior.quote_at_utc.clone();
+            merged.is_stale = Some(true);
+            merged.selection_valid = Some(false);
+        }
+        // Other observations can arrive independently of the quote.
         macro_rules! retain {
             ($($field:ident),*) => {
                 $(
@@ -75,8 +89,6 @@ pub fn merge_display(
             };
         }
         retain!(
-            bid,
-            ask,
             bid_size,
             ask_size,
             last,
@@ -90,7 +102,6 @@ pub fn merge_display(
             rho,
             volume,
             open_interest,
-            quote_at_utc,
             trade_at_utc,
             evaluated_at_utc,
             volume_value_date,
@@ -216,7 +227,7 @@ pub async fn expirations(
         if row.provider_root.as_deref().is_none_or(str::is_empty) {
             return Err("Missing provider root".into());
         }
-        if expiry >= requested {
+        if expiry >= requested && expiry <= through {
             result.push(row);
         }
     }
@@ -279,7 +290,7 @@ impl Specification {
                 }),
             ),
             ("SubscriptionOwnerId".into(), owner.into()),
-            ("StandardDeviationMultiplier".into(), Value::F64(2.5)),
+            ("StandardDeviationMultiplier".into(), Value::F64(if self.frozen { 2.5 } else { 3.0 })),
             ("ReleaseOnly".into(), release.into()),
             (
                 "AllowFrozenEmulatorPreview".into(),

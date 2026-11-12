@@ -208,7 +208,7 @@ impl TradeWorkspace {
         if let Some(trade) = s.result.context.get("tradeId") {
             self.draft.insert("tradeId".into(), trade.clone());
         }
-        if matches!(action, "create-order" | "create-trade" | "remove-trade") {
+        if matches!(action, "create-order" | "create-trade" | "change-trade" | "remove-trade") {
             self.pending_dialog = self.dialog.clone();
         }
         serde_json::json!({"schema":1,"requestId":id,"view":"trade-orders","intent":action,"expectedGeneration":s.generation,"originalId":s.result.context.get("orderId"),"fields":self.draft}).to_string()
@@ -235,6 +235,17 @@ impl TradeWorkspace {
                 }
                 if outcome.state == "Completed" && !self.pending_dialog.is_empty() {
                     self.dialog.clear();
+                }
+                if outcome.state == "Completed" && self.pending_action == "prepare-change-trade" {
+                    self.draft.remove("strategy");
+                    self.draft.remove("tradeReferenceDefault");
+                    for (field, key) in [
+                        ("tradeType", "changeTradeType"), ("baseContract", "changeBaseContract"),
+                        ("effectiveDate", "changeEffectiveDate"), ("tradeReference", "changeTradeReference"),
+                    ] {
+                        self.draft.insert(field.into(), s.result.context.get(key).cloned().unwrap_or_default());
+                    }
+                    self.dialog = "change-trade".into();
                 }
                 if self.pending_action == "load-trade" {
                     self.open = false;
@@ -430,6 +441,7 @@ impl TradeWorkspace {
                 egui::Window::new(crate::presentation::dialog_title(match kind.as_str() {
                     "create-order" => "Add Fund Order",
                     "create-trade" => "Add Trade",
+                    "change-trade" => "Change Trade",
                     "remove-order" => "Delete Order",
                     _ => "Remove Trade",
                 }))
@@ -438,7 +450,7 @@ impl TradeWorkspace {
                 .collapsible(false)
                 .resizable(false)
                 .fixed_size(match kind.as_str() {
-                    "create-order" | "create-trade" => {
+                    "create-order" | "create-trade" | "change-trade" => {
                         order_layout::draft_layout(ctx, kind == "create-order",
                             self.draft.get("tradeReference")
                                 .or_else(|| s.result.context.get("preparedTradeLabel")).map(String::as_str),
@@ -452,7 +464,7 @@ impl TradeWorkspace {
                 )
                 .show(ctx, |ui| {
                     ui.add_enabled_ui(!s.busy, |ui| {
-                        if kind == "create-order" || kind == "create-trade" {
+                        if matches!(kind.as_str(), "create-order" | "create-trade" | "change-trade") {
                             if let Some(draft_action) = self.draw_draft(ui, s, &kind) {
                                 if draft_action == "cancel-draft" {
                                     self.dialog.clear();
@@ -475,7 +487,7 @@ impl TradeWorkspace {
                                 },
                             );
                         }
-                        if !kind.starts_with("create") {
+                        if !matches!(kind.as_str(), "create-order" | "create-trade" | "change-trade") {
                             ui.separator();
                             ui.horizontal(|ui| {
                                 if ui

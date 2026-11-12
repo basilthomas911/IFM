@@ -4,6 +4,11 @@
 //! Readers share immutable payloads; old-generation retirement cannot affect a
 //! replacement, and publication versions cannot move backwards.
 
+/// Maximum option contracts installed in one native live generation.
+pub(crate) const MAX_LIVE_OPTIONS: usize = 4096;
+/// Live option registrations include up to 64 underlying dependencies.
+pub(crate) const MAX_OPTION_REGISTRATIONS: usize = MAX_LIVE_OPTIONS + 64;
+
 /// Native scope claim, renewal and expiry authority.
 pub mod claims;
 pub mod coalesced;

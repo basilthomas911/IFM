@@ -220,6 +220,16 @@ public partial record FuturesOptionContractReadModel
     [Key(43)] public uint? UnderlyingInstrumentId { get; init; }
     [Key(44)] public ushort? UnderlyingPublisherId { get; init; }
 
+    /// <summary>Reads the option's own contract multiplier, including legacy definition rows.</summary>
+    public decimal? GetCashMultiplier()
+    {
+        if (MultiplierValue is { } exact)
+            return exact > 0 ? exact : null;
+        return decimal.TryParse(Multiplier, System.Globalization.NumberStyles.Number,
+            System.Globalization.CultureInfo.InvariantCulture, out var legacy) && legacy > 0
+            ? legacy : null;
+    }
+
     /// <summary>Explicit legacy translation; conflicting or invalid representations fail rather than round silently.</summary>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1244", Justification = "Exact equality verifies lossless decimal/double representation or a zero-width denominator sentinel; epsilon comparison would change validation.")]
     public decimal GetExactStrikePrice()

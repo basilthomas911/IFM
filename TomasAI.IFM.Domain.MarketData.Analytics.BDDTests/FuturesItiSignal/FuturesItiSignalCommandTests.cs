@@ -125,7 +125,8 @@ public class FuturesItiSignalCommandTests
     {
         // Given
         var state = GivenStartOfDayState(timePeriod);
-        var higherPrice = LastSignal(state).TrendExtreme + 50;
+        var previous = LastSignal(state);
+        var higherPrice = previous.TrendExtreme + previous.Threshold * 1.25;
         var command = SampleData.GenerateCommandFor(timePeriod) with { FuturesPrice = higherPrice };
 
         // When
@@ -135,7 +136,7 @@ public class FuturesItiSignalCommandTests
         result.Success.Should().BeTrue();
         var signal = LastSignal(state);
         signal.IntrinsicTimeTrend.Should().Be(IntrinsicTimeTrendType.UpTrend);
-        signal.IntrinsicTimeMode.Should().Be(signal.BandLevel > 1.0 ? IntrinsicTimeModeType.TrendOvershootExtended : IntrinsicTimeModeType.TrendExtremeChanged);
+        signal.IntrinsicTimeMode.Should().Be(IntrinsicTimeModeType.TrendOvershootExtended);
         signal.IntrinsicTimeGroupId.Should().Be(0);
         signal.TrendExtreme.Should().Be(higherPrice);
         AssertCalculatedLevels(signal);
@@ -151,7 +152,11 @@ public class FuturesItiSignalCommandTests
         // Given
         var state = GivenStartOfDayState(timePeriod);
         // Move the trend extreme up first so the reversal level sits above the down-trend trigger.
-        var extremeCommand = SampleData.GenerateCommandFor(timePeriod) with { FuturesPrice = LastSignal(state).TrendExtreme + 100 };
+        var previous = LastSignal(state);
+        var extremeCommand = SampleData.GenerateCommandFor(timePeriod) with
+        {
+            FuturesPrice = previous.TrendExtreme + previous.Threshold * 1.6
+        };
         extremeCommand.Execute(state);
 
         var afterExtreme = LastSignal(state);
@@ -165,7 +170,7 @@ public class FuturesItiSignalCommandTests
         // Then
         result.Success.Should().BeTrue();
         var signal = LastSignal(state);
-        signal.IntrinsicTimeMode.Should().Be(signal.BandLevel > 1.0 ? IntrinsicTimeModeType.TrendOvershootReversal : IntrinsicTimeModeType.TrendReversalChanged);
+        signal.IntrinsicTimeMode.Should().Be(IntrinsicTimeModeType.TrendOvershootReversal);
         signal.IntrinsicTimeTrend.Should().Be(IntrinsicTimeTrendType.UpTrend);
         signal.IntrinsicTimeGroupId.Should().Be(0);
         signal.TrendReversal.Should().Be(reversalPrice);
@@ -289,23 +294,24 @@ public class FuturesItiSignalCommandTests
 
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
-    public void GivenAnActiveTimeFrame_WhenPricesTraverseBothDirections_ThenEveryPriceChangeModeCompletesInOrder(
+    public void GivenAnActiveTimeFrame_WhenPricesTraverseBothDirections_ThenOnlyEligibleSignalsAreApplied(
         TimeFrameType timePeriod)
     {
         // Given
         var state = NewState();
         var timestamp = SampleData.Timestamp;
 
-        FuturesItiSignalV2ReadModel GenerateAt(double price)
-        {
-            var priorEventCount = state.Events.Count;
-            var command = SampleData.GenerateCommandFor(timePeriod) with
+        GenerateFuturesItiSignalCommand CommandAt(double price) => SampleData.GenerateCommandFor(timePeriod) with
             {
                 Timestamp = timestamp = timestamp.AddSeconds(1),
                 FuturesPrice = price,
                 VixFuturesPrice = 20
             };
 
+        FuturesItiSignalV2ReadModel GenerateAt(double price)
+        {
+            var priorEventCount = state.Events.Count;
+            var command = CommandAt(price);
             var result = command.Execute(state);
 
             result.Success.Should().BeTrue();
@@ -318,32 +324,32 @@ public class FuturesItiSignalCommandTests
             return generated.FuturesItiSignal!;
         }
 
-        // When: start, extend, pull back, move within the structure, change
-        // direction, and repeat the same structural cycle in the down trend.
-        var started = GenerateAt((double)SampleData.FuturesPrice);
-
-        var eventCountBeforeInsideBand = state.Events.Count;
-        var insideBand = SampleData.GenerateCommandFor(timePeriod) with
+        void ExpectNoSignal(double price)
         {
-            Timestamp = timestamp = timestamp.AddSeconds(1),
-            FuturesPrice = started.BandAnchorPrice + started.BandSize / 2,
-            VixFuturesPrice = 20
-        };
-        insideBand.Execute(state).Success.Should().BeTrue();
-        state.Events.Should().HaveCount(eventCountBeforeInsideBand);
+            var prior = LastSignal(state);
+            var count = state.Events.Count;
+            CommandAt(price).Execute(state).Success.Should().BeTrue();
+            state.Events.Should().HaveCount(count);
+            LastSignal(state).Should().BeSameAs(prior);
+        }
 
-        var upExtreme = GenerateAt(started.TrendExtreme + started.BandSize * 1.01);
-        upExtreme.BandLevel.Should().BeGreaterThanOrEqualTo(started.BandPercentage);
+        var started = GenerateAt((double)SampleData.FuturesPrice);
+        var volatilityPoints = started.IntrinsicPrice * (0.002 * Math.Sqrt(20.0 / 15.7));
+        var expectedUpThreshold = 5 * (volatilityPoints + 0.25 * Math.Pow(started.TradingDays, 1.5))
+            / (volatilityPoints + 0.25);
+        started.Threshold.Should().BeApproximately(expectedUpThreshold, 1e-10);
+        ExpectNoSignal(started.BandAnchorPrice + started.BandSize / 2);
+        ExpectNoSignal(started.TrendPrice + started.Threshold * 0.99);
+        ExpectNoSignal(started.TrendPrice - started.BandSize);
         var upThresholdExtension = GenerateAt(started.TrendPrice + started.Threshold * 1.25);
         upThresholdExtension.BandLevel.Should().BeGreaterThan(1);
         upThresholdExtension.ReversalLevel.Should().Be(0);
         var upReversal = GenerateAt(upThresholdExtension.TrendReversal - upThresholdExtension.BandSize * 1.01);
         upReversal.IntrinsicPrice.Should().BeGreaterThan(upReversal.DownTrendTrigger);
         upReversal.ReversalLevel.Should().BeGreaterThan(0);
-        var upTrending = GenerateAt(upReversal.BandAnchorPrice + upReversal.BandSize * 1.01);
-        upTrending.ReversalLevel.Should().BeLessThan(upReversal.ReversalLevel);
+        ExpectNoSignal(upReversal.BandAnchorPrice + upReversal.BandSize * 1.01);
 
-        var downDirection = GenerateAt(upTrending.DownTrendTrigger);
+        var downDirection = GenerateAt(upReversal.DownTrendTrigger);
         var downExtreme = GenerateAt(downDirection.TrendExtreme - downDirection.BandSize * 1.01);
         downExtreme.BandLevel.Should().BeGreaterThanOrEqualTo(downDirection.BandPercentage);
         var downThresholdExtension = GenerateAt(
@@ -388,10 +394,8 @@ public class FuturesItiSignalCommandTests
 
         signals.Select(signal => signal.IntrinsicTimeMode).Should().Equal(
             IntrinsicTimeModeType.TrendDirectionChanged,
-            IntrinsicTimeModeType.TrendExtremeChanged,
             IntrinsicTimeModeType.TrendOvershootExtended,
             IntrinsicTimeModeType.TrendOvershootReversal,
-            IntrinsicTimeModeType.Trending,
             IntrinsicTimeModeType.TrendDirectionChanged,
             IntrinsicTimeModeType.TrendExtremeChanged,
             IntrinsicTimeModeType.TrendOvershootExtended,
@@ -404,8 +408,6 @@ public class FuturesItiSignalCommandTests
             IntrinsicTimeTrendType.UpTrend,
             IntrinsicTimeTrendType.UpTrend,
             IntrinsicTimeTrendType.UpTrend,
-            IntrinsicTimeTrendType.UpTrend,
-            IntrinsicTimeTrendType.UpTrend,
             IntrinsicTimeTrendType.DownTrend,
             IntrinsicTimeTrendType.DownTrend,
             IntrinsicTimeTrendType.DownTrend,
@@ -415,7 +417,7 @@ public class FuturesItiSignalCommandTests
             IntrinsicTimeTrendType.UpTrend,
             IntrinsicTimeTrendType.UpTrend);
         signals.Select(signal => signal.IntrinsicTimeGroupId).Should().Equal(
-            0, 0, 0, 0, 0,
+            0, 0, 0,
             1, 1, 1, 1, 1,
             2, 2, 2);
         signals.Should().OnlyContain(signal =>

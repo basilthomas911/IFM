@@ -137,7 +137,7 @@ impl MarketData {
                 .iter()
                 .filter(|(id, _)| !memo.models.contains_key(id))
                 .count()
-            > 2048
+            > crate::option_chain::MAX_LIVE_OPTIONS
         {
             memo.models.clear();
         }

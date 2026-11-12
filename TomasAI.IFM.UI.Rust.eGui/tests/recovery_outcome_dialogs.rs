@@ -6,8 +6,8 @@ use ifm_ui_egui::{
 
 
 /// Provides outcome for the recovery outcome dialogs implementation.
-fn outcome(id: uuid::Uuid, severity: &str) -> Vec<u8> {
-    serde_json::to_vec(&serde_json::json!({"Version":1,"RecordId":id.to_string(),"OperationId":uuid::Uuid::from_u128(42).to_string(),"Role":"Options","Dataset":"GLBX.MDP3","ValueDate":"2026-10-29","OccurredAtUtc":"2026-10-29T12:00:00Z","Severity":severity,"MonitoringReady":false,"Message":"Options reset completed. Connection restored; monitoring is not yet verified."})).unwrap()
+fn outcome(id: uuid::Uuid, role: &str, severity: &str) -> Vec<u8> {
+    serde_json::to_vec(&serde_json::json!({"Version":1,"RecordId":id.to_string(),"OperationId":uuid::Uuid::from_u128(42).to_string(),"Role":role,"Dataset":"GLBX.MDP3","ValueDate":"2026-10-29","OccurredAtUtc":"2026-10-29T12:00:00Z","Severity":severity,"MonitoringReady":false,"Message":format!("{role} reset completed. Connection restored; monitoring is not yet verified.")})).unwrap()
 }
 
 
@@ -22,7 +22,7 @@ fn completion_is_deduplicated_and_only_the_latest_outcome_is_retained() {
     );
     let sequence = n.publication.error_sequence;
     let error = n.publication.error.clone();
-    let body = outcome(uuid::Uuid::from_u128(1), "success");
+    let body = outcome(uuid::Uuid::from_u128(1), "Futures", "success");
     let subject = "Notify.MarketDataRecoveryOutcome.2026-10-29";
     assert!(n.event(&registry, subject, &body).unwrap());
     assert!(!n.event(&registry, subject, &body).unwrap());
@@ -39,12 +39,27 @@ fn completion_is_deduplicated_and_only_the_latest_outcome_is_retained() {
         n.event(
             &registry,
             subject,
-            &outcome(uuid::Uuid::from_u128(2), "warning")
+            &outcome(uuid::Uuid::from_u128(2), "Options", "warning")
         )
         .unwrap()
     );
     assert_eq!(n.publication.outcome_dialogs.len(), 1);
     assert_eq!(n.publication.outcome_dialogs[0].severity, Severity::Warning);
+}
+
+
+#[test]
+fn successful_options_recovery_leaves_the_status_console_and_warning_untouched() {
+    let registry = Registry::compiled().unwrap();
+    let mut notifications = Notifications::default();
+    let subject = "Notify.MarketDataRecoveryOutcome.2026-10-29";
+    let warning = outcome(uuid::Uuid::from_u128(1), "Options", "warning");
+    assert!(notifications.event(&registry, subject, &warning).unwrap());
+    let success = outcome(uuid::Uuid::from_u128(2), "Options", "success");
+    assert!(!notifications.event(&registry, subject, &success).unwrap());
+    assert_eq!(notifications.publication.status_rows.len(), 1);
+    assert_eq!(notifications.publication.outcome_dialogs.len(), 1);
+    assert_eq!(notifications.publication.outcome_dialogs[0].severity, Severity::Warning);
 }
 
 
@@ -59,7 +74,7 @@ fn a_burst_retains_one_latest_dialog_and_retries_do_not_restore_older_messages()
             n.event(
                 &registry,
                 subject,
-                &outcome(uuid::Uuid::from_u128(id), "success")
+                &outcome(uuid::Uuid::from_u128(id), "Futures", "success")
             )
             .unwrap()
         );
@@ -70,7 +85,7 @@ fn a_burst_retains_one_latest_dialog_and_retries_do_not_restore_older_messages()
         !n.event(
             &registry,
             subject,
-            &outcome(uuid::Uuid::from_u128(1), "success")
+            &outcome(uuid::Uuid::from_u128(1), "Futures", "success")
         )
         .unwrap()
     );
@@ -84,7 +99,7 @@ fn invalid_outcomes_never_open_a_dialog() {
     let registry = Registry::compiled().unwrap();
     let mut n = Notifications::default();
     for body in [
-        outcome(uuid::Uuid::from_u128(1), "unknown"),
+        outcome(uuid::Uuid::from_u128(1), "Options", "unknown"),
         b"{bad".to_vec(),
         vec![b'x'; 16385],
     ] {
@@ -101,7 +116,7 @@ fn invalid_outcomes_never_open_a_dialog() {
         n.event(
             &registry,
             "Notify.MarketDataRecoveryOutcome.2026-10-28",
-            &outcome(uuid::Uuid::from_u128(1), "success")
+            &outcome(uuid::Uuid::from_u128(1), "Options", "success")
         )
         .is_err()
     );
@@ -275,14 +290,14 @@ async fn actual_nats_push_reaches_the_dialog_while_queries_are_unavailable() {
     let failure = tokio::time::timeout(Duration::from_secs(5), async {
         loop {
             let state = receive.recv().await.unwrap();
-            if state.error_sequence > 0 {
+            if state.error.contains("Option Pipeline Recovery Failed") {
                 break state;
             }
         }
     })
     .await
     .unwrap();
-    let bytes = outcome(uuid::Uuid::from_u128(1), "success");
+    let bytes = outcome(uuid::Uuid::from_u128(1), "Options", "success");
     raw.publish(
         "Notify.MarketDataRecoveryOutcome.2026-10-29",
         bytes.clone().into(),
@@ -292,6 +307,12 @@ async fn actual_nats_push_reaches_the_dialog_while_queries_are_unavailable() {
     raw.publish("Notify.MarketDataRecoveryOutcome.2026-10-29", bytes.into())
         .await
         .unwrap();
+    raw.publish(
+        "Notify.MarketDataRecoveryOutcome.2026-10-29",
+        outcome(uuid::Uuid::from_u128(2), "Options", "warning").into(),
+    )
+    .await
+    .unwrap();
     raw.flush().await.unwrap();
     let completed = tokio::time::timeout(Duration::from_secs(5), async {
         loop {
@@ -304,9 +325,9 @@ async fn actual_nats_push_reaches_the_dialog_while_queries_are_unavailable() {
     .await
     .unwrap();
     assert_eq!(completed.outcome_dialogs.len(), 1);
-    assert_eq!(completed.outcome_dialogs[0].severity, Severity::Success);
-    assert_eq!(completed.error_sequence, failure.error_sequence);
-    assert_eq!(completed.error, failure.error);
+    assert_eq!(completed.outcome_dialogs[0].severity, Severity::Warning);
+    assert!(completed.error_history.iter().any(|(_, message)| message == &failure.error));
+    assert!(!completed.status_rows.iter().any(|row| row.id == "outcome:00000000-0000-0000-0000-000000000001"));
     task.abort();
     let _ = task.await;
 }

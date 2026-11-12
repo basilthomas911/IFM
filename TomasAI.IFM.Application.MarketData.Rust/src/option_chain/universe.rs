@@ -125,7 +125,7 @@ pub fn qualify(
     if !complete {
         return Ok(failed("IncompleteChain", ""));
     }
-    if scope.len() > 2048 {
+    if scope.len() > super::MAX_LIVE_OPTIONS {
         return Ok(failed("SnapshotLimit", ""));
     }
     let mut contracts = BTreeSet::new();

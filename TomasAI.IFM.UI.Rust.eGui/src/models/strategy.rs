@@ -12,8 +12,6 @@ use crate::backend::{
 };
 use rmpv::Value;
 use std::sync::Arc;
-#[path = "strategy_tooltip.rs"]
-mod tooltip;
 pub const VIEW: &str = "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model.IntrinsicTimeStrategyWorkflowView";
 pub const STAGE: &str = "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model.StrategyWorkflowStageState";
 pub const STAGES: [(&str, &str, &str); 5] = [
@@ -37,8 +35,8 @@ pub struct StageHeader {
     pub failed: Option<chrono::DateTime<chrono::Utc>>,
     /// Optional failure; `None` represents an absent value.
     pub failure: Option<StageFailure>,
-    /// Recorded reasons for a terminal continuation decision.
-    pub decision_reasons: Vec<String>,
+    /// User-facing sentence recorded in C# workflow evidence.
+    pub reason_sentence: String,
 }
 
 /// Stage Failure used by the strategy component.
@@ -208,29 +206,15 @@ impl WorkflowHeader {
                     error_message: text(r, kind, failure, "ErrorMessage")?,
                 })
             };
-            let mut decision_reasons: Vec<String> = value(r, STAGE, stage, "ContinuationReasonCodes")?
-                .as_array()
-                .into_iter()
-                .flatten()
-                .filter_map(Value::as_str)
-                .map(str::to_owned)
-                .collect();
             let continuation = text(r, STAGE, stage, "ContinuationDecision")?;
-            if outcome == "NoTrade" && continuation == "Stop" {
-                if decision_reasons.is_empty() && !stop_reason.is_empty() {
-                    decision_reasons.push(stop_reason.clone());
-                }
-                if decision_reasons.iter().any(|code| code == "MC.ASSESSMENT.INHERITED_NO_NEW_TRADE") {
-                    decision_reasons.extend(regime_volatility_reasons(r, wire).unwrap_or_default());
-                }
-            }
             stages.push(StageHeader {
                 processing: text(r, STAGE, stage, "ProcessingStatus")?,
                 continuation,
                 completed: optional_instant(r, STAGE, stage, "CompletedAtUtc")?,
                 failed: optional_instant(r, STAGE, stage, "FailedAtUtc")?,
                 failure,
-                decision_reasons,
+                reason_sentence: value(r, STAGE, stage, "ReasonSentence")?
+                    .as_str().unwrap_or_default().to_owned(),
             });
         }
         Ok(Self {
@@ -444,11 +428,7 @@ pub fn workflow_grid_row(
     }
     .into();
     let mut actors = Vec::new();
-    for ((stage, (_, _, title)), short) in stages
-        .iter()
-        .zip(STAGES)
-        .zip(["RD", "MC", "TS", "OC", "RM"])
-    {
+    for (stage, short) in stages.iter().zip(["RD", "MC", "TS", "OC", "RM"]) {
         if stage.processing == "NotStarted" {
             continue;
         }
@@ -456,16 +436,22 @@ pub fn workflow_grid_row(
             ("Processing", _) => "Processing",
             ("Completed", "Proceed") => "Continued",
             ("Completed", "Stop") if resolved == "NoTrade" => "No Trade",
+            ("Completed", "Stop") if resolved == "Completed" => "Continued",
             ("Completed", "Stop") => "Stopped",
             ("Completed", _) => "Processing",
+            ("Failed", _) => "Failed",
+            ("TimedOut", _) => "Timed Out",
+            ("Cancelled", _) => "Cancelled",
             _ => "Stopped",
         };
-        let value = tooltip::stage_tooltip(title, state, stage);
         actors.push(WorkflowActor {
             name: short.into(),
-            value,
+            value: stage.reason_sentence.clone(),
             state: state.into(),
         });
+        if !matches!(state, "Processing" | "Continued") {
+            break;
+        }
     }
     Ok(WorkflowRow {
         id: id.into(),
@@ -485,22 +471,4 @@ pub fn workflow_grid_row(
         end_state,
         actors,
     })
-}
-
-fn regime_volatility_reasons(r: &Registry, wire: &Value) -> Result<Vec<String>, String> {
-    let stage = value(r, VIEW, wire, "RegimeDiscovery")?;
-    let envelope = value(r, STAGE, stage, "Result")?;
-    let envelope_kind = r.field_kind(STAGE, "Result")?;
-    let regime = value(r, envelope_kind, envelope, "RegimeResult")?;
-    let regime_kind = r.field_kind(envelope_kind, "RegimeResult")?;
-    let volatility = value(r, regime_kind, regime, "Volatility")?;
-    let volatility_kind = r.field_kind(regime_kind, "Volatility")?;
-    let reasons = value(r, volatility_kind, volatility, "Reasons")?;
-    let reason_kind = r.field_kind(volatility_kind, "Reasons")?.trim_end_matches("[]");
-    reasons
-        .as_array()
-        .into_iter()
-        .flatten()
-        .map(|reason| text(r, reason_kind, reason, "Code"))
-        .collect()
 }

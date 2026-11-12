@@ -122,15 +122,17 @@ pub fn document(
         }
         let slots = wire.as_array().ok_or("Invalid parameter document model")?;
         let mut json = serde_json::Map::new();
+        let original_draft_revision = Value::from(0);
         for (name, index, inner) in shape.members {
+            let slot = slots.get(index).or_else(|| {
+                // Older retained order receipts predate the Fund draft revision.
+                (kind == "TomasAI.IFM.Domain.Portfolio.Shared.Contracts.FundTradeSetupReference"
+                    && name == "DraftRevision" && slots.len() == index)
+                    .then_some(&original_draft_revision)
+            }).ok_or_else(|| format!("Missing parameter document slot {kind}.{name}"))?;
             json.insert(
                 name,
-                document(
-                    registry,
-                    &inner,
-                    slots.get(index).ok_or("Missing parameter document slot")?,
-                    enums,
-                )?,
+                document(registry, &inner, slot, enums)?,
             );
         }
         if kind == self::kind("ParameterValidationReport") {

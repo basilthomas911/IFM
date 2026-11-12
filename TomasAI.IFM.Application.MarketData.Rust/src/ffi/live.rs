@@ -41,7 +41,7 @@ pub struct NativeLiveConfiguration {
     pub identity_low: u64,
     /// Opaque identity high bits.
     pub identity_high: u64,
-    /// Maximum registered contracts, 1..2112 including underlying dependencies.
+    /// Maximum registered contracts, 1..4160 including underlying dependencies.
     pub capacity: u32,
     /// 0 explicitly controlled clock; 1 advance from API anchor.
     pub advancing: u32,
@@ -404,7 +404,7 @@ pub(super) fn parse_template(
         });
     }
     let regs = v["registrations"].as_array().ok_or(Status::InvalidInput)?;
-    if (!bootstrap && regs.is_empty()) || regs.len() > 2112 {
+    if (!bootstrap && regs.is_empty()) || regs.len() > crate::option_chain::MAX_OPTION_REGISTRATIONS {
         return Err(Status::InvalidInput);
     }
     let mut registrations = Vec::with_capacity(regs.len());

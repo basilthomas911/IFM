@@ -133,6 +133,18 @@ public static class PortfolioFundCommandValidation
             return errors;
         }
 
+        /// <summary>Validates the edited draft and its Fund identity.</summary>
+        public TErrors ValidateFundCommand(ChangeManualFundOrderTradeCommand typed)
+        {
+            ValidateIdentity(errors, typed);
+            var request = typed.Request;
+            if (request is null || request.PortfolioId != typed.EntityId.PortfolioId ||
+                request.FundId != typed.EntityId.FundId || request.OrderId <= 0 || request.TradeId <= 0 ||
+                request.ExpectedOrderVersion <= 0 || request.ExpectedTradeVersion <= 0)
+                errors.Add(new($"{typed.CommandName}.Request has an invalid scope or version"));
+            return errors;
+        }
+
         /// <summary>Validates the RemoveManualFundOrderTradeCommand payload and its Fund identity.</summary>
         public TErrors ValidateFundCommand(RemoveManualFundOrderTradeCommand typed)
         {

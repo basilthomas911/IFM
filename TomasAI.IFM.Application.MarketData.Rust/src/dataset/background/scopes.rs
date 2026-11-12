@@ -795,7 +795,7 @@ impl Configuration {
                         .models
                         .lock()
                         .map_err(|_| "Native scope facts interrupted")?;
-                    if cache.len() == 2048 && !cache.contains_key(&key) {
+                    if cache.len() == crate::option_chain::MAX_LIVE_OPTIONS && !cache.contains_key(&key) {
                         return Err("Native exact scope fact capacity exceeded".into());
                     }
                     cache.insert(key, model.clone());

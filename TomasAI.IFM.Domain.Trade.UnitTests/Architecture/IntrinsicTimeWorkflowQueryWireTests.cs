@@ -8,6 +8,9 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Queries;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Query.Actor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Query.Model;
 using NSubstitute;
+using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment;
 
 namespace TomasAI.IFM.Domain.Trade.UnitTests.Architecture;
 
@@ -161,7 +164,112 @@ public sealed class IntrinsicTimeWorkflowQueryWireTests
             MessagePackSerializer.Serialize(row));
 
         roundTrip.Stages[1].DecisionReasons.Should().Equal(reason, RegimeDiscoveryReasonCodes.VolatilityBackwardation);
+        roundTrip.Stages[1].ReasonSentence.Should().Contain("VX futures were in backwardation");
         roundTrip.Stages[0].DecisionReasons.Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData(StrategyActorProcessingStatus.NotStarted, StrategyWorkflowContinuationDecision.None, "waiting")]
+    [InlineData(StrategyActorProcessingStatus.Processing, StrategyWorkflowContinuationDecision.None, " is ")]
+    [InlineData(StrategyActorProcessingStatus.Completed, StrategyWorkflowContinuationDecision.None, "awaiting")]
+    [InlineData(StrategyActorProcessingStatus.Completed, StrategyWorkflowContinuationDecision.Proceed, "ES20261218")]
+    [InlineData(StrategyActorProcessingStatus.Completed, StrategyWorkflowContinuationDecision.Stop, "futures quote was stale")]
+    [InlineData(StrategyActorProcessingStatus.Failed, StrategyWorkflowContinuationDecision.None, "futures quote was stale")]
+    [InlineData(StrategyActorProcessingStatus.TimedOut, StrategyWorkflowContinuationDecision.None, "deadline")]
+    [InlineData(StrategyActorProcessingStatus.Cancelled, StrategyWorkflowContinuationDecision.None, "cancelled")]
+    public void Recorded_reasons_round_trip_for_every_stage_and_lifecycle_state(
+        StrategyActorProcessingStatus status, StrategyWorkflowContinuationDecision decision, string expected)
+    {
+        var state = new StrategyWorkflowStageState
+        {
+            ProcessingStatus = status,
+            ContinuationDecision = decision,
+            ContinuationReasonCodes = ["MC.ASSESSMENT.REFERENCEQUOTE.STALE"],
+            Failure = new StrategyPipelineFailure { ErrorData = "MC.ASSESSMENT.REFERENCEQUOTE.STALE" }
+        };
+        var evidence = StrategyWorkflowStageReasons.Record(new IntrinsicTimeStrategyWorkflowView
+        {
+            EntityId = new("test", new("ES20261218", new DateOnly(2026, 11, 11),
+                TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType.Daily)),
+            RegimeDiscovery = state,
+            MarketCondition = state,
+            TradeSelection = state,
+            OrderComposition = state,
+            RiskManagement = state
+        });
+        var persisted = MessagePackSerializer.Deserialize<IntrinsicTimeStrategyWorkflowView>(MessagePackSerializer.Serialize(evidence));
+        var projected = IntrinsicTimeStrategyUpdatesGridRow.FromView(persisted);
+        var recorded = new[] { persisted.RegimeDiscovery, persisted.MarketCondition, persisted.TradeSelection,
+            persisted.OrderComposition, persisted.RiskManagement };
+        for (var index = 0; index < recorded.Length; index++)
+        {
+            var reason = recorded[index].ReasonSentence;
+            reason.Should().Contain(expected).And.EndWith(".");
+            reason!.Count(character => character == '.').Should().Be(1);
+            projected.Stages[index].ReasonSentence.Should().Be(reason);
+        }
+    }
+
+    [Fact]
+    public void Selected_strategy_name_comes_from_the_frozen_catalog()
+    {
+        var variant = new CatalogKey(StrategyCatalogKind.Variant, Guid.NewGuid(), 2);
+        var binding = new TradeSelectionBinding
+        {
+            CatalogDefinitions = [new() { Key = variant, Name = "Put credit spread" }]
+        };
+        var view = new IntrinsicTimeStrategyWorkflowView
+        {
+            EntityId = new("test", new("ES20261218", new DateOnly(2026, 11, 11),
+                TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType.Weekly)),
+            SelectionBinding = binding,
+            TradeSelection = new StrategyWorkflowStageState
+            {
+                ProcessingStatus = StrategyActorProcessingStatus.Completed,
+                ContinuationDecision = StrategyWorkflowContinuationDecision.Proceed,
+                Result = new StrategyStageResultEnvelope
+                {
+                    SelectionResult = new TradeSelectionResult
+                    {
+                        SelectedCandidate = new SelectionCandidateIntent { VariantKey = variant },
+                        DecisionContext = new TradeSelectionDecisionContext { SelectionBinding = binding }
+                    }
+                }
+            }
+        };
+
+        var reason = StrategyWorkflowStageReasons.Record(view).TradeSelection.ReasonSentence;
+        reason.Should().Be("Trade Selection chose Put credit spread on Weekly ES20261218 under the current entry rules.");
+    }
+
+    [Fact]
+    public void Trade_selection_reports_the_actual_condition_that_blocked_entry()
+    {
+        var view = new IntrinsicTimeStrategyWorkflowView
+        {
+            EntityId = new("test", new("ES20261218", new DateOnly(2026, 11, 11),
+                TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType.Daily)),
+            Outcome = StrategyWorkflowOutcome.NoTrade,
+            MarketCondition = new StrategyWorkflowStageState
+            {
+                Result = new StrategyStageResultEnvelope
+                {
+                    AssessmentResult = new MarketConditionAssessmentResult
+                    {
+                        Assessment = new HorizonAssessment { ConditionType = AssessmentCondition.Dislocated }
+                    }
+                }
+            },
+            TradeSelection = new StrategyWorkflowStageState
+            {
+                ProcessingStatus = StrategyActorProcessingStatus.Completed,
+                ContinuationDecision = StrategyWorkflowContinuationDecision.Stop,
+                ContinuationReasonCodes = ["TS.ASSESSMENT.CONDITION"]
+            }
+        };
+
+        var reason = StrategyWorkflowStageReasons.Record(view).TradeSelection.ReasonSentence;
+        reason.Should().Be("Trade Selection stopped Daily ES20261218 because the dislocated market did not match the entry rules.");
     }
 
     public static TheoryData<Type> QueryTypes => new()

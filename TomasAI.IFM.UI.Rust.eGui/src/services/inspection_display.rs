@@ -69,7 +69,16 @@ pub fn semantic_document(registry: &Registry, kind: &str, wire: &Value) -> Resul
             return semantic_document(registry, concrete, &parts[1]);
         }
         let mut output = serde_json::Map::new();
-        for (name, _, inner) in shape.members {
+        for (name, index, inner) in shape.members {
+            // The server omits a default setup revision from canonical JSON.
+            // Pre-edit receipts also omit its trailing MessagePack slot.
+            if kind == "TomasAI.IFM.Domain.Portfolio.Shared.Contracts.FundTradeSetupReference"
+                && name == "DraftRevision"
+                && wire.as_array().is_some_and(|slots|
+                    slots.len() == index || slots.get(index).and_then(Value::as_i64) == Some(0))
+            {
+                continue;
+            }
             let value = crate::services::strategy::member(registry, kind, wire, &name)?;
             output.insert(name, semantic_document(registry, &inner, &value)?);
         }

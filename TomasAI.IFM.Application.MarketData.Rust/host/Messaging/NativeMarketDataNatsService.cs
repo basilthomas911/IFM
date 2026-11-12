@@ -133,8 +133,10 @@ public sealed class NativeMarketDataNatsService(IMarketDataApi api,MarketDataHos
         if(request.Path=="ready")return new(MarketDataHostConnection.Encode(IsReady),null);
         if(!request.Path.StartsWith("api/",StringComparison.Ordinal))return new([],"The native Host accepts IMarketDataApi operations only.");
         var recovery=MarketDataHostConnection.IsRecoveryRequest(request.Path);
+        var optionChainRead = request.Path == "api/EvaluateOptionChainAsync";
+        const string optionQuoteTimeout = "Live option quote request timed out after 30 seconds.";
         var remaining=new DateTimeOffset(request.DeadlineUtc,TimeSpan.Zero)-TimeProvider.System.GetUtcNow();
-        if(!recovery&&remaining<=TimeSpan.Zero)return new([],"Market-data request deadline expired.");
+        if(!recovery&&remaining<=TimeSpan.Zero)return new([],optionChainRead ? optionQuoteTimeout : "Market-data request deadline expired.");
         using var deadline=CancellationTokenSource.CreateLinkedTokenSource(token);
         if(!recovery)deadline.CancelAfter(remaining);
         try
@@ -150,6 +152,11 @@ public sealed class NativeMarketDataNatsService(IMarketDataApi api,MarketDataHos
                 throw new InvalidDataException("Market-data operation signature differs from its envelope.");
             var payload=await dispatcher.InvokeAsync(call,deadline.Token).ConfigureAwait(false);
             return new(payload,null);
+        }
+        catch(OperationCanceledException)when(optionChainRead && deadline.IsCancellationRequested && !token.IsCancellationRequested)
+        {
+            logger.LogDebug("Live option quote request reached its deadline; OperationId={Operation}", request.OperationId);
+            return new([],optionQuoteTimeout);
         }
         catch(Exception error)when(!token.IsCancellationRequested)
         {

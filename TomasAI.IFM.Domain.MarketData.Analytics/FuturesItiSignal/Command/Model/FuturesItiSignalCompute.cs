@@ -6,12 +6,13 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Command.Model
 
 /// <summary>
 /// Pure transition evaluator shared by the realtime pre-filter and durable ITI
-/// command actor. Direction changes remain trigger-driven; all other recurring
-/// publications require movement of twenty percent of the calculated ITI threshold.
+/// command actor. Each direction change sets the trend's threshold. Recurring
+/// signals require one band of movement, and uptrends publish only overshoots.
 /// </summary>
 public sealed class FuturesItiSignalCompute
 {
     internal const double DefaultBandPercentage = 0.20;
+    const double DailyUpTrendThreshold = 5.0;
     const double FuturesPriceTick = 0.25;
 
     readonly GenerateFuturesItiSignalCommand _command;
@@ -59,13 +60,16 @@ public sealed class FuturesItiSignalCompute
         if (current.IntrinsicTimeTrend == IntrinsicTimeTrendType.UpTrend)
         {
             if (price <= current.DownTrendTrigger)
+            {
                 signal = Enrich(CreateDirectionChangedSignal(IntrinsicTimeTrendType.DownTrend));
-            else if (price >= current.TrendExtreme + bandSize)
+                return true;
+            }
+
+            var isOvershoot = IsOvershoot(CalculateBandLevel(price - current.TrendPrice, current.Threshold));
+            if (isOvershoot && price >= current.TrendExtreme + bandSize)
                 signal = Enrich(CreateExtremeChangedSignal());
-            else if (price <= current.TrendReversal - bandSize)
+            else if (isOvershoot && price <= current.TrendReversal - bandSize)
                 signal = Enrich(CreateReversalChangedSignal());
-            else if (HasMovedOneBand(current, price, bandSize))
-                signal = Enrich(CreateTrendingSignal());
             else
             {
                 signal = default!;
@@ -216,7 +220,9 @@ public sealed class FuturesItiSignalCompute
     FuturesItiSignalV2ReadModel Enrich(FuturesItiSignalV2ReadModel signal)
     {
         var lambda = CalculateLambda(_command.VixFuturesPrice);
-        var threshold = CalculateThreshold(signal, lambda);
+        var threshold = signal.IntrinsicTimeMode == IntrinsicTimeModeType.TrendDirectionChanged
+            ? CalculateDirectionThreshold(signal, lambda)
+            : _current!.Threshold;
         var upTrendTrigger = signal.UpTrendTrigger;
         var downTrendTrigger = signal.DownTrendTrigger;
 
@@ -253,7 +259,7 @@ public sealed class FuturesItiSignalCompute
 
     /// <summary>Classifies the enriched structural result without changing its anchors or trailing triggers.</summary>
     internal static IntrinsicTimeModeType ClassifyMode(IntrinsicTimeModeType structuralMode, double bandLevel)
-        => double.IsFinite(bandLevel) && bandLevel > 1.0
+        => IsOvershoot(bandLevel)
             ? structuralMode switch
             {
                 IntrinsicTimeModeType.TrendExtremeChanged => IntrinsicTimeModeType.TrendOvershootExtended,
@@ -262,6 +268,8 @@ public sealed class FuturesItiSignalCompute
             }
             : structuralMode;
 
+    static bool IsOvershoot(double bandLevel) => double.IsFinite(bandLevel) && bandLevel > 1.0;
+
     /// <summary>
     /// Calculates signed directional progress from the trend's direction-change price as a multiple of the full threshold.
     /// </summary>
@@ -269,14 +277,14 @@ public sealed class FuturesItiSignalCompute
         FuturesItiSignalV2ReadModel signal,
         double threshold)
     {
-        if (threshold <= 0 || double.IsNaN(threshold) || double.IsInfinity(threshold))
-            return 0;
-
         var directionalMovement = signal.IntrinsicTimeTrend == IntrinsicTimeTrendType.UpTrend
             ? signal.IntrinsicPrice - signal.TrendPrice
             : signal.TrendPrice - signal.IntrinsicPrice;
-        return directionalMovement / threshold;
+        return CalculateBandLevel(directionalMovement, threshold);
     }
+
+    static double CalculateBandLevel(double directionalMovement, double threshold)
+        => threshold > 0 && double.IsFinite(threshold) ? directionalMovement / threshold : 0;
 
     /// <summary>
     /// Calculates the proportion of the established trend excursion that has been retraced from its extreme.
@@ -309,33 +317,28 @@ public sealed class FuturesItiSignalCompute
     }
 
     /// <summary>
-    /// Calculates the existing price/time threshold, then applies a directional factor:
-    /// 0.85 in an uptrend to recognize declines sooner, or 1.15 in a downtrend
-    /// to require stronger confirmation of an upward reversal.
+    /// Sets the threshold for a new trend. Uptrends scale the Daily baseline
+    /// using the timeframe and Daily formulas evaluated at the same market inputs.
     /// </summary>
     /// <param name="signal">The signal containing the current trend, price, and trading days.</param>
     /// <param name="lambda">The volatility adjustment used in the base threshold.</param>
     /// <returns>The direction-adjusted threshold used for reversal triggers and publication bands.</returns>
-    static double CalculateThreshold(
+    static double CalculateDirectionThreshold(
         FuturesItiSignalV2ReadModel signal,
         double lambda)
     {
-        var minimumTargetDelta = signal.IntrinsicPrice * lambda
-            + Math.Sqrt(signal.TradingDays) * (FuturesPriceTick * signal.TradingDays);
-        var minimumExtremeDelta = minimumTargetDelta / Math.PI;
-        var calculatedThreshold = signal.IntrinsicTimeTrend switch
-        {
-            IntrinsicTimeTrendType.DownTrend => minimumTargetDelta,
-            _ when signal.TrendExtreme - signal.IntrinsicPrice > minimumExtremeDelta
-                && signal.IntrinsicPrice > signal.TrendPrice + minimumTargetDelta
-                => Math.Max(signal.TrendDelta, minimumTargetDelta),
-            _ => minimumTargetDelta
-        };
-        var thresholdFactor = signal.IntrinsicTimeTrend == IntrinsicTimeTrendType.DownTrend
-            ? 1.15
-            : 0.85;
-        return calculatedThreshold * thresholdFactor;
+        if (signal.IntrinsicTimeTrend == IntrinsicTimeTrendType.UpTrend && signal.TimePeriod == TimeFrameType.Daily)
+            return DailyUpTrendThreshold;
+
+        var volatilityPoints = signal.IntrinsicPrice * lambda;
+        var baseThreshold = CalculateBaseThreshold(volatilityPoints, signal.TradingDays);
+        return signal.IntrinsicTimeTrend == IntrinsicTimeTrendType.DownTrend
+            ? baseThreshold * 1.15
+            : DailyUpTrendThreshold * baseThreshold / CalculateBaseThreshold(volatilityPoints, DefaultTradingDays(TimeFrameType.Daily));
     }
+
+    static double CalculateBaseThreshold(double volatilityPoints, int tradingDays)
+        => volatilityPoints + Math.Sqrt(tradingDays) * (FuturesPriceTick * tradingDays);
 
     static int DefaultTradingDays(TimeFrameType timePeriod)
         => timePeriod switch

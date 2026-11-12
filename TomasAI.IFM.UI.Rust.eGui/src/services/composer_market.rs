@@ -5,8 +5,37 @@
 use super::{business_context::BusinessContext, option_chain, option_draft, parameters};
 use crate::backend::{contracts::*, schema::Registry, transport::Backend};
 use crate::models::trade_contracts::{FuturesContractV3ReadModel, OptionContractExpiryReadModel};
+use crate::models::wire_types::FromBackend;
 use serde_json::Value as Json;
 use std::collections::BTreeMap;
+
+/// Finds the next listed futures cycle regardless of the Fund's forward-cycle setting.
+pub fn next_contract_expiry(base: &FuturesContractV3ReadModel, catalog: &[FuturesContractV3ReadModel])
+    -> Result<chrono::NaiveDate, String> {
+    let maturity = base.last_trade_date.as_ref().ok_or("Base contract has no expiry")?;
+    let maturity = crate::backend::date_input::parse(maturity.as_str())?;
+    catalog.iter().filter(|row| row.symbol == base.symbol && row.exchange == base.exchange)
+        .filter_map(|row| row.last_trade_date.as_ref()?.as_str().parse::<chrono::NaiveDate>().ok())
+        .filter(|date| *date > maturity).min().ok_or("No next futures contract is available".into())
+}
+
+/// Groups provider roots by actual futures identity, retaining one selection per series.
+fn expiry_choices(rows: &[OptionContractExpiryReadModel]) -> BTreeMap<String, (chrono::NaiveDate, String)> {
+    let mut by_date = BTreeMap::<_, std::collections::BTreeSet<_>>::new();
+    for row in rows {
+        if let (Some(date), Some(contract)) = (&row.expiry_date, &row.contract_id)
+            && let Ok(date) = date.as_str().parse::<chrono::NaiveDate>() {
+            by_date.entry(date).or_default().insert(contract.clone());
+        }
+    }
+    by_date.into_iter().flat_map(|(date, contracts)| {
+        let ambiguous = contracts.len() > 1;
+        contracts.into_iter().map(move |contract| {
+            let label = if ambiguous { format!("{date} / {contract}") } else { date.to_string() };
+            (label, (date, contract))
+        })
+    }).collect()
+}
 
 /// Defaults used by the composer market component.
 pub struct Defaults {
@@ -154,7 +183,11 @@ pub struct Market {
     /// Ordered expirations retained by Market.
     pub expirations: Vec<OptionContractExpiryReadModel>,
     /// Expiry associated with this market.
-    pub expiry: chrono::NaiveDate,
+    pub expiry: Option<chrono::NaiveDate>,
+    /// The proposed entry date. Established trades derive their date from execution.
+    pub trade_date: chrono::NaiveDate,
+    /// Last selectable expiry based on the original base contract's next cycle.
+    expiry_through: Option<chrono::NaiveDate>,
     /// A close must retain the opening position's expiry.
     pub fixed_expiry: Option<chrono::NaiveDate>,
     /// Optional defaults; `None` represents an absent value.
@@ -185,7 +218,9 @@ impl Market {
             lease: Default::default(),
             draft: Default::default(),
             expirations: vec![],
-            expiry: context.value_date,
+            expiry: (strategy == "FuturesOutright").then_some(context.value_date),
+            trade_date: context.value_date,
+            expiry_through: None,
             fixed_expiry: None,
             defaults: None,
             underlying,
@@ -202,9 +237,6 @@ impl Market {
         &mut self,
         backend: &Backend,
         registry: &Registry,
-        context: &BusinessContext,
-        requested: chrono::NaiveDate,
-        through: chrono::NaiveDate,
         deadline: tokio::time::Instant,
     ) -> Result<(), String> {
         let wire = parameters::query(
@@ -234,36 +266,69 @@ impl Market {
         } else {
             String::new()
         };
-        self.expirations = option_chain::expirations(
-            backend,
-            registry,
-            self.underlying.symbol.as_deref().unwrap(),
-            context.value_date,
-            through,
-            requested,
-            deadline,
-        )
-        .await?;
         if let Some(expiry) = self.fixed_expiry {
-            self.expirations.retain(|row| {
-                row.expiry_date.as_ref().map(|date| date.as_str())
-                    == Some(expiry.to_string().as_str())
-            });
+            self.expirations = self.read_expirations(backend, registry, expiry, expiry, deadline).await?;
+            let contract = self.underlying.contract_id.as_deref();
+            self.expirations.retain(|row| row.contract_id.as_deref() == contract);
             if self.expirations.is_empty() {
                 return Err("The opening trade's expiry is unavailable; a closing order cannot use another expiry".into());
             }
-        }
-        if let Some(first) = self.expirations.first() {
-            self.expiry = crate::backend::date_input::parse(
-                first
-                    .expiry_date
-                    .as_ref()
-                    .map(|value| value.as_str())
-                    .ok_or("Missing expiry")?,
-            )?;
+            self.expiry = Some(expiry);
             self.refresh(backend, registry, deadline).await?;
+        } else if self.editable {
+            let wire = tokio::time::timeout_at(deadline, super::actor_requests::query(
+                backend, registry, "TomasAI.IFM.Domain.MarketData.Shared.Queries.GetFuturesContractsQuery",
+                "none", BTreeMap::new(),
+            )).await.map_err(|_| "Futures catalog deadline expired")??;
+            let catalog = Vec::<FuturesContractV3ReadModel>::from_backend(&wire)?;
+            self.expiry_through = Some(next_contract_expiry(&self.underlying, &catalog)?);
+            self.expirations = self.read_expirations(backend, registry, self.trade_date,
+                self.expiry_through.unwrap(), deadline).await?;
         }
         Ok(())
+    }
+
+    /// Refresh the calendar without loading a chain for a cleared selection.
+    pub async fn change_trade_date(&mut self, backend: &Backend, registry: &Registry,
+        date: chrono::NaiveDate, deadline: tokio::time::Instant) -> Result<(), String> {
+        if !self.editable {
+            return Err("Trade Date is read-only".into());
+        }
+        if let Some(through) = self.expiry_through {
+            let choices = self.read_expirations(backend, registry, date, through, deadline).await?;
+            if self.expiry.is_some_and(|expiry| !choices.iter().any(|row|
+                row.expiry_date.as_ref().is_some_and(|value| value.as_str() == expiry.to_string())
+                && row.contract_id == self.underlying.contract_id)) {
+                self.lease.release(backend, registry, deadline).await?;
+                self.expiry = None;
+                self.draft = Default::default();
+            }
+            self.expirations = choices;
+        } else if self.fixed_expiry.is_some_and(|expiry| date > expiry) {
+            return Err("Trade Date cannot follow the opening position's expiry".into());
+        }
+        self.trade_date = date;
+        Ok(())
+    }
+
+    async fn read_expirations(&self, backend: &Backend, registry: &Registry,
+        from: chrono::NaiveDate, through: chrono::NaiveDate,
+        deadline: tokio::time::Instant) -> Result<Vec<OptionContractExpiryReadModel>, String> {
+        if from > through { return Ok(vec![]); }
+        let symbol = self.underlying.symbol.as_deref().ok_or("Missing underlying symbol")?;
+        option_chain::expirations(backend, registry, symbol, from, through, from, deadline).await
+    }
+
+    /// The picker disambiguates listed series that share a date across futures contracts.
+    pub fn expiry_choices(&self) -> BTreeMap<String, (chrono::NaiveDate, String)> {
+        expiry_choices(&self.expirations)
+    }
+
+    pub fn expiry_label(&self) -> String {
+        let Some(expiry) = self.expiry else { return String::new(); };
+        self.expiry_choices().into_iter().find(|(_, (date, contract))|
+            *date == expiry && self.underlying.contract_id.as_ref() == Some(contract))
+            .map(|(label, _)| label).unwrap_or_else(|| expiry.to_string())
     }
 
     /// Refreshes composer market for market.
@@ -273,6 +338,7 @@ impl Market {
         registry: &Registry,
         deadline: tokio::time::Instant,
     ) -> Result<(), String> {
+        let Some(expiry) = self.expiry else { return Ok(()); };
         // Preserve the hybrid's initial 16/50 display inputs when configuration
         // is missing, but never enable automatic selection or order entry from
         // these placeholders. The raw market grid is still useful read-only.
@@ -305,14 +371,15 @@ impl Market {
             .iter()
             .filter(|r| {
                 r.expiry_date.as_ref().map(|value| value.as_str())
-                    == Some(self.expiry.to_string().as_str())
+                    == Some(expiry.to_string().as_str())
+                    && r.contract_id.as_deref() == Some(contract)
             })
             .filter_map(|r| r.provider_root.clone())
             .collect();
         let spec = option_chain::Specification {
             contract: contract.into(),
             symbol: symbol.into(),
-            expiry: self.expiry,
+            expiry,
             roots: roots.into_iter().collect(),
             required: self
                 .draft
@@ -324,12 +391,6 @@ impl Market {
             frozen: !self.live && self.development,
         };
         let incoming = self.lease.load(backend, registry, spec, deadline).await?;
-        let multiplier = ExactDecimal::parse(
-            self.underlying
-                .multiplier
-                .as_deref()
-                .ok_or("Missing underlying multiplier")?,
-        )?;
         self.draft.accept(
             incoming,
             &option_draft::Settings {
@@ -338,7 +399,6 @@ impl Market {
                 put_delta: &defaults.put_delta,
                 call_width: &defaults.call_width,
                 put_width: &defaults.put_width,
-                multiplier: &multiplier,
                 live: self.live,
                 development: self.development,
                 editable: self.editable && self.defaults.is_some(),
@@ -353,7 +413,6 @@ impl Market {
         backend: &Backend,
         registry: &Registry,
         live: bool,
-        keep_selection: bool,
         deadline: tokio::time::Instant,
     ) -> Result<(), String> {
         if !self.development {
@@ -361,13 +420,8 @@ impl Market {
         }
         if live != self.live {
             self.lease.release(backend, registry, deadline).await?;
-            if !keep_selection && self.fixed_expiry.is_none() {
-                self.draft = Default::default();
-            } else {
-                self.draft.raw = None;
-                self.draft.display = None;
-                self.draft.clear_live_quotes();
-            }
+            self.draft.raw = None;
+            self.draft.clear_live_quotes();
             self.draft.entered_price = None;
         }
         self.live = live;
@@ -380,13 +434,18 @@ impl Market {
         backend: &Backend,
         registry: &Registry,
         context: &BusinessContext,
-        expiry: chrono::NaiveDate,
+        selection: &str,
         live: bool,
         defaults: Defaults,
-        keep_selection: bool,
         deadline: tokio::time::Instant,
     ) -> Result<(), String> {
-        if self.fixed_expiry.is_some_and(|fixed| fixed != expiry) {
+        let (expiry, contract) = if selection.is_empty() {
+            (None, self.underlying.contract_id.clone().ok_or("Missing underlying identity")?)
+        } else {
+            let (expiry, contract) = self.expiry_choices().remove(selection).ok_or("Select an available expiry")?;
+            (Some(expiry), contract)
+        };
+        if self.fixed_expiry.is_some_and(|fixed| Some(fixed) != expiry) {
             return Err("A closing order must use the opening trade's expiry".into());
         }
         if !self.editable {
@@ -398,46 +457,44 @@ impl Market {
                     .into(),
             );
         }
-        let multiplier = ExactDecimal::parse(
-            self.underlying
-                .multiplier
-                .as_deref()
-                .ok_or("Missing underlying multiplier")?,
-        )?;
+        let underlying = if self.underlying.contract_id.as_deref() == Some(contract.as_str()) {
+            self.underlying.clone()
+        } else {
+            super::broker_initialization::basic::<FuturesContractV3ReadModel>(
+                backend, registry, "TomasAI.IFM.Domain.MarketData.Shared.Queries.GetFuturesContractQuery",
+                &contract, BTreeMap::from([("ContractId".into(), contract.as_str().into())]), deadline,
+            ).await?.filter(|row| row.contract_id.as_deref() == Some(contract.as_str())
+                && row.symbol == self.underlying.symbol).ok_or("Selected option series underlying is unavailable")?
+        };
         option_draft::validate(&option_draft::Settings {
             strategy: &self.strategy,
             call_delta: &defaults.call_delta,
             put_delta: &defaults.put_delta,
             call_width: &defaults.call_width,
             put_width: &defaults.put_width,
-            multiplier: &multiplier,
             live,
             development: self.development,
             editable: self.editable,
         })?;
-        if !self.expirations.iter().any(|r| {
-            r.expiry_date.as_ref().map(|value| value.as_str()) == Some(expiry.to_string().as_str())
-        }) {
-            return Err("Select an available expiry".into());
-        }
         if live
             && context.market_state != 2
             && !(self.development && context.allow_development_emulator)
         {
             return Err("Live Feed is unavailable outside the permitted trading session or Development emulator".into());
         }
-        if expiry != self.expiry || live != self.live {
+        let series_changed = expiry != self.expiry || underlying.contract_id != self.underlying.contract_id;
+        if series_changed || live != self.live {
             self.lease.release(backend, registry, deadline).await?;
-            if self.fixed_expiry.is_none() && (!keep_selection || expiry != self.expiry) {
+            if self.fixed_expiry.is_none() && series_changed {
                 self.draft = Default::default();
             } else {
                 self.draft.raw = None;
-                self.draft.display = None;
                 self.draft.clear_live_quotes();
             }
             self.draft.entered_price = None;
         }
         self.expiry = expiry;
+        self.underlying = underlying;
         self.live = live;
         self.defaults = Some(defaults);
         self.refresh(backend, registry, deadline).await

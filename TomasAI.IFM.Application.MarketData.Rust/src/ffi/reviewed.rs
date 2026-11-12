@@ -52,7 +52,7 @@ pub(super) fn parse_raw(
     date: time::Date,
     models: &[crate::reference::option_contract::OptionContract],
 ) -> Result<Arc<ReviewedScope>, Status> {
-    if models.is_empty() || models.len() > 2048 {
+    if models.is_empty() || models.len() > crate::option_chain::MAX_LIVE_OPTIONS {
         return Err(Status::InvalidInput);
     }
     parse_inner(v, instance, Some((date, models))).map(|(scope, _)| scope)
@@ -106,7 +106,7 @@ fn parse_inner(
     } else {
         let options = v["options"]
             .as_array()
-            .filter(|a| !a.is_empty() && a.len() <= 2048)
+            .filter(|a| !a.is_empty() && a.len() <= crate::option_chain::MAX_LIVE_OPTIONS)
             .ok_or(Status::InvalidInput)?;
         options
             .iter()
