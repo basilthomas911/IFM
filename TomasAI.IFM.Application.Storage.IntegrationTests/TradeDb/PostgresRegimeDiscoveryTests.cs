@@ -38,7 +38,7 @@ public sealed class PostgresRegimeDiscoveryTests(PostgresTradePlanFixture fixtur
     [InlineData(true)]
     public async Task Regime_source_audit_and_projection_share_commit_or_rollback(bool fail)
     {
-        await fixture.Transactions.ExecuteOnceAsync((db, ct) => db.ExecuteAsync(TradeSchemaSql.Create, [], ct));
+        await fixture.Transactions.ExecuteOnceAsync((db, ct) => db.ExecuteAsync(TradeSchemaDb.CreateStatement, [], ct));
         var now = DateTime.UtcNow;
         var workflow = new StrategyWorkflowId(Guid.NewGuid());
         var entity = IntrinsicTimeStrategyWorkflowEntityId.Create(new FuturesItiSignalEntityId("ES.TEST", DateOnly.FromDateTime(now), TimeFrameType.Daily));

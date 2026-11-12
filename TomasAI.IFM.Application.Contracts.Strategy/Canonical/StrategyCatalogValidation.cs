@@ -11,10 +11,13 @@ namespace TomasAI.IFM.Domain.Strategy.Contracts.Shared.Canonical;
 
 public static class StrategyCatalogValidation
 {
+    /// <summary>Maximum JSON depth of an unwrapped catalog definition.</summary>
+    public const int MaximumDefinitionDepth = 96;
+
     internal static readonly JsonSerializerOptions JsonOptions = new()
     {
         UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
-        MaxDepth = 96
+        MaxDepth = MaximumDefinitionDepth
     };
     public const int MaximumDefinitionBytes = 262144;
     public const int MaximumChildren = 128;

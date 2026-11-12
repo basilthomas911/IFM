@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -17,6 +18,24 @@ namespace TomasAI.IFM.Application.Storage.TradePlanDb;
 /// <summary>PostgreSQL mutations and scoped keyset pagination.</summary>
 internal static class TradePlanDbContextExtensions
 {
+    const string PositionFilter = "portfolioid=$1 AND fundid=$2 AND orderid=$3 AND tradeid=$4 AND positionid=$5 AND valuedate=$6";
+
+    static readonly (string Name, string Type)[] PlanOrder = [("planrevision", "bigint")];
+    static readonly (string Name, string Type)[] ActivityOrder =
+    [
+        ("calculatedatutc", "timestamptz"), ("portfolioid", "integer"), ("fundid", "integer"),
+        ("orderid", "integer"), ("tradeid", "integer"), ("positionid", "uuid"), ("planrevision", "bigint")
+    ];
+    static readonly (string Name, string Type)[] WorkflowOrder =
+        [("updatedatutc", "timestamptz"), ("exitdecisionid", "uuid"), ("stagerevision", "bigint")];
+
+    extension(string table)
+    {
+        /// <summary>Substitutes the allowlisted table in a trade-plan query template.</summary>
+        internal string BuildTradePlanStatement(string template) =>
+            string.Format(CultureInfo.InvariantCulture, template, table);
+    }
+
     extension(TradePlanDbContext context)
     {
     /// <summary>Writes one immutable revision and its activity row atomically; failures propagate to the transaction owner.</summary>
@@ -29,7 +48,7 @@ internal static class TradePlanDbContextExtensions
         var table = "trade_plan." + plan.Position.StrategyKind.ToTradePlanTable();
         var payload = MessagePackBinarySerializer.Shared.Serialize(plan);
         object?[] values = [id.PortfolioId, id.FundId, id.OrderId, id.TradeId, plan.Position.Id.PositionId, plan.ValueDate, plan.PlanRevision, plan.CalculatedAtUtc, plan.State.ToString(), plan.RequiresExit, plan.ContentHash, payload];
-        var insert = TradePlanDbSql.PlanInsert(table);
+        var insert = table.BuildTradePlanStatement(TradePlanDbSql.InsertPlan);
         var stored = await transaction.ScalarAsync(insert, values, token)
             .ConfigureAwait(false);
         if (stored is null) throw new InvalidOperationException("Trade plan revision conflicts with a different content hash.");
@@ -116,12 +135,12 @@ internal static class TradePlanDbContextExtensions
 
     internal Task<QueryPage<StrategyTradePlanSnapshot>> GetHistoryAsyncCore(StrategyPositionId position, TradeStrategyKind strategy, DateOnly date, int size, byte[]? cursor = null, CancellationToken token = default)
     {
-        return context.ReadPageAsync<StrategyTradePlanSnapshot>("trade_plan." + strategy.ToTradePlanTable(), TradePlanDbSql.PositionFilter, (object?[])new GetTradePlan(position.Trade.PortfolioId, position.Trade.FundId, position.Trade.OrderId, position.Trade.TradeId, position.PositionId, date).Bind(), TradePlanDbSql.PlanOrder, size, cursor, token);
+        return context.ReadPageAsync<StrategyTradePlanSnapshot>("trade_plan." + strategy.ToTradePlanTable(), PositionFilter, (object?[])new GetTradePlan(position.Trade.PortfolioId, position.Trade.FundId, position.Trade.OrderId, position.Trade.TradeId, position.PositionId, date).Bind(), PlanOrder, size, cursor, token);
     }
 
     internal Task<QueryPage<StrategyTradePlanSnapshot>> GetActivityAsyncCore(DateOnly date, int size, byte[]? cursor = null, CancellationToken token = default)
     {
-        return context.ReadPageAsync<StrategyTradePlanSnapshot>("trade_plan.position_trade_plan_activity_by_date", "valueDate=$1", [date], TradePlanDbSql.ActivityOrder, size, cursor, token);
+        return context.ReadPageAsync<StrategyTradePlanSnapshot>("trade_plan.position_trade_plan_activity_by_date", "valuedate=$1", [date], ActivityOrder, size, cursor, token);
     }
 
     internal async Task<ExitPositionWorkflowProjection?> GetCurrentExitWorkflowAsyncCore(StrategyPositionId position, DateOnly date, CancellationToken token = default)
@@ -133,7 +152,7 @@ internal static class TradePlanDbContextExtensions
 
     internal Task<QueryPage<ExitPositionWorkflowProjection>> GetExitWorkflowTimelineAsyncCore(StrategyPositionId position, DateOnly date, int size, byte[]? cursor = null, CancellationToken token = default)
     {
-        return context.ReadPageAsync<ExitPositionWorkflowProjection>("trade_plan.position_exit_workflow", TradePlanDbSql.PositionFilter, (object?[])new GetTradePlan(position.Trade.PortfolioId, position.Trade.FundId, position.Trade.OrderId, position.Trade.TradeId, position.PositionId, date).Bind(), TradePlanDbSql.WorkflowOrder, size, cursor, token);
+        return context.ReadPageAsync<ExitPositionWorkflowProjection>("trade_plan.position_exit_workflow", PositionFilter, (object?[])new GetTradePlan(position.Trade.PortfolioId, position.Trade.FundId, position.Trade.OrderId, position.Trade.TradeId, position.PositionId, date).Bind(), WorkflowOrder, size, cursor, token);
     }
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2100", Justification = "This storage executor accepts application SQL from reviewed schema/query contracts; runtime values are sent as bound parameters rather than interpolated into SQL.")]
@@ -141,6 +160,7 @@ internal static class TradePlanDbContextExtensions
     {
         var scopeId = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(table + "|" + JsonSerializer.Serialize(scope))));
         var values = scope.ToList();
+        var columns = string.Join(',', order.Select(column => column.Name));
         if (cursor is not null)
         {
             var resume = JsonSerializer.Deserialize<TradePlanPageCursor>(cursor) ?? throw new ArgumentException("Invalid plan history cursor.", nameof(cursor));
@@ -152,10 +172,13 @@ internal static class TradePlanDbContextExtensions
                 values.Add(resume.Keys[i]);
                 markers.Add($"${values.Count}::{order[i].Type}");
             }
-            filter = TradePlanDbSql.ContinuedFilter(filter, order, markers);
+            filter += $" AND ({columns}) < ({string.Join(',', markers)})";
         }
         values.Add(size + 1);
-        var sql = TradePlanDbSql.Page(table, filter, order, values.Count);
+        var ordering = string.Join(',', order.Select(column => column.Name + " DESC"));
+        var limit = "$" + values.Count.ToString(CultureInfo.InvariantCulture);
+        var sql = string.Format(CultureInfo.InvariantCulture, TradePlanDbSql.ReadPageTemplate,
+            columns, table, filter, ordering, limit);
         var connection = new PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(context.ConnectionString);
         await using var connectionDisposal = connection.ConfigureAwait(false);
         await connection.OpenAsync(token)
@@ -259,7 +282,7 @@ internal sealed class PostgresTradePlanOffsetReadSession(
             .ConfigureAwait(false);
             var scope = (object?[])new GetTradePlan(position.Trade.PortfolioId, position.Trade.FundId,
                 position.Trade.OrderId, position.Trade.TradeId, position.PositionId, date).Bind();
-            await using var count = new NpgsqlCommand(TradePlanDbSql.OffsetHistoryMetadata(table), connection, transaction);
+            await using var count = new NpgsqlCommand(table.BuildTradePlanStatement(TradePlanDbSql.OffsetHistoryMetadataTemplate), connection, transaction);
             PostgresValueBinding.AddParameters(count, [.. scope, Bigint(maximumRevision)]);
             long total, anchor;
             DateTime? chartEnd;
@@ -272,7 +295,7 @@ internal sealed class PostgresTradePlanOffsetReadSession(
                 anchor = maximumRevision ?? reader.GetInt64(1);
                 chartEnd = reader.IsDBNull(2) ? null : reader.GetDateTime(2);
             }
-            await using var command = new NpgsqlCommand(TradePlanDbSql.OffsetHistoryRows(table), connection, transaction);
+            await using var command = new NpgsqlCommand(table.BuildTradePlanStatement(TradePlanDbSql.OffsetHistoryRowsTemplate), connection, transaction);
             PostgresValueBinding.AddParameters(command, [.. scope, anchor, offset, size]);
             var items = new List<StrategyTradePlanSnapshot>(size);
             await using (var reader = await command.ExecuteReaderAsync(token)
@@ -298,7 +321,7 @@ internal sealed class PostgresTradePlanOffsetReadSession(
 
     public async Task<StrategyTradePlanChartPoint[]> ReadChartAsync(DateTime startUtc, DateTime endUtc, CancellationToken token)
     {
-        await using var command = new NpgsqlCommand(TradePlanDbSql.OffsetHistoryChart(table), connection, transaction);
+        await using var command = new NpgsqlCommand(table.BuildTradePlanStatement(TradePlanDbSql.OffsetHistoryChartTemplate), connection, transaction);
         PostgresValueBinding.AddParameters(command, [.. scope, page.MaximumRevision, startUtc, endUtc]);
         var samples = new List<StrategyTradePlanChartPoint>();
         await using var reader = await command.ExecuteReaderAsync(token)

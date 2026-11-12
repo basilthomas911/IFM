@@ -1166,12 +1166,14 @@ public sealed class PostgresSecuritiesReferenceStore
         CancellationToken token=default)
     {
         ArgumentNullException.ThrowIfNull(db);
-        await (db.ExecuteAsync(SecuritiesDbSql.PostgresReferenceStore_PublishDefinitionsAsync_1,["securities.option-definitions:"+symbol],token))
+        var batch = rows.Count == 0 ? null :
+            (object?[])new InsertOptionDefinitionGenerationParameters(symbol, generation, rows, refreshedAtUtc).Bind();
+        await db.ExecuteAsync(SecuritiesDbSql.PostgresReferenceStore_PublishDefinitionsAsync_1, ["securities.option-definitions:" + symbol], token)
             .ConfigureAwait(false);
-        foreach(var row in rows)
-            await (db.ExecuteAsync(SecuritiesDbSql.PostgresReferenceStore_PublishDefinitionsAsync_2,[symbol,generation,row.Expiry,row.Root,row.ContractId,row.UnderlyingId,row.Family,row.Payload,refreshedAtUtc],token))
-            .ConfigureAwait(false);
-        await (db.ExecuteAsync(SecuritiesDbSql.PostgresReferenceStore_PublishDefinitionsAsync_3,[symbol,generation,coverageFrom,coverageThrough,refreshedAtUtc],token))
+        if (batch is not null)
+            await db.ExecuteAsync(SecuritiesDbSql.InsertOptionDefinitionGenerationRows, batch, token)
+                .ConfigureAwait(false);
+        await db.ExecuteAsync(SecuritiesDbSql.PostgresReferenceStore_PublishDefinitionsAsync_3, [symbol, generation, coverageFrom, coverageThrough, refreshedAtUtc], token)
             .ConfigureAwait(false);
     }
 

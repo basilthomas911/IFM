@@ -144,15 +144,100 @@ public sealed class PostgresSecuritiesReferenceTests(PostgresTradePlanFixture fi
         var rows=await reader.GetOptionDefinitionsAsync(symbol,"underlying",expiry,["EW"]);
         rows.Should().ContainSingle();rows[0].Definition.ContractId.Should().Be(definition.ContractId);
         var store=new PostgresSecuritiesReferenceStore();var generation=Guid.NewGuid();
+        var failedRows = DefinitionRows("failed", expiry, 128);
         await FluentActions.Awaiting(()=>fixture.Transactions.ExecuteOnceAsync<bool>(async(db,ct)=>
         {
-            await store.PublishDefinitionsAsync(db,symbol,generation,expiry,expiry,DateTime.UtcNow,[],ct);
+            await store.PublishDefinitionsAsync(db,symbol,generation,expiry,expiry,DateTime.UtcNow,failedRows,ct);
             throw new InvalidOperationException("Injected definition refresh failure");
         })).Should().ThrowAsync<InvalidOperationException>();
-        (await reader.GetOptionDefinitionsAsync(symbol,"underlying",expiry)).Should().ContainSingle();
+        Assert.Equal(0, await CountDefinitionRowsAsync(symbol, generation));
+        Assert.Equal(definition.ContractId, Assert.Single(await reader.GetOptionDefinitionsAsync(symbol, "underlying", expiry)).Definition.ContractId);
+
+        failedRows[^1] = failedRows[0];
+        var duplicate = await Assert.ThrowsAsync<Npgsql.PostgresException>(() => fixture.Transactions.ExecuteOnceAsync(async (db, ct) =>
+        {
+            await store.PublishDefinitionsAsync(db, symbol, generation, expiry, expiry, DateTime.UtcNow, failedRows, ct);
+            return true;
+        }));
+        Assert.Equal(Npgsql.PostgresErrorCodes.UniqueViolation, duplicate.SqlState);
+        Assert.Equal(0, await CountDefinitionRowsAsync(symbol, generation));
+        Assert.Equal(definition.ContractId, Assert.Single(await reader.GetOptionDefinitionsAsync(symbol, "underlying", expiry)).Definition.ContractId);
+
         await new SecuritiesOptionDefinitionPublisher(context.DbWriter).PublishAsync(symbol,expiry,expiry,[]);
         (await reader.GetOptionDefinitionsAsync(symbol,"underlying",expiry)).Should().BeEmpty();
     }
+
+    [Fact]
+    public async Task Concurrent_definition_publishers_wait_for_the_symbol_lock_and_commit_complete_generations()
+    {
+        await fixture.Transactions.ExecuteOnceAsync((db, ct) => db.ExecuteAsync(SecuritiesSchemaSql.Create, [], ct));
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(25));
+        var symbol = "CONCURRENT" + Guid.NewGuid().ToString("N");
+        var expiry = new DateOnly(2026, 11, 20);
+        var previous = Guid.NewGuid();
+        var firstGeneration = Guid.NewGuid();
+        var secondGeneration = Guid.NewGuid();
+        var store = new PostgresSecuritiesReferenceStore();
+        await fixture.Transactions.ExecuteOnceAsync(async (db, ct) =>
+        {
+            await store.PublishDefinitionsAsync(db, symbol, previous, expiry, expiry, DateTime.UtcNow, DefinitionRows("previous", expiry, 1), ct);
+            return true;
+        }, deadline.Token);
+
+        var firstStaged = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var secondStarted = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var allowFirstCommit = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var first = fixture.Transactions.ExecuteOnceAsync(async (db, ct) =>
+        {
+            var pid = (int)(await db.ScalarAsync("SELECT pg_backend_pid()", [], ct))!;
+            await store.PublishDefinitionsAsync(db, symbol, firstGeneration, expiry, expiry, DateTime.UtcNow, DefinitionRows("first", expiry, 128), ct);
+            firstStaged.SetResult(pid);
+            await allowFirstCommit.Task.WaitAsync(ct);
+            return true;
+        }, deadline.Token);
+        Task? second = null;
+        try
+        {
+            var firstPid = await firstStaged.Task.WaitAsync(deadline.Token);
+            second = fixture.Transactions.ExecuteOnceAsync(async (db, ct) =>
+            {
+                secondStarted.SetResult((int)(await db.ScalarAsync("SELECT pg_backend_pid()", [], ct))!);
+                await store.PublishDefinitionsAsync(db, symbol, secondGeneration, expiry, expiry, DateTime.UtcNow, DefinitionRows("second", expiry, 64), ct);
+                return true;
+            }, deadline.Token);
+            var secondPid = await secondStarted.Task.WaitAsync(deadline.Token);
+            while (!await fixture.Transactions.ExecuteOnceAsync(async (db, ct) => await db.ScalarAsync(
+                "SELECT EXISTS (SELECT 1 FROM pg_locks WHERE pid=$2 AND locktype='advisory' AND NOT granted AND $1=ANY(pg_blocking_pids(pid)))",
+                [firstPid, secondPid], ct) is true, deadline.Token))
+                await Task.Delay(20, deadline.Token);
+
+            Assert.Equal(previous, await CurrentGenerationAsync());
+            Assert.Equal(0, await CountDefinitionRowsAsync(symbol, firstGeneration));
+            Assert.Equal(0, await CountDefinitionRowsAsync(symbol, secondGeneration));
+        }
+        finally
+        {
+            allowFirstCommit.TrySetResult();
+            await Task.WhenAll(first, second ?? Task.CompletedTask);
+        }
+
+        Assert.Equal(secondGeneration, await CurrentGenerationAsync());
+        Assert.Equal(1, await CountDefinitionRowsAsync(symbol, previous));
+        Assert.Equal(128, await CountDefinitionRowsAsync(symbol, firstGeneration));
+        Assert.Equal(64, await CountDefinitionRowsAsync(symbol, secondGeneration));
+
+        Task<Guid> CurrentGenerationAsync() => fixture.Transactions.ExecuteOnceAsync(async (db, ct) =>
+            (Guid)(await db.ScalarAsync("SELECT generation FROM securities.option_contract_expiry_calendar_state WHERE symbol=$1", [symbol], ct))!, deadline.Token);
+    }
+
+    Task<long> CountDefinitionRowsAsync(string symbol, Guid generation) => fixture.Transactions.ExecuteOnceAsync(async (db, ct) =>
+        (long)(await db.ScalarAsync("SELECT count(*) FROM securities.option_contract_expiry_calendar WHERE symbol=$1 AND generation=$2",
+            [symbol, generation], ct))!);
+
+    static (DateOnly Expiry, string Root, string ContractId, string UnderlyingId, string Family, byte[] Payload)[] DefinitionRows(
+        string prefix, DateOnly expiry, int count) => Enumerable.Range(0, count)
+        .Select(index => (expiry, "EW", $"{prefix}-{index}", "underlying", "weekly", new byte[] { (byte)index }))
+        .ToArray();
 
     [Fact]
     public async Task Batched_definitions_match_serial_order_and_pin_the_generation_across_refresh()

@@ -19,18 +19,18 @@ public sealed class EmulatorExecutionStore(IPostgresEventTransaction transaction
             throw new InvalidDataException("Committed emulator event with admission facts required.");
         return transactions.ExecuteAsync(async (db,ct)=>
         {
-            await (db.ScalarAsync(PortfolioDbSql.Financial.LedgerConfigurationStore.Select01,[source.PortfolioId],ct)).ConfigureAwait(false);
+            await (db.ScalarAsync(PortfolioDbSql.Financial_LedgerConfigurationStore_Select01,[source.PortfolioId],ct)).ConfigureAwait(false);
             var revision=source.Receipt.FinancialRevision;
             if(!await (LedgerFinancialProjection.RecordAppliedAsync(db,source,revision,ct)).ConfigureAwait(false)) return false;
             var current=await (LockAuthorityAsync(db,source.PortfolioId,null,ct)).ConfigureAwait(false);
             if(revision!=current.Revision+1) throw new InvalidDataException("Financial emulator events must be rebuilt in revision order.");
             var order=source.Receipt.Order;
-            await (db.ExecuteAsync(PortfolioDbSql.Financial.EmulatorExecutionStore.Insert01,
+            await (db.ExecuteAsync(PortfolioDbSql.Financial_EmulatorExecutionStore_Insert01,
                 [order.ExecutionId,source.PortfolioId,order.FundId,order.OrderId,order.ReservationId,source.OperationId,
                  LedgerFinancialProjection.PayloadJson(request),LedgerFinancialProjection.PayloadJson(source.Receipt),source.InputHash,source.CommittedAtUtc],ct)).ConfigureAwait(false);
-            await (db.ExecuteAsync(PortfolioDbSql.Financial.PortfolioDbFinancialSupport.Insert06,
+            await (db.ExecuteAsync(PortfolioDbSql.Financial_PortfolioDbFinancialSupport_Insert06,
                 [source.PortfolioId,source.OperationId,request.Subject.Name,source.InputHash,source.EventId,revision],ct)).ConfigureAwait(false);
-            await (db.ExecuteAsync(PortfolioDbSql.Financial.PortfolioDbFinancialSupport.Update01,[source.PortfolioId,revision],ct)).ConfigureAwait(false);
+            await (db.ExecuteAsync(PortfolioDbSql.Financial_PortfolioDbFinancialSupport_Update01,[source.PortfolioId,revision],ct)).ConfigureAwait(false);
             return true;
         },token);
     }
@@ -47,7 +47,7 @@ public sealed class EmulatorExecutionStore(IPostgresEventTransaction transaction
             string.Equals(authority.State,"Active",StringComparison.Ordinal) && now < order.ValidUntilUtc && now < request.ExpiresAtUtc,
             FinancialReasons.AuthorityDenied, "Current exact emulator order and financial authority are required.");
         await (ValidateFundSourcesAsync(db, authority.Book, order.FundId, true, ct)).ConfigureAwait(false);
-        var existing = await (db.ScalarAsync(PortfolioDbSql.Financial.EmulatorExecutionStore.Select01, [order.ExecutionId], ct)).ConfigureAwait(false);
+        var existing = await (db.ScalarAsync(PortfolioDbSql.Financial_EmulatorExecutionStore_Select01, [order.ExecutionId], ct)).ConfigureAwait(false);
         if (existing is Guid prior) throw new FinancialOperationException(FinancialReasons.SourceConflict,
             "This execution already has an emulator order; reconcile its original operation.", FinancialCommitDisposition.NoNewMutation, prior);
         var reservation = await CapacityReservationStore.ReadReservationAsync(db, request.PortfolioId, order.ReservationId, ct).ConfigureAwait(false);
@@ -88,7 +88,7 @@ public sealed class EmulatorExecutionStore(IPostgresEventTransaction transaction
             AggregateId = request.EntityId.Format(),
             Receipt = receipt
         };
-        await (db.ExecuteAsync(PortfolioDbSql.Financial.EmulatorExecutionStore.Insert01, [order.ExecutionId,order.PortfolioId,order.FundId,order.OrderId,order.ReservationId,request.OperationId,
+        await (db.ExecuteAsync(PortfolioDbSql.Financial_EmulatorExecutionStore_Insert01, [order.ExecutionId,order.PortfolioId,order.FundId,order.OrderId,order.ReservationId,request.OperationId,
                 LedgerFinancialProjection.PayloadJson(request),LedgerFinancialProjection.PayloadJson(receipt),request.InputSha256,now], ct)).ConfigureAwait(false);
         await (SaveOutcomeAsync(db, request, completed, revision, false, ct)).ConfigureAwait(false);
         await (LedgerFinancialProjection.RecordAppliedAsync(db,completed,revision,ct)).ConfigureAwait(false);

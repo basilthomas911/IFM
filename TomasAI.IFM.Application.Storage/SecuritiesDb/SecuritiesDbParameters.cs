@@ -6,6 +6,33 @@ namespace TomasAI.IFM.Application.Storage.SecuritiesDb;
 
 // Provider-neutral positional binding models. Keep each binding body unchanged when relocating it.
 
+internal readonly record struct InsertOptionDefinitionGenerationParameters(string Symbol, Guid Generation,
+    IReadOnlyList<(DateOnly Expiry, string Root, string ContractId, string UnderlyingId, string Family, byte[] Payload)> Rows,
+    DateTime RefreshedAtUtc) : IBindValue
+{
+    public object Bind()
+    {
+        var count = Rows.Count;
+        var expiries = new DateOnly[count];
+        var roots = new string[count];
+        var contracts = new string[count];
+        var underlyings = new string[count];
+        var families = new string[count];
+        var payloads = new byte[count][];
+        for (var index = 0; index < count; index++)
+        {
+            var row = Rows[index];
+            expiries[index] = row.Expiry;
+            roots[index] = row.Root;
+            contracts[index] = row.ContractId;
+            underlyings[index] = row.UnderlyingId;
+            families[index] = row.Family;
+            payloads[index] = row.Payload;
+        }
+        return Values(Symbol, Generation, expiries, roots, contracts, underlyings, families, payloads, RefreshedAtUtc);
+    }
+}
+
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct BeginSecuritiesProjectionOperationV3(Guid generation, HashSet<Guid> activeOperations, string projectionName) : IBindValue
 {

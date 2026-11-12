@@ -1,19 +1,101 @@
-using TomasAI.IFM.Application.Storage.SchemaDb;
-
 namespace TomasAI.IFM.Application.Storage.TradeTickQuoteDb.Schema;
 
-/// <summary>Scylla type/table definitions and dependency-ordered schema execution catalog.</summary>
-internal static class TradeTickQuoteSchemaCql
+/// <summary>Contains ScyllaDB CQL schema statements for TradeTickQuoteDb.</summary>
+public static class TradeTickQuoteSchemaSql
 {
-    /// <summary>Stores only short-lived infrastructure capability probes, never application domain state.</summary>
-    public const string CreateRecoveryProbeTable = """
-CREATE TABLE IF NOT EXISTS ifm_recovery_probe (
-    probe_id uuid PRIMARY KEY,
-    observed_at_utc timestamp
-);
-""";
+    /// <summary>Creates the futures option tick data table.</summary>
+    internal const string CreateFuturesOptionTickDataTable =
+        """
+        CREATE TABLE IF NOT EXISTS futures_option_tick_data (
+            contractId text,
+            valueDate date,
+            tickId bigint,
+            tickTime time,
+            optionPrice double,
+            bidPrice double,
+            askPrice double,
+            bidSize int,
+            askSize int,
+            impliedVolatility double,
+            underlyingPrice double,
+            delta double,
+            gamma double,
+            vega double,
+            theta double,
+            rho double,
+            PRIMARY KEY (contractId, valueDate, tickId)
+        ) WITH CLUSTERING ORDER BY (valueDate ASC, tickId ASC);
+        """;
 
-    public const string CreateTickQuoteItemType = """
+    /// <summary>Creates the futures tick data by time table.</summary>
+    internal const string CreateFuturesTickDataByTimeTable =
+        """
+        CREATE TABLE IF NOT EXISTS futures_tick_data_by_time (
+            contractId text,
+            valueDate date,
+            tickTime time,
+            tickId bigint,
+            price decimal,
+            size int,
+            PRIMARY KEY ((contractId, valueDate), tickTime, tickId)
+        ) WITH CLUSTERING ORDER BY (tickTime DESC, tickId DESC);
+        """;
+
+    /// <summary>Creates the futures tick data table.</summary>
+    internal const string CreateFuturesTickDataTable =
+        """
+        CREATE TABLE IF NOT EXISTS futures_tick_data (
+            contractId text,
+            valueDate date,
+            tickId bigint,
+            tickTime time,
+            price decimal,
+            size int,
+            PRIMARY KEY (contractId, valueDate, tickId)
+        ) WITH CLUSTERING ORDER BY (valueDate ASC, tickId ASC);
+        """;
+
+    /// <summary>Stores only short-lived infrastructure capability probes, never application domain state.</summary>
+    internal const string CreateRecoveryProbeTable =
+        """
+        CREATE TABLE IF NOT EXISTS ifm_recovery_probe (
+            probe_id uuid PRIMARY KEY,
+            observed_at_utc timestamp
+        );
+        """;
+
+    /// <summary>Creates the tick quote data table.</summary>
+    internal const string CreateTickQuoteDataTable =
+        """
+        CREATE TABLE IF NOT EXISTS tick_quote_data (
+            asset_type_id tinyint,
+            contract_id text,
+            value_date date,
+            sequence_id bigint,
+            aggregation_timestamp_utc timestamp,
+            aggregation_timestamp_utc_ticks bigint,
+            aggregation_time time,
+            schema_version smallint,
+            dataset text,
+            definition_date date,
+            publisher_id int,
+            instrument_id bigint,
+            actor_event_id uuid,
+            actor_event_log_id bigint,
+            command_id uuid,
+            aggregate_id text,
+            event_source text,
+            received_on timestamp,
+            emission_reason smallint,
+            quote_count smallint,
+            quote_data frozen<list<frozen<tick_quote_item>>>,
+            PRIMARY KEY ((asset_type_id, contract_id), value_date, aggregation_time, sequence_id)
+        ) WITH CLUSTERING ORDER BY (value_date ASC, aggregation_time ASC, sequence_id ASC);
+        """;
+
+    /// <summary>Creates the tick quote item type.</summary>
+    internal const string CreateTickQuoteItemType =
+        """
         CREATE TYPE IF NOT EXISTS tick_quote_item (
             source_sequence bigint,
             source_event_timestamp_ns bigint,
@@ -29,85 +111,82 @@ CREATE TABLE IF NOT EXISTS ifm_recovery_probe (
             ask_count bigint
         );
         """;
-    public const string CreateTickTradeDataTable = """
+
+    /// <summary>Creates the tick trade data table.</summary>
+    internal const string CreateTickTradeDataTable =
+        """
         CREATE TABLE IF NOT EXISTS tick_trade_data (
-            asset_type_id tinyint, contract_id text, value_date date,
-            sequence_id bigint, aggregation_timestamp_utc timestamp,
-            aggregation_timestamp_utc_ticks bigint, aggregation_time time,
-            schema_version smallint, dataset text, definition_date date,
-            publisher_id int, instrument_id bigint, actor_event_id uuid,
-            actor_event_log_id bigint, command_id uuid, aggregate_id text,
-            event_source text, received_on timestamp, source_sequence bigint,
-            source_event_timestamp_ns bigint, source_receive_timestamp_ns bigint,
-            header_flags smallint, price_raw bigint, price decimal, size bigint,
-            action smallint, side smallint, dbn_flags smallint,
+            asset_type_id tinyint,
+            contract_id text,
+            value_date date,
+            sequence_id bigint,
+            aggregation_timestamp_utc timestamp,
+            aggregation_timestamp_utc_ticks bigint,
+            aggregation_time time,
+            schema_version smallint,
+            dataset text,
+            definition_date date,
+            publisher_id int,
+            instrument_id bigint,
+            actor_event_id uuid,
+            actor_event_log_id bigint,
+            command_id uuid,
+            aggregate_id text,
+            event_source text,
+            received_on timestamp,
+            source_sequence bigint,
+            source_event_timestamp_ns bigint,
+            source_receive_timestamp_ns bigint,
+            header_flags smallint,
+            price_raw bigint,
+            price decimal,
+            size bigint,
+            action smallint,
+            side smallint,
+            dbn_flags smallint,
             PRIMARY KEY ((asset_type_id, contract_id), value_date, aggregation_time, sequence_id)
         ) WITH CLUSTERING ORDER BY (value_date ASC, aggregation_time ASC, sequence_id ASC);
         """;
-    public const string CreateTickQuoteDataTable = """
-        CREATE TABLE IF NOT EXISTS tick_quote_data (
-            asset_type_id tinyint, contract_id text, value_date date,
-            sequence_id bigint, aggregation_timestamp_utc timestamp,
-            aggregation_timestamp_utc_ticks bigint, aggregation_time time,
-            schema_version smallint, dataset text, definition_date date,
-            publisher_id int, instrument_id bigint, actor_event_id uuid,
-            actor_event_log_id bigint, command_id uuid, aggregate_id text,
-            event_source text, received_on timestamp, emission_reason smallint,
-            quote_count smallint, quote_data frozen<list<frozen<tick_quote_item>>>,
-            PRIMARY KEY ((asset_type_id, contract_id), value_date, aggregation_time, sequence_id)
-        ) WITH CLUSTERING ORDER BY (value_date ASC, aggregation_time ASC, sequence_id ASC);
+
+    /// <summary>Drops the futures option tick data table.</summary>
+    internal const string DropFuturesOptionTickDataTable =
+        """
+        DROP TABLE IF EXISTS futures_option_tick_data;
         """;
-    public const string CreateFuturesTickDataTable = """
-    CREATE TABLE IF NOT EXISTS futures_tick_data (
-    contractId text,
-    valueDate date,
-    tickId bigint,
-    tickTime time,
-    price decimal,
-    size int,
-    PRIMARY KEY (contractId, valueDate, tickId)
-    ) WITH CLUSTERING ORDER BY (valueDate ASC, tickId ASC);
-    """;
-    public const string CreateFuturesTickDataByTimeTable = """
-    CREATE TABLE IF NOT EXISTS futures_tick_data_by_time (
-    contractId text,
-    valueDate date,
-    tickTime time,
-    tickId bigint,
-    price decimal,
-    size int,
-    PRIMARY KEY ((contractId, valueDate), tickTime, tickId)
-    ) WITH CLUSTERING ORDER BY (tickTime DESC, tickId DESC);
-    """;
-    public const string CreateFuturesOptionTickDataTable = """
-    CREATE TABLE IF NOT EXISTS futures_option_tick_data (
-    contractId text,
-    valueDate date,
-    tickId bigint,
-    tickTime time,
-    optionPrice double,
-    bidPrice double,
-    askPrice double,
-    bidSize int,
-    askSize int,
-    impliedVolatility double,
-    underlyingPrice double,
-    delta double,
-    gamma double,
-    vega double,
-    theta double,
-    rho double,
-    PRIMARY KEY (contractId, valueDate, tickId)
-    ) WITH CLUSTERING ORDER BY (valueDate ASC, tickId ASC);
-    """;
-    internal static readonly SchemaObjectDefinition[] Definitions =
-    [
-        new("ifm_recovery_probe", TradeTickQuoteSchemaCql.CreateRecoveryProbeTable, "DROP TABLE IF EXISTS ifm_recovery_probe;"),
-        new("tick_quote_item", TradeTickQuoteSchemaCql.CreateTickQuoteItemType, "DROP TYPE IF EXISTS tick_quote_item;"),
-        new("tick_trade_data", TradeTickQuoteSchemaCql.CreateTickTradeDataTable, "DROP TABLE IF EXISTS tick_trade_data;"),
-        new("tick_quote_data", TradeTickQuoteSchemaCql.CreateTickQuoteDataTable, "DROP TABLE IF EXISTS tick_quote_data;"),
-        new("futures_tick_data", TradeTickQuoteSchemaCql.CreateFuturesTickDataTable, "DROP TABLE IF EXISTS futures_tick_data;"),
-        new("futures_tick_data_by_time", TradeTickQuoteSchemaCql.CreateFuturesTickDataByTimeTable, "DROP TABLE IF EXISTS futures_tick_data_by_time;"),
-        new("futures_option_tick_data", TradeTickQuoteSchemaCql.CreateFuturesOptionTickDataTable, "DROP TABLE IF EXISTS futures_option_tick_data;")
-    ];
+
+    /// <summary>Drops the futures tick data by time table.</summary>
+    internal const string DropFuturesTickDataByTimeTable =
+        """
+        DROP TABLE IF EXISTS futures_tick_data_by_time;
+        """;
+
+    /// <summary>Drops the futures tick data table.</summary>
+    internal const string DropFuturesTickDataTable =
+        """
+        DROP TABLE IF EXISTS futures_tick_data;
+        """;
+
+    /// <summary>Drops the recovery probe table.</summary>
+    internal const string DropRecoveryProbeTable =
+        """
+        DROP TABLE IF EXISTS ifm_recovery_probe;
+        """;
+
+    /// <summary>Drops the tick quote data table.</summary>
+    internal const string DropTickQuoteDataTable =
+        """
+        DROP TABLE IF EXISTS tick_quote_data;
+        """;
+
+    /// <summary>Drops the tick quote item type.</summary>
+    internal const string DropTickQuoteItemType =
+        """
+        DROP TYPE IF EXISTS tick_quote_item;
+        """;
+
+    /// <summary>Drops the tick trade data table.</summary>
+    internal const string DropTickTradeDataTable =
+        """
+        DROP TABLE IF EXISTS tick_trade_data;
+        """;
 }

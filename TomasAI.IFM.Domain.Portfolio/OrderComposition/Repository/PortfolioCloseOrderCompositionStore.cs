@@ -42,13 +42,13 @@ public sealed class PortfolioCloseOrderCompositionStore(IPostgresEventTransactio
                 db, authority.Book, positionId.FundId, false, token).ConfigureAwait(false);
 
             var priorClose = await db.ScalarAsync(
-                PortfolioDbSql.OrderComposition.SelectAcceptedClose,
+                PortfolioDbSql.OrderComposition_SelectAcceptedClose,
                 [positionId.Format()], token).ConfigureAwait(false);
             if (priorClose is int priorOrder)
                 await RequireSettledPartialCloseAsync(db, request.Body.Position, priorOrder, token).ConfigureAwait(false);
 
             var openingJson = await db.ScalarAsync(
-                PortfolioDbSql.OrderComposition.SelectOpeningOrder,
+                PortfolioDbSql.OrderComposition_SelectOpeningOrder,
                 [positionId.OrderId, positionId.PortfolioId, positionId.FundId], token)
                 .ConfigureAwait(false) as string
                 ?? throw new InvalidOperationException("The accepted opening Trade Order was not found.");
@@ -94,7 +94,7 @@ public sealed class PortfolioCloseOrderCompositionStore(IPostgresEventTransactio
     {
         var id = requested.Id;
         var target = new StrategyPositionId(new TradeEntityId(id.PortfolioId, id.FundId, id.OrderId, id.TradeId), id.PositionId);
-        var priorPayload = await db.ScalarAsync(PortfolioDbSql.OrderComposition.SelectPriorCloseExecution,
+        var priorPayload = await db.ScalarAsync(PortfolioDbSql.OrderComposition_SelectPriorCloseExecution,
             [id.PortfolioId, id.FundId, priorOrder], token).ConfigureAwait(false);
         var prior = priorPayload is byte[] bytes
             ? MessagePackBinarySerializer.Shared.Deserialize<OrderExecutionDefinition>(bytes)
@@ -108,7 +108,7 @@ public sealed class PortfolioCloseOrderCompositionStore(IPostgresEventTransactio
         if (prior is null || prior.TargetPositionId != target || (!unfilledTerminal && !cancelledPartial))
             throw new InvalidOperationException("The previous close must be terminal with zero fills or a settled partial cancellation.");
 
-        var positionPayload = await db.ScalarAsync(PortfolioDbSql.OrderComposition.SelectCurrentClosePosition,
+        var positionPayload = await db.ScalarAsync(PortfolioDbSql.OrderComposition_SelectCurrentClosePosition,
             [id.PortfolioId, id.FundId, id.OrderId, id.TradeId, id.PositionId], token).ConfigureAwait(false);
         var current = positionPayload is byte[] positionBytes
             ? MessagePackBinarySerializer.Shared.Deserialize<StrategyPositionSnapshot>(positionBytes)
@@ -128,25 +128,25 @@ public sealed class PortfolioCloseOrderCompositionStore(IPostgresEventTransactio
         var receipt=completed.Receipt;
         var facts=completed.ProjectionFacts ?? throw new InvalidDataException("Close source lacks accepted target-position facts.");
         var order=receipt.TradeOrder ?? throw new InvalidDataException("Accepted close source lacks its order.");
-            await db.ExecuteAsync(PortfolioDbSql.OrderComposition.InsertDecision,
+            await db.ExecuteAsync(PortfolioDbSql.OrderComposition_InsertDecision,
                 [completed.OperationId, receipt.CompositionId, receipt.WorkflowId.ExitDecisionId,
                     completed.PortfolioId, (short)receipt.Status, receipt.FinancialRevision,
                     completed.InputHash, FinancialRepositorySupport.Json(receipt), completed.CommittedAtUtc], token)
                 .ConfigureAwait(false);
-            await db.ExecuteAsync(PortfolioDbSql.OrderComposition.InsertFundDecision,
+            await db.ExecuteAsync(PortfolioDbSql.OrderComposition_InsertFundDecision,
                 [completed.OperationId, facts.TargetFundId, true, receipt.ReasonCode, order.Id.OrderId], token)
                 .ConfigureAwait(false);
-            await db.ExecuteAsync(PortfolioDbSql.OrderComposition.InsertOrder,
+            await db.ExecuteAsync(PortfolioDbSql.OrderComposition_InsertOrder,
                 [order.Id.OrderId, completed.OperationId, order.Id.PortfolioId, order.Id.FundId,
                     (short)order.Status, order.DefinitionHash, FinancialRepositorySupport.Json(order),
                     order.ValidUntilUtc], token).ConfigureAwait(false);
             var ordinal = 0;
             foreach (var component in order.Components)
                 foreach (var leg in component.Legs)
-                    await db.ExecuteAsync(PortfolioDbSql.OrderComposition.InsertLeg,
+                    await db.ExecuteAsync(PortfolioDbSql.OrderComposition_InsertLeg,
                         [order.Id.OrderId, component.ComponentId, leg.TradeLegId, ordinal++,
                             FinancialRepositorySupport.Json(leg)], token).ConfigureAwait(false);
-            await db.ExecuteAsync(PortfolioDbSql.OrderComposition.InsertAcceptedClose,
+            await db.ExecuteAsync(PortfolioDbSql.OrderComposition_InsertAcceptedClose,
                 [completed.OperationId, facts.TargetPositionId, facts.TargetOrderId,
                     facts.TargetTradeId, order.Id.OrderId, completed.CommittedAtUtc], token).ConfigureAwait(false);
     }

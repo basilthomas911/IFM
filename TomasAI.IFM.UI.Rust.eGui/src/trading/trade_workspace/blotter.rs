@@ -488,11 +488,18 @@ impl TradeWorkspace {
                     if i >= 3 && iron {
                         continue;
                     }
+                    let previous = self.compose_tab;
                     let response =
                         crate::presentation::tab_value(ui, &mut self.compose_tab, i, *title);
                     self.controls.insert(format!("tab:{title}"), response.rect);
-                    if response.clicked() && i >= 2 {
-                        action = Some("refresh-execution");
+                    if response.clicked() {
+                        if i == 2 || i == 4 {
+                            action = Some("refresh-execution");
+                        } else if session.is_empty() && !trade_key.is_empty() {
+                            action = Some("compose");
+                        } else if previous == 2 || previous == 4 {
+                            action = Some("leave-blotter-fills");
+                        }
                     }
                 }
             });
@@ -501,6 +508,9 @@ impl TradeWorkspace {
             && self.draft.get("submitted").map(String::as_str) != Some("True")
         {
             self.compose_tab = 2;
+            if action.is_none() {
+                action = Some("refresh-execution");
+            }
             self.draft.insert("submitted".into(), "True".into());
         }
         if self.compose_tab == 0 {
@@ -597,29 +607,25 @@ impl TradeWorkspace {
                 rect(o, p, 19., 116., w - 38., h - 128.),
                 "execution-panel",
                 |ui| {
-                    action = self.draw_execution(ui, s).or(action);
+                    action = self.draw_order_fills(ui, s, "blotter").or(action);
                 },
             );
         }
-        // Poll off the render thread through the serialized managed gateway. Preserve local drafts.
+        // Only the market-data preview requests periodic quote refreshes.
         let now = ui.ctx().input(|i| i.time);
         if action.is_none()
             && !s.busy
             && self.pending.is_none()
             && self.deferred_action.is_none()
-            && (self.compose_tab >= 2 || !ui.ctx().wants_keyboard_input())
-            && now - self.last_blotter_refresh >= 1.
+            && matches!(self.compose_tab, 0 | 1 | 3)
+            && !context(s, "composerSessionId").is_empty()
+            && !ui.ctx().wants_keyboard_input()
+            && context(s, "submissionRejection").is_empty()
+            && self.draft.get("live").is_some_and(|v| v == "true")
+            && now - self.last_quote_refresh >= 1.
         {
-            if self.compose_tab >= 2 && self.compose_tab != 3 {
-                action = Some("refresh-execution");
-            } else if context(s, "submissionRejection").is_empty()
-                && self.draft.get("live").is_some_and(|v| v == "true")
-            {
-                action = Some("refresh-chain");
-            }
-            if action.is_some() {
-                self.last_blotter_refresh = now;
-            }
+            action = Some("refresh-chain");
+            self.last_quote_refresh = now;
         }
         action
     }
@@ -1294,77 +1300,6 @@ impl TradeWorkspace {
             rect(o, p, w - 343., h - 52., 180., 29.),
         );
         action
-    }
-
-
-    /// Show managed inspection properties, falling back to the supplied published value when detailed data is absent.
-    pub(super) fn inspection_properties(
-        &mut self,
-        ui: &mut egui::Ui,
-        s: &ContractPublication,
-        fallback: &impl Cells,
-    ) {
-        let key = self
-            .draft
-            .get("fillId")
-            .map(|id| format!("fill-properties:{id}"))
-            .or_else(|| {
-                self.draft
-                    .get("brokerOrderId")
-                    .map(|id| format!("broker-properties:{id}"))
-            });
-        let display = self.prepare_trade_display(s);
-        let properties = key
-            .as_ref()
-            .and_then(|key| display.row(key).properties())
-            .map(|v| &v.properties);
-        let Some(properties) = properties else {
-            Self::properties(ui, fallback);
-            return;
-        };
-        let p = ui.ctx().pixels_per_point();
-        let width = ui.available_width();
-        let height = ui.available_height();
-        let selected = self
-            .draft
-            .get("propertySelected")
-            .cloned()
-            .unwrap_or_default();
-        let row_spacing = ui.spacing().item_spacing.y;
-        egui_extras::TableBuilder::new(ui)
-            .id_salt("broker-property-grid")
-            .resizable(true)
-            .sense(egui::Sense::click())
-            .fill_grid(properties.len(), 22. / p, row_spacing, height)
-            .column(egui_extras::Column::initial(width / 3.).at_least(60. / p))
-            .column(egui_extras::Column::remainder())
-            .bordered_body(0., |body| {
-                body.rows(22. / p, properties.len(), |mut row| {
-                    let item = &properties[row.index()];
-                    let name = text(item, "name");
-                    row.set_selected(selected == name);
-                    for key in ["name", "display"] {
-                        row.col(|ui| {
-                            let response = ui
-                                .add(crate::presentation::label_widget(text(item, key)).truncate());
-                            response.context_menu(|ui| {
-                                if ui.button("Copy value").clicked() {
-                                    ui.ctx().copy_text(text(item, "display"));
-                                    ui.close();
-                                }
-                            });
-                        });
-                    }
-                    if row.response().clicked() {
-                        self.draft.insert("propertySelected".into(), name);
-                    }
-                });
-            });
-        if ui.input(|i| i.modifiers.command && i.key_pressed(egui::Key::C)) {
-            if let Some(item) = properties.iter().find(|v| text(v, "name") == selected) {
-                ui.ctx().copy_text(text(item, "display"));
-            }
-        }
     }
 
 

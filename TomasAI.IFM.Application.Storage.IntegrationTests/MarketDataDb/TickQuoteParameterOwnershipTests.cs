@@ -53,7 +53,7 @@ public sealed class TickQuoteParameterOwnershipTests
         var binder = (IScyllaOwnedBindValues)quote.CreateQuoteParameters().Bind();
         using var lifetime = binder.BindLifetime;
         var values = binder.TakeValues();
-        var sql = TradeTickQuoteDbCql.InsertTickQuoteData;
+        var sql = TradeTickQuoteDbSql.InsertTickQuoteData;
         string[] expectedColumns = ["asset_type_id", "contract_id", "value_date", "aggregation_time", "sequence_id",
             "aggregation_timestamp_utc", "aggregation_timestamp_utc_ticks", "schema_version", "dataset", "definition_date",
             "publisher_id", "instrument_id", "actor_event_id", "actor_event_log_id", "command_id", "aggregate_id",

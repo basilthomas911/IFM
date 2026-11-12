@@ -16,7 +16,7 @@ public sealed class IntrinsicTimeStrategyWorkflowStorageContractTests
     [Fact]
     public void WorkflowSchemas_DefineSixUnversionedQueryDrivenTables()
     {
-        var schema = TradeSchemaSql.Create;
+        var schema = TradeSchemaDb.CreateStatement;
         string[] tables =
         [
             "intrinsic_time_strategy_workflow",
@@ -38,11 +38,11 @@ public sealed class IntrinsicTimeStrategyWorkflowStorageContractTests
     [Fact]
     public void WorkflowQueries_UsePartitionKeysAndBoundedPaging()
     {
-        Assert.Contains("workflowEntityId = $1", TradeDbSql.NativeGetIntrinsicTimeStrategyWorkflowStartAttempts, StringComparison.Ordinal);
-        Assert.Contains("requestedAtUtc < $2", TradeDbSql.NativeGetIntrinsicTimeStrategyWorkflowStartAttempts, StringComparison.Ordinal);
-        Assert.Contains("eventId > $2", TradeDbSql.NativeGetIntrinsicTimeStrategyWorkflowTimeline, StringComparison.Ordinal);
-        Assert.Contains("startedAtUtc < $2", TradeDbSql.NativeGetIntrinsicTimeStrategyWorkflowsByEntity, StringComparison.Ordinal);
-        Assert.Contains("status = $1 AND startedDate = $2", TradeDbSql.NativeGetIntrinsicTimeStrategyWorkflowsByStatusDay, StringComparison.Ordinal);
+        Assert.Contains("workflowentityid = $1", TradeDbSql.NativeGetIntrinsicTimeStrategyWorkflowStartAttempts, StringComparison.Ordinal);
+        Assert.Contains("requestedatutc < $2", TradeDbSql.NativeGetIntrinsicTimeStrategyWorkflowStartAttempts, StringComparison.Ordinal);
+        Assert.Contains("eventid > $2", TradeDbSql.NativeGetIntrinsicTimeStrategyWorkflowTimeline, StringComparison.Ordinal);
+        Assert.Contains("startedatutc < $2", TradeDbSql.NativeGetIntrinsicTimeStrategyWorkflowsByEntity, StringComparison.Ordinal);
+        Assert.Contains("status = $1 AND starteddate = $2", TradeDbSql.NativeGetIntrinsicTimeStrategyWorkflowsByStatusDay, StringComparison.Ordinal);
         Assert.All(
             new[]
             {

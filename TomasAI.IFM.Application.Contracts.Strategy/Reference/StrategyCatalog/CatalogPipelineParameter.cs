@@ -1,5 +1,11 @@
-using System.Text.Json;
-using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
+using MessagePack;
 
 namespace TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
-public sealed record CatalogPipelineParameter(string Role, CatalogPipelineParameterKind Kind, Guid Id, int Version, string Hash);
+
+[MessagePackObject]
+public sealed record CatalogPipelineParameter(
+    [property: Key(0)] string Role,
+    [property: Key(1)] CatalogPipelineParameterKind Kind,
+    [property: Key(2)] Guid Id,
+    [property: Key(3)] int Version,
+    [property: Key(4)] string Hash);

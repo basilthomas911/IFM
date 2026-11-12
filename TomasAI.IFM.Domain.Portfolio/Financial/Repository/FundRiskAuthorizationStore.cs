@@ -17,7 +17,7 @@ internal static class FundRiskAuthorizationStore
             value.AuthorityEpoch == book.AuthorityEpoch && db.BusinessTime.GetUtcNow().UtcDateTime < value.ValidUntilUtc,
             FinancialReasons.AuthorityRevoked, "Fund financial authorization is no longer current.");
         await ValidateFundSourcesAsync(db, book, value.FundId, true, token).ConfigureAwait(false);
-        var reservations = await (db.QueryAsync(PortfolioDbSql.Financial.FundRiskAuthorizationStore.Select01, [portfolioId, value.ReservationId], r => (Status: r.GetInt32(0), Version: r.GetInt64(1),
+        var reservations = await (db.QueryAsync(PortfolioDbSql.Financial_FundRiskAuthorizationStore_Select01, [portfolioId, value.ReservationId], r => (Status: r.GetInt32(0), Version: r.GetInt64(1),
                 Request: Decode<CapacityReservationRequest>(r.GetString(2)), Receipt: Decode<CapacityReservationReceipt>(r.GetString(3))), token)).ConfigureAwait(false);
         Require(reservations.Count == 1, FinancialReasons.AuthorityDenied, "Committed capacity reservation is required.");
         var row = reservations[0]; var receipt = row.Receipt; var request = row.Request;

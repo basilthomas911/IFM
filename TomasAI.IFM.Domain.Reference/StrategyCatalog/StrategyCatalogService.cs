@@ -76,7 +76,7 @@ public sealed class StrategyCatalogService(IDbContextFactory factory, IPostgresE
                 EntityId = entityId, Id = request.OperationId, CommandId = request.OperationId,
                 AggregateId = entityId.Format(), EventSource = "StrategyCatalogCommandActor",
                 ReceivedOn = (timeProvider ?? TimeProvider.System).GetUtcNow().UtcDateTime,
-                RequestJson = prepared.RequestJson, BeforeJson = prepared.BeforeJson, AfterJson = prepared.AfterJson,
+                RequestJson = prepared.RequestJson, BeforeVersion = prepared.BeforeVersion, AfterVersion = prepared.AfterVersion,
                 Principal = principal
             };
             var eventId = await transaction.AppendAsync(new EnlistedEventAppend(stream, request.OperationId, source, prepared.StreamVersion), cancellationToken)

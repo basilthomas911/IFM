@@ -31,7 +31,7 @@ public sealed class PostgresPositionalParameterCatalogTests
         };
 
     [Theory]
-    [InlineData("EventSourceDb", "EventSourceDbSql")]
+    [InlineData("EventSourceDb", "EventSourceActorDbSql")]
     [InlineData("SequenceIdDb", "SequenceIdDbSql")]
     public void EveryPostgresBinding_UsesTypedParametersInDollarOrdinalOrder(
         string catalogNamespace,
@@ -54,8 +54,8 @@ public sealed class PostgresPositionalParameterCatalogTests
     {
         var values = Assert.IsType<object?[]>(new AggregateFindParameters("aggregate/test", null).Bind());
         Assert.Equal(new object?[] { "aggregate/test" }, values);
-        Assert.Contains("$1", EventSourceDbSql.ReadAggregateCreation, StringComparison.Ordinal);
-        Assert.DoesNotContain("$2", EventSourceDbSql.ReadAggregateCreation, StringComparison.Ordinal);
+        Assert.Contains("$1", EventSourceActorDbSql.ReadAggregateCreation, StringComparison.Ordinal);
+        Assert.DoesNotContain("$2", EventSourceActorDbSql.ReadAggregateCreation, StringComparison.Ordinal);
     }
 
     static void AssertBinding(Type bindType, Type sqlType)

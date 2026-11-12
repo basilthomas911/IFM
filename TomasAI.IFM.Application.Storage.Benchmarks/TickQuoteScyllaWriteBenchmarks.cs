@@ -42,7 +42,7 @@ public class TickQuoteScyllaWriteBenchmarks
         _contractId = "ES-BDN-QUOTES-" + Guid.NewGuid().ToString("N");
         _cluster = Cluster.Builder().AddContactPoint("localhost").Build();
         _session = _cluster.Connect("market_data_test_db");
-        _statement = _session.Prepare(TradeTickQuoteDbCql.InsertTickQuoteData);
+        _statement = _session.Prepare(TradeTickQuoteDbSql.InsertTickQuoteData);
         _readStatement = _session.Prepare(
             "SELECT quote_count, quote_data FROM tick_quote_data WHERE asset_type_id=? AND contract_id=? AND value_date=? AND aggregation_time=? AND sequence_id=?;");
         var initial = BuildValues(0);

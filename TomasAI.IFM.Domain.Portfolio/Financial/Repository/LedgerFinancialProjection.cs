@@ -30,7 +30,7 @@ public sealed class LedgerFinancialProjection(IPostgresEventTransaction transact
             throw new InvalidDataException("Ledger reconstruction requires a committed source event.");
         return transactions.ExecuteAsync(async (db, ct) =>
         {
-            await (db.ScalarAsync(PortfolioDbSql.Financial.LedgerConfigurationStore.Select01, [completed.PortfolioId], ct)).ConfigureAwait(false);
+            await (db.ScalarAsync(PortfolioDbSql.Financial_LedgerConfigurationStore_Select01, [completed.PortfolioId], ct)).ConfigureAwait(false);
             if (!await (RecordAppliedAsync(db, completed, revision, ct)).ConfigureAwait(false)) return false;
             var current = await (LockAuthorityAsync(db, completed.PortfolioId, null, ct)).ConfigureAwait(false);
             if (revision != current.Revision + 1)
@@ -42,10 +42,10 @@ public sealed class LedgerFinancialProjection(IPostgresEventTransaction transact
             }
             if (facts.ExecutionCapacity is { } capacity)
                 await ExecutionCapacitySettlement.ApplyAsync(db, completed.PortfolioId, revision, capacity, ct).ConfigureAwait(false);
-            await (db.ExecuteAsync(PortfolioDbSql.Financial.PortfolioDbFinancialSupport.Insert06,
+            await (db.ExecuteAsync(PortfolioDbSql.Financial_PortfolioDbFinancialSupport_Insert06,
                 [completed.PortfolioId, completed.OperationId, facts.ActorName, completed.InputHash, completed.EventId, revision], ct)).ConfigureAwait(false);
-            await (db.ExecuteAsync(PortfolioDbSql.Financial.PortfolioDbFinancialSupport.Update01, [completed.PortfolioId, revision], ct)).ConfigureAwait(false);
-            await (db.ExecuteAsync(PortfolioDbSql.Financial.GeneralLedgerStore.Insert05,
+            await (db.ExecuteAsync(PortfolioDbSql.Financial_PortfolioDbFinancialSupport_Update01, [completed.PortfolioId, revision], ct)).ConfigureAwait(false);
+            await (db.ExecuteAsync(PortfolioDbSql.Financial_GeneralLedgerStore_Insert05,
                 [completed.PortfolioId, completed.OperationId, facts.ExecutionId, completed.InputHash, completed.GetType().FullName!,
                  Json(receipts), completed.Id, completed.CommittedAtUtc, revision, Json(completed)], ct)).ConfigureAwait(false);
             return true;
@@ -53,7 +53,7 @@ public sealed class LedgerFinancialProjection(IPostgresEventTransaction transact
     }
 
     internal static async Task<bool> RecordAppliedAsync(EnlistedEventTransaction db, IFinancialCompletedEvent completed,
-        long revision, CancellationToken ct) => await (db.ExecuteAsync(PortfolioDbSql.Financial.LedgerFinancialProjection.InsertCheckpoint,
+        long revision, CancellationToken ct) => await (db.ExecuteAsync(PortfolioDbSql.Financial_LedgerFinancialProjection_InsertCheckpoint,
             [completed.Id, completed.PortfolioId, completed.EventId, revision], ct)).ConfigureAwait(false) == 1;
 
     /// <summary>Uses the accepted IDs, amounts, account versions and lines exactly as recorded.</summary>
@@ -62,37 +62,37 @@ public sealed class LedgerFinancialProjection(IPostgresEventTransaction transact
     {
         var item = fact.Request;
         if (item.TransactionKind == LedgerTransactionKind.WithdrawalRequested)
-            await (db.ExecuteAsync(PortfolioDbSql.Financial.GeneralLedgerStore.Insert07,
+            await (db.ExecuteAsync(PortfolioDbSql.Financial_GeneralLedgerStore_Insert07,
                 [fact.ObligationId, portfolioId, item.BookId, item.FundId, item.Source.SourceEventId.ToString("N"), item.Amount, revision, PayloadJson(item.MovementEvidence)], ct)).ConfigureAwait(false);
         else if (item.TransactionKind is LedgerTransactionKind.WithdrawalSettled or LedgerTransactionKind.WithdrawalCancelled)
-            Require(await (db.ExecuteAsync(PortfolioDbSql.Financial.GeneralLedgerStore.Update02,
+            Require(await (db.ExecuteAsync(PortfolioDbSql.Financial_GeneralLedgerStore_Update02,
                 [item.Amount, item.TransactionKind == LedgerTransactionKind.WithdrawalSettled ? "Settled" : "Cancelled", revision,
                  PayloadJson(item.MovementEvidence), fact.ObligationId, portfolioId, item.BookId, item.FundId], ct)).ConfigureAwait(false) == 1,
                 FinancialReasons.SourceConflict, "Required preceding withdrawal fact is missing during reconstruction.");
-        await (db.ExecuteAsync(PortfolioDbSql.Financial.GeneralLedgerStore.Insert01,
+        await (db.ExecuteAsync(PortfolioDbSql.Financial_GeneralLedgerStore_Insert01,
             [fact.TransactionId, item.BookId, portfolioId, item.FundId, operationId, fact.Ordinal, (int)item.TransactionKind,
              item.Source.System, item.Source.SourceEventId.ToString("N"), item.Source.SourceContentHash, item.Amount,
              item.AccountingDate, item.ValueDate, item.SettlementDate, fact.ObligationId, item.RelatedJournalId, PayloadJson(item)], ct)).ConfigureAwait(false);
         if (fact.JournalId is { } journalId)
         {
-            await (db.ExecuteAsync(PortfolioDbSql.Financial.GeneralLedgerStore.Insert02,
+            await (db.ExecuteAsync(PortfolioDbSql.Financial_GeneralLedgerStore_Insert02,
                 [journalId, fact.TransactionId, item.BookId, portfolioId, item.FundId, operationId, item.AccountingDate, item.ValueDate,
                  item.SettlementDate, (int)item.TransactionKind, item.Source.SourceContentHash, fact.RuleId, fact.RuleVersion,
                  item.TransactionKind == LedgerTransactionKind.Reversal ? item.RelatedJournalId : null, committedAtUtc, revision, fact.JournalHash], ct)).ConfigureAwait(false);
             foreach (var line in fact.Lines.OrderBy(x => x.Account.AccountId).ThenBy(x => x.FundId).ThenBy(x => x.Ordinal))
                 await (ApplyLineAsync(db, item.BookId, journalId, line, revision, ct)).ConfigureAwait(false);
         }
-        await (db.ExecuteAsync(PortfolioDbSql.Financial.GeneralLedgerStore.Insert03,
+        await (db.ExecuteAsync(PortfolioDbSql.Financial_GeneralLedgerStore_Insert03,
             [item.BookId, item.Source.System, item.Source.SourceEventId.ToString("N"), item.TransactionKind.ToString(), item.Source.SourceContentHash, operationId, fact.JournalId], ct)).ConfigureAwait(false);
         if (item.TransactionKind is LedgerTransactionKind.Valuation or LedgerTransactionKind.RealizedPnl)
-            await (db.ExecuteAsync(PortfolioDbSql.Financial.GeneralLedgerStore.Insert04,
+            await (db.ExecuteAsync(PortfolioDbSql.Financial_GeneralLedgerStore_Insert04,
                 [item.BookId, item.FundId, $"{item.Source.OrderId}:{item.Source.TradeId}", item.TransactionKind == LedgerTransactionKind.RealizedPnl ? 0m : item.Amount, item.Source.SourceSequence, revision], ct)).ConfigureAwait(false);
     }
 
     internal static async Task ApplyLineAsync(EnlistedEventTransaction db, int bookId, long journalId, AcceptedLedgerLine line,
         long revision, CancellationToken ct)
     {
-        await db.ExecuteAsync(PortfolioDbSql.Financial.GeneralLedgerStore.InsertLineAndBalance,
+        await db.ExecuteAsync(PortfolioDbSql.Financial_GeneralLedgerStore_InsertLineAndBalance,
             LineParameters(bookId, journalId, line, revision), ct).ConfigureAwait(false);
     }
 
@@ -106,9 +106,9 @@ public sealed class LedgerFinancialProjection(IPostgresEventTransaction transact
     internal static async Task ApplyEffectsAsync(EnlistedEventTransaction db, int portfolioId, AcceptedLedgerPosting fact, CancellationToken ct)
     {
         if (fact.FundingCashPaid is { } paid)
-            await (db.ExecuteAsync(PortfolioDbSql.Financial.GeneralLedgerStore.Insert06,
+            await (db.ExecuteAsync(PortfolioDbSql.Financial_GeneralLedgerStore_Insert06,
                 [fact.TransactionId, fact.Request.CapacityReservationId, (int)fact.Request.FundingComponent, paid], ct)).ConfigureAwait(false);
         if (fact.BecameOverdrawn)
-            await (db.ExecuteAsync(PortfolioDbSql.Financial.GeneralLedgerStore.Update01, [portfolioId], ct)).ConfigureAwait(false);
+            await (db.ExecuteAsync(PortfolioDbSql.Financial_GeneralLedgerStore_Update01, [portfolioId], ct)).ConfigureAwait(false);
     }
 }

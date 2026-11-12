@@ -565,7 +565,7 @@ public class EventSourceActorSnapshotRangeTests(EventSourceActorSnapshotRangeFix
         await sql.OpenAsync();
         async Task RenameMetadata(EventStreamReadModel row, string identity)
         {
-            await using var insert = new Npgsql.NpgsqlCommand(EventSourceDbSql.InsertEventNameId, sql);
+            await using var insert = new Npgsql.NpgsqlCommand(EventSourceActorDbSql.InsertEventNameId, sql);
             // A changed short event name also must not hide an explicitly registered identity.
             insert.Parameters.AddWithValue("RenamedContractEvent"); insert.Parameters.AddWithValue(identity);
             var nameId = Convert.ToInt32(await insert.ExecuteScalarAsync());

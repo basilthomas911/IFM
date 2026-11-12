@@ -45,11 +45,11 @@ public sealed class AccountingExportStore(IPostgresEventTransaction transactions
             var sources = new List<AccountingJournalSource>();
             foreach (var journalId in request.JournalIds)
             {
-                var rows = await (db.QueryAsync(PortfolioDbSql.Financial.AccountingExportStore.Select01, [request.PortfolioId, request.BookId, journalId, request.SourceRevision], r => new AccountingJournalSource(
+                var rows = await (db.QueryAsync(PortfolioDbSql.Financial_AccountingExportStore_Select01, [request.PortfolioId, request.BookId, journalId, request.SourceRevision], r => new AccountingJournalSource(
                         new(r.GetInt64(0), r.GetInt64(1), r.GetInt32(2), r.IsDBNull(3) ? null : r.GetInt32(3), r.GetFieldValue<DateOnly>(4), r.GetString(5), []),
                         r.GetInt64(6), r.IsDBNull(7) ? null : r.GetInt64(7)), ct)).ConfigureAwait(false);
                 Require(rows.Count == 1, FinancialReasons.InvalidContract, "Export journal is missing or outside the exact source cut.");
-                var lines = await (db.QueryAsync(PortfolioDbSql.Financial.AccountingExportStore.Select02, [journalId], r => new FinancialJournalEntry(r.GetInt32(0), r.GetInt32(1), r.GetInt64(2), r.IsDBNull(3) ? null : r.GetInt32(3),
+                var lines = await (db.QueryAsync(PortfolioDbSql.Financial_AccountingExportStore_Select02, [journalId], r => new FinancialJournalEntry(r.GetInt32(0), r.GetInt32(1), r.GetInt64(2), r.IsDBNull(3) ? null : r.GetInt32(3),
                         r.GetDecimal(4), r.GetDecimal(5), r.GetString(6)), ct)).ConfigureAwait(false);
                 Require(lines.Count is >= 2 and <= 256, FinancialReasons.InvalidContract, "Export journal line count is invalid.");
                 sources.Add(rows[0] with { Journal = rows[0].Journal with { Entries = lines.ToArray() } });
@@ -59,10 +59,10 @@ public sealed class AccountingExportStore(IPostgresEventTransaction transactions
                 && string.Equals(payload.DestinationCompany,request.Mapping.DestinationCompany,StringComparison.Ordinal) && payload.SourceRevision == request.SourceRevision,
                 FinancialReasons.InvalidContract, "Export builder changed source ownership.");
             var receipt = new AccountingExportReceipt(payload, FinancialCanonicalHash.Compute(payload), hash, "Pending", 0, null);
-            await (db.ExecuteAsync(PortfolioDbSql.Financial.AccountingExportStore.Insert01, [request.Mapping.DestinationCompany,request.ExportId,Json(request.JournalIds),request.SourceRevision.ToString(CultureInfo.InvariantCulture),
+            await (db.ExecuteAsync(PortfolioDbSql.Financial_AccountingExportStore_Insert01, [request.Mapping.DestinationCompany,request.ExportId,Json(request.JournalIds),request.SourceRevision.ToString(CultureInfo.InvariantCulture),
                     receipt.PayloadHash,request.Mapping.Version,Json(receipt)], ct)).ConfigureAwait(false);
             foreach (var source in request.JournalIds)
-                await (db.ExecuteAsync(PortfolioDbSql.Financial.AccountingExportStore.Insert02, [request.Mapping.DestinationCompany, source, request.ExportId], ct)).ConfigureAwait(false);
+                await (db.ExecuteAsync(PortfolioDbSql.Financial_AccountingExportStore_Insert02, [request.Mapping.DestinationCompany, source, request.ExportId], ct)).ConfigureAwait(false);
             var sourceEvent=new AccountingExportSnapshotEvent { Id=Guid.NewGuid(),CommandId=request.ExportId,
                 AggregateId=request.ExportId.ToString("N"),ReceivedOn=businessClock.GetUtcNow().UtcDateTime,PortfolioId=request.PortfolioId,PreparedRequest=request,Receipt=receipt };
             await (FinancialOperationalEventPersistence.AppendAsync(db,Stream(request.Mapping.DestinationCompany,request.ExportId),sourceEvent,request.PortfolioId,ct)).ConfigureAwait(false);
@@ -95,7 +95,7 @@ public sealed class AccountingExportStore(IPostgresEventTransaction transactions
         {
             var current = await (Read(db, company, exportId, ct, true)).ConfigureAwait(false) ?? throw new FinancialOperationException(FinancialReasons.InvalidContract, "Export is missing.");
             Require(current.Payload.PortfolioId == portfolioId, FinancialReasons.AuthorityDenied, "Export belongs to another Portfolio.");
-            var prior = await (db.QueryAsync(PortfolioDbSql.Financial.AccountingExportStore.Select03, [company, exportId, attemptId], r => (Outcome: r.GetString(0), Receipt: r.IsDBNull(1) ? null : r.GetString(1)), ct)).ConfigureAwait(false);
+            var prior = await (db.QueryAsync(PortfolioDbSql.Financial_AccountingExportStore_Select03, [company, exportId, attemptId], r => (Outcome: r.GetString(0), Receipt: r.IsDBNull(1) ? null : r.GetString(1)), ct)).ConfigureAwait(false);
             if (prior.Count != 0)
             {
                 Require(string.Equals(prior[0].Outcome,outcome,StringComparison.Ordinal) && string.Equals(prior[0].Receipt,externalReceipt,StringComparison.Ordinal), FinancialReasons.SourceConflict, "Delivery attempt identity conflicts.");
@@ -103,9 +103,9 @@ public sealed class AccountingExportStore(IPostgresEventTransaction transactions
             }
             Require(!string.Equals(current.DeliveryStatus,"Delivered",StringComparison.Ordinal) || string.Equals(outcome,"Delivered",StringComparison.Ordinal) && string.Equals(current.ExternalReceipt,externalReceipt,StringComparison.Ordinal),
                 FinancialReasons.SourceConflict, "A delivered export cannot be reverted or assigned another receipt.");
-            await (db.ExecuteAsync(PortfolioDbSql.Financial.AccountingExportStore.Insert03, [company, exportId, attemptId, outcome, externalReceipt], ct)).ConfigureAwait(false);
+            await (db.ExecuteAsync(PortfolioDbSql.Financial_AccountingExportStore_Insert03, [company, exportId, attemptId, outcome, externalReceipt], ct)).ConfigureAwait(false);
             var next = current with { Attempts = checked(current.Attempts + 1), DeliveryStatus = string.Equals(outcome,"Delivered",StringComparison.Ordinal) ? "Delivered" : "Pending", ExternalReceipt = externalReceipt };
-            await (db.ExecuteAsync(PortfolioDbSql.Financial.AccountingExportStore.Update01, [company, exportId, next.Attempts, next.DeliveryStatus, next.ExternalReceipt], ct)).ConfigureAwait(false);
+            await (db.ExecuteAsync(PortfolioDbSql.Financial_AccountingExportStore_Update01, [company, exportId, next.Attempts, next.DeliveryStatus, next.ExternalReceipt], ct)).ConfigureAwait(false);
             var sourceEvent=new AccountingExportSnapshotEvent { Id=Guid.NewGuid(),CommandId=attemptId,AggregateId=exportId.ToString("N"),
                 ReceivedOn=businessClock.GetUtcNow().UtcDateTime,PortfolioId=portfolioId,Receipt=next,AttemptId=attemptId,Outcome=outcome };
             await (FinancialOperationalEventPersistence.AppendAsync(db,Stream(company,exportId),sourceEvent,portfolioId,ct)).ConfigureAwait(false);
@@ -120,20 +120,20 @@ public sealed class AccountingExportStore(IPostgresEventTransaction transactions
         if(source.SchemaVersion!=1 || source.EventId<=0 || source.Id==Guid.Empty) throw new InvalidDataException("Committed export facts required.");
         return transactions.ExecuteAsync(async(db,ct)=>
         {
-            await (db.ScalarAsync(PortfolioDbSql.Financial.LedgerConfigurationStore.Select01,[source.PortfolioId],ct)).ConfigureAwait(false);
+            await (db.ScalarAsync(PortfolioDbSql.Financial_LedgerConfigurationStore_Select01,[source.PortfolioId],ct)).ConfigureAwait(false);
             if(!await (FinancialOperationalEventPersistence.ClaimAsync(db,source,source.PortfolioId,ct)).ConfigureAwait(false)) return false;
             var receipt=source.Receipt;var payload=receipt.Payload;
             if(source.PreparedRequest is {} request)
             {
-                await (db.ExecuteAsync(PortfolioDbSql.Financial.AccountingExportStore.Insert01,
+                await (db.ExecuteAsync(PortfolioDbSql.Financial_AccountingExportStore_Insert01,
                     [payload.DestinationCompany,payload.ExportId,Json(request.JournalIds),request.SourceRevision.ToString(CultureInfo.InvariantCulture),receipt.PayloadHash,request.Mapping.Version,Json(receipt)],ct)).ConfigureAwait(false);
-                foreach(var journal in request.JournalIds) await (db.ExecuteAsync(PortfolioDbSql.Financial.AccountingExportStore.Insert02,[payload.DestinationCompany,journal,payload.ExportId],ct)).ConfigureAwait(false);
+                foreach(var journal in request.JournalIds) await (db.ExecuteAsync(PortfolioDbSql.Financial_AccountingExportStore_Insert02,[payload.DestinationCompany,journal,payload.ExportId],ct)).ConfigureAwait(false);
             }
             else
             {
                 if(source.AttemptId is null) throw new InvalidDataException("Export attempt facts are missing.");
-                await (db.ExecuteAsync(PortfolioDbSql.Financial.AccountingExportStore.Insert03,[payload.DestinationCompany,payload.ExportId,source.AttemptId,source.Outcome,receipt.ExternalReceipt],ct)).ConfigureAwait(false);
-                Require(await (db.ExecuteAsync(PortfolioDbSql.Financial.AccountingExportStore.Update01,[payload.DestinationCompany,payload.ExportId,receipt.Attempts,receipt.DeliveryStatus,receipt.ExternalReceipt],ct)).ConfigureAwait(false)==1,
+                await (db.ExecuteAsync(PortfolioDbSql.Financial_AccountingExportStore_Insert03,[payload.DestinationCompany,payload.ExportId,source.AttemptId,source.Outcome,receipt.ExternalReceipt],ct)).ConfigureAwait(false);
+                Require(await (db.ExecuteAsync(PortfolioDbSql.Financial_AccountingExportStore_Update01,[payload.DestinationCompany,payload.ExportId,receipt.Attempts,receipt.DeliveryStatus,receipt.ExternalReceipt],ct)).ConfigureAwait(false)==1,
                     FinancialReasons.RevisionConflict,"Required preceding export fact is missing.");
             }
             return true;
@@ -144,7 +144,7 @@ public sealed class AccountingExportStore(IPostgresEventTransaction transactions
 
     static async Task<AccountingExportReceipt?> Read(EnlistedEventTransaction db, string company, Guid id, CancellationToken token, bool locked = false)
     {
-        var rows = await (db.QueryAsync(PortfolioDbSql.Financial.AccountingExportStore.Select04 + (locked ? " FOR UPDATE;" : ";"),
+        var sql = locked ? PortfolioDbSql.Financial_AccountingExportStore_Select04ForUpdate : PortfolioDbSql.Financial_AccountingExportStore_Select04;        var rows = await (db.QueryAsync(sql,
             [company, id], r => (Receipt: Decode<AccountingExportReceipt>(r.GetString(0)), Status: r.GetString(1), Attempts: r.GetInt32(2), External: r.IsDBNull(3) ? null : r.GetString(3), Hash: r.GetString(4)), token)).ConfigureAwait(false);
         if (rows.Count == 0) return null;
         var row = rows[0];

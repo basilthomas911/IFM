@@ -1,3 +1,4 @@
+using System.Buffers;
 using TomasAI.IFM.Application.Strategy.StrategyCatalog;
 using TomasAI.IFM.Shared.EventProjector.ReadModels;
 using TomasAI.IFM.Domain.Reference.Repository;
@@ -13,6 +14,7 @@ using TomasAI.IFM.Application.Storage.ConfigurationDb.Schema;
 using TomasAI.IFM.Application.Storage.ReferenceDb;
 using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
 using TomasAI.IFM.Domain.Reference.StrategyCatalog;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Model;
 using TomasAI.IFM.Domain.Reference.TradeStrategyFamilies;
 using TomasAI.IFM.Domain.Reference.TradeStrategyFamilies.Command.Actor;
 using TomasAI.IFM.Framework.Storage;
@@ -84,12 +86,27 @@ public sealed class ConfigurationStrategyCatalogActorTests(ReferenceIntegrationI
         Assert.NotNull(await infrastructure.ActorEventSourceDb.GetEventProjectorExecutionStateAsync(
             new EventProjectorIdentity(source.EventId, "StrategyCatalogEventProjector")));
 
-        Assert.True(await infrastructure.EventTransactions.ExecuteOnceAsync((transaction, token) =>
-            database.ProjectStrategyCatalogSourceAsync(transaction, source, false, token)));
-        Assert.False(await infrastructure.EventTransactions.ExecuteOnceAsync((transaction, token) =>
-            database.ProjectStrategyCatalogSourceAsync(transaction, source, false, token)));
-        Assert.Equal(source.AfterJson, StrategyCatalogJson.Write(await database.GetStrategyCatalogAsync(key)));
-        Assert.NotNull(await database.GetProjectedParameterRevisionAsync());
+        var settings = new DbConnectionSettings()
+            .Add(ConfigurationDbContext.ConfigurationDbConnection, infrastructure.PostgresConnectionString, "System.Data.Postgres")
+            .Add(EventSourceActorDbContext.EventSourceActorDbConnection, infrastructure.PostgresConnectionString, "System.Data.Postgres");
+        var factory = Substitute.For<IDbContextFactory>();
+        var restarted = new ConfigurationDbContext(settings, factory, Substitute.For<ILogger<DbProvider>>());
+        factory.ConfigurationDb.Returns(restarted);
+        var restartedTransactions = new PostgresEventTransaction(settings);
+        var restartedService = new StrategyCatalogService(factory, restartedTransactions);
+        var streamName = $"StrategyCatalog.{StrategyCatalogLifecycleCommand.Address(key).Format()}";
+        var persisted = Assert.IsType<StrategyCatalogSourceEvent>(await restarted.ReadCommittedStrategyCatalogOperationAsync(streamName, request.OperationId));
+        Assert.Equal(source.EventId, persisted.EventId);
+        Assert.Empty(persisted.AfterJson);
+        Assert.NotNull(persisted.AfterVersion);
+        Assert.True(await restartedService.ProjectAsync(persisted, false, CancellationToken.None));
+        Assert.False(await restartedService.ProjectAsync(persisted, false, CancellationToken.None));
+        Assert.Null(await StrategyCatalogService.CommitAsync(restarted, restartedTransactions, request, "integration",
+            StrategyCatalogLifecycleCommand.Address(key), TimeProvider.System));
+        var streamId = await infrastructure.ActorEventSourceDb.GetEventStreamIdAsync(streamName);
+        Assert.Equal(1, await infrastructure.ActorEventSourceDb.GetCommittedStreamVersionAsync(streamId));
+        Assert.Equal(StrategyCatalogJson.Write(source.ReadAfterVersion()), StrategyCatalogJson.Write(await restarted.GetStrategyCatalogAsync(key)));
+        Assert.NotNull(await restarted.GetProjectedParameterRevisionAsync());
     }
 
     [Fact]
@@ -104,6 +121,23 @@ public sealed class ConfigurationStrategyCatalogActorTests(ReferenceIntegrationI
         await Send(save with { OperationId = Guid.NewGuid() });
         var row = (await context.GetStrategyCatalogAsync(definition.Key))!;
         row.Status.Should().Be(CatalogLifecycleStatus.Draft);
+        var stream = await infrastructure.ActorEventSourceDb.GetEventStreamIdAsync(
+            $"StrategyCatalog.{StrategyCatalogLifecycleCommand.Address(definition.Key).Format()}");
+        var initial = Assert.Single(await infrastructure.ActorEventSourceDb.GetEventsFromSnapshotAsync<StrategyCatalogSourceEvent>(stream));
+        var creation = EventLogMessagePackCodec.Shared.Deserialize<StrategyCatalogSourceEvent>(initial.EventVersion, initial.EventData);
+        Assert.NotNull(creation.AfterVersion);
+        Assert.Null(creation.BeforeVersion);
+        Assert.Empty(creation.AfterJson);
+        var oldBytes = LegacyEventPayload(creation with { AfterVersion = null, AfterJson = StrategyCatalogJson.Write(row) });
+        await infrastructure.EventTransactions.ExecuteOnceAsync(async (transaction, token) =>
+        {
+            // Install the exact 13-field historical payload in this disposable PostgreSQL fixture.
+            Assert.Equal(1, await transaction.ExecuteAsync(
+                "UPDATE public.event_log SET EventPayload=$1 WHERE EventVersion=$2;",
+                [oldBytes, initial.EventVersion], token));
+            return true;
+        });
+        await Send(save);
         var now = new DateTime(DateTime.UtcNow.Ticks / 10 * 10, DateTimeKind.Utc);
         await Send(new(Guid.NewGuid(), CatalogCommandOperation.Publish, Key: definition.Key, ExpectedHash: row.ContentHash, EffectiveUtc: now));
         (await context.GetStrategyCatalogAsync(definition.Key))!.Status.Should().Be(CatalogLifecycleStatus.Published);
@@ -114,14 +148,23 @@ public sealed class ConfigurationStrategyCatalogActorTests(ReferenceIntegrationI
         (await context.GetStrategyCatalogAsync(second.Key))!.Status.Should().Be(CatalogLifecycleStatus.Draft);
         var listed = await context.GetStrategyCatalogsAsync(StrategyCatalogKind.Family, 128);
         listed.Where(x => x.Key.Id == definition.Key.Id).Should().ContainSingle().Which.Key.Version.Should().Be(2);
-        var stream = await infrastructure.ActorEventSourceDb.GetEventStreamIdAsync(
-            $"StrategyCatalog.{(int)definition.Key.Kind}-{definition.Key.Id:N}-1");
-        var history = await infrastructure.ActorEventSourceDb.GetEventsFromSnapshotAsync<StrategyCatalogSourceEvent>(stream);
-        var head = history.Last();
-        var fact = Assert.IsType<StrategyCatalogSourceEvent>(
-            EventLogMessagePackCodec.Shared.Deserialize(head.EventTypeName, head.EventVersion, head.EventData));
-        Assert.Equal(CatalogLifecycleStatus.Retired,
-            StrategyCatalogJson.Read<StoredStrategyCatalogDefinition>(fact.AfterJson).Status);
+        var history = await infrastructure.EventTransactions.ExecuteOnceAsync((transaction, token) =>
+            transaction.QueryAsync(
+                "SELECT EventVersion, EventPayload FROM public.event_log WHERE EventStreamId=$1 ORDER BY StreamVersion;",
+                [stream], reader => EventLogMessagePackCodec.Shared.Deserialize<StrategyCatalogSourceEvent>(
+                    reader.GetInt64(0), reader.GetFieldValue<byte[]>(1)), token));
+        Assert.Equal(3, history.Count);
+        var legacyCreation = history[0];
+        Assert.Null(legacyCreation.AfterVersion);
+        Assert.Equal(CatalogLifecycleStatus.Draft, legacyCreation.ReadAfterVersion().Status);
+        var publish = history[1];
+        Assert.Empty(publish.BeforeJson);
+        Assert.Empty(publish.AfterJson);
+        Assert.Equal(CatalogLifecycleStatus.Draft, publish.BeforeVersion?.Status);
+        Assert.Equal(CatalogLifecycleStatus.Published, publish.AfterVersion?.Status);
+        var fact = history[2];
+        Assert.Equal(CatalogLifecycleStatus.Published, fact.BeforeVersion?.Status);
+        Assert.Equal(CatalogLifecycleStatus.Retired, fact.AfterVersion?.Status);
         Assert.Equal(3, await infrastructure.ActorEventSourceDb.GetCommittedStreamVersionAsync(stream));
         var secondStream = await infrastructure.ActorEventSourceDb.GetEventStreamIdAsync(
             $"StrategyCatalog.{StrategyCatalogLifecycleCommand.Address(second.Key).Format()}");
@@ -129,10 +172,12 @@ public sealed class ConfigurationStrategyCatalogActorTests(ReferenceIntegrationI
         var secondFact = Assert.IsType<StrategyCatalogSourceEvent>(
             EventLogMessagePackCodec.Shared.Deserialize(secondEvent.EventTypeName, secondEvent.EventVersion, secondEvent.EventData));
 
-        var legacy = definition with
+        var legacy = new StrategyCatalogDefinition
         {
-            Key = definition.Key with { Id = Guid.NewGuid() },
-            Code = $"Legacy-{Guid.NewGuid():N}"
+            Key = new(StrategyCatalogKind.ParameterSchema, Guid.NewGuid(), 1),
+            Code = $"LegacyCompositionRulesSchema-{Guid.NewGuid():N}",
+            Name = "Legacy composition rules schema",
+            Settings = CompositionRulesSchema.Settings()
         };
         await context.InsertStrategyCatalogDraftAsync(legacy, 0, "legacy fixture");
         await infrastructure.EventTransactions.ExecuteOnceAsync((transaction, token) =>
@@ -143,6 +188,15 @@ public sealed class ConfigurationStrategyCatalogActorTests(ReferenceIntegrationI
         var legacyFact = Assert.IsType<StrategyCatalogSourceEvent>(
             EventLogMessagePackCodec.Shared.Deserialize(legacyEvent.EventTypeName, legacyEvent.EventVersion, legacyEvent.EventData));
         Assert.True(legacyFact.IsBaseline);
+        var storedLegacy = Assert.IsType<StoredStrategyCatalogDefinition>(await context.GetStrategyCatalogAsync(legacy.Key));
+        Assert.Empty(legacyFact.AfterJson);
+        Assert.Null(legacyFact.BeforeVersion);
+        var capturedLegacy = Assert.IsType<StoredStrategyCatalogDefinition>(legacyFact.AfterVersion);
+        Assert.Equal(storedLegacy.ContentHash, capturedLegacy.ContentHash);
+        Assert.Equal(storedLegacy.Definition.Settings.GetRawText(), capturedLegacy.Definition.Settings.GetRawText());
+        Assert.Equal(0, await infrastructure.EventTransactions.ExecuteOnceAsync((transaction, token) =>
+            StrategyCatalogReconstruction.CaptureBaselineAsync(context, transaction, token)));
+        Assert.Equal(1, await infrastructure.ActorEventSourceDb.GetCommittedStreamVersionAsync(legacyStream));
         var sourceHeads = await infrastructure.EventTransactions.ExecuteOnceAsync((transaction, token) =>
             context.GetStrategyCatalogSourceHeadsAsync(transaction, token));
 
@@ -169,15 +223,29 @@ public sealed class ConfigurationStrategyCatalogActorTests(ReferenceIntegrationI
         var rebuildTransactions = new PostgresEventTransaction(settings);
         var rebuildService = new StrategyCatalogService(factory, rebuildTransactions);
         Assert.Null(await rebuilt.GetStrategyCatalogAsync(definition.Key));
+
+        // Rebuild from mixed history. The legacy creation and typed successors share one stream.
+        Assert.True(await rebuildService.ProjectAsync(legacyCreation, true, CancellationToken.None));
+        var wrongPredecessor = publish with
+        {
+            BeforeVersion = publish.BeforeVersion! with { CreatedBy = "different principal" }
+        };
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            rebuildService.ProjectAsync(wrongPredecessor, true, CancellationToken.None));
+        Assert.Equal(CatalogLifecycleStatus.Draft, (await rebuilt.GetStrategyCatalogAsync(definition.Key))!.Status);
+        Assert.True(await rebuildService.ProjectAsync(publish, true, CancellationToken.None));
+        Assert.False(await rebuildService.ProjectAsync(publish, true, CancellationToken.None));
+        Assert.True(await rebuildService.ProjectAsync(fact, true, CancellationToken.None));
         await rebuildTransactions.ExecuteOnceAsync(async (transaction, token) =>
         {
             await StrategyCatalogReconstruction.RebuildAsync(rebuilt, transaction, sourceHeads.Reverse().ToArray(), token);
             return true;
         });
         Assert.False(await rebuildService.ProjectAsync(fact, true, CancellationToken.None));
-        Assert.Equal(fact.AfterJson, StrategyCatalogJson.Write(await rebuilt.GetStrategyCatalogAsync(definition.Key)));
-        Assert.Equal(secondFact.AfterJson, StrategyCatalogJson.Write(await rebuilt.GetStrategyCatalogAsync(second.Key)));
-        Assert.Equal(legacyFact.AfterJson, StrategyCatalogJson.Write(await rebuilt.GetStrategyCatalogAsync(legacy.Key)));
+        Assert.Equal(StrategyCatalogJson.Write(fact.ReadAfterVersion()), StrategyCatalogJson.Write(await rebuilt.GetStrategyCatalogAsync(definition.Key)));
+        Assert.Equal(StrategyCatalogJson.Write(secondFact.ReadAfterVersion()), StrategyCatalogJson.Write(await rebuilt.GetStrategyCatalogAsync(second.Key)));
+        Assert.Equal(StrategyCatalogJson.Write(legacyFact.ReadAfterVersion()), StrategyCatalogJson.Write(await rebuilt.GetStrategyCatalogAsync(legacy.Key)));
+        Assert.Equal(3, await infrastructure.ActorEventSourceDb.GetCommittedStreamVersionAsync(stream));
         foreach (var seeded in StrategyCatalogDefaults.Create())
             Assert.Equal(StrategyCatalogJson.Write(await context.GetStrategyCatalogAsync(seeded.Key)),
                 StrategyCatalogJson.Write(await rebuilt.GetStrategyCatalogAsync(seeded.Key)));
@@ -188,5 +256,22 @@ public sealed class ConfigurationStrategyCatalogActorTests(ReferenceIntegrationI
             Assert.True(result.Success, result.ErrorMessage);
             Assert.Equal(request.OperationId, result.Value);
         }
+    }
+
+    private static byte[] LegacyEventPayload(StrategyCatalogSourceEvent source)
+    {
+        var reader = new MessagePackReader(EventLogMessagePackCodec.Shared.Serialize(source));
+        var buffer = new ArrayBufferWriter<byte>();
+        var writer = new MessagePackWriter(buffer);
+        Assert.Equal(3, reader.ReadArrayHeader());
+        writer.WriteArrayHeader(3);
+        writer.WriteRaw(reader.ReadRaw());
+        writer.WriteRaw(reader.ReadRaw());
+        Assert.Equal(15, reader.ReadArrayHeader());
+        writer.WriteArrayHeader(13);
+        for (var key = 0; key < 13; key++)
+            writer.WriteRaw(reader.ReadRaw());
+        writer.Flush();
+        return buffer.WrittenSpan.ToArray();
     }
 }

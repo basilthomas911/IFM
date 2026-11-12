@@ -16,7 +16,7 @@ internal static class ExitWorkflowReceiptStore
     internal static async Task<TEvent?> ReadAsync<TEvent>(EnlistedEventTransaction db, string stream, Guid commandId, CancellationToken token)
         where TEvent : class, IEvent
     {
-        var rows = await db.QueryAsync(ExitWorkflowEvidenceSql.ReadCommitted, [stream, commandId], Map, token).ConfigureAwait(false);
+        var rows = await db.QueryAsync(TradePlanDbSql.ReadCommittedExitWorkflowEvidence, [stream, commandId], Map, token).ConfigureAwait(false);
         return rows.Count == 1 ? rows[0].ToDomainEvent() as TEvent : null;
     }
 
@@ -24,7 +24,7 @@ internal static class ExitWorkflowReceiptStore
         TradeStrategyKind kind, CancellationToken token)
     {
         var stream = new ActorSubject(ActorType.Command, ExitPositionWorkflowActorNames.Owner(kind), string.Empty, workflow.Format()).StreamId;
-        var rows = await db.QueryAsync(ExitWorkflowEvidenceSql.ReadLatestOwnerSource, [stream], Map, token).ConfigureAwait(false);
+        var rows = await db.QueryAsync(TradePlanDbSql.ReadLatestExitWorkflowOwnerSource, [stream], Map, token).ConfigureAwait(false);
         return rows.SingleOrDefault()?.ToDomainEvent();
     }
 

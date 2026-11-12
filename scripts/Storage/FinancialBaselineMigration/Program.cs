@@ -60,7 +60,7 @@ static async Task VerifyIsolatedAsync(TomasAI.IFM.Domain.Portfolio.Shared.Financ
         var settings=new DbConnectionSettings().Add(EventSourceActorDbContext.EventSourceActorDbConnection,targetIdentity.ConnectionString,"System.Data.Postgres");
         await new EventSourceSchemaDb(settings,NullLogger<DbProvider>.Instance).CreateAllAsync();
         var target=new PostgresEventTransaction(settings);await new PortfolioFinancialSchema(target).InitializeAsync();
-        if(source.SchemaVersion==2) await target.ExecuteOnceAsync((db,ct)=>db.ExecuteAsync(TomasAI.IFM.Application.Storage.PortfolioDb.Schema.PortfolioSchemaSql.Portfolio,[],ct));
+        if(source.SchemaVersion==2) await target.ExecuteOnceAsync((db,ct)=>db.ExecuteAsync(TomasAI.IFM.Application.Storage.PortfolioDb.Schema.PortfolioSchemaDb.CreateStatement,[],ct));
         var versions=new HashSet<long>{source.EventId};
         foreach(var image in source.Tables.Where(t=>t.Name is "financial_operation_receipt" or "financial_history_receipt"))
             foreach(var row in JsonDocument.Parse(image.RowsJson).RootElement.EnumerateArray()) versions.Add(row.GetProperty("event_version").GetInt64());

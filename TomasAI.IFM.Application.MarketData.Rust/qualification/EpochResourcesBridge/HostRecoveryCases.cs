@@ -24,7 +24,7 @@ static class HostRecoveryCases
 {
     internal static async Task VerifyAsync(NativeMarketDataEpochFactory factory,NativeMarketDataEpoch epoch,TimeProvider clock,TimeSpan budget)
     {
-        await using var database=await TemporaryPostgres.CreateAsync(TradeSchemaSql.LiveFeedRecoveryCreate);
+        await using var database=await TemporaryPostgres.CreateAsync(TradeSchemaDb.LiveFeedRecoveryCreateStatement);
         var settings=new DbConnectionSettings().Add(TradeDbContext.TradeDbConnection,database.ConnectionString,"System.Data.Postgres");
         var store=new TradeFeedRecoveryStore(settings);
         var admissions=new DatasetWorkerAdmissionRegistry();var health=new OptionFeedProcessingHealth(clock);
@@ -81,7 +81,7 @@ static class HostRecoveryCases
         started=Stopwatch.GetTimestamp();
         if(await recovery.RecoverAsync(request)!=failed||Stopwatch.GetElapsedTime(started)>TimeSpan.FromMilliseconds(250))
             throw new InvalidDataException("A repeated failed incident received another recovery budget.");
-        await Sql(TradeSchemaSql.LiveFeedRecoveryCreate);
+        await Sql(TradeSchemaDb.LiveFeedRecoveryCreateStatement);
         var retry=await recovery.RecoverAsync(Request(budget));
         if(!retry.Recovered||!retry.CleanupConfirmed||!state.Capture(true).Datasets.Single(x=>x.Role=="Options").Healthy)
             throw new InvalidDataException("Terminal storage failure left a permanent rejection gate after explicit retry.");

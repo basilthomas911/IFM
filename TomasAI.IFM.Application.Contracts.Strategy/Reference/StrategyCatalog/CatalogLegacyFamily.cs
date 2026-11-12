@@ -1,5 +1,8 @@
-using System.Text.Json;
-using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
+using MessagePack;
 
 namespace TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
-public sealed record CatalogLegacyFamily(int Id, long Version);
+
+[MessagePackObject]
+public sealed record CatalogLegacyFamily(
+    [property: Key(0)] int Id,
+    [property: Key(1)] long Version);

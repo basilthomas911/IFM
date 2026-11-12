@@ -26,7 +26,7 @@ internal static class TradeTickQuoteDbContextExtensions
             var id = e.TickDataId;
             var data = e.TradeData;
         var preparedParameters1 = new InsertTickTradeData([(sbyte)e.AssetTypeId, id.ContractId, id.ValueDate, TimeOnly.FromDateTime(id.TimestampUtc), id.SequenceId, id.TimestampUtc, id.TimestampUtc.Ticks, (short)e.SchemaVersion, e.Dataset, e.DefinitionDate, (int)e.PublisherId, (long)e.InstrumentId, e.Id, e.EventId, e.CommandId, e.AggregateId, e.EventSource, e.ReceivedOn, (long)data.SourceSequence, data.EventTimestampNanoseconds, data.ReceiveTimestampNanoseconds, (short)data.HeaderFlags, data.PriceRaw, data.Price, (long)data.Size, (short)data.Action, (short)data.Side, (short)data.DbnFlags]);
-            return context.Use($"{nameof(TradeTickQuoteDbCql)}.{nameof(TradeTickQuoteDbCql.InsertTickTradeData)}", TradeTickQuoteDbCql.InsertTickTradeData)
+            return context.Use($"{nameof(TradeTickQuoteDbSql)}.{nameof(TradeTickQuoteDbSql.InsertTickTradeData)}", TradeTickQuoteDbSql.InsertTickTradeData)
             .SetParameters(preparedParameters1)
             .ExecuteCommandAsync();
         }
@@ -38,7 +38,7 @@ internal static class TradeTickQuoteDbContextExtensions
         internal Task InsertTickQuoteDataAsyncCore(FuturesTickQuoteDataInsertedEvent e)
         {
             var preparedParameters = e.CreateQuoteParameters();
-            return context.Use($"{nameof(TradeTickQuoteDbCql)}.{nameof(TradeTickQuoteDbCql.InsertTickQuoteData)}", TradeTickQuoteDbCql.InsertTickQuoteData)
+            return context.Use($"{nameof(TradeTickQuoteDbSql)}.{nameof(TradeTickQuoteDbSql.InsertTickQuoteData)}", TradeTickQuoteDbSql.InsertTickQuoteData)
             .SetParameters(preparedParameters)
             .ExecuteCommandAsync();
         }
@@ -54,10 +54,10 @@ internal static class TradeTickQuoteDbContextExtensions
             {
                 foreach (var batch in partition.Chunk(24))
                 {
-                    List<object> commands = [context.Use(nameof(TradeTickQuoteDbCql.InsertFuturesTickData), TradeTickQuoteDbCql.InsertFuturesTickData)
+                    List<object> commands = [context.Use(nameof(TradeTickQuoteDbSql.InsertFuturesTickData), TradeTickQuoteDbSql.InsertFuturesTickData)
             .SetParameters(batch.Select(row => new InsertFuturesTickData(row.ContractId, row.ValueDate, row.TickId, row.TickTime, row.Price, row.Size)))
             .QueueCommand(),
-                context.Use(nameof(TradeTickQuoteDbCql.InsertFuturesTickDataByTime), TradeTickQuoteDbCql.InsertFuturesTickDataByTime)
+                context.Use(nameof(TradeTickQuoteDbSql.InsertFuturesTickDataByTime), TradeTickQuoteDbSql.InsertFuturesTickDataByTime)
             .SetParameters(batch.Select(row => new InsertFuturesTickDataByTime(row.ContractId, row.ValueDate, row.TickTime, row.TickId, row.Price, row.Size)))
             .QueueCommand()];
                     await context.ExecuteQueuedCommandsAsync(commands, useTransaction: true)
@@ -73,7 +73,7 @@ internal static class TradeTickQuoteDbContextExtensions
 
         internal Task InsertFuturesOptionTickDataAsyncCore(ICollection<FuturesOptionTickDataV2ReadModel> values)
         {
-            return context.Use(nameof(TradeTickQuoteDbCql.InsertFuturesOptionTickData), TradeTickQuoteDbCql.InsertFuturesOptionTickData)
+            return context.Use(nameof(TradeTickQuoteDbSql.InsertFuturesOptionTickData), TradeTickQuoteDbSql.InsertFuturesOptionTickData)
             .SetParameters(values.Select(row => new InsertFuturesOptionTickData(row.ContractId, row.ValueDate, row.TickId, row.TickTime, row.OptionPrice, row.BidPrice, row.AskPrice, row.BidSize, row.AskSize, row.ImpliedVolatility, row.UnderlyingPrice, row.Delta, row.Gamma, row.Vega, row.Theta, row.Rho)))
             .ExecuteCommandAsync();
         }

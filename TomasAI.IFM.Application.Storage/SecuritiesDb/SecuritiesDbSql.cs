@@ -1,310 +1,515 @@
 namespace TomasAI.IFM.Application.Storage.SecuritiesDb;
 
-/// <summary>Native PostgreSQL option-definition queries with explicit deterministic ordering.</summary>
-internal static class SecuritiesDbSql
+/// <summary>SQL statements and query templates for Securities storage.</summary>
+public static class SecuritiesDbSql
 {
-    /// <summary>Reads native reconciliation keys without CQL projection journals.</summary>
-    internal const string GetFuturesContractProjectionSourceKeys = "SELECT symbol, rollover, onTheRun, lastTradeDate, contractId FROM securities.futures_contract;";
-
-    /// <summary>Reads native reconciliation keys without CQL projection journals.</summary>
-    internal const string GetFuturesContractProjectionTargetKeys = "SELECT symbol, rollover, onTheRun, lastTradeDate, contractId FROM securities.futures_contract_by_symbol;";
-
-    /// <summary>Reads native reconciliation keys without CQL projection journals.</summary>
-    internal const string GetFuturesOptionContractProjectionSourceKeys = "SELECT symbol, contractMonth, optionType, strikePrice, contractId FROM securities.futures_option_contract;";
-
-    /// <summary>Reads native reconciliation keys without CQL projection journals.</summary>
-    internal const string GetFuturesOptionContractProjectionTargetKeys = "SELECT symbol, contractMonth, optionType, strikePrice, contractId FROM securities.futures_option_contract_by_symbol;";
-
-
-    /// <summary>Fences catalog CRUD and projection reads/writes for one atomic rebuild.</summary>
-    internal const string LockSymbolProjectionRebuild = """
-        LOCK TABLE securities.futures_contract, securities.futures_option_contract,
-            securities.futures_contract_by_symbol, securities.futures_option_contract_by_symbol
-            IN SHARE ROW EXCLUSIVE MODE;
-        """;
-
-    /// <summary>Rejects ambiguous canonical IDs before modifying either projection.</summary>
-    internal const string HasAmbiguousCanonicalContractIds = """
-        SELECT EXISTS (SELECT contractId FROM securities.futures_contract GROUP BY contractId HAVING count(*) > 1)
-            OR EXISTS (SELECT contractId FROM securities.futures_option_contract GROUP BY contractId HAVING count(*) > 1);
+    /// <summary>SQL for catalog projection has rows.</summary>
+    internal const string CatalogProjectionHasRows =
+        """
+        SELECT EXISTS (SELECT FROM securities.futures_contract UNION ALL SELECT FROM securities.futures_contract_by_symbol
+            UNION ALL SELECT FROM securities.futures_option_contract UNION ALL SELECT FROM securities.futures_option_contract_by_symbol);
         """;
 
     /// <summary>Clears only derived catalog rows inside the rebuild transaction.</summary>
-    internal const string ClearSymbolProjections = """
+    internal const string ClearSymbolProjections =
+        """
         DELETE FROM securities.futures_contract_by_symbol;
         DELETE FROM securities.futures_option_contract_by_symbol;
         """;
 
-    /// <summary>Rebuilds the futures symbol projection, preserving the exact reference payload.</summary>
-    internal const string RebuildFuturesSymbolProjection = """
-        INSERT INTO securities.futures_contract_by_symbol (contractId, description, symbol, localSymbol, securityType, currency, exchange, multiplier, lastTradeDate, onTheRun, rollover, referencePayload)
-        SELECT contractId, description, symbol, localSymbol, securityType, currency, exchange, multiplier, lastTradeDate, onTheRun, rollover, referencePayload FROM securities.futures_contract;
+    /// <summary>Reads option pricing reference bundle rows.</summary>
+    internal const string DbContextExtensions_GetOptionPricingReferenceBundlePayloadCoreAsync_1 =
+        """
+        SELECT payload FROM securities.option_pricing_reference_bundle WHERE bundle_id=$1;
         """;
 
-    /// <summary>Rebuilds the option symbol projection, preserving the exact reference payload.</summary>
-    internal const string RebuildOptionSymbolProjection = """
-        INSERT INTO securities.futures_option_contract_by_symbol (contractId, description, symbol, localSymbol, securityType, currency, exchange, multiplier, contractMonth, strikePrice, optionType, referencePayload)
-        SELECT contractId, description, symbol, localSymbol, securityType, currency, exchange, multiplier, contractMonth, strikePrice, optionType, referencePayload FROM securities.futures_option_contract;
+    /// <summary>Reads securities reference version rows.</summary>
+    internal const string DbContextExtensions_ListReferenceVersionsCoreAsync_1 =
+        """
+        SELECT version,published
+        FROM securities.securities_reference_version
+        WHERE contract_id=$1 AND version>$2 ORDER BY version COLLATE "C" LIMIT $3;
         """;
 
-    public const string GetNativeOptionContractsPage = """
-        SELECT contractId AS "ContractId", description AS "Description", symbol AS "Symbol", localSymbol AS "LocalSymbol", securityType AS "SecurityType", currency AS "Currency", exchange AS "Exchange", multiplier AS "Multiplier", contractMonth AS "ContractMonth", strikePrice AS "StrikePrice", optionType AS "OptionType", referencePayload AS "ReferencePayload" FROM securities.futures_option_contract_by_symbol WHERE symbol = $1
-          AND ($2::date IS NULL OR (contractMonth,optionType COLLATE "C",strikePrice,contractId COLLATE "C") > ($2,$3,$4,$5))
-        ORDER BY contractMonth,optionType COLLATE "C",strikePrice,contractId COLLATE "C" LIMIT $6;
+    /// <summary>Reads securities reference version rows.</summary>
+    internal const string DbContextExtensions_ReadReferenceVersionAsync_1 =
+        """
+        SELECT digest,published,payload
+        FROM securities.securities_reference_version WHERE contract_id=$1 AND version=$2;
         """;
 
-    public const string InsertFuturesContractRolloverIfMissing = """
-        INSERT INTO securities.futures_contract_rollover(symbol,createdOn,createdBy) VALUES($1,$2,$3)
-        ON CONFLICT(symbol) DO NOTHING;
+    /// <summary>Deletes futures contract by symbol rows.</summary>
+    internal const string DbContextExtensions_RemoveFuturesContractAsyncCoreBinding_1 =
+        """
+        DELETE FROM securities.futures_contract_by_symbol WHERE contractid=$1;
         """;
 
-    public const string GetOptionContractExpiryCalendarState = """
-        SELECT generation,coverageFrom,coverageThrough,refreshedAtUtc
-        FROM securities.option_contract_expiry_calendar_state WHERE symbol=$1;
-        """;
-    public const string GetOptionContractExpiries = """
-        SELECT symbol,underlyingContractId,expiryDate,providerRoot,optionFamily,refreshedAtUtc
-        FROM securities.option_contract_expiry_calendar
-        WHERE symbol=$1 AND generation=$2 AND expiryDate>=$3 AND expiryDate<=$4
-        ORDER BY expiryDate,providerRoot,contractId;
-        """;
-    public const string GetCachedOptionContractDefinitions = """
-        SELECT symbol,underlyingContractId,expiryDate,providerRoot,optionFamily,definitionPayload,refreshedAtUtc
-        FROM securities.option_contract_expiry_calendar WHERE symbol=$1 AND generation=$2 AND expiryDate=$3
-        ORDER BY providerRoot,contractId;
+    /// <summary>Deletes futures contract rows.</summary>
+    internal const string DbContextExtensions_RemoveFuturesContractAsyncCoreBinding_2 =
+        """
+        DELETE FROM securities.futures_contract WHERE contractid=$1;
         """;
 
-    public const string GetCachedOptionDefinitionPartitions = """
-        SELECT symbol,underlyingContractId,expiryDate,providerRoot,optionFamily,definitionPayload,refreshedAtUtc
-        FROM securities.option_contract_expiry_calendar WHERE symbol=$1 AND generation=$2 AND expiryDate=ANY($3::date[])
-        ORDER BY expiryDate,providerRoot,contractId;
+    /// <summary>Deletes futures option contract by symbol rows.</summary>
+    internal const string DbContextExtensions_RemoveOptionContractAsyncCoreBinding_1 =
+        """
+        DELETE FROM securities.futures_option_contract_by_symbol WHERE contractid=$1;
         """;
 
-    /// <summary>Native PostgreSQL securities persistence.</summary>
-    public const string GetFuturesContractRollover = """
-        SELECT symbol, contractId, nextRolloverDate, updatedOn, updatedBy, createdOn, createdBy FROM securities.futures_contract_rollover WHERE symbol = $1 ORDER BY symbol;
+    /// <summary>Deletes futures option contract rows.</summary>
+    internal const string DbContextExtensions_RemoveOptionContractAsyncCoreBinding_2 =
+        """
+        DELETE FROM securities.futures_option_contract WHERE contractid=$1;
         """;
 
-    /// <summary>Native PostgreSQL securities persistence.</summary>
-    public const string GetFuturesContractRollovers = """
-        SELECT symbol, contractId, nextRolloverDate, updatedOn, updatedBy, createdOn, createdBy FROM securities.futures_contract_rollover ORDER BY symbol;
+    /// <summary>Reads securities reference identity rows.</summary>
+    internal const string DbContextExtensions_ResolveOptionReferenceIdentitiesCoreAsync_1 =
+        """
+        SELECT identity_key,binding FROM securities.securities_reference_identity
+        WHERE identity_key IN (SELECT jsonb_array_elements_text($1::jsonb));
         """;
 
-    /// <summary>Native PostgreSQL securities persistence.</summary>
-    public const string UpdateFuturesContractRollover = """
-        UPDATE securities.futures_contract_rollover SET contractId = $1, nextRolloverDate = $2, updatedOn = $3, updatedBy = $4 WHERE symbol = $5;
-        """;
-
-    /// <summary>Native PostgreSQL securities persistence.</summary>
-    public const string DeleteFuturesContract = """
-        DELETE FROM securities.futures_contract WHERE contractId = $1;
+    /// <summary>Reads unnest rows.</summary>
+    internal const string DbContext_GetManyAsync_1 =
+        """
+        SELECT v.contract_id, v.version, v.digest, v.published, v.payload
+        FROM unnest($1::text[], $2::text[]) AS requested(contract_id, version)
+        JOIN securities.securities_reference_version v USING (contract_id, version);
         """;
 
     /// <summary>Native PostgreSQL securities persistence.</summary>
-    public const string DeleteFuturesContractById = """
-        DELETE FROM securities.futures_contract WHERE contractId = $1 AND symbol = $2 AND lastTradeDate = $3;
+    internal const string DeleteFuturesContract =
+        """
+        DELETE FROM securities.futures_contract WHERE contractid = $1;
         """;
 
     /// <summary>Native PostgreSQL securities persistence.</summary>
-    public const string DeleteFuturesOptionContract = """
-        DELETE FROM securities.futures_option_contract WHERE contractId = $1;
+    internal const string DeleteFuturesContractById =
+        """
+        DELETE FROM securities.futures_contract WHERE contractid = $1 AND symbol = $2 AND lasttradedate = $3;
         """;
 
     /// <summary>Native PostgreSQL securities persistence.</summary>
-    public const string DeleteFuturesOptionContractById = """
-        DELETE FROM securities.futures_option_contract WHERE contractId = $1 AND contractMonth = $2 AND symbol = $3 AND optionType = $4 AND strikePrice = $5;
+    internal const string DeleteFuturesContractBySymbolV3 =
+        """
+        DELETE
+        FROM securities.futures_contract_by_symbol
+        WHERE symbol = $1 AND rollover = $2 AND ontherun = $3 AND lasttradedate = $4 AND contractid = $5;
         """;
 
     /// <summary>Native PostgreSQL securities persistence.</summary>
-    public const string DeleteFuturesContractBySymbolV3 = """
-        DELETE FROM securities.futures_contract_by_symbol WHERE symbol = $1 AND rollover = $2 AND onTheRun = $3 AND lastTradeDate = $4 AND contractId = $5;
-        """;
-
-    /// <summary>Native PostgreSQL securities persistence.</summary>
-    public const string DeleteFuturesOptionContractBySymbolV2 = """
-        DELETE FROM securities.futures_option_contract_by_symbol WHERE symbol = $1 AND contractMonth = $2 AND optionType = $3 AND strikePrice = $4 AND contractId = $5;
-        """;
-
-    /// <summary>Native PostgreSQL securities persistence.</summary>
-    public const string DeleteFuturesContractBySymbolV3Partition = """
+    internal const string DeleteFuturesContractBySymbolV3Partition =
+        """
         DELETE FROM securities.futures_contract_by_symbol WHERE symbol = $1;
         """;
 
     /// <summary>Native PostgreSQL securities persistence.</summary>
-    public const string DeleteFuturesOptionContractBySymbolV2Partition = """
+    internal const string DeleteFuturesOptionContract =
+        """
+        DELETE FROM securities.futures_option_contract WHERE contractid = $1;
+        """;
+
+    /// <summary>Native PostgreSQL securities persistence.</summary>
+    internal const string DeleteFuturesOptionContractById =
+        """
+        DELETE
+        FROM securities.futures_option_contract
+        WHERE contractid = $1 AND contractmonth = $2 AND symbol = $3 AND optiontype = $4 AND strikeprice = $5;
+        """;
+
+    /// <summary>Native PostgreSQL securities persistence.</summary>
+    internal const string DeleteFuturesOptionContractBySymbolV2 =
+        """
+        DELETE
+        FROM securities.futures_option_contract_by_symbol
+        WHERE symbol = $1 AND contractmonth = $2 AND optiontype = $3 AND strikeprice = $4 AND contractid = $5;
+        """;
+
+    /// <summary>Native PostgreSQL securities persistence.</summary>
+    internal const string DeleteFuturesOptionContractBySymbolV2Partition =
+        """
         DELETE FROM securities.futures_option_contract_by_symbol WHERE symbol = $1;
         """;
 
-    /// <summary>Native PostgreSQL securities persistence.</summary>
-    public const string GetOnTheRunFuturesContract = """
-        SELECT contractId AS "ContractId", description AS "Description", symbol AS "Symbol", localSymbol AS "LocalSymbol", securityType AS "SecurityType", currency AS "Currency", exchange AS "Exchange", multiplier AS "Multiplier", lastTradeDate AS "LastTradeDate", onTheRun AS "OnTheRun", rollover AS "Rollover", referencePayload AS "ReferencePayload" FROM securities.futures_contract_by_symbol WHERE symbol = $1 AND rollover = true AND onTheRun = true ORDER BY lastTradeDate ASC, contractId ASC LIMIT 1;
+    /// <summary>SQL for get cached option contract definitions.</summary>
+    internal const string GetCachedOptionContractDefinitions =
+        """
+        SELECT symbol,underlyingcontractid,expirydate,providerroot,optionfamily,definitionpayload,refreshedatutc
+        FROM securities.option_contract_expiry_calendar WHERE symbol=$1 AND generation=$2 AND expirydate=$3
+        ORDER BY providerroot,contractid;
+        """;
+
+    /// <summary>SQL for get cached option definition partitions.</summary>
+    internal const string GetCachedOptionDefinitionPartitions =
+        """
+        SELECT symbol,underlyingcontractid,expirydate,providerroot,optionfamily,definitionpayload,refreshedatutc
+        FROM securities.option_contract_expiry_calendar
+        WHERE symbol=$1 AND generation=$2 AND expirydate=ANY($3::date[])
+        ORDER BY expirydate,providerroot,contractid;
         """;
 
     /// <summary>Native PostgreSQL securities persistence.</summary>
-    public const string GetRolloverFuturesContracts = """
-        SELECT contractId AS "ContractId", description AS "Description", symbol AS "Symbol", localSymbol AS "LocalSymbol", securityType AS "SecurityType", currency AS "Currency", exchange AS "Exchange", multiplier AS "Multiplier", lastTradeDate AS "LastTradeDate", onTheRun AS "OnTheRun", rollover AS "Rollover", referencePayload AS "ReferencePayload" FROM securities.futures_contract_by_symbol WHERE symbol = $1 AND rollover = true ORDER BY onTheRun DESC, lastTradeDate ASC, contractId;
+    internal const string GetFuturesContract =
+        """
+        SELECT contractid AS "ContractId", description AS "Description", symbol AS "Symbol",
+            localsymbol AS "LocalSymbol", securitytype AS "SecurityType", currency AS "Currency", exchange AS "Exchange",
+            multiplier AS "Multiplier", lasttradedate AS "LastTradeDate", ontherun AS "OnTheRun", rollover AS "Rollover",
+            referencepayload AS "ReferencePayload"
+        FROM securities.futures_contract WHERE contractid = $1 ORDER BY lasttradedate DESC, contractid;
         """;
 
     /// <summary>Native PostgreSQL securities persistence.</summary>
-    public const string GetFuturesContract = """
-        SELECT contractId AS "ContractId", description AS "Description", symbol AS "Symbol", localSymbol AS "LocalSymbol", securityType AS "SecurityType", currency AS "Currency", exchange AS "Exchange", multiplier AS "Multiplier", lastTradeDate AS "LastTradeDate", onTheRun AS "OnTheRun", rollover AS "Rollover", referencePayload AS "ReferencePayload" FROM securities.futures_contract WHERE contractId = $1 ORDER BY lastTradeDate DESC, contractId;
+    internal const string GetFuturesContractById =
+        """
+        SELECT contractid AS "ContractId", description AS "Description", symbol AS "Symbol",
+            localsymbol AS "LocalSymbol", securitytype AS "SecurityType", currency AS "Currency", exchange AS "Exchange",
+            multiplier AS "Multiplier", lasttradedate AS "LastTradeDate", ontherun AS "OnTheRun", rollover AS "Rollover",
+            referencepayload AS "ReferencePayload"
+        FROM securities.futures_contract
+        WHERE contractid = $1 AND symbol = $2 AND lasttradedate = $3 ORDER BY lasttradedate DESC, contractid;
+        """;
+
+    /// <summary>Reads native reconciliation keys without CQL projection journals.</summary>
+    internal const string GetFuturesContractProjectionSourceKeys =
+        """
+        SELECT symbol, rollover, ontherun, lasttradedate, contractid FROM securities.futures_contract;
+        """;
+
+    /// <summary>Reads native reconciliation keys without CQL projection journals.</summary>
+    internal const string GetFuturesContractProjectionTargetKeys =
+        """
+        SELECT symbol, rollover, ontherun, lasttradedate, contractid FROM securities.futures_contract_by_symbol;
         """;
 
     /// <summary>Native PostgreSQL securities persistence.</summary>
-    public const string GetFuturesContractById = """
-        SELECT contractId AS "ContractId", description AS "Description", symbol AS "Symbol", localSymbol AS "LocalSymbol", securityType AS "SecurityType", currency AS "Currency", exchange AS "Exchange", multiplier AS "Multiplier", lastTradeDate AS "LastTradeDate", onTheRun AS "OnTheRun", rollover AS "Rollover", referencePayload AS "ReferencePayload" FROM securities.futures_contract WHERE contractId = $1 AND symbol = $2 AND lastTradeDate = $3 ORDER BY lastTradeDate DESC, contractId;
+    internal const string GetFuturesContractRollover =
+        """
+        SELECT symbol, contractid, nextrolloverdate, updatedon, updatedby, createdon, createdby
+        FROM securities.futures_contract_rollover WHERE symbol = $1 ORDER BY symbol;
         """;
 
     /// <summary>Native PostgreSQL securities persistence.</summary>
-    public const string GetFuturesContracts = """
-        SELECT contractId AS "ContractId", description AS "Description", symbol AS "Symbol", localSymbol AS "LocalSymbol", securityType AS "SecurityType", currency AS "Currency", exchange AS "Exchange", multiplier AS "Multiplier", lastTradeDate AS "LastTradeDate", onTheRun AS "OnTheRun", rollover AS "Rollover", referencePayload AS "ReferencePayload" FROM securities.futures_contract ORDER BY lastTradeDate DESC, contractId;
+    internal const string GetFuturesContractRollovers =
+        """
+        SELECT symbol, contractid, nextrolloverdate, updatedon, updatedby, createdon, createdby
+        FROM securities.futures_contract_rollover ORDER BY symbol;
         """;
 
     /// <summary>Native PostgreSQL securities persistence.</summary>
-    public const string GetFuturesContractsByIds = """
-        SELECT contractId AS "ContractId", description AS "Description", symbol AS "Symbol", localSymbol AS "LocalSymbol", securityType AS "SecurityType", currency AS "Currency", exchange AS "Exchange", multiplier AS "Multiplier", lastTradeDate AS "LastTradeDate", onTheRun AS "OnTheRun", rollover AS "Rollover", referencePayload AS "ReferencePayload" FROM securities.futures_contract WHERE contractId = ANY($1) AND symbol = $2 ORDER BY lastTradeDate DESC, contractId;
+    internal const string GetFuturesContracts =
+        """
+        SELECT contractid AS "ContractId", description AS "Description", symbol AS "Symbol",
+            localsymbol AS "LocalSymbol", securitytype AS "SecurityType", currency AS "Currency", exchange AS "Exchange",
+            multiplier AS "Multiplier", lasttradedate AS "LastTradeDate", ontherun AS "OnTheRun", rollover AS "Rollover",
+            referencepayload AS "ReferencePayload"
+        FROM securities.futures_contract ORDER BY lasttradedate DESC, contractid;
         """;
 
     /// <summary>Native PostgreSQL securities persistence.</summary>
-    public const string GetFuturesContractsBySymbol = """
-        SELECT contractId AS "ContractId", description AS "Description", symbol AS "Symbol", localSymbol AS "LocalSymbol", securityType AS "SecurityType", currency AS "Currency", exchange AS "Exchange", multiplier AS "Multiplier", lastTradeDate AS "LastTradeDate", onTheRun AS "OnTheRun", rollover AS "Rollover", referencePayload AS "ReferencePayload" FROM securities.futures_contract_by_symbol WHERE symbol = $1 ORDER BY lastTradeDate DESC, contractId;
+    internal const string GetFuturesContractsByIds =
+        """
+        SELECT contractid AS "ContractId", description AS "Description", symbol AS "Symbol",
+            localsymbol AS "LocalSymbol", securitytype AS "SecurityType", currency AS "Currency", exchange AS "Exchange",
+            multiplier AS "Multiplier", lasttradedate AS "LastTradeDate", ontherun AS "OnTheRun", rollover AS "Rollover",
+            referencepayload AS "ReferencePayload"
+        FROM securities.futures_contract
+        WHERE contractid = ANY($1) AND symbol = $2 ORDER BY lasttradedate DESC, contractid;
         """;
 
     /// <summary>Native PostgreSQL securities persistence.</summary>
-    public const string GetFuturesOptionContract = """
-        SELECT contractId AS "ContractId", description AS "Description", symbol AS "Symbol", localSymbol AS "LocalSymbol", securityType AS "SecurityType", currency AS "Currency", exchange AS "Exchange", multiplier AS "Multiplier", contractMonth AS "ContractMonth", strikePrice AS "StrikePrice", optionType AS "OptionType", referencePayload AS "ReferencePayload" FROM securities.futures_option_contract WHERE contractId = $1 ORDER BY contractMonth, optionType, strikePrice, contractId;
+    internal const string GetFuturesContractsBySymbol =
+        """
+        SELECT contractid AS "ContractId", description AS "Description", symbol AS "Symbol",
+            localsymbol AS "LocalSymbol", securitytype AS "SecurityType", currency AS "Currency", exchange AS "Exchange",
+            multiplier AS "Multiplier", lasttradedate AS "LastTradeDate", ontherun AS "OnTheRun", rollover AS "Rollover",
+            referencepayload AS "ReferencePayload"
+        FROM securities.futures_contract_by_symbol WHERE symbol = $1 ORDER BY lasttradedate DESC, contractid;
         """;
 
     /// <summary>Native PostgreSQL securities persistence.</summary>
-    public const string GetFuturesOptionContractsByIds = """
-        SELECT contractId AS "ContractId", description AS "Description", symbol AS "Symbol", localSymbol AS "LocalSymbol", securityType AS "SecurityType", currency AS "Currency", exchange AS "Exchange", multiplier AS "Multiplier", contractMonth AS "ContractMonth", strikePrice AS "StrikePrice", optionType AS "OptionType", referencePayload AS "ReferencePayload" FROM securities.futures_option_contract WHERE contractId = ANY($1) ORDER BY contractMonth, optionType, strikePrice, contractId;
+    internal const string GetFuturesOptionContract =
+        """
+        SELECT contractid AS "ContractId", description AS "Description", symbol AS "Symbol",
+            localsymbol AS "LocalSymbol", securitytype AS "SecurityType", currency AS "Currency", exchange AS "Exchange",
+            multiplier AS "Multiplier", contractmonth AS "ContractMonth", strikeprice AS "StrikePrice",
+            optiontype AS "OptionType", referencepayload AS "ReferencePayload"
+        FROM securities.futures_option_contract
+        WHERE contractid = $1 ORDER BY contractmonth, optiontype, strikeprice, contractid;
+        """;
+
+    /// <summary>Reads native reconciliation keys without CQL projection journals.</summary>
+    internal const string GetFuturesOptionContractProjectionSourceKeys =
+        """
+        SELECT symbol, contractmonth, optiontype, strikeprice, contractid
+        FROM securities.futures_option_contract;
+        """;
+
+    /// <summary>Reads native reconciliation keys without CQL projection journals.</summary>
+    internal const string GetFuturesOptionContractProjectionTargetKeys =
+        """
+        SELECT symbol, contractmonth, optiontype, strikeprice, contractid
+        FROM securities.futures_option_contract_by_symbol;
         """;
 
     /// <summary>Native PostgreSQL securities persistence.</summary>
-    public const string GetFuturesOptionContracts = """
-        SELECT contractId AS "ContractId", description AS "Description", symbol AS "Symbol", localSymbol AS "LocalSymbol", securityType AS "SecurityType", currency AS "Currency", exchange AS "Exchange", multiplier AS "Multiplier", contractMonth AS "ContractMonth", strikePrice AS "StrikePrice", optionType AS "OptionType", referencePayload AS "ReferencePayload" FROM securities.futures_option_contract ORDER BY contractMonth, optionType, strikePrice, contractId;
+    internal const string GetFuturesOptionContracts =
+        """
+        SELECT contractid AS "ContractId", description AS "Description", symbol AS "Symbol",
+            localsymbol AS "LocalSymbol", securitytype AS "SecurityType", currency AS "Currency", exchange AS "Exchange",
+            multiplier AS "Multiplier", contractmonth AS "ContractMonth", strikeprice AS "StrikePrice",
+            optiontype AS "OptionType", referencepayload AS "ReferencePayload"
+        FROM securities.futures_option_contract ORDER BY contractmonth, optiontype, strikeprice, contractid;
         """;
 
     /// <summary>Native PostgreSQL securities persistence.</summary>
-    public const string GetFuturesOptionContractsBySymbol = """
-        SELECT contractId AS "ContractId", description AS "Description", symbol AS "Symbol", localSymbol AS "LocalSymbol", securityType AS "SecurityType", currency AS "Currency", exchange AS "Exchange", multiplier AS "Multiplier", contractMonth AS "ContractMonth", strikePrice AS "StrikePrice", optionType AS "OptionType", referencePayload AS "ReferencePayload" FROM securities.futures_option_contract_by_symbol WHERE symbol = $1 ORDER BY contractMonth, optionType, strikePrice, contractId;
+    internal const string GetFuturesOptionContractsByIds =
+        """
+        SELECT contractid AS "ContractId", description AS "Description", symbol AS "Symbol",
+            localsymbol AS "LocalSymbol", securitytype AS "SecurityType", currency AS "Currency", exchange AS "Exchange",
+            multiplier AS "Multiplier", contractmonth AS "ContractMonth", strikeprice AS "StrikePrice",
+            optiontype AS "OptionType", referencepayload AS "ReferencePayload"
+        FROM securities.futures_option_contract
+        WHERE contractid = ANY($1) ORDER BY contractmonth, optiontype, strikeprice, contractid;
         """;
 
     /// <summary>Native PostgreSQL securities persistence.</summary>
-    public const string InsertFuturesContract = """
-        INSERT INTO securities.futures_contract ( contractId, description, symbol, localSymbol, securityType, currency, exchange, multiplier, lastTradeDate, onTheRun, rollover, referencePayload ) VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12 ) ON CONFLICT (contractId, symbol, lastTradeDate) DO UPDATE SET description = EXCLUDED.description, localSymbol = EXCLUDED.localSymbol, securityType = EXCLUDED.securityType, currency = EXCLUDED.currency, exchange = EXCLUDED.exchange, multiplier = EXCLUDED.multiplier, onTheRun = EXCLUDED.onTheRun, rollover = EXCLUDED.rollover, referencePayload = EXCLUDED.referencePayload;
+    internal const string GetFuturesOptionContractsBySymbol =
+        """
+        SELECT contractid AS "ContractId", description AS "Description", symbol AS "Symbol",
+            localsymbol AS "LocalSymbol", securitytype AS "SecurityType", currency AS "Currency", exchange AS "Exchange",
+            multiplier AS "Multiplier", contractmonth AS "ContractMonth", strikeprice AS "StrikePrice",
+            optiontype AS "OptionType", referencepayload AS "ReferencePayload"
+        FROM securities.futures_option_contract_by_symbol
+        WHERE symbol = $1 ORDER BY contractmonth, optiontype, strikeprice, contractid;
+        """;
+
+    /// <summary>SQL for get native option contracts page.</summary>
+    internal const string GetNativeOptionContractsPage =
+        """
+        SELECT contractid AS "ContractId", description AS "Description", symbol AS "Symbol",
+            localsymbol AS "LocalSymbol", securitytype AS "SecurityType", currency AS "Currency", exchange AS "Exchange",
+            multiplier AS "Multiplier", contractmonth AS "ContractMonth", strikeprice AS "StrikePrice",
+            optiontype AS "OptionType", referencepayload AS "ReferencePayload"
+        FROM securities.futures_option_contract_by_symbol WHERE symbol = $1
+          AND ($2::date IS NULL OR (contractmonth,optiontype COLLATE "C",strikeprice,contractid COLLATE "C") > ($2,$3,$4,$5))
+        ORDER BY contractmonth,optiontype COLLATE "C",strikeprice,contractid COLLATE "C" LIMIT $6;
         """;
 
     /// <summary>Native PostgreSQL securities persistence.</summary>
-    public const string InsertFuturesContractBySymbolV3 = """
-        INSERT INTO securities.futures_contract_by_symbol ( contractId, description, symbol, localSymbol, securityType, currency, exchange, multiplier, lastTradeDate, onTheRun, rollover, referencePayload ) VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12 ) ON CONFLICT (symbol, rollover, onTheRun, lastTradeDate, contractId) DO UPDATE SET description = EXCLUDED.description, localSymbol = EXCLUDED.localSymbol, securityType = EXCLUDED.securityType, currency = EXCLUDED.currency, exchange = EXCLUDED.exchange, multiplier = EXCLUDED.multiplier, referencePayload = EXCLUDED.referencePayload;
+    internal const string GetOnTheRunFuturesContract =
+        """
+        SELECT contractid AS "ContractId", description AS "Description", symbol AS "Symbol",
+            localsymbol AS "LocalSymbol", securitytype AS "SecurityType", currency AS "Currency", exchange AS "Exchange",
+            multiplier AS "Multiplier", lasttradedate AS "LastTradeDate", ontherun AS "OnTheRun", rollover AS "Rollover",
+            referencepayload AS "ReferencePayload"
+        FROM securities.futures_contract_by_symbol
+        WHERE symbol = $1 AND rollover = TRUE AND ontherun = TRUE
+        ORDER BY lasttradedate ASC, contractid ASC LIMIT 1;
+        """;
+
+    /// <summary>SQL for get option contract expiries.</summary>
+    internal const string GetOptionContractExpiries =
+        """
+        SELECT symbol,underlyingcontractid,expirydate,providerroot,optionfamily,refreshedatutc
+        FROM securities.option_contract_expiry_calendar
+        WHERE symbol=$1 AND generation=$2 AND expirydate>=$3 AND expirydate<=$4
+        ORDER BY expirydate,providerroot,contractid;
+        """;
+
+    /// <summary>SQL for get option contract expiry calendar state.</summary>
+    internal const string GetOptionContractExpiryCalendarState =
+        """
+        SELECT generation,coveragefrom,coveragethrough,refreshedatutc
+        FROM securities.option_contract_expiry_calendar_state WHERE symbol=$1;
         """;
 
     /// <summary>Native PostgreSQL securities persistence.</summary>
-    public const string InsertFuturesOptionContract = """
-        INSERT INTO securities.futures_option_contract ( contractId, description, symbol, localSymbol, securityType, currency, exchange, multiplier, contractMonth, strikePrice, optionType, referencePayload ) VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12 ) ON CONFLICT (contractId, contractMonth, symbol, optionType, strikePrice) DO UPDATE SET description = EXCLUDED.description, localSymbol = EXCLUDED.localSymbol, securityType = EXCLUDED.securityType, currency = EXCLUDED.currency, exchange = EXCLUDED.exchange, multiplier = EXCLUDED.multiplier, referencePayload = EXCLUDED.referencePayload;
+    internal const string GetRolloverFuturesContracts =
+        """
+        SELECT contractid AS "ContractId", description AS "Description", symbol AS "Symbol",
+            localsymbol AS "LocalSymbol", securitytype AS "SecurityType", currency AS "Currency", exchange AS "Exchange",
+            multiplier AS "Multiplier", lasttradedate AS "LastTradeDate", ontherun AS "OnTheRun", rollover AS "Rollover",
+            referencepayload AS "ReferencePayload"
+        FROM securities.futures_contract_by_symbol
+        WHERE symbol = $1 AND rollover = TRUE ORDER BY ontherun DESC, lasttradedate ASC, contractid;
+        """;
+
+    /// <summary>Rejects ambiguous canonical IDs before modifying either projection.</summary>
+    internal const string HasAmbiguousCanonicalContractIds =
+        """
+        SELECT EXISTS (SELECT contractid FROM securities.futures_contract GROUP BY contractid HAVING COUNT(*) > 1)
+            OR EXISTS (SELECT contractid FROM securities.futures_option_contract GROUP BY contractid HAVING COUNT(*) > 1);
         """;
 
     /// <summary>Native PostgreSQL securities persistence.</summary>
-    public const string InsertFuturesOptionContractBySymbolV2 = """
-        INSERT INTO securities.futures_option_contract_by_symbol ( contractId, description, symbol, localSymbol, securityType, currency, exchange, multiplier, contractMonth, strikePrice, optionType, referencePayload ) VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12 ) ON CONFLICT (symbol, contractMonth, optionType, strikePrice, contractId) DO UPDATE SET description = EXCLUDED.description, localSymbol = EXCLUDED.localSymbol, securityType = EXCLUDED.securityType, currency = EXCLUDED.currency, exchange = EXCLUDED.exchange, multiplier = EXCLUDED.multiplier, referencePayload = EXCLUDED.referencePayload;
+    internal const string InsertFuturesContract =
+        """
+        INSERT INTO securities.futures_contract ( contractid, description, symbol, localsymbol, securitytype, currency,
+            exchange, multiplier, lasttradedate, ontherun, rollover, referencepayload )
+        VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12 )
+        ON CONFLICT (contractid, symbol, lasttradedate) DO UPDATE SET description = EXCLUDED.description,
+            localsymbol = EXCLUDED.localsymbol, securitytype = EXCLUDED.securitytype, currency = EXCLUDED.currency,
+            exchange = EXCLUDED.exchange, multiplier = EXCLUDED.multiplier, ontherun = EXCLUDED.ontherun,
+            rollover = EXCLUDED.rollover, referencepayload = EXCLUDED.referencepayload;
         """;
-    internal const string LockBaselineTables = """
+
+    /// <summary>Native PostgreSQL securities persistence.</summary>
+    internal const string InsertFuturesContractBySymbolV3 =
+        """
+        INSERT INTO securities.futures_contract_by_symbol ( contractid, description, symbol, localsymbol, securitytype,
+            currency, exchange, multiplier, lasttradedate, ontherun, rollover, referencepayload )
+        VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12 )
+        ON CONFLICT (symbol, rollover, ontherun, lasttradedate,
+            contractid) DO UPDATE SET description = EXCLUDED.description, localsymbol = EXCLUDED.localsymbol,
+            securitytype = EXCLUDED.securitytype, currency = EXCLUDED.currency, exchange = EXCLUDED.exchange,
+            multiplier = EXCLUDED.multiplier, referencepayload = EXCLUDED.referencepayload;
+        """;
+
+    /// <summary>SQL for insert futures contract rollover if missing.</summary>
+    internal const string InsertFuturesContractRolloverIfMissing =
+        """
+        INSERT INTO securities.futures_contract_rollover(symbol,createdon,createdby) VALUES($1,$2,$3)
+        ON CONFLICT(symbol) DO NOTHING;
+        """;
+
+    /// <summary>Native PostgreSQL securities persistence.</summary>
+    internal const string InsertFuturesOptionContract =
+        """
+        INSERT INTO securities.futures_option_contract ( contractid, description, symbol, localsymbol, securitytype,
+            currency, exchange, multiplier, contractmonth, strikeprice, optiontype, referencepayload )
+        VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12 )
+        ON CONFLICT (contractid, contractmonth, symbol, optiontype,
+            strikeprice) DO UPDATE SET description = EXCLUDED.description, localsymbol = EXCLUDED.localsymbol,
+            securitytype = EXCLUDED.securitytype, currency = EXCLUDED.currency, exchange = EXCLUDED.exchange,
+            multiplier = EXCLUDED.multiplier, referencepayload = EXCLUDED.referencepayload;
+        """;
+
+    /// <summary>Native PostgreSQL securities persistence.</summary>
+    internal const string InsertFuturesOptionContractBySymbolV2 =
+        """
+        INSERT INTO securities.futures_option_contract_by_symbol ( contractid, description, symbol, localsymbol,
+            securitytype, currency, exchange, multiplier, contractmonth, strikeprice, optiontype, referencepayload )
+        VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12 )
+        ON CONFLICT (symbol, contractmonth, optiontype, strikeprice,
+            contractid) DO UPDATE SET description = EXCLUDED.description, localsymbol = EXCLUDED.localsymbol,
+            securitytype = EXCLUDED.securitytype, currency = EXCLUDED.currency, exchange = EXCLUDED.exchange,
+            multiplier = EXCLUDED.multiplier, referencepayload = EXCLUDED.referencepayload;
+        """;
+
+    /// <summary>Inserts every definition for a single immutable generation in one command.</summary>
+    internal const string InsertOptionDefinitionGenerationRows =
+        """
+        INSERT INTO securities.option_contract_expiry_calendar
+            (symbol,generation,expirydate,providerroot,contractid,underlyingcontractid,optionfamily,definitionpayload,
+            refreshedatutc)
+        SELECT $1,$2,definition.expiry,definition.root,definition.contract_id,definition.underlying_id,definition.family,
+            definition.payload,$9
+        FROM unnest($3::date[],$4::text[],$5::text[],$6::text[],$7::text[],$8::bytea[])
+            AS definition(expiry,root,contract_id,underlying_id,family,payload);
+        """;
+
+    /// <summary>SQL for lock baseline tables.</summary>
+    internal const string LockBaselineTables =
+        """
         LOCK TABLE public.event_stream_id, public.event_log,
             securities.futures_contract, securities.futures_option_contract, securities.futures_contract_rollover
             IN SHARE ROW EXCLUSIVE MODE;
         """;
-    internal const string LockRebuildTables = """
+
+    /// <summary>SQL for lock rebuild tables.</summary>
+    internal const string LockRebuildTables =
+        """
         LOCK TABLE public.event_stream_id, public.event_log,
             securities.futures_contract, securities.futures_contract_by_symbol,
             securities.futures_option_contract, securities.futures_option_contract_by_symbol
             IN SHARE ROW EXCLUSIVE MODE;
         """;
-    internal const string CatalogProjectionHasRows = """
-        SELECT EXISTS (SELECT FROM securities.futures_contract UNION ALL SELECT FROM securities.futures_contract_by_symbol
-            UNION ALL SELECT FROM securities.futures_option_contract UNION ALL SELECT FROM securities.futures_option_contract_by_symbol);
+
+    /// <summary>Fences catalog CRUD and projection reads/writes for one atomic rebuild.</summary>
+    internal const string LockSymbolProjectionRebuild =
+        """
+        LOCK TABLE securities.futures_contract, securities.futures_option_contract,
+            securities.futures_contract_by_symbol, securities.futures_option_contract_by_symbol
+            IN SHARE ROW EXCLUSIVE MODE;
         """;
-    /// <summary>Parameter-bound persistence statement.</summary>
-    internal const string PostgresReferenceStore_InsertBundleAsync_1 = """
-            INSERT INTO securities.option_pricing_reference_bundle(bundle_id,payload) VALUES($1,$2)
-            ON CONFLICT(bundle_id) DO UPDATE SET payload=EXCLUDED.payload
-            WHERE securities.option_pricing_reference_bundle.payload=EXCLUDED.payload RETURNING bundle_id;
-            """;
+
+    /// <summary>Inserts securities reference identity rows.</summary>
+    internal const string PostgresReferenceStore_ClaimIdentityAsync_1 =
+        """
+        INSERT INTO securities.securities_reference_identity(identity_key,binding) VALUES($1,$2)
+        ON CONFLICT(identity_key) DO UPDATE SET binding=EXCLUDED.binding
+        WHERE securities.securities_reference_identity.binding=EXCLUDED.binding RETURNING identity_key;
+        """;
+
+    /// <summary>Inserts option pricing reference bundle rows.</summary>
+    internal const string PostgresReferenceStore_InsertBundleAsync_1 =
+        """
+        INSERT INTO securities.option_pricing_reference_bundle(bundle_id,payload) VALUES($1,$2)
+        ON CONFLICT(bundle_id) DO UPDATE SET payload=EXCLUDED.payload
+        WHERE securities.option_pricing_reference_bundle.payload=EXCLUDED.payload RETURNING bundle_id;
+        """;
+
+    /// <summary>Updates securities reference version rows.</summary>
+    internal const string PostgresReferenceStore_PublishAsync_1 =
+        """
+        UPDATE securities.securities_reference_version SET published=TRUE
+        WHERE contract_id=$1 AND version=$2 AND digest=$3 RETURNING version;
+        """;
 
     /// <summary>Parameter-bound persistence statement.</summary>
-    internal const string PostgresReferenceStore_ClaimIdentityAsync_1 = """
-            INSERT INTO securities.securities_reference_identity(identity_key,binding) VALUES($1,$2)
-            ON CONFLICT(identity_key) DO UPDATE SET binding=EXCLUDED.binding
-            WHERE securities.securities_reference_identity.binding=EXCLUDED.binding RETURNING identity_key;
-            """;
+    internal const string PostgresReferenceStore_PublishDefinitionsAsync_1 =
+        """
+        SELECT pg_advisory_xact_lock(hashtextextended($1,0));
+        """;
 
-    /// <summary>Parameter-bound persistence statement.</summary>
-    internal const string PostgresReferenceStore_StageAsync_1 = "SELECT binding FROM securities.securities_reference_identity WHERE identity_key=$1;";
+    /// <summary>Inserts option contract expiry calendar state rows.</summary>
+    internal const string PostgresReferenceStore_PublishDefinitionsAsync_3 =
+        """
+        INSERT INTO securities.option_contract_expiry_calendar_state(symbol,generation,coveragefrom,coveragethrough,
+            refreshedatutc)
+        VALUES($1,$2,$3,$4,$5) ON CONFLICT(symbol) DO UPDATE SET generation=EXCLUDED.generation,
+        coveragefrom=EXCLUDED.coveragefrom,coveragethrough=EXCLUDED.coveragethrough,refreshedatutc=EXCLUDED.refreshedatutc;
+        """;
 
-    /// <summary>Parameter-bound persistence statement.</summary>
-    internal const string PostgresReferenceStore_StageAsync_2 = """
-            INSERT INTO securities.securities_reference_version(contract_id,version,digest,payload,published)
-            VALUES($1,$2,$3,$4,false) ON CONFLICT(contract_id,version) DO UPDATE SET digest=EXCLUDED.digest
-            WHERE securities.securities_reference_version.digest=EXCLUDED.digest
-              AND securities.securities_reference_version.payload=EXCLUDED.payload RETURNING version;
-            """;
+    /// <summary>Reads securities reference identity rows.</summary>
+    internal const string PostgresReferenceStore_StageAsync_1 =
+        """
+        SELECT binding FROM securities.securities_reference_identity WHERE identity_key=$1;
+        """;
 
-    /// <summary>Parameter-bound persistence statement.</summary>
-    internal const string PostgresReferenceStore_PublishAsync_1 = """
-            UPDATE securities.securities_reference_version SET published=true
-            WHERE contract_id=$1 AND version=$2 AND digest=$3 RETURNING version;
-            """;
+    /// <summary>Inserts securities reference version rows.</summary>
+    internal const string PostgresReferenceStore_StageAsync_2 =
+        """
+        INSERT INTO securities.securities_reference_version(contract_id,version,digest,payload,published)
+        VALUES($1,$2,$3,$4,FALSE) ON CONFLICT(contract_id,version) DO UPDATE SET digest=EXCLUDED.digest
+        WHERE securities.securities_reference_version.digest=EXCLUDED.digest
+          AND securities.securities_reference_version.payload=EXCLUDED.payload RETURNING version;
+        """;
 
-    /// <summary>Parameter-bound persistence statement.</summary>
-    internal const string PostgresReferenceStore_PublishDefinitionsAsync_1 = "SELECT pg_advisory_xact_lock(hashtextextended($1,0));";
+    /// <summary>Rebuilds the futures symbol projection, preserving the exact reference payload.</summary>
+    internal const string RebuildFuturesSymbolProjection =
+        """
+        INSERT INTO securities.futures_contract_by_symbol (contractid, description, symbol, localsymbol, securitytype,
+            currency, exchange, multiplier, lasttradedate, ontherun, rollover, referencepayload)
+        SELECT contractid, description, symbol, localsymbol, securitytype, currency, exchange, multiplier, lasttradedate,
+            ontherun, rollover, referencepayload
+        FROM securities.futures_contract;
+        """;
 
-    /// <summary>Parameter-bound persistence statement.</summary>
-    internal const string PostgresReferenceStore_PublishDefinitionsAsync_2 = """
-                INSERT INTO securities.option_contract_expiry_calendar
-                (symbol,generation,expiryDate,providerRoot,contractId,underlyingContractId,optionFamily,definitionPayload,refreshedAtUtc)
-                VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9);
-                """;
+    /// <summary>Rebuilds the option symbol projection, preserving the exact reference payload.</summary>
+    internal const string RebuildOptionSymbolProjection =
+        """
+        INSERT INTO securities.futures_option_contract_by_symbol (contractid, description, symbol, localsymbol,
+            securitytype, currency, exchange, multiplier, contractmonth, strikeprice, optiontype, referencepayload)
+        SELECT contractid, description, symbol, localsymbol, securitytype, currency, exchange, multiplier, contractmonth,
+            strikeprice, optiontype, referencepayload
+        FROM securities.futures_option_contract;
+        """;
 
-    /// <summary>Parameter-bound persistence statement.</summary>
-    internal const string PostgresReferenceStore_PublishDefinitionsAsync_3 = """
-            INSERT INTO securities.option_contract_expiry_calendar_state(symbol,generation,coverageFrom,coverageThrough,refreshedAtUtc)
-            VALUES($1,$2,$3,$4,$5) ON CONFLICT(symbol) DO UPDATE SET generation=EXCLUDED.generation,
-            coverageFrom=EXCLUDED.coverageFrom,coverageThrough=EXCLUDED.coverageThrough,refreshedAtUtc=EXCLUDED.refreshedAtUtc;
-            """;
-
-    /// <summary>Parameter-bound persistence statement.</summary>
-    internal const string DbContext_GetManyAsync_1 = """
-                SELECT v.contract_id, v.version, v.digest, v.published, v.payload
-                FROM unnest($1::text[], $2::text[]) AS requested(contract_id, version)
-                JOIN securities.securities_reference_version v USING (contract_id, version);
-                """;
-
-    /// <summary>Parameter-bound persistence statement.</summary>
-    internal const string DbContextExtensions_RemoveFuturesContractAsyncCoreBinding_1 = "DELETE FROM securities.futures_contract_by_symbol WHERE contractId=$1;";
-
-    /// <summary>Parameter-bound persistence statement.</summary>
-    internal const string DbContextExtensions_RemoveFuturesContractAsyncCoreBinding_2 = "DELETE FROM securities.futures_contract WHERE contractId=$1;";
-
-    /// <summary>Parameter-bound persistence statement.</summary>
-    internal const string DbContextExtensions_RemoveOptionContractAsyncCoreBinding_1 = "DELETE FROM securities.futures_option_contract_by_symbol WHERE contractId=$1;";
-
-    /// <summary>Parameter-bound persistence statement.</summary>
-    internal const string DbContextExtensions_RemoveOptionContractAsyncCoreBinding_2 = "DELETE FROM securities.futures_option_contract WHERE contractId=$1;";
-
-    /// <summary>Parameter-bound persistence statement.</summary>
-    internal const string DbContextExtensions_GetOptionPricingReferenceBundlePayloadCoreAsync_1 = "SELECT payload FROM securities.option_pricing_reference_bundle WHERE bundle_id=$1;";
-
-    /// <summary>Parameter-bound persistence statement.</summary>
-    internal const string DbContextExtensions_ResolveOptionReferenceIdentitiesCoreAsync_1 = """
-                    SELECT identity_key,binding FROM securities.securities_reference_identity
-                    WHERE identity_key IN (SELECT jsonb_array_elements_text($1::jsonb));
-                    """;
-
-    /// <summary>Parameter-bound persistence statement.</summary>
-    internal const string DbContextExtensions_ListReferenceVersionsCoreAsync_1 = "SELECT version,published FROM securities.securities_reference_version WHERE contract_id=$1 AND version>$2 ORDER BY version COLLATE \"C\" LIMIT $3;";
-
-    /// <summary>Parameter-bound persistence statement.</summary>
-    internal const string DbContextExtensions_ReadReferenceVersionAsync_1 = "SELECT digest,published,payload FROM securities.securities_reference_version WHERE contract_id=$1 AND version=$2;";
-
-
+    /// <summary>Native PostgreSQL securities persistence.</summary>
+    internal const string UpdateFuturesContractRollover =
+        """
+        UPDATE securities.futures_contract_rollover
+        SET contractid = $1, nextrolloverdate = $2, updatedon = $3, updatedby = $4 WHERE symbol = $5;
+        """;
 }

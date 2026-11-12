@@ -15,15 +15,15 @@ public sealed class CapacityExpiryDispatchStore(IPostgresEventTransaction transa
         CancellationToken token = default, int? portfolioId = null) => transactions.ExecuteAsync(async (db, ct) =>
     {
         var now = businessClock.GetUtcNow().UtcDateTime;
-        var candidates = await (db.QueryAsync(PortfolioDbSql.Financial.CapacityExpiryDispatchStore.Select01, [now, portfolioId], r => new CapacityExpiryCandidate(r.GetInt32(0), r.GetInt32(1), r.GetGuid(2), r.GetInt64(3), r.GetInt32(4), r.GetString(5), r.GetInt64(6), r.GetDateTime(7)), ct)).ConfigureAwait(false);
+        var candidates = await (db.QueryAsync(PortfolioDbSql.Financial_CapacityExpiryDispatchStore_Select01, [now, portfolioId], r => new CapacityExpiryCandidate(r.GetInt32(0), r.GetInt32(1), r.GetGuid(2), r.GetInt64(3), r.GetInt32(4), r.GetString(5), r.GetInt64(6), r.GetDateTime(7)), ct)).ConfigureAwait(false);
         foreach (var candidate in candidates)
         {
             var command = create(candidate, now);
             Require(command.Body.ReservationId == candidate.ReservationId && command.Body.ChangeKind == CapacityChangeKind.ExpireUnconsumed &&
                 string.Equals(command.InputSha256,FinancialCanonicalHash.Request(command),StringComparison.Ordinal), FinancialReasons.InvalidContract, "Invalid expiry dispatch request.");
-            await (db.ExecuteAsync(PortfolioDbSql.Financial.CapacityExpiryDispatchStore.Insert01, [command.OperationId, candidate.ReservationId, candidate.PortfolioId, candidate.FundId, Json(command), command.InputSha256, now], ct)).ConfigureAwait(false);
+            await (db.ExecuteAsync(PortfolioDbSql.Financial_CapacityExpiryDispatchStore_Insert01, [command.OperationId, candidate.ReservationId, candidate.PortfolioId, candidate.FundId, Json(command), command.InputSha256, now], ct)).ConfigureAwait(false);
         }
-        var pending = await (db.QueryAsync(PortfolioDbSql.Financial.CapacityExpiryDispatchStore.Select02, [portfolioId], r => new CapacityExpiryDispatch(r.GetInt32(0), Decode<ChangeCapacityReservationCommand>(r.GetString(1))), ct)).ConfigureAwait(false);
+        var pending = await (db.QueryAsync(PortfolioDbSql.Financial_CapacityExpiryDispatchStore_Select02, [portfolioId], r => new CapacityExpiryDispatch(r.GetInt32(0), Decode<ChangeCapacityReservationCommand>(r.GetString(1))), ct)).ConfigureAwait(false);
         return pending;
     }, token);
 
@@ -41,7 +41,7 @@ public sealed class CapacityExpiryDispatchStore(IPostgresEventTransaction transa
         }
         else if (businessClock.GetUtcNow().UtcDateTime >= request.ExpiresAtUtc) status = "ExpiredWithoutCommit";
         if (status is null) return false;
-        await (db.ExecuteAsync(PortfolioDbSql.Financial.CapacityExpiryDispatchStore.Update01, [request.OperationId, request.InputSha256, status, businessClock.GetUtcNow().UtcDateTime], ct)).ConfigureAwait(false);
+        await (db.ExecuteAsync(PortfolioDbSql.Financial_CapacityExpiryDispatchStore_Update01, [request.OperationId, request.InputSha256, status, businessClock.GetUtcNow().UtcDateTime], ct)).ConfigureAwait(false);
         return true;
     }, token);
 }

@@ -54,6 +54,45 @@ public sealed class TradeProjectionQueryActorTests
         Assert.Empty(tradeDb.ReceivedCalls());
     }
 
+    [Fact]
+    public async Task Fund_order_fills_actor_replies_with_the_requested_projection_page()
+    {
+        var context = Substitute.For<IOrderExecutionQueryContext>();
+        var (factory, tradeDb) = CreateProjectionStore();
+        context.DbFactory.Returns(factory);
+        var query = new GetFundOrderFillsQuery
+        {
+            Subject = new(ActorType.Query, GetFundOrderFillsQuery.Actor, GetFundOrderFillsQuery.Verb, "1.2"),
+            PortfolioId = 1,
+            FundId = 2,
+            ValueDate = new DateOnly(2026, 11, 12),
+            AfterOrderId = 100,
+            AfterAttemptId = Guid.NewGuid()
+        };
+        FundOrderFillsRow[] page = [new(101, 4301, Guid.NewGuid(), "Filled", [])];
+        tradeDb.GetFundOrderFillsAsync(1, 2, query.ValueDate, query.AfterOrderId, query.AfterAttemptId, Arg.Any<CancellationToken>())
+            .Returns(page);
+
+        await GetReceiveMap<IOrderExecutionQueryContext>(typeof(OrderExecutionQueryActor))[query.GetType()](
+            context, query, CancellationToken.None);
+
+        await context.Received(1).ReplyAsync(query.Subject.ThreadId, query.Subject.Verb,
+            Arg.Is<ServiceResult<FundOrderFillsRow[]>>(reply => reply.Success && reply.Value == page));
+    }
+
+    [Fact]
+    public void Fund_order_fills_query_rejects_an_invalid_cursor_without_touching_storage()
+    {
+        var (_, tradeDb) = CreateProjectionStore();
+        var query = new GetFundOrderFillsQuery
+        {
+            PortfolioId = 1, FundId = 2, ValueDate = new DateOnly(2026, 11, 12), AfterAttemptId = Guid.NewGuid()
+        };
+
+        Assert.Throws<ArgumentException>(() => { _ = query.ExecuteAsync(tradeDb, CancellationToken.None); });
+        Assert.Empty(tradeDb.ReceivedCalls());
+    }
+
     [Theory]
     [InlineData(TradeStrategyKind.IronCondor)]
     [InlineData(TradeStrategyKind.VerticalSpread)]

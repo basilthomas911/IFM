@@ -39,7 +39,7 @@ internal static class SchemaInventory
             ("TradeTickQuoteDb",new TomasAI.IFM.Application.Storage.TradeTickQuoteDb.Schema.TradeTickQuoteSchemaDb(settings,logger))
         ];
         var financialTables = System.Text.RegularExpressions.Regex.Matches(
-            TomasAI.IFM.Application.Storage.PortfolioDb.Schema.PortfolioSchemaSql.Financial,
+            TomasAI.IFM.Application.Storage.PortfolioDb.Schema.PortfolioSchemaDb.FinancialCreateStatement,
             @"\bCREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(?<table>[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?)\s*\(",
             System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.NonBacktracking)
             .Select(match => match.Groups["table"].Value).Distinct(StringComparer.Ordinal);

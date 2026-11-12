@@ -98,71 +98,70 @@ public sealed class EventProjectorStatePersistenceTests
     [Fact]
     public void Projector_state_schema_uses_event_and_projector_as_composite_key()
     {
-        EventSourceSchemaSql.CreateEventProjectorState.Should()
-            .Contain("CREATE UNIQUE INDEX IF NOT EXISTS ux_event_log_event_version")
-            .And.Contain("ON event_log (EventVersion)")
-            .And.Contain("PRIMARY KEY (EventId, ProjectorName)");
-        EventSourceDbSql.GetUncompletedEventProjectorEvents.Should()
-            .Contain("eps.ProjectorName = $1")
-            .And.Contain("eps.Outcome IN ('Processing', 'Retrying')")
-            .And.NotContain("eps.EventId IS NULL");
-        EventSourceSchemaSql.CreateEventLogTable.Should()
-            .Contain("ix_event_log_command_id")
+        EventSourceActorSchemaSql.CreateEventProjectorState.Should()
+            .Contain("PRIMARY KEY (EventId, ProjectorName)");
+        EventSourceActorDbSql.GetUncompletedEventProjectorEvents.Should()
+            .Contain("eps.projectorname = $1")
+            .And.Contain("eps.outcome IN ('Processing', 'Retrying')")
+            .And.NotContain("eps.eventid IS NULL");
+        EventSourceActorSchemaSql.CreateEventLogTable.Should()
+            .Contain("CREATE UNIQUE INDEX IF NOT EXISTS ux_event_log_event_version").And.Contain("ON public.event_log (EventVersion)")
+            .And.Contain("ix_event_log_command_id")
             .And.Contain("(CommandId)");
-        EventSourceDbSql.GetEventNameId.Should()
-            .Contain("e.eventName = $1")
-            .And.Contain("e.eventTypeName = $2");
-        EventSourceSchemaSql.CreateEventProjectorStateReliabilityV2.Should()
+        EventSourceActorDbSql.GetEventNameId.Should()
+            .Contain("e.eventname = $1")
+            .And.Contain("e.eventtypename = $2");
+        EventSourceActorSchemaSql.CreateEventProjectorStateReliabilityV2.Should()
             .Contain("Revision bigint NOT NULL DEFAULT 0")
             .And.Contain("ExecutionToken uuid")
             .And.Contain("LeaseExpiresAtUtc timestamptz")
             .And.Contain("BlockedStage varchar(50) NOT NULL DEFAULT 'None'")
             .And.Contain("ix_event_projector_state_pending_v2")
             .And.Contain("ix_event_projector_state_stream_pending_v2");
-        EventSourceSchemaSql.CreateEventProjectorOutboxV2.Should()
+        EventSourceActorSchemaSql.CreateEventProjectorOutboxV2.Should()
             .Contain("PRIMARY KEY (ProjectorName, EventId, EffectKind)")
             .And.Contain("MessageId varchar(128) NOT NULL")
             .And.Contain("UNIQUE (MessageId)")
             .And.Contain("ix_event_projector_outbox_pending")
             .And.Contain("DispatchLeaseExpiresAtUtc")
             .And.Contain("ix_event_projector_outbox_dispatch_lease_v2");
-        EventSourceSchemaSql.CreateEventStreamVersionAndProjectorCheckpointV3.Should()
+        EventSourceActorSchemaSql.CreateEventStreamVersionAndProjectorCheckpointV3.Should()
             .Contain("ROW_NUMBER() OVER (PARTITION BY EventStreamId ORDER BY EventVersion)")
-            .And.Contain("ux_event_log_stream_version_v3")
+            .And.NotContain("CREATE UNIQUE INDEX IF NOT EXISTS ux_event_log_stream_version_v3")
             .And.Contain("PRIMARY KEY (ProjectorName, EventStreamId)")
             .And.Contain("LastAppliedStreamVersion")
             .And.Contain("StreamVersion bigint");
-        EventSourceDbSql.InsertEventLog.Should()
-            .Contain("SET CurrentVersion = CurrentVersion + 1")
-            .And.Contain("RETURNING CurrentVersion AS StreamVersion")
-            .And.Contain("next_stream_version.StreamVersion");
-        EventSourceDbSql.TryClaimEventProjectorExecution.Should()
-            .Contain("Revision = Revision + 1")
-            .And.Contain("LeaseExpiresAtUtc <= $5");
-        EventSourceDbSql.TryTransitionEventProjectorExecution.Should()
-            .Contain("ExecutionToken = $3")
-            .And.Contain("Revision = $4")
-            .And.Contain("Stage = $5")
+        EventSourceActorDbSql.InsertEventLog.Should()
+            .Contain("SET currentversion = currentversion + 1")
+            .And.Contain("RETURNING currentversion AS streamversion")
+            .And.Contain("next_stream_version.streamversion");
+        EventSourceActorDbSql.TryClaimEventProjectorExecution.Should()
+            .Contain("revision = current_state.revision + 1")
+            .And.Contain("leaseexpiresatutc <= $5");
+        EventSourceActorDbSql.TryTransitionEventProjectorExecution.Should()
+            .Contain("executiontoken = $3")
+            .And.Contain("revision = $4")
+            .And.Contain("stage = $5")
             .And.Contain("event_projector_stream_checkpoint")
-            .And.Contain("LastAppliedStreamVersion < EXCLUDED.LastAppliedStreamVersion");
-        EventSourceDbSql.TryReleaseEventProjectorExecution.Should()
-            .Contain("ExecutionToken = NULL")
-            .And.Contain("LeaseExpiresAtUtc = NULL")
-            .And.Contain("Outcome = 'Retrying'")
-            .And.Contain("Revision = $4")
-            .And.Contain("Stage = $5");
-        EventSourceDbSql.TryTerminalizeEventProjectorExecutionWithOutbox.Should()
+            .And.Contain("lastappliedstreamversion < EXCLUDED.lastappliedstreamversion");
+        EventSourceActorDbSql.TryReleaseEventProjectorExecution.Should()
+            .Contain("executiontoken = NULL")
+            .And.Contain("leaseexpiresatutc = NULL")
+            .And.Contain("outcome = 'Retrying'")
+            .And.Contain("revision = $4")
+            .And.Contain("stage = $5");
+        EventSourceActorDbSql.TryTerminalizeEventProjectorExecutionWithOutbox.Should()
             .Contain("WITH transitioned AS")
             .And.Contain("INSERT INTO event_projector_outbox")
             .And.Contain("FROM transitioned");
-        EventSourceDbSql.ClaimEventProjectorOutbox.Should()
+        EventSourceActorDbSql.ClaimEventProjectorOutbox.Should()
             .Contain("FOR UPDATE SKIP LOCKED")
-            .And.Contain("DispatchLeaseExpiresAtUtc <= $4")
+            .And.Contain("dispatchleaseexpiresatutc <= $4")
             .And.Contain("LIMIT $5");
-        EventSourceDbSql.GetEventProjectorRecoveryPage.Should()
-            .Contain("eps.EventId > $3")
-            .And.Contain("eps.LeaseExpiresAtUtc <= $4")
-            .And.Contain("ORDER BY eps.EventId")
+        EventSourceActorDbSql.GetEventProjectorRecoveryPage.Should()
+            .Contain("eps.eventid > $3")
+            .And.Contain("eps.leaseexpiresatutc <= $4")
+            .And.Contain("ORDER BY eps.eventid")
             .And.Contain("LIMIT $5");
     }
 }

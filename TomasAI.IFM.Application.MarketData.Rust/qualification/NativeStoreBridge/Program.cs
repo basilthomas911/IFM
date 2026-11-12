@@ -27,7 +27,7 @@ try
     await using(var admin=new NpgsqlConnection(connection+";Username=postgres;Password=native-fixture-only;Timeout=2"))
     {
         while(true){try{await admin.OpenAsync(deadline.Token);break;}catch(NpgsqlException){await Task.Delay(100,deadline.Token);}}
-        await using var command=new NpgsqlCommand(TradeSchemaSql.LiveFeedRecoveryCreate,admin);await command.ExecuteNonQueryAsync(deadline.Token);
+        await using var command=new NpgsqlCommand(TradeSchemaDb.LiveFeedRecoveryCreateStatement,admin);await command.ExecuteNonQueryAsync(deadline.Token);
     }
     var settings=new DbConnectionSettings().Add(TradeDbContext.TradeDbConnection,connection,"System.Data.Postgres");
     var store=new TradeFeedRecoveryStore(settings);var date=new DateOnly(2026,9,8);var next=date.AddDays(1);

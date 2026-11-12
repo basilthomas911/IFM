@@ -1,65 +1,78 @@
-
-using System.Globalization;
-
 namespace TomasAI.IFM.Application.Storage.TradePlanDb;
 
-/// <summary>PostgreSQL statements and ordered keyset query construction.</summary>
-internal static class TradePlanDbSql
+/// <summary>SQL statements and query templates for TradePlan storage.</summary>
+public static class TradePlanDbSql
 {
-    internal const string PositionFilter = "portfolioId=$1 AND fundId=$2 AND orderId=$3 AND tradeId=$4 AND positionId=$5 AND valueDate=$6";
-    internal static readonly (string Name, string Type)[] PlanOrder = [("planRevision", "bigint")];
-    internal static readonly (string Name, string Type)[] ActivityOrder = [("calculatedAtUtc", "timestamptz"), ("portfolioId", "integer"), ("fundId", "integer"), ("orderId", "integer"), ("tradeId", "integer"), ("positionId", "uuid"), ("planRevision", "bigint")];
-    internal static readonly (string Name, string Type)[] WorkflowOrder = [("updatedAtUtc", "timestamptz"), ("exitDecisionId", "uuid"), ("stageRevision", "bigint")];
-    internal const string InsertPlan = "INSERT INTO {0} (portfolioId,fundId,orderId,tradeId,positionId,valueDate,planRevision,calculatedAtUtc,state,requiresExit,contentHash,payload) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) ON CONFLICT (portfolioId,fundId,orderId,tradeId,positionId,valueDate,planRevision) DO UPDATE SET contentHash={0}.contentHash WHERE {0}.contentHash=EXCLUDED.contentHash RETURNING contentHash;";
-    internal const string InsertActivity = "INSERT INTO trade_plan.position_trade_plan_activity_by_date (valueDate,calculatedAtUtc,portfolioId,fundId,orderId,tradeId,positionId,strategyKind,planRevision,state,requiresExit,contentHash,payload) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) ON CONFLICT DO NOTHING;";
-    internal const string InsertExitWorkflow = "INSERT INTO trade_plan.position_exit_workflow (portfolioId,fundId,orderId,tradeId,positionId,valueDate,updatedAtUtc,exitDecisionId,stageRevision,strategyKind,state,sourcePlanEventId,payload) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) ON CONFLICT (portfolioId,fundId,orderId,tradeId,positionId,valueDate,updatedAtUtc,exitDecisionId,stageRevision) DO UPDATE SET payload=trade_plan.position_exit_workflow.payload WHERE trade_plan.position_exit_workflow.payload=EXCLUDED.payload RETURNING stageRevision;";
+    /// <summary>SQL for insert activity.</summary>
+    internal const string InsertActivity =
+        """
+        INSERT INTO trade_plan.position_trade_plan_activity_by_date (valuedate,calculatedatutc,portfolioid,fundid,orderid,
+            tradeid,positionid,strategykind,planrevision,state,requiresexit,contenthash,payload)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) ON CONFLICT DO NOTHING;
+        """;
 
-    internal static string PlanInsert(string table) => string.Format(CultureInfo.InvariantCulture, InsertPlan, table);
-    internal static string ContinuedFilter(string filter, (string Name, string Type)[] order, IEnumerable<string> markers) =>
-        filter + $" AND ({string.Join(',', order.Select(x => x.Name))}) < ({string.Join(',', markers)})";
-    internal static string Page(string table, string filter, (string Name, string Type)[] order, int count) =>
-        $"SELECT payload,{string.Join(',', order.Select(x => x.Name))} FROM {table} WHERE {filter} ORDER BY {string.Join(',', order.Select(x => x.Name + " DESC"))} LIMIT ${count};";
-    internal const string UpdateScalars = "UPDATE trade_plan.iron_condor_trade_plan SET sequenceId=$1,actionDate=$2,tradeDate=$3,maturityDate=$4,tradeType=$5,actionType=$6,actionSubType=$7,actionState=$8,actionReason=$9,tradePnl=$10,forwardLossRatio=$11,lossProbability=$12,mScore=$13,maxProfit=$14,maxLoss=$15,minProfitTarget=$16,dailyProfitTarget=$17,assetPrice=$18,assetStdDev=$19,assetMean=$20,assetPriceChange=$21,marketTrend=$22,marketVolatility=$23,marketDirection=$24,volatilityPrice=$25,tradeRisk=$26,fiftyDayMA=$27,fiveDayXMA=$28,putOTMProbability=$29,callOTMProbability=$30,shortPutGamma=$31,shortCallGamma=$32,gammaRisk=$33,netPrice=$34,forwardPrice=$35,forwardDelta=$36,stopLossLimit=$37,trendType=$38,trendStrength=$39,rsi=$40,rsiSlope=$41,tdi=$42,tdiStrength=$43,createdOn=$44,createdBy=$45,sourceEventId=$46,positionSequence=$47,routeGeneration=$48,calculationVersion=$49,inputStatus=$50,actionDateTime=$51,dailyPnl=$52,dailyLoss=$53,dailyLossLimit=$54,lossHeadroom=$55,forwardDailyPnl=$56,forwardLoss=$57,forwardLossHeadroom=$58,projectedPositionValueChange=$59,estimatedExitCommission=$60,estimatedExitSlippage=$61,estimatedExitCosts=$62,putSpreadPrice=$63,callSpreadPrice=$64,combinedSpreadPrice=$65,putForwardPrice=$66,callForwardPrice=$67,combinedForwardPrice=$68,currentPositionValue=$69,forwardPositionValue=$70,estimatedCloseValue=$71,netDelta=$72,netGamma=$73,netVega=$74,netTheta=$75,underlyingPrice=$76,distanceToShortPut=$77,distanceToShortCall=$78,timeToExpiryDays=$79,scenarioHorizonSeconds=$80,scenarioUnderlyingPrice=$81,scenarioUnderlyingMove=$82,scenarioVolatilityShift=$83,scenarioKind=$84,pricingModelVersion=$85,oldestQuoteAtUtc=$86,riskValidUntilUtc=$87,calculationStatus=$88,exitRecommended=$89,exitReason=$90,quantity=$91,contractMultiplier=$92,currency=$93,riskParameterSetId=$94,riskParameterSetVersion=$95,riskParameterSetHash=$96,snapshotPayload=$97 WHERE portfolioId=$98 AND fundId=$99 AND orderId=$100 AND tradeId=$101 AND positionId=$102 AND valueDate=$103 AND planRevision=$104;";
-    internal const string LockExitWorkflowBaseline = "LOCK TABLE trade_plan.position_exit_workflow IN SHARE MODE;";
-    internal const string ReadExitWorkflowBaseline = "SELECT payload FROM trade_plan.position_exit_workflow ORDER BY portfolioid,fundid,orderid,tradeid,positionid,valuedate,updatedatutc,exitdecisionid,stagerevision;";
-    static readonly string OffsetFilter = PositionFilter + " AND ($7::bigint IS NULL OR planRevision <= $7)";
-    internal static string OffsetHistoryMetadata(string table) => $"SELECT count(*),coalesce(max(planRevision),0),max(calculatedAtUtc) FROM {table} WHERE {OffsetFilter}";
-    internal static string OffsetHistoryRows(string table) => $"SELECT payload FROM {table} WHERE {OffsetFilter} ORDER BY planRevision DESC OFFSET $8 LIMIT $9";
-    internal static string OffsetHistoryChart(string table) => $"SELECT DISTINCT ON (date_bin(interval '1 minute',calculatedAtUtc,timestamptz '2000-01-01')) calculatedAtUtc,combinedSpreadPrice,CASE WHEN calculationVersion = 'IronCondor/EntryCreditForwardPnl/v2' THEN -combinedForwardPrice ELSE combinedForwardPrice END FROM {table} WHERE {OffsetFilter} AND calculatedAtUtc >= $8 AND calculatedAtUtc <= $9 AND combinedSpreadPrice IS NOT NULL ORDER BY date_bin(interval '1 minute',calculatedAtUtc,timestamptz '2000-01-01'),calculatedAtUtc DESC,planRevision DESC";
-    /// <summary>Parameter-bound persistence statement.</summary>
-    internal const string TradePlanDbContextExtensions_ReadDailyForwardSpreadsAsync_1 = """
-            SELECT day.valueDate, observation.forwardSpread
-            FROM unnest($6::date[], $7::timestamptz[]) AS day(valueDate, endUtc)
-            CROSS JOIN LATERAL (
-                SELECT CASE WHEN calculationVersion = 'IronCondor/EntryCreditForwardPnl/v2'
-                    THEN -combinedForwardPrice ELSE combinedForwardPrice END AS forwardSpread
-                FROM trade_plan.iron_condor_trade_plan
-                WHERE portfolioId=$1 AND fundId=$2 AND orderId=$3 AND tradeId=$4 AND positionId=$5
-                    AND valueDate=day.valueDate AND calculatedAtUtc <= day.endUtc
-                ORDER BY calculatedAtUtc DESC, planRevision DESC
-                LIMIT 1
-            ) observation
-            """;
+    /// <summary>SQL for insert exit workflow.</summary>
+    internal const string InsertExitWorkflow =
+        """
+        INSERT INTO trade_plan.position_exit_workflow (portfolioid,fundid,orderid,tradeid,positionid,valuedate,
+            updatedatutc,exitdecisionid,stagerevision,strategykind,state,sourceplaneventid,payload)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+        ON CONFLICT (portfolioid,fundid,orderid,tradeid,positionid,valuedate,updatedatutc,exitdecisionid,
+            stagerevision) DO UPDATE SET payload=trade_plan.position_exit_workflow.payload
+        WHERE trade_plan.position_exit_workflow.payload=EXCLUDED.payload RETURNING stagerevision;
+        """;
 
-    /// <summary>Parameter-bound persistence statement.</summary>
-    internal const string TradePlanDbContextExtensions_ReadChartRangeAsync_1 = """
-            SELECT DISTINCT ON (date_bin(interval '15 minutes',calculatedAtUtc,timestamptz '2000-01-01'))
-                calculatedAtUtc,combinedSpreadPrice,
-                CASE WHEN calculationVersion = 'IronCondor/EntryCreditForwardPnl/v2' THEN -combinedForwardPrice ELSE combinedForwardPrice END
-            FROM trade_plan.iron_condor_trade_plan
-            WHERE portfolioId=$1 AND fundId=$2 AND orderId=$3 AND tradeId=$4 AND positionId=$5
-                AND valueDate >= $6 AND valueDate <= $7 AND calculatedAtUtc >= $8 AND calculatedAtUtc <= $9
-                AND combinedSpreadPrice IS NOT NULL
-            ORDER BY date_bin(interval '15 minutes',calculatedAtUtc,timestamptz '2000-01-01'),calculatedAtUtc DESC,planRevision DESC
-            """;
-}
+    /// <summary>SQL for insert plan.</summary>
+    internal const string InsertPlan =
+        """
+        INSERT INTO {0} (portfolioid,fundid,orderid,tradeid,positionid,valuedate,planrevision,calculatedatutc,state,
+            requiresexit,contenthash,payload)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+        ON CONFLICT (portfolioid,fundid,orderid,tradeid,positionid,valuedate,
+            planrevision) DO UPDATE SET contenthash={0}.contenthash
+        WHERE {0}.contenthash=EXCLUDED.contenthash RETURNING contenthash;
+        """;
 
+    /// <summary>SQL for lock exit workflow baseline.</summary>
+    internal const string LockExitWorkflowBaseline =
+        """
+        LOCK TABLE trade_plan.position_exit_workflow IN SHARE MODE;
+        """;
 
+    /// <summary>SQL for offset history chart template.</summary>
+    internal const string OffsetHistoryChartTemplate =
+        """
+        SELECT DISTINCT ON (date_bin(INTERVAL '1 minute',calculatedatutc,timestamptz '2000-01-01')) calculatedatutc,
+            combinedspreadprice,CASE WHEN calculationversion = 'IronCondor/EntryCreditForwardPnl/v2' THEN -combinedforwardprice ELSE combinedforwardprice END
+        FROM {0}
+        WHERE portfolioid=$1 AND fundid=$2 AND orderid=$3 AND tradeid=$4 AND positionid=$5 AND valuedate=$6
+            AND ($7::bigint IS NULL OR planrevision <= $7) AND calculatedatutc >= $8 AND calculatedatutc <= $9
+            AND combinedspreadprice IS NOT NULL
+        ORDER BY date_bin(INTERVAL '1 minute',calculatedatutc,timestamptz '2000-01-01'),calculatedatutc DESC,planrevision DESC;
+        """;
 
-/// <summary>Looks up committed source facts by their owning stream and exact command identity.</summary>
-public static class ExitWorkflowEvidenceSql
-{
-    public const string ReadCommitted = """
+    /// <summary>SQL for offset history metadata template.</summary>
+    internal const string OffsetHistoryMetadataTemplate =
+        """
+        SELECT COUNT(*),COALESCE(MAX(planrevision),0),MAX(calculatedatutc)
+        FROM {0}
+        WHERE portfolioid=$1 AND fundid=$2 AND orderid=$3 AND tradeid=$4 AND positionid=$5 AND valuedate=$6
+            AND ($7::bigint IS NULL OR planrevision <= $7);
+        """;
+
+    /// <summary>SQL for offset history rows template.</summary>
+    internal const string OffsetHistoryRowsTemplate =
+        """
+        SELECT payload
+        FROM {0}
+        WHERE portfolioid=$1 AND fundid=$2 AND orderid=$3 AND tradeid=$4 AND positionid=$5 AND valuedate=$6
+            AND ($7::bigint IS NULL OR planrevision <= $7)
+        ORDER BY planrevision DESC OFFSET $8 LIMIT $9;
+        """;
+
+    /// <summary>SQL for read committed exit workflow evidence.</summary>
+    internal const string ReadCommittedExitWorkflowEvidence =
+        """
         SELECT e.eventstreamid,n.eventname,n.eventtypename,e.eventversion,e.eventpayload,
                e.commandid,e.eventtimestamp::text,e.streamversion
         FROM event_stream_id s
@@ -70,7 +83,17 @@ public static class ExitWorkflowEvidenceSql
         LIMIT 2;
         """;
 
-    public const string ReadLatestOwnerSource = """
+    /// <summary>SQL for read exit workflow baseline.</summary>
+    internal const string ReadExitWorkflowBaseline =
+        """
+        SELECT payload
+        FROM trade_plan.position_exit_workflow
+        ORDER BY portfolioid,fundid,orderid,tradeid,positionid,valuedate,updatedatutc,exitdecisionid,stagerevision;
+        """;
+
+    /// <summary>SQL for read latest exit workflow owner source.</summary>
+    internal const string ReadLatestExitWorkflowOwnerSource =
+        """
         SELECT e.eventstreamid,n.eventname,n.eventtypename,e.eventversion,e.eventpayload,
                e.commandid,e.eventtimestamp::text,e.streamversion
         FROM event_stream_id s
@@ -79,4 +102,65 @@ public static class ExitWorkflowEvidenceSql
         WHERE s.eventstream=$1;
         """;
 
+    /// <summary>SQL for read page template.</summary>
+    internal const string ReadPageTemplate =
+        """
+        SELECT payload,{0} FROM {1} WHERE {2} ORDER BY {3} LIMIT {4};
+        """;
+
+    /// <summary>Reads iron condor trade plan rows.</summary>
+    internal const string TradePlanDbContextExtensions_ReadChartRangeAsync_1 =
+        """
+        SELECT DISTINCT ON (date_bin(INTERVAL '15 minutes',calculatedatutc,timestamptz '2000-01-01'))
+            calculatedatutc,combinedspreadprice,
+            CASE WHEN calculationversion = 'IronCondor/EntryCreditForwardPnl/v2' THEN -combinedforwardprice ELSE combinedforwardprice END
+        FROM trade_plan.iron_condor_trade_plan
+        WHERE portfolioid=$1 AND fundid=$2 AND orderid=$3 AND tradeid=$4 AND positionid=$5
+            AND valuedate >= $6 AND valuedate <= $7 AND calculatedatutc >= $8 AND calculatedatutc <= $9
+            AND combinedspreadprice IS NOT NULL
+        ORDER BY date_bin(INTERVAL '15 minutes',calculatedatutc,timestamptz '2000-01-01'),calculatedatutc DESC,planrevision DESC;
+        """;
+
+    /// <summary>Reads unnest rows.</summary>
+    internal const string TradePlanDbContextExtensions_ReadDailyForwardSpreadsAsync_1 =
+        """
+        SELECT day.valuedate, observation.forwardspread
+        FROM unnest($6::date[], $7::timestamptz[]) AS day(valuedate, endutc)
+        CROSS JOIN LATERAL (
+            SELECT CASE WHEN calculationversion = 'IronCondor/EntryCreditForwardPnl/v2'
+                THEN -combinedforwardprice ELSE combinedforwardprice END AS forwardspread
+            FROM trade_plan.iron_condor_trade_plan
+            WHERE portfolioid=$1 AND fundid=$2 AND orderid=$3 AND tradeid=$4 AND positionid=$5
+                AND valuedate=day.valuedate AND calculatedatutc <= day.endutc
+            ORDER BY calculatedatutc DESC, planrevision DESC
+            LIMIT 1
+        ) observation;
+        """;
+
+    /// <summary>SQL for update scalars.</summary>
+    internal const string UpdateScalars =
+        """
+        UPDATE trade_plan.iron_condor_trade_plan
+        SET sequenceid=$1,actiondate=$2,tradedate=$3,maturitydate=$4,tradetype=$5,actiontype=$6,actionsubtype=$7,
+            actionstate=$8,actionreason=$9,tradepnl=$10,forwardlossratio=$11,lossprobability=$12,mscore=$13,maxprofit=$14,
+            maxloss=$15,minprofittarget=$16,dailyprofittarget=$17,assetprice=$18,assetstddev=$19,assetmean=$20,
+            assetpricechange=$21,markettrend=$22,marketvolatility=$23,marketdirection=$24,volatilityprice=$25,
+            traderisk=$26,fiftydayma=$27,fivedayxma=$28,putotmprobability=$29,callotmprobability=$30,shortputgamma=$31,
+            shortcallgamma=$32,gammarisk=$33,netprice=$34,forwardprice=$35,forwarddelta=$36,stoplosslimit=$37,
+            trendtype=$38,trendstrength=$39,rsi=$40,rsislope=$41,tdi=$42,tdistrength=$43,createdon=$44,createdby=$45,
+            sourceeventid=$46,positionsequence=$47,routegeneration=$48,calculationversion=$49,inputstatus=$50,
+            actiondatetime=$51,dailypnl=$52,dailyloss=$53,dailylosslimit=$54,lossheadroom=$55,forwarddailypnl=$56,
+            forwardloss=$57,forwardlossheadroom=$58,projectedpositionvaluechange=$59,estimatedexitcommission=$60,
+            estimatedexitslippage=$61,estimatedexitcosts=$62,putspreadprice=$63,callspreadprice=$64,
+            combinedspreadprice=$65,putforwardprice=$66,callforwardprice=$67,combinedforwardprice=$68,
+            currentpositionvalue=$69,forwardpositionvalue=$70,estimatedclosevalue=$71,netdelta=$72,netgamma=$73,
+            netvega=$74,nettheta=$75,underlyingprice=$76,distancetoshortput=$77,distancetoshortcall=$78,
+            timetoexpirydays=$79,scenariohorizonseconds=$80,scenariounderlyingprice=$81,scenariounderlyingmove=$82,
+            scenariovolatilityshift=$83,scenariokind=$84,pricingmodelversion=$85,oldestquoteatutc=$86,
+            riskvaliduntilutc=$87,calculationstatus=$88,exitrecommended=$89,exitreason=$90,quantity=$91,
+            contractmultiplier=$92,currency=$93,riskparametersetid=$94,riskparametersetversion=$95,
+            riskparametersethash=$96,snapshotpayload=$97
+        WHERE portfolioid=$98 AND fundid=$99 AND orderid=$100 AND tradeid=$101 AND positionid=$102 AND valuedate=$103
+            AND planrevision=$104;
+        """;
 }

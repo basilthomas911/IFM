@@ -19,7 +19,7 @@ public sealed class TradeSqlQualificationTests(PostgresTradePlanFixture fixture)
     {
         await using var connection = new PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(fixture.Connection);
         await connection.OpenAsync();
-        await using (var schema = new NpgsqlCommand(TradeSchemaSql.Create, connection)) await schema.ExecuteNonQueryAsync();
+        await using (var schema = new NpgsqlCommand(TradeSchemaDb.CreateStatement, connection)) await schema.ExecuteNonQueryAsync();
         var catalog = typeof(TradeDbContext).Assembly.GetType("TomasAI.IFM.Application.Storage.TradeDb.TradeDbSql", true)!;
         var failures = new List<string>();
         foreach (var name in Statements)

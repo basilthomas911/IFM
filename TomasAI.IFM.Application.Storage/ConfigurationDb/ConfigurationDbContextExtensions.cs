@@ -27,19 +27,179 @@ using System.Data;
 using System.Security.Cryptography;
 using System.Text;
 using Npgsql;
-using TomasAI.IFM.Application.Storage.ConfigurationDb.Schema;
 using static TomasAI.IFM.Domain.Strategy.Contracts.Shared.Canonical.StrategyCatalogValidation;
 
 namespace TomasAI.IFM.Application.Storage.ConfigurationDb;
 /// <summary>Provides ConfigurationDb persistence helpers and stored-data integrity checks.</summary>
 internal static class ConfigurationDbContextExtensions
 {
-    static readonly string[] LegacyBaselineTables = ["parameter_area", "parameter_component", "parameter_schema_version", "intrinsic_time_strategy_workflow_parameter_set", "regime_discovery_parameter_set", "market_condition_parameter_set", "trade_selection_parameter_set", "order_composition_parameter_set", "risk_management_parameter_set", "strategy_position_risk_parameter_set", "market_condition_assessment_parameter_set", "volatility_series_definition", "lookup_definition", "strategy_catalog_identity", "strategy_catalog_version", ..ConfigurationSchemaSql.StrategyCatalog.Children.Select(x => x.Name), "parameter_set", "parameter_set_version", "parameter_operation", "parameter_set_audit", "parameter_assignment", "parameter_assignment_revision", "parameter_legacy_reference", "parameter_startup_run", "parameter_startup_report", "market_data.strategy_option_chain_parameter_version", "market_data.strategy_option_chain_parameter_current"];
+    extension(StoredStrategyCatalogDefinition? stored)
+    {
+        /// <summary>Compares a verified stored definition with a source version, including all lifecycle metadata.</summary>
+        internal bool MatchesCatalogVersion(StoredStrategyCatalogDefinition? source)
+        {
+            if (stored is null || source is null)
+                return stored is null && source is null;
+
+            // ReadCatalog verifies the stored definition hash. Independently verify the source definition.
+            return stored == (source with { Definition = stored.Definition })
+                && string.Equals(stored.ContentHash, CanonicalContentHash(source.Definition), StringComparison.Ordinal);
+        }
+    }
+
+    static IReadOnlyList<CatalogChildTable> StrategyCatalogChildren { get; } =
+    [
+        new("strategy_family_membership", "Families",
+            "target_kind, target_id, target_version",
+            "(j ->> 'Kind')::smallint, (j ->> 'Id')::uuid, (j ->> 'Version')::integer",
+            "jsonb_build_object('Kind', target_kind, 'Id', target_id, 'Version', target_version)"),
+        new("strategy_structure_assignment", "Structures",
+            "target_kind, target_id, target_version",
+            "(j ->> 'Kind')::smallint, (j ->> 'Id')::uuid, (j ->> 'Version')::integer",
+            "jsonb_build_object('Kind', target_kind, 'Id', target_id, 'Version', target_version)"),
+        new("strategy_deployment_structure_variant", "Variants",
+            "target_kind, target_id, target_version",
+            "(j ->> 'Kind')::smallint, (j ->> 'Id')::uuid, (j ->> 'Version')::integer",
+            "jsonb_build_object('Kind', target_kind, 'Id', target_id, 'Version', target_version)"),
+        new("strategy_capability_requirement", "Capabilities",
+            "role, code, capability_version",
+            "j ->> 'Role', j ->> 'Code', (j ->> 'Version')::integer",
+            "jsonb_build_object('Role', role, 'Code', code, 'Version', capability_version)"),
+        new("structure_expiry_group", "ExpiryGroups",
+            "group_key, after_group",
+            "j ->> 'Key', j ->> 'AfterGroup'",
+            "jsonb_build_object('Key', group_key, 'AfterGroup', after_group)"),
+        new("structure_leg_definition", "Legs",
+            "leg_key, instrument_class, side, option_right, ratio, expiry_group",
+            "j ->> 'Key', j ->> 'InstrumentClass', j ->> 'Side', j ->> 'OptionRight', (j ->> 'Ratio')::numeric, j ->> 'ExpiryGroup'",
+            "jsonb_build_object('Key', leg_key, 'InstrumentClass', instrument_class, 'Side', side, 'OptionRight', option_right, 'Ratio', ratio, 'ExpiryGroup', expiry_group)"),
+        new("structure_variant_leg_rule", "VariantLegs",
+            "leg_key, side, ratio, structure_kind, structure_id, structure_version",
+            "j ->> 'LegKey', j ->> 'Side', (j ->> 'Ratio')::numeric, 3, (d -> 'Parent' ->> 'Id')::uuid, (d -> 'Parent' ->> 'Version')::integer",
+            "jsonb_build_object('LegKey', leg_key, 'Side', side, 'Ratio', ratio)"),
+        new("strategy_deployment_product", "Products",
+            "product_id, symbol, exchange, currency",
+            "(j ->> 'ProductId')::integer, j ->> 'Symbol', j ->> 'Exchange', j ->> 'Currency'",
+            "jsonb_build_object('ProductId', product_id, 'Symbol', symbol, 'Exchange', exchange, 'Currency', currency)"),
+        new("strategy_deployment_parameter_binding", "PipelineParameters",
+            "role, parameter_kind, parameter_id, parameter_version, payload_sha256",
+            "j ->> 'Role', (j ->> 'Kind')::smallint, (j ->> 'Id')::uuid, (j ->> 'Version')::integer, j ->> 'Hash'",
+            "jsonb_build_object('Role', role, 'Kind', parameter_kind, 'Id', parameter_id, 'Version', parameter_version, 'Hash', payload_sha256)"),
+        new("strategy_deployment_catalog_parameter_binding", "Parameters",
+            "role, parameter_kind, parameter_id, parameter_version",
+            "j ->> 'Role', (j -> 'ParameterSet' ->> 'Kind')::smallint, (j -> 'ParameterSet' ->> 'Id')::uuid, (j -> 'ParameterSet' ->> 'Version')::integer",
+            "jsonb_build_object('Role', role, 'ParameterSet', jsonb_build_object('Kind', parameter_kind, 'Id', parameter_id, 'Version', parameter_version))"),
+        new("legacy_trade_strategy_family_mapping", "LegacyFamilies",
+            "legacy_id, legacy_version",
+            "(j ->> 'Id')::integer, (j ->> 'Version')::bigint",
+            "jsonb_build_object('Id', legacy_id, 'Version', legacy_version)"),
+    ];
+
+    extension(ParameterValueMapping.Table table)
+    {
+        /// <summary>Builds the delete statement for the mapped parameter table.</summary>
+        internal string DeleteParameterProjectionRows() =>
+            ConfigurationDbSql.DeleteParameterProjectionRowsTemplate.FormatSql(table.Name);
+
+        /// <summary>Builds an insert using the mapped columns and positional bind markers.</summary>
+        internal string InsertTypedParameterRow()
+        {
+            var columns = string.Join(", ", table.Columns.Select(column => column.Name));
+            var parameters = string.Join(", ", Enumerable.Range(6, table.Columns.Count).Select(index => "$" + index));
+            return ConfigurationDbSql.InsertTypedParameterRowTemplate.FormatSql(table.Name, columns, parameters);
+        }
+
+        /// <summary>Builds the row read for the mapped parameter table.</summary>
+        internal string ReadTypedParameterRows() =>
+            ConfigurationDbSql.ReadTypedParameterRowsTemplate.FormatSql(
+                table.Name, string.Join(", ", table.Columns.Select(column => column.Name)));
+    }
+
+    extension(CatalogChildTable child)
+    {
+        /// <summary>Builds an insert for the mapped Strategy Catalog child table.</summary>
+        internal string InsertStrategyCatalogChildren() =>
+            ConfigurationDbSql.InsertStrategyCatalogChildrenTemplate.FormatSql(
+                child.Name, child.InsertColumns, child.InsertValues, child.Property);
+    }
+
+    extension(CatalogPipelineParameterKind kind)
+    {
+        /// <summary>Builds a pipeline policy read with an optional shared row lock.</summary>
+        internal string GetPipelinePolicySelection(bool lockRow) =>
+            ConfigurationDbSql.GetPipelinePolicySelectionTemplate.FormatSql(
+                kind.PipelineTable(), lockRow ? " FOR SHARE" : string.Empty);
+
+        /// <summary>Builds a pipeline policy read including its kind discriminator.</summary>
+        internal string GetSelectionPipelinePolicyFor() =>
+            ConfigurationDbSql.GetSelectionPipelinePolicyTemplate.FormatSql((short)kind, kind.PipelineTable());
+
+        /// <summary>Resolves the allowlisted table for a supported pipeline kind.</summary>
+        private string PipelineTable() => kind switch
+        {
+            CatalogPipelineParameterKind.IntrinsicTimeStrategyWorkflow => "intrinsic_time_strategy_workflow_parameter_set",
+            CatalogPipelineParameterKind.RegimeDiscovery => "regime_discovery_parameter_set",
+            CatalogPipelineParameterKind.MarketCondition => "market_condition_parameter_set",
+            CatalogPipelineParameterKind.TradeSelection => "trade_selection_parameter_set",
+            CatalogPipelineParameterKind.OrderComposition => "order_composition_parameter_set",
+            CatalogPipelineParameterKind.RiskManagement => "risk_management_parameter_set",
+            CatalogPipelineParameterKind.MarketConditionAssessment => "market_condition_assessment_parameter_set",
+            _ => throw new ArgumentOutOfRangeException(nameof(kind))
+        };
+    }
+
+    extension(StrategyParameterSetKind kind)
+    {
+        /// <summary>Builds the publication statement for a typed parameter version.</summary>
+        internal string PublishFor() =>
+            ConfigurationDbSql.PublishParameterVersionTemplate.FormatSql(kind.LifecycleTable());
+
+        /// <summary>Builds the retirement statement for a typed parameter version.</summary>
+        internal string RetireFor() =>
+            ConfigurationDbSql.RetireParameterVersionTemplate.FormatSql(kind.LifecycleTable());
+
+        /// <summary>Resolves the allowlisted lifecycle table for a supported parameter kind.</summary>
+        private string LifecycleTable() => kind switch
+        {
+            StrategyParameterSetKind.IntrinsicTimeStrategyWorkflow => "intrinsic_time_strategy_workflow_parameter_set",
+            StrategyParameterSetKind.OrderComposition => "order_composition_parameter_set",
+            StrategyParameterSetKind.RiskManagement => "risk_management_parameter_set",
+            StrategyParameterSetKind.StrategyPositionRisk => "strategy_position_risk_parameter_set",
+            StrategyParameterSetKind.TradeSelection => "trade_selection_parameter_set",
+            StrategyParameterSetKind.RegimeDiscovery => "regime_discovery_parameter_set",
+            StrategyParameterSetKind.MarketCondition => "market_condition_parameter_set",
+            StrategyParameterSetKind.MarketConditionAssessment => "market_condition_assessment_parameter_set",
+            _ => throw new NotSupportedException($"The typed lifecycle for {kind} is not defined yet.")
+        };
+    }
+
+    static readonly string StrategyCatalogChildJson = string.Concat(StrategyCatalogChildren.Select(child => $"""
+         || jsonb_build_object(
+            '{child.Property}',
+            COALESCE((
+                SELECT jsonb_agg({child.ReadJson})
+                FROM reference_configuration.{child.Name} c
+                WHERE c.owner_kind = v.kind
+                  AND c.owner_id = v.id
+                  AND c.owner_version = v.version
+            ), '[]'::jsonb)
+        )
+        """));
+
+    const long StrategyCatalogWriterLock = 497003170627;
+
+    static readonly string[] LegacyBaselineTables = ["parameter_area", "parameter_component", "parameter_schema_version", "intrinsic_time_strategy_workflow_parameter_set", "regime_discovery_parameter_set", "market_condition_parameter_set", "trade_selection_parameter_set", "order_composition_parameter_set", "risk_management_parameter_set", "strategy_position_risk_parameter_set", "market_condition_assessment_parameter_set", "volatility_series_definition", "lookup_definition", "strategy_catalog_identity", "strategy_catalog_version", ..StrategyCatalogChildren.Select(x => x.Name), "parameter_set", "parameter_set_version", "parameter_operation", "parameter_set_audit", "parameter_assignment", "parameter_assignment_revision", "parameter_legacy_reference", "parameter_startup_run", "parameter_startup_report", "market_data.strategy_option_chain_parameter_version", "market_data.strategy_option_chain_parameter_current"];
     static readonly string[] CurrentBaselineTables=[..LegacyBaselineTables.Where(x=>!x.StartsWith("market_data.strategy_option_chain_parameter_",StringComparison.Ordinal)),"market_data.strategy_option_chain_policy_version","market_data.strategy_option_chain_policy_current","parameter_value_version",..ParameterValueMapping.Tables.Select(x=>x.Name),
         "parameter_projection_record","parameter_catalog_operation","parameter_catalog_startup_state","parameter_catalog_migration",..ParameterProjectionMapping.Tables.Select(x=>x.Name)];
 
     extension(ConfigurationDbContext context)
     {
+        /// <summary>Builds the Strategy Catalog read with an optional shared row lock.</summary>
+        internal string GetStrategyCatalog(bool lockRow) =>
+            ConfigurationDbSql.GetStrategyCatalogTemplate.FormatSql(StrategyCatalogChildJson,
+                lockRow ? " FOR SHARE OF v" : string.Empty);
+
+
         /// <summary>Computes the canonical stored projection hash for replay and read verification.</summary>
         internal string HashCatalogProjection<T>(T value)
         {
@@ -53,7 +213,7 @@ internal static class ConfigurationDbContextExtensions
         {
             var root = ParameterProjectionMapping.Roots[typeof(T)];
             var hash = context.HashCatalogProjection(value);
-            var previous = await tx.ScalarAsync(ConfigurationDbSql.TypedCatalog.Header, [root.Name, id, version], token)
+            var previous = await tx.ScalarAsync(ConfigurationDbSql.ReadParameterProjectionHash, [root.Name, id, version], token)
                 .ConfigureAwait(false);
             if (previous is string existing)
             {
@@ -66,13 +226,13 @@ internal static class ConfigurationDbContextExtensions
                 if (!replace)
                     throw new InvalidDataException("PARAM.IMMUTABLE_CONTENT_CONFLICT");
                 foreach (var table in ParameterValueMapping.Descendants(root).Reverse())
-                    await tx.ExecuteAsync(ConfigurationDbSql.TypedCatalog.Delete(table), [id, version], token)
+                    await tx.ExecuteAsync(table.DeleteParameterProjectionRows(), [id, version], token)
                         .ConfigureAwait(false);
             }
-            await tx.ExecuteAsync(ConfigurationDbSql.TypedCatalog.PutHeader, [root.Name, id, version, hash], token)
+            await tx.ExecuteAsync(ConfigurationDbSql.WriteParameterProjectionHash, [root.Name, id, version, hash], token)
                 .ConfigureAwait(false);
             foreach (var row in ParameterProjectionMapping.Write(value))
-                await tx.ExecuteAsync(ConfigurationDbSql.TypedParameters.Insert(row.Table), [id, version, row.Path, row.ParentPath, row.Ordinal, .. row.Values], token)
+                await tx.ExecuteAsync(row.Table.InsertTypedParameterRow(), [id, version, row.Path, row.ParentPath, row.Ordinal, .. row.Values], token)
                     .ConfigureAwait(false);
         }
 
@@ -80,13 +240,13 @@ internal static class ConfigurationDbContextExtensions
         internal async Task<T?> ReadCatalogProjectionAsync<T>(IEnlistedPostgresTransaction tx, Guid id, long version, CancellationToken token) where T : class
         {
             var root = ParameterProjectionMapping.Roots[typeof(T)];
-            var hash = await tx.ScalarAsync(ConfigurationDbSql.TypedCatalog.Header, [root.Name, id, version], token)
+            var hash = await tx.ScalarAsync(ConfigurationDbSql.ReadParameterProjectionHash, [root.Name, id, version], token)
                 .ConfigureAwait(false);
             if (hash is null) return null;
             var rows = new List<ParameterValueMapping.Row>();
             foreach (var table in ParameterValueMapping.Descendants(root))
             {
-                var batch = await tx.QueryAsync(ConfigurationDbSql.TypedParameters.Read(table), [id, version], reader => ConfigurationDbContext.MapToParameterProjectionRow(reader, table), token)
+                var batch = await tx.QueryAsync(table.ReadTypedParameterRows(), [id, version], reader => ConfigurationDbContext.MapToParameterProjectionRow(reader, table), token)
                     .ConfigureAwait(false);
                 rows.AddRange(batch);
             }
@@ -194,7 +354,7 @@ internal static class ConfigurationDbContextExtensions
                 }
                 await context.WriteCatalogProjectionAsync(tx, fact.RunId, 1, ParameterStartupProjection.From(run), false, token)
                     .ConfigureAwait(false);
-                await tx.ExecuteAsync(ConfigurationDbSql.TypedCatalog.StartupState, [fact.RunId, fact.Revision, fact is not ParameterStartupCreatedEvent { ReleasedAtCreation: true }], token)
+                await tx.ExecuteAsync(ConfigurationDbSql.StartupState, [fact.RunId, fact.Revision, fact is not ParameterStartupCreatedEvent { ReleasedAtCreation: true }], token)
                     .ConfigureAwait(false);
             }
             if (report is not null)
@@ -205,7 +365,7 @@ internal static class ConfigurationDbContextExtensions
                     .ConfigureAwait(false);
             }
             else if (run is null && fact.Released)
-                await tx.ExecuteAsync(ConfigurationDbSql.TypedCatalog.StartupState, [fact.RunId, fact.Revision, false], token)
+                await tx.ExecuteAsync(ConfigurationDbSql.StartupState, [fact.RunId, fact.Revision, false], token)
                     .ConfigureAwait(false);
             else if (run is null)
                 throw new InvalidDataException("PARAM.STARTUP_INVALID");
@@ -271,7 +431,7 @@ internal static class ConfigurationDbContextExtensions
                 }
 
                 var names = string.Join(",", columns.Select(column => context.QuoteBaselineColumn(column.Name)));
-                await db.ExecuteAsync(ConfigurationDbSql.InsertBaselineRows(context.QualifyBaselineTable(image.Name), names), [rows], token)
+                await db.ExecuteAsync(context.QualifyBaselineTable(image.Name).InsertBaselineRows(names), [rows], token)
                     .ConfigureAwait(false);
             }
 
@@ -318,10 +478,10 @@ internal static class ConfigurationDbContextExtensions
 
         /// <summary>Locks the allowlisted baseline tables and the application receipt table.</summary>
         Task<int> LockBaselineTablesAsync(IEnlistedPostgresTransaction db, IReadOnlyList<string> tables, CancellationToken token)
-            => db.ExecuteAsync(ConfigurationDbSql.LockBaselineTables(string.Join(",", tables.Select(context.QualifyBaselineTable))), [], token);
+            => db.ExecuteAsync(string.Join(",", tables.Select(context.QualifyBaselineTable)).LockBaselineTables(), [], token);
         /// <summary>Reads an allowlisted table as an ordered JSON image.</summary>
         async Task<string> ReadBaselineRowsAsync(IEnlistedPostgresTransaction db, string table, CancellationToken token)
-            => (string)(await db.ScalarAsync(ConfigurationDbSql.ReadBaselineRows(context.QualifyBaselineTable(table)), [], token)
+            => (string)(await db.ScalarAsync(context.QualifyBaselineTable(table).ReadBaselineRows(), [], token)
                 .ConfigureAwait(false))!;
         /// <summary>Reads the actual column layout of an allowlisted table.</summary>
         async Task<ConfigurationDbContext.BaselineColumnLayout[]> ReadBaselineColumnsAsync(IEnlistedPostgresTransaction db, string table, CancellationToken token)
@@ -444,7 +604,7 @@ internal static class ConfigurationDbContextExtensions
             foreach (var (kind, id, version) in references)
             {
                 await using var command = context.Command(connection, transaction,
-                    ConfigurationDbSql.GetPipelinePolicySelection(kind, lockRows), new GuidVersion(id, version));
+                    kind.GetPipelinePolicySelection(lockRows), new GuidVersion(id, version));
                 await using var reader = await command.ExecuteReaderAsync(token)
                     .ConfigureAwait(false);
                 if (await reader.ReadAsync(token)
@@ -463,7 +623,7 @@ internal static class ConfigurationDbContextExtensions
         /// <returns>The read catalog result.</returns>
         internal async Task<StoredStrategyCatalogDefinition?> ReadCatalog(NpgsqlConnection connection, NpgsqlTransaction? transaction, CatalogKey key, bool lockRow, CancellationToken ct)
         {
-            var command = context.Command(connection, transaction, ConfigurationDbSql.GetStrategyCatalog(lockRow), new CatalogVersion((short)key.Kind, key.Id, key.Version));
+            var command = context.Command(connection, transaction, context.GetStrategyCatalog(lockRow), new CatalogVersion((short)key.Kind, key.Id, key.Version));
             await using var commandDisposal = command.ConfigureAwait(false);
             var reader = await command.ExecuteReaderAsync(ct)
             .ConfigureAwait(false);
@@ -502,7 +662,7 @@ internal static class ConfigurationDbContextExtensions
         /// <param name = "tx">The caller-owned transaction.</param>
         /// <param name = "ct">The cancellation token.</param>
         /// <returns>The catalog write lock result.</returns>
-        internal Task<int> CatalogWriteLock(NpgsqlConnection c, NpgsqlTransaction tx, CancellationToken ct) => context.Execute(c, tx, ConfigurationDbSql.CatalogWriteLock, ct, new LongValue(ConfigurationSchemaSql.StrategyCatalog.WriterLock));
+        internal Task<int> CatalogWriteLock(NpgsqlConnection c, NpgsqlTransaction tx, CancellationToken ct) => context.Execute(c, tx, ConfigurationDbSql.CatalogWriteLock, ct, new LongValue(StrategyCatalogWriterLock));
         /// <summary>Executes a bound SQL command on the supplied connection and transaction.</summary>
         /// <param name = "c">The PostgreSQL connection.</param>
         /// <param name = "tx">The caller-owned transaction.</param>
@@ -590,8 +750,8 @@ internal static class ConfigurationDbContextExtensions
             .ConfigureAwait(false);
             await context.Execute(connection, transaction, ConfigurationDbSql.InsertStrategyCatalogVersion, token, new InsertCatalogVersion(json, hash, now, principal))
             .ConfigureAwait(false);
-            foreach (var child in ConfigurationSchemaSql.StrategyCatalog.Children)
-                await context.Execute(connection, transaction, ConfigurationDbSql.InsertStrategyCatalogChildren(child), token, new TextValue(json))
+            foreach (var child in StrategyCatalogChildren)
+                await context.Execute(connection, transaction, child.InsertStrategyCatalogChildren(), token, new TextValue(json))
             .ConfigureAwait(false);
             await context.Execute(connection, transaction, ConfigurationDbSql.SealStrategyCatalogVersion, token, new CatalogVersion((short)d.Key.Kind, d.Key.Id, d.Key.Version))
             .ConfigureAwait(false);
@@ -615,7 +775,7 @@ internal static class ConfigurationDbContextExtensions
                 .ConfigureAwait(false);
             if (count != 1)
                 throw new InvalidOperationException("Catalog publication conflict.");
-            await context.Execute(connection, transaction, ConfigurationDbSql.TypedCatalog.AdvanceRevisionFence, token)
+            await context.Execute(connection, transaction, ConfigurationDbSql.AdvanceRevisionFence, token)
                 .ConfigureAwait(false);
         }
 
@@ -633,7 +793,7 @@ internal static class ConfigurationDbContextExtensions
                 throw new InvalidOperationException("Retire requires the exact Published version and a timestamp at or after publication.");
             await context.Execute(connection, transaction, ConfigurationDbSql.RetireStrategyCatalog, cancellationToken, new RetireCatalog((short)key.Kind, key.Id, key.Version, retiredAtUtc, retiredBy))
             .ConfigureAwait(false);
-            await context.Execute(connection, transaction, ConfigurationDbSql.TypedCatalog.AdvanceRevisionFence, cancellationToken)
+            await context.Execute(connection, transaction, ConfigurationDbSql.AdvanceRevisionFence, cancellationToken)
             .ConfigureAwait(false);
         }
         /// <summary>Executes repository preparation under the owning context or caller transaction.</summary>
@@ -684,6 +844,22 @@ internal static class ConfigurationDbContextExtensions
 
     extension(string value)
     {
+        /// <summary>Builds a baseline insert from a validated table and quoted metadata columns.</summary>
+        internal string InsertBaselineRows(string columns) =>
+            ConfigurationDbSql.InsertBaselineRowsTemplate.FormatSql(value, columns);
+
+        /// <summary>Builds the lock statement for the validated baseline table list.</summary>
+        internal string LockBaselineTables() =>
+            ConfigurationDbSql.LockBaselineTablesTemplate.FormatSql(value);
+
+        /// <summary>Builds the baseline read for a validated table.</summary>
+        internal string ReadBaselineRows() =>
+            ConfigurationDbSql.ReadBaselineRowsTemplate.FormatSql(value);
+
+        /// <summary>Substitutes trusted query structure using culture-invariant formatting.</summary>
+        private string FormatSql(params object[] arguments) =>
+            string.Format(System.Globalization.CultureInfo.InvariantCulture, value, arguments);
+
         /// <summary>Calculates the lowercase SHA-256 fingerprint of a UTF-8 configuration payload.</summary>
         /// <returns>The sha256 result.</returns>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1308", Justification = "Persisted SHA-256 fingerprints use canonical lowercase hexadecimal; changing case would invalidate existing evidence identities.")]
@@ -712,23 +888,23 @@ internal static class ConfigurationDbContextExtensions
         /// <summary>Fences a projection revision and validates an existing operation receipt.</summary>
         internal async Task<bool> IsDuplicateCatalogProjectionAsync(string kind, Guid entity, long revision, Guid operation, string request, string factHash, CancellationToken token)
         {
-            await transaction.ExecuteAsync(ConfigurationDbSql.TypedParameters.Lock, [kind + ":" + entity.ToString("D")], token)
+            await transaction.ExecuteAsync(ConfigurationDbSql.LockParameterValue, [kind + ":" + entity.ToString("D")], token)
                 .ConfigureAwait(false);
-            var receipts = await transaction.QueryAsync(ConfigurationDbSql.TypedCatalog.Receipt, [operation], ConfigurationDbContext.MapToCatalogReceipt, token)
+            var receipts = await transaction.QueryAsync(ConfigurationDbSql.ReadParameterCatalogReceipt, [operation], ConfigurationDbContext.MapToCatalogReceipt, token)
                 .ConfigureAwait(false);
             if (receipts.Count != 0)
             {
                 if (receipts[0].Request != request || receipts[0].Fact != factHash) throw new InvalidDataException("PARAM.OPERATION_IDENTITY_MISMATCH");
                 return true;
             }
-            var prior = Convert.ToInt64(await transaction.ScalarAsync(ConfigurationDbSql.TypedCatalog.Revision, [kind, entity], token)
+            var prior = Convert.ToInt64(await transaction.ScalarAsync(ConfigurationDbSql.ReadParameterCatalogRevision, [kind, entity], token)
                 .ConfigureAwait(false));
             if (prior + 1 != revision) throw new InvalidDataException("PARAM.PROJECTION_ORDER");
             return false;
         }
         /// <summary>Records the accepted projection revision and fact hash.</summary>
         internal Task<int> RecordCatalogProjectionAsync(string kind, Guid entity, long revision, Guid operation, string request, int version, DateTime at, string factHash, CancellationToken token) =>
-            transaction.ExecuteAsync(ConfigurationDbSql.TypedCatalog.InsertReceipt, [operation, entity, revision, request, kind, version, at.Ticks, factHash], token);
+            transaction.ExecuteAsync(ConfigurationDbSql.InsertParameterCatalogReceipt, [operation, entity, revision, request, kind, version, at.Ticks, factHash], token);
 
         /// <summary>Stores an immutable parameter value and verifies any duplicate rows.</summary>
         internal async Task WriteTypedValueAsync(ParameterSetValue value, CancellationToken cancellationToken = default)
@@ -738,9 +914,9 @@ internal static class ConfigurationDbContextExtensions
             value = ParameterValueCodec.Snapshot(value);
             var rows = ParameterValueMapping.Write(value);
             var hash = ParameterValueCodec.Hash(value);
-            await transaction.ExecuteAsync(ConfigurationDbSql.TypedParameters.Lock, [value.SetId.ToString("D")], cancellationToken)
+            await transaction.ExecuteAsync(ConfigurationDbSql.LockParameterValue, [value.SetId.ToString("D")], cancellationToken)
                 .ConfigureAwait(false);
-            var existing = await transaction.ScalarAsync(ConfigurationDbSql.TypedParameters.Hash, [value.SetId, value.Version], cancellationToken)
+            var existing = await transaction.ScalarAsync(ConfigurationDbSql.ReadParameterValueHash, [value.SetId, value.Version], cancellationToken)
                 .ConfigureAwait(false);
             if (existing is not null)
             {
@@ -750,11 +926,11 @@ internal static class ConfigurationDbContextExtensions
                 .ConfigureAwait(false);
                 return;
             }
-            await transaction.ExecuteAsync(ConfigurationDbSql.TypedParameters.InsertHeader,
+            await transaction.ExecuteAsync(ConfigurationDbSql.InsertParameterValueHeader,
                 [value.SetId, value.Version, value.ComponentCode, value.SchemaVersion, hash, ParameterValueCodec.Codec], cancellationToken)
                 .ConfigureAwait(false);
             foreach (var row in rows)
-                await transaction.ExecuteAsync(ConfigurationDbSql.TypedParameters.Insert(row.Table),
+                await transaction.ExecuteAsync(row.Table.InsertTypedParameterRow(),
                     [value.SetId, value.Version, row.Path, row.ParentPath, row.Ordinal, ..row.Values], cancellationToken)
                 .ConfigureAwait(false);
         }
@@ -763,7 +939,7 @@ internal static class ConfigurationDbContextExtensions
         internal async Task<ParameterSetValue?> ReadTypedValueAsync(Guid setId, int version, CancellationToken cancellationToken = default)
         {
             ArgumentNullException.ThrowIfNull(transaction);
-            var headers = await transaction.QueryAsync(ConfigurationDbSql.TypedParameters.ReadHeader, [setId, version], ConfigurationDbContext.MapToReadTypedValueRow1, cancellationToken)
+            var headers = await transaction.QueryAsync(ConfigurationDbSql.ReadParameterValueHeader, [setId, version], ConfigurationDbContext.MapToReadTypedValueRow1, cancellationToken)
                 .ConfigureAwait(false);
             if (headers.Count == 0) return null;
             var header = headers.Single();
@@ -771,7 +947,7 @@ internal static class ConfigurationDbContextExtensions
             var rows = new List<ParameterValueMapping.Row>();
             foreach (var table in ParameterValueMapping.TablesFor(header.Component))
             {
-                var batch = await transaction.QueryAsync(ConfigurationDbSql.TypedParameters.Read(table), [setId, version], (reader) => ConfigurationDbContext.MapToReadTypedValueRow2(reader, table), cancellationToken)
+                var batch = await transaction.QueryAsync(table.ReadTypedParameterRows(), [setId, version], (reader) => ConfigurationDbContext.MapToReadTypedValueRow2(reader, table), cancellationToken)
                 .ConfigureAwait(false);
                 rows.AddRange(batch);
             }
@@ -1070,3 +1246,5 @@ internal sealed class ConfigurationDbSession(NpgsqlConnection connection, Npgsql
         return values;
     }
 }
+
+internal sealed record CatalogChildTable(string Name, string Property, string InsertColumns, string InsertValues, string ReadJson);

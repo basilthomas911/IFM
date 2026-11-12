@@ -25,7 +25,7 @@ public sealed class PostgresPipelineHistoryTests(PostgresTradePlanFixture fixtur
         var expected = Enumerable.Range(0, 9).Select(_ => Guid.NewGuid()).ToArray();
         await fixture.Transactions.ExecuteOnceAsync(async (db, ct) =>
         {
-            await db.ExecuteAsync(TradeSchemaSql.Create, [], ct);
+            await db.ExecuteAsync(TradeSchemaDb.CreateStatement, [], ct);
             foreach (var invocation in expected)
             {
                 var sql = composition

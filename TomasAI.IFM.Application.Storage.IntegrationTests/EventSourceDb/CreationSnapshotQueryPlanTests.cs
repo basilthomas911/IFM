@@ -35,8 +35,8 @@ public sealed class CreationSnapshotQueryPlanTests(EventSourceActorSnapshotRange
             await setup.ExecuteNonQueryAsync();
         foreach (var (name, source, parameters, arguments) in new[]
         {
-            ("checkpoint", EventSourceDbSql.GetEventLogFromCreationWithCheckpoint, "bigint,integer[]", "1,ARRAY[7]"),
-            ("metadata", EventSourceDbSql.GetStatelessEventLogFromCreationSnapshot, "bigint", "1")
+            ("checkpoint", EventSourceActorDbSql.GetEventLogFromCreationWithCheckpoint, "bigint,integer[]", "1,ARRAY[7]"),
+            ("metadata", EventSourceActorDbSql.GetStatelessEventLogFromCreationSnapshot, "bigint", "1")
         })
         {
             var sql = source.Replace("event_log", "creation_plan_events", StringComparison.Ordinal)

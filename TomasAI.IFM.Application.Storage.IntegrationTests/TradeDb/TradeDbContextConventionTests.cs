@@ -133,7 +133,7 @@ public sealed class TradeDbContextConventionTests
         var schema = File.ReadAllText(Path.Combine(folder, "Schema", "TradeSchemaDb.cs"));
         Assert.DoesNotContain("_dbFactory", context, StringComparison.Ordinal);
         Assert.DoesNotContain("System.Data.ScyllaDb", schema, StringComparison.Ordinal);
-        Assert.Contains("TradeSchemaSql.Create", schema, StringComparison.Ordinal);
+        Assert.Contains("new(\"trade\", CreateStatement, TradeSchemaSql.Drop)", schema, StringComparison.Ordinal);
         Assert.Contains("TradeSchemaSql.Drop", schema, StringComparison.Ordinal);
     }
 

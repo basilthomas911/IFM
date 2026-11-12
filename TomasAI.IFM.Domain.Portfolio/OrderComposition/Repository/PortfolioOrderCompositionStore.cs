@@ -39,7 +39,7 @@ public sealed class PortfolioOrderCompositionStore(IPostgresEventTransaction tra
                 })
                 .Distinct().ToArray();
             var usage = requestedLimits.Length == 0 ? [] : await db.QueryAsync(
-                PortfolioDbSql.Financial.CapacityReservationStore.Select01,
+                PortfolioDbSql.Financial_CapacityReservationStore_Select01,
                 [request.PortfolioId, FinancialRepositorySupport.Json(requestedLimits)],
                 reader => new CapacityUsed((CapacityScopeKind)reader.GetInt32(0), reader.GetString(1),
                     (CapacityMeasure)reader.GetInt32(2), (CapacityUnit)reader.GetInt32(3), reader.GetDecimal(4), reader.GetDecimal(5), reader.GetDecimal(6)), token)
@@ -82,30 +82,30 @@ public sealed class PortfolioOrderCompositionStore(IPostgresEventTransaction tra
     internal static async Task ProjectMaterialAsync(EnlistedEventTransaction db,PortfolioOrderCompositionCompletedEvent completed,CancellationToken token)
     {
         var receipt=completed.Receipt;
-            await db.ExecuteAsync(PortfolioDbSql.OrderComposition.InsertDecision,
+            await db.ExecuteAsync(PortfolioDbSql.OrderComposition_InsertDecision,
                 [completed.OperationId,receipt.CompositionId,receipt.WorkflowId,completed.PortfolioId,(short)receipt.Status,
                     receipt.FinancialRevision,completed.InputHash,FinancialRepositorySupport.Json(receipt),completed.CommittedAtUtc], token).ConfigureAwait(false);
             foreach (var decision in receipt.FundDecisions)
-                await db.ExecuteAsync(PortfolioDbSql.OrderComposition.InsertFundDecision,
+                await db.ExecuteAsync(PortfolioDbSql.OrderComposition_InsertFundDecision,
                     [completed.OperationId, decision.FundId, decision.Accepted, decision.ReasonCode, decision.OrderId], token).ConfigureAwait(false);
             foreach (var order in receipt.TradeOrders)
             {
-                await db.ExecuteAsync(PortfolioDbSql.OrderComposition.InsertOrder,
+                await db.ExecuteAsync(PortfolioDbSql.OrderComposition_InsertOrder,
                     [order.Id.OrderId,completed.OperationId,order.Id.PortfolioId,order.Id.FundId,(short)order.Status,
                         order.DefinitionHash,FinancialRepositorySupport.Json(order),order.ValidUntilUtc], token).ConfigureAwait(false);
                 var ordinal = 0;
                 foreach (var component in order.Components)
                     foreach (var leg in component.Legs)
-                        await db.ExecuteAsync(PortfolioDbSql.OrderComposition.InsertLeg,
+                        await db.ExecuteAsync(PortfolioDbSql.OrderComposition_InsertLeg,
                             [order.Id.OrderId, component.ComponentId, leg.TradeLegId, ordinal++, FinancialRepositorySupport.Json(leg)], token).ConfigureAwait(false);
             }
             foreach (var effect in receipt.CapacityEffects)
                 foreach (var exposure in effect.Exposures)
                 {
-                    await db.ExecuteAsync(PortfolioDbSql.OrderComposition.InsertCapacity,
+                    await db.ExecuteAsync(PortfolioDbSql.OrderComposition_InsertCapacity,
                         [effect.OrderId,effect.PortfolioId,effect.FundId,(int)exposure.ScopeKind,exposure.ScopeKey,
                             (int)exposure.Measure,(int)exposure.Unit,exposure.Amount,exposure.MethodVersion,receipt.FinancialRevision], token).ConfigureAwait(false);
-                    await db.ExecuteAsync(PortfolioDbSql.Financial.CapacityReservationStore.Insert03,
+                    await db.ExecuteAsync(PortfolioDbSql.Financial_CapacityReservationStore_Insert03,
                         [effect.PortfolioId,(int)exposure.ScopeKind,exposure.ScopeKey,(int)exposure.Measure,(int)exposure.Unit,
                             0m,Math.Abs(exposure.Amount),0m,receipt.FinancialRevision], token).ConfigureAwait(false);
                 }

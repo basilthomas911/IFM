@@ -23,7 +23,7 @@ internal static class PortfolioPreparedIdentifierFence
         var expected = new[] { ReceiptFor(evidence, PortfolioBusinessIdentityKind.Order, 0, evidence.OrderId) }
             .Concat(evidence.TradeIds.Select((id, index) => ReceiptFor(evidence, PortfolioBusinessIdentityKind.Trade, index, id)))
             .ToDictionary(receipt => receipt.Stream, StringComparer.Ordinal);
-        var committed = await db.QueryAsync(PortfolioDbSql.Financial.ReadPreparedIdentifierReceipts, [expected.Keys.ToArray()],
+        var committed = await db.QueryAsync(PortfolioDbSql.Financial_ReadPreparedIdentifierReceipts, [expected.Keys.ToArray()],
             row => (Stream: row.GetString(0), Event: new EventLogReadModel(row.GetInt64(1), row.GetString(2), row.GetString(3),
                 row.GetInt64(4), row.GetFieldValue<byte[]>(5), row.GetGuid(6), row.GetString(7), row.GetInt64(8))), token).ConfigureAwait(false);
         Require(committed.Count == expected.Count, FinancialReasons.AuthorityDenied,

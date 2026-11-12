@@ -49,7 +49,7 @@ public sealed class ScyllaDbPositionalParameterCatalogTests
             .Where(type => !typeof(TomasAI.IFM.Framework.Storage.ScyllaDb.IScyllaOwnedBindValues).IsAssignableFrom(type))
             .Where(type => cqlType.GetField(
                 CqlAliases.GetValueOrDefault(type.Name, type.Name),
-                BindingFlags.Public | BindingFlags.Static) is not null)
+                BindingFlags.NonPublic | BindingFlags.Static) is not null)
             .OrderBy(type => type.Name)
             .ToArray();
 
@@ -60,7 +60,7 @@ public sealed class ScyllaDbPositionalParameterCatalogTests
 
     [Fact]
     public void Raw_tick_quote_bindings_match_cql_marker_order()
-        => VerifyScyllaParameterCatalogBindings("TradeTickQuoteDb", "TradeTickQuoteDbCql");
+        => VerifyScyllaParameterCatalogBindings("TradeTickQuoteDb", "TradeTickQuoteDbSql");
 
     static bool IsOpaqueBindingAdapter(Type type)
     {
@@ -75,7 +75,7 @@ public sealed class ScyllaDbPositionalParameterCatalogTests
     static void AssertBindingMatchesCql(Type bindType, Type cqlType)
     {
         var cqlName = CqlAliases.GetValueOrDefault(bindType.Name, bindType.Name);
-        var cqlField = cqlType.GetField(cqlName, BindingFlags.Public | BindingFlags.Static);
+        var cqlField = cqlType.GetField(cqlName, BindingFlags.NonPublic | BindingFlags.Static);
         Assert.True(cqlField is not null, $"No CQL field maps to {bindType.FullName}.");
 
         var cql = Assert.IsType<string>(cqlField!.GetValue(null));

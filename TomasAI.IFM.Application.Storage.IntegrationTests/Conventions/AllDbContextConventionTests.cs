@@ -12,6 +12,110 @@ public sealed class AllDbContextConventionTests
 {
     public static IEnumerable<object[]> Cases => StorageConventionAudit.Contexts.SelectMany(context => StorageConventionAudit.Rules.Select(rule => new object[] { context.Name, rule }));
 
+    [Fact]
+    public void Schema_sql_format_checks_catalog_shape_literals_comments_and_field_layout()
+    {
+        const string valid = """"
+            public static class ExampleSchemaSql
+            {
+                /// <summary>Creates the sample table.</summary>
+                internal const string CreateSample =
+                    """
+                    CREATE TABLE sample (
+                        id bigint PRIMARY KEY,
+                        label text DEFAULT 'a,b',
+                        CHECK (id IN (1,2))
+                    );
+                    """;
+            }
+            """";
+        var normalized = valid.ReplaceLineEndings("\n");
+        static IReadOnlyList<string> Check(string source)
+            => StorageConventionAudit.InspectSchemaSqlFormat(StorageSource.Parse("ExampleSchemaSql.cs", source));
+
+        Assert.Empty(Check(normalized));
+        const string second = """"
+                /// <summary>Drops the sample table.</summary>
+                internal const string DropSample =
+                    """
+                    DROP TABLE sample;
+                    """;
+            """";
+        var next = second.ReplaceLineEndings("\n");
+        Assert.Empty(Check(normalized.Insert(normalized.LastIndexOf('}'), next + "\n")));
+        Assert.Contains(Check(normalized.Insert(normalized.IndexOf("    ///", StringComparison.Ordinal), next + "\n")),
+            finding => finding.Contains("alphabetically", StringComparison.Ordinal));
+        Assert.Contains(Check(normalized + "\ninternal sealed record Extra;"), finding => finding.Contains("exactly one", StringComparison.Ordinal));
+        Assert.Contains(Check(normalized.Replace("public static class ExampleSchemaSql", "internal static class ExampleSchemaSql", StringComparison.Ordinal)),
+            finding => finding.Contains("exactly one", StringComparison.Ordinal));
+        Assert.Contains(Check(normalized.Replace("internal const string CreateSample", "public const string CreateSample", StringComparison.Ordinal)),
+            finding => finding.Contains("internal const string", StringComparison.Ordinal));
+        Assert.Contains(Check(normalized.Replace("    /// <summary>Creates the sample table.</summary>", "    // Creates the sample table.", StringComparison.Ordinal)),
+            finding => finding.Contains("XML summary", StringComparison.Ordinal));
+        Assert.Contains(Check(normalized.Replace("CreateSample =\n        ", "CreateSample = ", StringComparison.Ordinal)),
+            finding => finding.Contains("opening triple quotes", StringComparison.Ordinal));
+        Assert.Contains(Check(normalized.Replace(");", ")", StringComparison.Ordinal)), finding => finding.Contains("end with a semicolon", StringComparison.Ordinal));
+        Assert.Contains(Check(normalized.Replace("id bigint PRIMARY KEY,\n            label", "id bigint PRIMARY KEY, label", StringComparison.Ordinal)),
+            finding => finding.Contains("each field or constraint", StringComparison.Ordinal));
+        Assert.Contains(Check(normalized.Replace("CHECK (id IN (1,2))", "CHECK (id IN (1,2)),", StringComparison.Ordinal)),
+            finding => finding.Contains("each field or constraint", StringComparison.Ordinal));
+        Assert.Contains(Check(normalized.Replace("    internal const", "    internal static class Nested { }\n    internal const", StringComparison.Ordinal)),
+            finding => finding.Contains("internal const string", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Runtime_sql_format_checks_catalog_members_case_and_quoted_values()
+    {
+        const string valid = """"
+            public static class ExampleDbSql
+            {
+                /// <summary>Reads the sample value.</summary>
+                internal const string ReadSample =
+                    """
+                    SELECT payload ->> 'MixedCaseKey'
+                    FROM {0}
+                    WHERE id = $1
+                    ORDER BY label COLLATE "C";
+                    """;
+            }
+            """";
+        static IReadOnlyList<string> Check(string source) =>
+            StorageConventionAudit.InspectRuntimeSqlFormat(StorageSource.Parse("ExampleDbSql.cs", source));
+
+        Assert.Empty(Check(valid));
+        Assert.Empty(Check(valid.Replace("WHERE id = $1", "WHERE id = :bindMarker", StringComparison.Ordinal)));
+        Assert.Contains(Check(valid.Replace("COLLATE \"C\";", "COLLATE \"C\"", StringComparison.Ordinal)),
+            finding => finding.Contains("end with a semicolon", StringComparison.Ordinal));
+        Assert.Contains(Check(valid.Replace("SELECT payload", "select payload", StringComparison.Ordinal)),
+            finding => finding.Contains("uppercase SQL keywords", StringComparison.Ordinal));
+        Assert.Contains(Check(valid.Replace("SELECT payload", "SELECT Payload", StringComparison.Ordinal)),
+            finding => finding.Contains("lowercase unquoted identifiers", StringComparison.Ordinal));
+        foreach (var member in new[] {
+            "internal static string Read() => string.Empty;",
+            "internal static string Text => string.Empty;",
+            "internal static class Nested { }",
+            "internal const int PageSize = 1;"
+        })
+            Assert.Contains(Check(valid.Insert(valid.LastIndexOf('}'), member + "\n")),
+                finding => finding.Contains("internal const string", StringComparison.Ordinal));
+        Assert.Contains(Check(valid.Replace("/// <summary>Reads the sample value.</summary>", "// Reads the sample.", StringComparison.Ordinal)),
+            finding => finding.Contains("XML summary", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Completed_catalog_statement_cannot_be_extended_with_another_clause()
+    {
+        var spec = new StorageContextSpec("ExampleDb", "ExampleDbContext");
+        var source = StorageSource.Parse(spec.Extensions, """
+            static class ExampleDbContextExtensions
+            {
+                static string Read() => ExampleDbSql.ReadSample + " ORDER BY label;";
+            }
+            """);
+
+        Assert.Contains("instead of appending SQL", Assert.Single(StorageConventionAudit.Inspect(spec, "Statements", [source])), StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData("FeatureStorage")]
     [InlineData("ParameterProjectionMapping")]
@@ -146,7 +250,7 @@ public sealed class AllDbContextConventionTests
             Checks = StorageConventionAudit.Rules.Select(rule => new { Rule = rule, Findings = StorageConventionAudit.Inspect(spec, rule) }).ToArray()
         }).ToArray();
         Assert.Equal(13, report.Length);
-        Assert.All(report, entry => Assert.Equal(StorageConventionAudit.Rules.Length, entry.Checks.Length));
+        Assert.Equal(Cases.Count(), report.Sum(entry => entry.Checks.Length));
         if (Environment.GetEnvironmentVariable("IFM_STORAGE_CONVENTION_REPORT") is { Length: > 0 } path)
         {
             Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);

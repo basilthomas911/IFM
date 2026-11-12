@@ -17,13 +17,13 @@ public sealed class FinancialQueryStore(IPostgresEventTransaction transactions, 
         return Read(scope, async (db, book, revision, ct) =>
     {
         Require(scope.FundId is null, FinancialReasons.InvalidContract, "Ledger controls require an explicit Portfolio-wide scope.");
-        var state = (string)(await (db.ScalarAsync(PortfolioDbSql.Financial.FinancialQueryStore.Select01, [scope.PortfolioId], ct)).ConfigureAwait(false))!;
-        var periods = await (db.QueryAsync(PortfolioDbSql.Financial.FinancialQueryStore.Select02, [book.BookId], r => new FinancialLedgerPeriod(r.GetGuid(0), r.GetFieldValue<DateOnly>(1), r.GetFieldValue<DateOnly>(2), r.GetInt64(3), r.GetString(4)), ct)).ConfigureAwait(false);
-        var accounts = await (db.QueryAsync(PortfolioDbSql.Financial.FinancialQueryStore.Select03, [book.BookId], r => new FinancialConfiguredAccount(new(r.GetInt32(0), r.GetInt64(1), r.GetString(2), (PostingSide)r.GetInt32(3), r.GetBoolean(4), r.GetString(5)), r.GetString(6)), ct)).ConfigureAwait(false);
-        var rules = await (db.QueryAsync(PortfolioDbSql.Financial.FinancialQueryStore.Select04, [book.BookId], r => new FinancialConfiguredRule(Decode<LedgerPostingRule>(r.GetString(0)), r.GetString(1), r.GetFieldValue<DateOnly>(2),
+        var state = (string)(await (db.ScalarAsync(PortfolioDbSql.Financial_FinancialQueryStore_Select01, [scope.PortfolioId], ct)).ConfigureAwait(false))!;
+        var periods = await (db.QueryAsync(PortfolioDbSql.Financial_FinancialQueryStore_Select02, [book.BookId], r => new FinancialLedgerPeriod(r.GetGuid(0), r.GetFieldValue<DateOnly>(1), r.GetFieldValue<DateOnly>(2), r.GetInt64(3), r.GetString(4)), ct)).ConfigureAwait(false);
+        var accounts = await (db.QueryAsync(PortfolioDbSql.Financial_FinancialQueryStore_Select03, [book.BookId], r => new FinancialConfiguredAccount(new(r.GetInt32(0), r.GetInt64(1), r.GetString(2), (PostingSide)r.GetInt32(3), r.GetBoolean(4), r.GetString(5)), r.GetString(6)), ct)).ConfigureAwait(false);
+        var rules = await (db.QueryAsync(PortfolioDbSql.Financial_FinancialQueryStore_Select04, [book.BookId], r => new FinancialConfiguredRule(Decode<LedgerPostingRule>(r.GetString(0)), r.GetString(1), r.GetFieldValue<DateOnly>(2),
                 r.IsDBNull(3) ? null : r.GetFieldValue<DateOnly>(3)), ct)).ConfigureAwait(false);
         Require(periods.Count <= 256 && accounts.Count <= 256 && rules.Count <= 256, FinancialReasons.InvalidContract, "Ledger control selectors exceed their supported bound.");
-        var reconciliations = await (db.QueryAsync(PortfolioDbSql.Financial.FinancialQueryStore.Select05, [book.BookId], r => new LedgerReconciliationResult(r.GetGuid(0), r.GetInt64(1), r.GetInt64(2), r.GetInt64(3), r.GetDecimal(4), r.GetDecimal(5),
+        var reconciliations = await (db.QueryAsync(PortfolioDbSql.Financial_FinancialQueryStore_Select05, [book.BookId], r => new LedgerReconciliationResult(r.GetGuid(0), r.GetInt64(1), r.GetInt64(2), r.GetInt64(3), r.GetDecimal(4), r.GetDecimal(5),
                 Decode<LedgerBalanceDifference[]>(r.GetString(6)), r.GetString(7), r.GetString(8)), ct)).ConfigureAwait(false);
         return new FinancialLedgerConfiguration(book.BookId, book.Currency, book.Environment, state, book.SourceWatermark,
             periods.ToArray(), accounts.ToArray(), rules.ToArray(), reconciliations.SingleOrDefault(),
@@ -37,11 +37,11 @@ public sealed class FinancialQueryStore(IPostgresEventTransaction transactions, 
         return Read(scope, async (db, book, revision, ct) =>
     {
         Require(scope.FundId is > 0 && request.AccountingDate != default, FinancialReasons.InvalidContract, "Fund and accounting date are required.");
-        var rules = await (db.QueryAsync(PortfolioDbSql.Financial.FinancialQueryStore.Select06, [book.BookId, request.AccountingDate], r => Decode<LedgerPostingRule>(r.GetString(0)), ct)).ConfigureAwait(false);
+        var rules = await (db.QueryAsync(PortfolioDbSql.Financial_FinancialQueryStore_Select06, [book.BookId, request.AccountingDate], r => Decode<LedgerPostingRule>(r.GetString(0)), ct)).ConfigureAwait(false);
         Require(rules.Count <= 256, FinancialReasons.InvalidContract, "Posting rule selection exceeds its bound.");
-        var open = await (db.ScalarAsync(PortfolioDbSql.Financial.FinancialQueryStore.Select07,
+        var open = await (db.ScalarAsync(PortfolioDbSql.Financial_FinancialQueryStore_Select07,
             [book.BookId, request.AccountingDate], ct)).ConfigureAwait(false) is true;
-        var state = (string)(await (db.ScalarAsync(PortfolioDbSql.Financial.FinancialQueryStore.Select08, [scope.PortfolioId], ct)).ConfigureAwait(false))!;
+        var state = (string)(await (db.ScalarAsync(PortfolioDbSql.Financial_FinancialQueryStore_Select08, [scope.PortfolioId], ct)).ConfigureAwait(false))!;
         return new FinancialPostingConfiguration(book.BookId, scope.FundId!.Value, book.Funds.Single(x => x.FundId == scope.FundId).Reference,
             rules.ToArray(), open, request.AccountingDate, developmentPolicy?.IsDevelopmentEnvironment == true && string.Equals(book.Environment,"Emulator",StringComparison.Ordinal) && !book.MigrationQualified && string.Equals(state,"Importing",StringComparison.Ordinal));
     }, token);
@@ -53,7 +53,7 @@ public sealed class FinancialQueryStore(IPostgresEventTransaction transactions, 
         return Read(scope, async (db, book, revision, ct) =>
     {
         Require(request.CommandId != Guid.Empty && scope.FundId is > 0, FinancialReasons.InvalidContract, "Fund scope and command identity are required.");
-        var rows = await db.QueryAsync(PortfolioDbSql.Financial.FinancialQueryStore.ReadFundRiskAuthorization,
+        var rows = await db.QueryAsync(PortfolioDbSql.Financial_FinancialQueryStore_ReadFundRiskAuthorization,
             [request.CommandId],
             reader => new FundRiskAuthorizationEvidence(request.CommandId, reader.GetGuid(0),
                 Decode<FundRiskAuthorizationReference>(reader.GetString(1))), ct).ConfigureAwait(false);
@@ -77,11 +77,11 @@ public sealed class FinancialQueryStore(IPostgresEventTransaction transactions, 
         var fund = book.Funds.Single(x => x.FundId == scope.FundId);
         var deployment = fund.Deployments.SingleOrDefault(x => x.Reference.DeploymentKey == request.DeploymentKey);
         Require(deployment is not null, FinancialReasons.AuthorityDenied, "Fund does not authorize this exact deployment.");
-        var state = (string)(await (db.ScalarAsync(PortfolioDbSql.Financial.FinancialQueryStore.Select09, [scope.PortfolioId], ct)).ConfigureAwait(false))!;
+        var state = (string)(await (db.ScalarAsync(PortfolioDbSql.Financial_FinancialQueryStore_Select09, [scope.PortfolioId], ct)).ConfigureAwait(false))!;
         bool ready = (book.DevelopmentQualificationsExempt || string.Equals(state,"Active",StringComparison.Ordinal)) && book.MigrationQualified && fund.CanSpend && deployment!.MaximumRiskPerTrade > 0 && deployment.Reference.ValidUntilUtc > businessClock.GetUtcNow().UtcDateTime;
         if (ready && !book.DevelopmentQualificationsExempt)
         {
-            var matches = await db.ScalarAsync(PortfolioDbSql.Financial.FinancialQueryStore.MatchFundSources,
+            var matches = await db.ScalarAsync(PortfolioDbSql.Financial_FinancialQueryStore_MatchFundSources,
                 [book.PortfolioId, fund.FundId, fund.Reference.PolicyId, fund.PortfolioStreamVersion, fund.FundStreamVersion, fund.PolicyStreamVersion],
                 ct).ConfigureAwait(false);
             Require(matches is true && fund.Reference.ValidUntilUtc > businessClock.GetUtcNow().UtcDateTime, FinancialReasons.AuthorityRevoked,
@@ -97,7 +97,7 @@ public sealed class FinancialQueryStore(IPostgresEventTransaction transactions, 
         };
         var limits = fund.Limits.Concat(deployment!.Limits).Where(x => Relevant(x.ScopeKind, x.ScopeKey)).ToArray();
         Require(limits.Length <= 256, FinancialReasons.InvalidContract, "Admission limits exceed the bounded scope count.");
-        var rows = await (db.QueryAsync(PortfolioDbSql.Financial.FinancialQueryStore.Select10, [scope.PortfolioId,FinancialScopeKeys.Portfolio(scope.PortfolioId),FinancialScopeKeys.Fund(fund.FundId),
+        var rows = await (db.QueryAsync(PortfolioDbSql.Financial_FinancialQueryStore_Select10, [scope.PortfolioId,FinancialScopeKeys.Portfolio(scope.PortfolioId),FinancialScopeKeys.Fund(fund.FundId),
                 FinancialScopeKeys.Deployment(request.DeploymentKey),request.UnderlyingId], r => new CapacityUsed((CapacityScopeKind)r.GetInt32(0), r.GetString(1),
                     (CapacityMeasure)r.GetInt32(2), (CapacityUnit)r.GetInt32(3), r.GetDecimal(4), r.GetDecimal(5), r.GetDecimal(6)), ct)).ConfigureAwait(false);
         Require(rows.Count <= 256, FinancialReasons.InvalidContract, "Admission usage exceeds the bounded scope count.");
@@ -112,7 +112,7 @@ public sealed class FinancialQueryStore(IPostgresEventTransaction transactions, 
         return Read(scope, async (db, book, revision, ct) =>
     {
         Require(request.OperationId != Guid.Empty, FinancialReasons.InvalidContract, "OperationId is required.");
-        var rows = await db.QueryAsync(PortfolioDbSql.Financial.FinancialQueryStore.ReadOutcome,
+        var rows = await db.QueryAsync(PortfolioDbSql.Financial_FinancialQueryStore_ReadOutcome,
             [scope.PortfolioId, request.OperationId], reader => (Type: reader.GetString(0), Payload: reader.GetString(1)), ct)
             .ConfigureAwait(false);
         if (rows.Count == 0) return null;
@@ -138,7 +138,7 @@ public sealed class FinancialQueryStore(IPostgresEventTransaction transactions, 
                     x.ProjectionFacts?.ExecutionCapacity?.Outcome.FundId == fund,
                 LedgerPostingBatchCompletedEvent x =>
                     (x.ProjectionFacts?.ExecutionCapacity is null || x.ProjectionFacts.ExecutionCapacity.Outcome.FundId == fund) &&
-                    await (db.ScalarAsync(PortfolioDbSql.Financial.FinancialQueryStore.Select11, [scope.PortfolioId, request.OperationId, fund], ct)).ConfigureAwait(false) is true,
+                    await (db.ScalarAsync(PortfolioDbSql.Financial_FinancialQueryStore_Select11, [scope.PortfolioId, request.OperationId, fund], ct)).ConfigureAwait(false) is true,
                 CapacityReservationCompletedEvent x => x.Receipt.FundId == fund,
                 CapacityConsumptionCompletedEvent x => await (ReservationFund(db, scope.PortfolioId, x.Receipt.ReservationId, ct)).ConfigureAwait(false) == fund,
                 CapacityLifecycleCompletedEvent x => await (ReservationFund(db, scope.PortfolioId, x.Receipt.ReservationId, ct)).ConfigureAwait(false) == fund,
@@ -167,10 +167,10 @@ public sealed class FinancialQueryStore(IPostgresEventTransaction transactions, 
         return Read<FinancialJournal>(scope, async (db, book, revision, ct) =>
     {
         Require(request.JournalId > 0, FinancialReasons.InvalidContract, "JournalId is required.");
-        var rows = await (db.QueryAsync(PortfolioDbSql.Financial.FinancialQueryStore.Select12, [scope.PortfolioId, request.JournalId, scope.FundId], r => new FinancialJournal(r.GetInt64(0), r.GetInt64(1), r.GetInt32(2),
+        var rows = await (db.QueryAsync(PortfolioDbSql.Financial_FinancialQueryStore_Select12, [scope.PortfolioId, request.JournalId, scope.FundId], r => new FinancialJournal(r.GetInt64(0), r.GetInt64(1), r.GetInt32(2),
                 r.IsDBNull(3) ? null : r.GetInt32(3), r.GetFieldValue<DateOnly>(4), r.GetString(5), []), ct)).ConfigureAwait(false);
         if (rows.Count == 0) return null;
-        var entries = await (db.QueryAsync(PortfolioDbSql.Financial.FinancialQueryStore.Select13, [request.JournalId], r => new FinancialJournalEntry(r.GetInt32(0), r.GetInt32(1), r.GetInt64(2), r.IsDBNull(3) ? null : r.GetInt32(3),
+        var entries = await (db.QueryAsync(PortfolioDbSql.Financial_FinancialQueryStore_Select13, [request.JournalId], r => new FinancialJournalEntry(r.GetInt32(0), r.GetInt32(1), r.GetInt64(2), r.IsDBNull(3) ? null : r.GetInt32(3),
                 r.GetDecimal(4), r.GetDecimal(5), r.GetString(6)), ct)).ConfigureAwait(false);
         Require(entries.Count <= 256, FinancialReasons.InvalidContract, "Journal exceeds the supported line count.");
         return rows[0] with { Entries = entries.ToArray() };
@@ -184,8 +184,8 @@ public sealed class FinancialQueryStore(IPostgresEventTransaction transactions, 
         return Read(scope, async (db, book, revision, ct) =>
     {
         var accounts = await (Accounts(db, book.BookId, scope.FundId, ct)).ConfigureAwait(false);
-        var pending = Convert.ToDecimal(await (db.ScalarAsync(PortfolioDbSql.Financial.FinancialQueryStore.Select14, [book.BookId, scope.FundId], ct)).ConfigureAwait(false),System.Globalization.CultureInfo.InvariantCulture);
-        var state = (string)(await (db.ScalarAsync(PortfolioDbSql.Financial.FinancialQueryStore.Select15, [scope.PortfolioId], ct)).ConfigureAwait(false))!;
+        var pending = Convert.ToDecimal(await (db.ScalarAsync(PortfolioDbSql.Financial_FinancialQueryStore_Select14, [book.BookId, scope.FundId], ct)).ConfigureAwait(false),System.Globalization.CultureInfo.InvariantCulture);
+        var state = (string)(await (db.ScalarAsync(PortfolioDbSql.Financial_FinancialQueryStore_Select15, [scope.PortfolioId], ct)).ConfigureAwait(false))!;
         decimal available = 0;
         foreach (var fund in book.Funds.Where(x => scope.FundId is null || x.FundId == scope.FundId))
             available += await (GeneralLedgerStore.AvailableCash(db, book.BookId, fund.FundId, ct)).ConfigureAwait(false);
@@ -222,7 +222,7 @@ public sealed class FinancialQueryStore(IPostgresEventTransaction transactions, 
         ArgumentNullException.ThrowIfNull(scope);
         return Read(scope, async (db, book, revision, ct) =>
     {
-        var rows = await (db.QueryAsync(PortfolioDbSql.Financial.FinancialQueryStore.Select16, [scope.PortfolioId, scope.FundId?.ToString(System.Globalization.CultureInfo.InvariantCulture)], r => new CapacityUsed(
+        var rows = await (db.QueryAsync(PortfolioDbSql.Financial_FinancialQueryStore_Select16, [scope.PortfolioId, scope.FundId?.ToString(System.Globalization.CultureInfo.InvariantCulture)], r => new CapacityUsed(
                 (CapacityScopeKind)r.GetInt32(0), r.GetString(1), (CapacityMeasure)r.GetInt32(2), (CapacityUnit)r.GetInt32(3), r.GetDecimal(4), r.GetDecimal(5), r.GetDecimal(6)), ct)).ConfigureAwait(false);
         Require(rows.Count <= 4096, FinancialReasons.InvalidContract, "Usage exceeds the bounded supported scope count.");
         return new FinancialCapacityUsage(rows.ToArray()) { ReservedFundLossCapital = scope.FundId is { } fund
@@ -239,7 +239,7 @@ public sealed class FinancialQueryStore(IPostgresEventTransaction transactions, 
             FinancialReasons.InvalidContract, "Fund and inclusive accounting date range are required.");
         return Read(scope, async (db, book, revision, ct) =>
         {
-            var rows = await db.QueryAsync(PortfolioDbSql.Financial.FinancialQueryStore.SelectFundPerformance,
+            var rows = await db.QueryAsync(PortfolioDbSql.Financial_FinancialQueryStore_SelectFundPerformance,
                 [scope.PortfolioId, scope.FundId, revision, request.From, request.Through], r => new FinancialTransactionRow(
                     r.GetInt64(0), r.GetGuid(1), r.GetInt64(2), r.GetInt32(3), Decode<LedgerPostingRequest>(r.GetString(4)), null), ct).ConfigureAwait(false);
             return GeneralLedger.Query.Model.FundPerformanceMetricsCalculator.Calculate(rows.ToArray(), request) with { Currency = book.Currency };
@@ -253,7 +253,7 @@ public sealed class FinancialQueryStore(IPostgresEventTransaction transactions, 
         return Read(scope, async (db, book, revision, ct) =>
     {
         var cursor = Cursor(scope, request.Cursor, request.PageSize, revision, "Transactions");
-        var rows = await (db.QueryAsync(PortfolioDbSql.Financial.FinancialQueryStore.Select17, [scope.PortfolioId, scope.FundId, cursor.AsOfRevision, cursor.AfterRevision, cursor.AfterOrdinal, request.PageSize + 1], r => new FinancialTransactionRow(
+        var rows = await (db.QueryAsync(PortfolioDbSql.Financial_FinancialQueryStore_Select17, [scope.PortfolioId, scope.FundId, cursor.AsOfRevision, cursor.AfterRevision, cursor.AfterOrdinal, request.PageSize + 1], r => new FinancialTransactionRow(
                 r.GetInt64(0), r.GetGuid(1), r.GetInt64(2), r.GetInt32(3), Decode<LedgerPostingRequest>(r.GetString(4)), r.IsDBNull(5) ? null : r.GetInt64(5)), ct)).ConfigureAwait(false);
         var items = rows.Take(request.PageSize).ToArray();
         var next = rows.Count > request.PageSize ? cursor with { AfterRevision = items[^1].FinancialRevision, AfterOrdinal = items[^1].Ordinal } : null;
@@ -280,7 +280,7 @@ public sealed class FinancialQueryStore(IPostgresEventTransaction transactions, 
     {
         ArgumentNullException.ThrowIfNull(scope);
         return Read<FinancialReconciliationView>(scope, async (db, book, revision, ct) =>
-        (await (db.QueryAsync(PortfolioDbSql.Financial.FinancialQueryStore.Select18, [scope.PortfolioId, request.ReconciliationId, scope.FundId], r => new FinancialReconciliationView(r.GetGuid(0), r.GetString(1), r.GetString(2), r.GetString(3), r.GetString(4)), ct)).ConfigureAwait(false)).SingleOrDefault(), token);
+        (await (db.QueryAsync(PortfolioDbSql.Financial_FinancialQueryStore_Select18, [scope.PortfolioId, request.ReconciliationId, scope.FundId], r => new FinancialReconciliationView(r.GetGuid(0), r.GetString(1), r.GetString(2), r.GetString(3), r.GetString(4)), ct)).ConfigureAwait(false)).SingleOrDefault(), token);
     }
 
     async Task<FinancialRead<T>> Read<T>(FinancialReadScope scope, Func<EnlistedEventTransaction, FinancialBookConfiguration, long, CancellationToken, Task<T?>> query,
@@ -292,7 +292,7 @@ public sealed class FinancialQueryStore(IPostgresEventTransaction transactions, 
             access.PortfolioIds?.Contains(scope.PortfolioId) == true), FinancialReasons.AuthorityDenied, "Caller cannot read this Portfolio's financial data.");
         return await (transactions.ExecuteAsync(async (db, ct) =>
         {
-            var rows = await (db.QueryAsync(PortfolioDbSql.Financial.FinancialQueryStore.Select19, [scope.PortfolioId], r => (Book: Decode<FinancialBookConfiguration>(r.GetString(0)), Revision: r.GetInt64(1)), ct)).ConfigureAwait(false);
+            var rows = await (db.QueryAsync(PortfolioDbSql.Financial_FinancialQueryStore_Select19, [scope.PortfolioId], r => (Book: Decode<FinancialBookConfiguration>(r.GetString(0)), Revision: r.GetInt64(1)), ct)).ConfigureAwait(false);
             if (rows.Count == 0) return new FinancialRead<T>(FinancialReadStatus.NotFound, null, 0, businessClock.GetUtcNow().UtcDateTime);
             var (book, revision) = rows[0];
             if (scope.FundId is { } fund) Require(book.Funds.Any(x => x.FundId == fund), FinancialReasons.AuthorityDenied, "Fund does not belong to this financial book.");
@@ -303,7 +303,7 @@ public sealed class FinancialQueryStore(IPostgresEventTransaction transactions, 
 
     static async Task<FinancialAccountBalance[]> Accounts(EnlistedEventTransaction db, int book, int? fund, CancellationToken token)
     {
-        var rows = await (db.QueryAsync(PortfolioDbSql.Financial.FinancialQueryStore.Select20, [book, fund], r => new FinancialAccountBalance(r.GetInt32(0), r.IsDBNull(1) ? null : r.GetInt32(1), r.GetString(2), r.GetDecimal(3), r.GetDecimal(4), r.GetDecimal(5)), token)).ConfigureAwait(false);
+        var rows = await (db.QueryAsync(PortfolioDbSql.Financial_FinancialQueryStore_Select20, [book, fund], r => new FinancialAccountBalance(r.GetInt32(0), r.IsDBNull(1) ? null : r.GetInt32(1), r.GetString(2), r.GetDecimal(3), r.GetDecimal(4), r.GetDecimal(5)), token)).ConfigureAwait(false);
         Require(rows.Count <= 4096, FinancialReasons.InvalidContract, "Balance query exceeds the supported account count.");
         return rows.ToArray();
     }
@@ -317,9 +317,9 @@ public sealed class FinancialQueryStore(IPostgresEventTransaction transactions, 
         return cursor;
     }
     static async Task<int?> ReservationFund(EnlistedEventTransaction db, int portfolio, Guid reservation, CancellationToken token)
-        => (await (db.ScalarAsync(PortfolioDbSql.Financial.FinancialQueryStore.Select21, [portfolio, reservation], token)).ConfigureAwait(false)) as int?;
+        => (await (db.ScalarAsync(PortfolioDbSql.Financial_FinancialQueryStore_Select21, [portfolio, reservation], token)).ConfigureAwait(false)) as int?;
     static Task<IReadOnlyList<FinancialReservationView>> Reservations(EnlistedEventTransaction db, FinancialReadScope scope, Guid? reservation,
-        long after, long asOf, int limit, CancellationToken token) => db.QueryAsync(PortfolioDbSql.Financial.FinancialQueryStore.Select22, [scope.PortfolioId, scope.FundId, reservation, after, asOf, limit], r => new FinancialReservationView(Decode<CapacityReservationReceipt>(r.GetString(0)),
+        long after, long asOf, int limit, CancellationToken token) => db.QueryAsync(PortfolioDbSql.Financial_FinancialQueryStore_Select22, [scope.PortfolioId, scope.FundId, reservation, after, asOf, limit], r => new FinancialReservationView(Decode<CapacityReservationReceipt>(r.GetString(0)),
                 new(r.GetGuid(1), r.GetInt64(2), (ReservationStatus)r.GetInt32(3), r.GetInt32(4), r.GetInt32(5), r.GetInt32(6), r.GetInt32(7),
                     r.GetString(8), r.GetDateTime(9), r.IsDBNull(10) ? null : r.GetGuid(10), r.GetInt64(11), r.GetInt32(12))), token);
 }

@@ -173,7 +173,7 @@ public sealed class TradeSourceSnapshotTests(EventSourceActorSnapshotRangeFixtur
             .Add(EventSourceActorDbContext.EventSourceActorDbConnection, source.ConnectionString, "System.Data.Postgres")
             .Add(TradeDbContext.TradeDbConnection, source.ConnectionString, "System.Data.Postgres");
         var transactions = new PostgresEventTransaction(settings);
-        await transactions.ExecuteOnceAsync((db, token) => db.ExecuteAsync(TradeSchemaSql.Create, [], token));
+        await transactions.ExecuteOnceAsync((db, token) => db.ExecuteAsync(TradeSchemaDb.CreateStatement, [], token));
         var databases = Substitute.For<IDbContextFactory>();
         var tradeDb = new TradeDbContext(settings, databases, Substitute.For<TomasAI.IFM.Framework.SequenceId.ISequenceIdGenerator>(),
             NullLogger<DbProvider>.Instance);

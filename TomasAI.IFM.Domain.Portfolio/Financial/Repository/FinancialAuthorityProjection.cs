@@ -15,14 +15,14 @@ public sealed class FinancialAuthorityProjection(IPostgresEventTransaction trans
             throw new InvalidDataException("Committed authority facts required.");
         return transactions.ExecuteAsync(async(db,ct)=>
         {
-            await (db.ScalarAsync(PortfolioDbSql.Financial.LedgerConfigurationStore.Select01,[source.PortfolioId],ct)).ConfigureAwait(false);
-            if(await (db.ExecuteAsync(PortfolioDbSql.Financial.LedgerFinancialProjection.InsertCheckpoint,
+            await (db.ScalarAsync(PortfolioDbSql.Financial_LedgerConfigurationStore_Select01,[source.PortfolioId],ct)).ConfigureAwait(false);
+            if(await (db.ExecuteAsync(PortfolioDbSql.Financial_LedgerFinancialProjection_InsertCheckpoint,
                 [source.Id,source.PortfolioId,source.EventId,source.FinancialRevision],ct)).ConfigureAwait(false)==0) return false;
             var current=await (LockAuthorityAsync(db,source.PortfolioId,null,ct)).ConfigureAwait(false);
             if(current.Revision!=source.PreviousFinancialRevision) throw new InvalidDataException("Authority source events must be rebuilt in financial revision order.");
-            await (db.ExecuteAsync(PortfolioDbSql.Financial.LedgerConfigurationProjection.SetAuthority,
+            await (db.ExecuteAsync(PortfolioDbSql.Financial_LedgerConfigurationProjection_SetAuthority,
                 [source.PortfolioId,Json(source.Book),source.MigrationState,source.OperatingState,source.Book.SourceWatermark,source.Book.ValuationWatermark,source.AuthorityEpoch],ct)).ConfigureAwait(false);
-            await (db.ExecuteAsync(PortfolioDbSql.Financial.PortfolioDbFinancialSupport.Update01,[source.PortfolioId,source.FinancialRevision],ct)).ConfigureAwait(false);
+            await (db.ExecuteAsync(PortfolioDbSql.Financial_PortfolioDbFinancialSupport_Update01,[source.PortfolioId,source.FinancialRevision],ct)).ConfigureAwait(false);
             return true;
         },token);
     }

@@ -10,6 +10,9 @@ namespace TomasAI.IFM.Application.Storage.MarketDataServiceDb.Schema;
 public sealed class MarketDataServiceSchemaDb(IDbConnectionSettings settings, ILogger<DbProvider> logger)
     : SchemaDbContext<MarketDataServiceSchemaDb>(settings[MarketDataServiceDbContext.MarketDataServiceDbConnection], logger)
 {
+    /// <summary>Gets the namespace and recovery log schema for isolated recovery verification.</summary>
+    public static string RecoveryLogCreateStatement => MarketDataServiceSchemaSql.CreateSchema + "\n" + MarketDataServiceSchemaSql.CreateRecoveryLog;
+
     static readonly SchemaObjectDefinition[] Objects =
     [
         new("market_data_service", MarketDataServiceSchemaSql.CreateSchema, MarketDataServiceSchemaSql.DropSchema),

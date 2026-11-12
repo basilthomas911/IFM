@@ -13,7 +13,7 @@ public sealed class FinancialAuthorityPreparationStore(IPostgresEventTransaction
     public Task<FinancialAuthorityPreparationSnapshot> ReadAsync(int portfolioId, CancellationToken token)
         => transactions.ExecuteAsync(async (db, ct) =>
     {
-        var rows = await (db.QueryAsync(PortfolioDbSql.Financial.FinancialAuthorityPreparationStore.Select01, [portfolioId], r => (Book: Decode<FinancialBookConfiguration>(r.GetString(0)), Revision: r.GetInt64(1), Epoch: r.GetInt64(2), State: r.GetString(3)), ct)).ConfigureAwait(false);
+        var rows = await (db.QueryAsync(PortfolioDbSql.Financial_FinancialAuthorityPreparationStore_Select01, [portfolioId], r => (Book: Decode<FinancialBookConfiguration>(r.GetString(0)), Revision: r.GetInt64(1), Epoch: r.GetInt64(2), State: r.GetString(3)), ct)).ConfigureAwait(false);
         Require(rows.Count == 1, FinancialReasons.AuthorityDenied, "A configured financial book is required.");
         var row = rows.Single(); var cash = new Dictionary<int, decimal>();
         Require(row.Book.Funds.Length <= 128, FinancialReasons.InvalidContract, "Financial membership exceeds its supported bound.");

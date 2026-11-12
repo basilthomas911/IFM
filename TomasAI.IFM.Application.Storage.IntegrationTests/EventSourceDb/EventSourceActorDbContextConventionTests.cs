@@ -107,9 +107,9 @@ public sealed class EventSourceActorDbContextConventionTests
         Assert.Equal(new[] { "EventSourceActorSchemaDb.cs", "EventSourceActorSchemaSql.cs" },
             Directory.GetFiles(schema, "*.cs").Select(Path.GetFileName).OrderBy(name => name).ToArray());
         var executor = File.ReadAllText(Path.Combine(schema, "EventSourceActorSchemaDb.cs"));
-        Assert.Contains("EventSourceSchemaSql.GetDefinitions(options)", executor, StringComparison.Ordinal);
+        Assert.Contains("objects = GetDefinitions(options)", executor, StringComparison.Ordinal);
         Assert.DoesNotContain("DROP TABLE", executor, StringComparison.Ordinal);
-        var definitions = TomasAI.IFM.Application.Storage.EventSourceDb.Schema.EventSourceSchemaSql.GetDefinitions(new());
+        var definitions = TomasAI.IFM.Application.Storage.EventSourceDb.Schema.EventSourceSchemaDb.GetDefinitions(new());
         Assert.Equal(definitions.Length, definitions.Select(definition => definition.Name).Distinct().Count());
         Assert.Contains(definitions, definition => definition.Name == "event_log");
         Assert.Contains(definitions, definition => definition.CreateStatement.Contains("business_subscription_projection_issue", StringComparison.Ordinal));

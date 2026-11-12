@@ -1,5 +1,8 @@
-using System.Text.Json;
-using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
+using MessagePack;
 
 namespace TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
-public sealed record CatalogParameterBinding(string Role, CatalogKey ParameterSet);
+
+[MessagePackObject]
+public sealed record CatalogParameterBinding(
+    [property: Key(0)] string Role,
+    [property: Key(1)] CatalogKey ParameterSet);

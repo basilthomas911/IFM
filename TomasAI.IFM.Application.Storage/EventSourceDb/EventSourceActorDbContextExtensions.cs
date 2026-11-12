@@ -33,7 +33,7 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb
             internal async Task<long> ReadCommittedStreamHeadAsync(string eventStream, CancellationToken cancellationToken)
             {
             var preparedParameters1 = new GetEventStreamId(eventStream);
-                return await context.Database.Use(nameof(EventSourceDbSql.GetResidentStreamHead), EventSourceDbSql.GetResidentStreamHead)
+                return await context.Database.Use(nameof(EventSourceActorDbSql.GetResidentStreamHead), EventSourceActorDbSql.GetResidentStreamHead)
                 .SetParameters(preparedParameters1)
                 .ExecuteSingleAsync(EventSourceActorDbContext.MapToReadCommittedStreamHeadRow1, cancellationToken)
                 .ConfigureAwait(false);
@@ -185,7 +185,7 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb
                 var parameters = new InsertActorCommandLog(command.CommandId, command.StreamId, $"{command.RouteTo}",
                     command.CommandName, $"{commandTimestamp:o}", $"{CommandStatus.InProgress}", commandData);
                 return context._dbFactory.ActorEventSourceDb
-                    .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.TryInsertCommandLog)}", EventSourceDbSql.TryInsertCommandLog)
+                    .Use($"{nameof(EventSourceActorDbSql)}.{nameof(EventSourceActorDbSql.TryInsertCommandLog)}", EventSourceActorDbSql.TryInsertCommandLog)
                     .SetParameters(parameters)
                     .ExecuteScalarAsync(EventSourceActorDbContext.MapToInsertCommandLogCoreRow2, cancellationToken);
             }
@@ -215,7 +215,7 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb
             /// specified stream. If no events are found, the collection will be empty.</returns>
             internal async ValueTask<ICollection<EventStreamReadModel>> GetEventStreamAsync(long eventStreamId)
                 => await (context._dbFactory.ActorEventSourceDb
-                        .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.GetEventLogByEventStreamId)}", context.EventLogSql(EventSourceDbSql.GetEventLogByEventStreamId))
+                        .Use($"{nameof(EventSourceActorDbSql)}.{nameof(EventSourceActorDbSql.GetEventLogByEventStreamId)}", context.EventLogSql(EventSourceActorDbSql.GetEventLogByEventStreamId))
                 .SetParameters(new GetEventLogByEventStreamId(eventStreamId))
                 .ExecuteQueryAsync<EventStreamReadModel>(EventSourceActorDbContext.MapToEventStream))
                 .ConfigureAwait(false);
@@ -239,7 +239,7 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb
             {
             var preparedParameters2 = new GetEventStreamId(eventStream);
                 var eventStreamIdModel = await context._dbFactory.ActorEventSourceDb
-                    .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.GetEventStreamId)}", EventSourceDbSql.GetEventStreamId)
+                    .Use($"{nameof(EventSourceActorDbSql)}.{nameof(EventSourceActorDbSql.GetEventStreamId)}", EventSourceActorDbSql.GetEventStreamId)
                 .SetParameters(preparedParameters2)
                 .ExecuteSingleAsync<EventStreamIdReadModel>(EventSourceActorDbContext.MapToEventStreamId, cancellationToken)
                 .ConfigureAwait(false);
@@ -248,7 +248,7 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb
             var preparedParameters3 = new InsertEventStreamId(eventStream);
 
                 return await (context._dbFactory.ActorEventSourceDb
-                    .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.InsertEventStreamId)}", EventSourceDbSql.InsertEventStreamId)
+                    .Use($"{nameof(EventSourceActorDbSql)}.{nameof(EventSourceActorDbSql.InsertEventStreamId)}", EventSourceActorDbSql.InsertEventStreamId)
                 .SetParameters(preparedParameters3)
                 .ExecuteScalarAsync(EventSourceActorDbContext.MapToLong, cancellationToken))
                 .ConfigureAwait(false);
@@ -311,7 +311,7 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb
                         return eventNameIdModel;
             var preparedParameters4 = new InsertEventNameId(eventName, eventTypeName);
                     var eventNameId = await (context._dbFactory.ActorEventSourceDb
-                          .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.InsertEventNameId)}", EventSourceDbSql.InsertEventNameId)
+                          .Use($"{nameof(EventSourceActorDbSql)}.{nameof(EventSourceActorDbSql.InsertEventNameId)}", EventSourceActorDbSql.InsertEventNameId)
                 .SetParameters(preparedParameters4)
                 .ExecuteScalarAsync(EventSourceActorDbContext.MapToInt, cancellationToken))
                 .ConfigureAwait(false);
@@ -343,7 +343,7 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb
                 string eventTypeName,
                 CancellationToken cancellationToken)
                 => await (context._dbFactory.ActorEventSourceDb
-                    .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.GetEventNameId)}", EventSourceDbSql.GetEventNameId)
+                    .Use($"{nameof(EventSourceActorDbSql)}.{nameof(EventSourceActorDbSql.GetEventNameId)}", EventSourceActorDbSql.GetEventNameId)
                 .SetParameters(new GetEventNameId(eventName, eventTypeName))
                 .ExecuteSingleAsync<EventNameIdReadModel>(EventSourceActorDbContext.MapToEventNameId, cancellationToken))
                 .ConfigureAwait(false);
@@ -361,7 +361,7 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb
             {
             var preparedParameters5 = new GetEventLogLastNRange(eventStreamId);
                 var eventLogRange = await (context._dbFactory.ActorEventSourceDb
-                    .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.GetEventLogLastNRange)}", context.EventLogSql(EventSourceDbSql.GetEventLogLastNRange))
+                    .Use($"{nameof(EventSourceActorDbSql)}.{nameof(EventSourceActorDbSql.GetEventLogLastNRange)}", context.EventLogSql(EventSourceActorDbSql.GetEventLogLastNRange))
                 .SetParameters(preparedParameters5)
                 .ExecuteQueryAsync<EventStreamReadModel>(EventSourceActorDbContext.MapToEventStream))
                 .ConfigureAwait(false);
@@ -378,16 +378,16 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb
                 cancellationToken.ThrowIfCancellationRequested();
                 long head = 0;
                 long replayedVersion = 0;
-                var sql = components ? EventSourceDbSql.GetEventLogFromLatestComponentSnapshots
-                    : stateless ? EventSourceDbSql.GetStatelessEventLogFromCreationSnapshot
-                    : checkpointIdentities is not null ? EventSourceDbSql.GetEventLogFromCreationWithCheckpointIdentities
-                    : checkpointNames is null ? EventSourceDbSql.GetEventLogFromCreationSnapshot : EventSourceDbSql.GetEventLogFromCreationWithCheckpoint;
-                var statementName = components ? nameof(EventSourceDbSql.GetEventLogFromLatestComponentSnapshots)
-                    : stateless ? nameof(EventSourceDbSql.GetStatelessEventLogFromCreationSnapshot)
-                    : checkpointIdentities is not null ? nameof(EventSourceDbSql.GetEventLogFromCreationWithCheckpointIdentities)
-                    : checkpointNames is null ? nameof(EventSourceDbSql.GetEventLogFromCreationSnapshot)
-                    : nameof(EventSourceDbSql.GetEventLogFromCreationWithCheckpoint);
-                var query = context._dbFactory.ActorEventSourceDb.Use($"{nameof(EventSourceDbSql)}.{statementName}", context.EventLogSql(sql));
+                var sql = components ? EventSourceActorDbSql.GetEventLogFromLatestComponentSnapshots
+                    : stateless ? EventSourceActorDbSql.GetStatelessEventLogFromCreationSnapshot
+                    : checkpointIdentities is not null ? EventSourceActorDbSql.GetEventLogFromCreationWithCheckpointIdentities
+                    : checkpointNames is null ? EventSourceActorDbSql.GetEventLogFromCreationSnapshot : EventSourceActorDbSql.GetEventLogFromCreationWithCheckpoint;
+                var statementName = components ? nameof(EventSourceActorDbSql.GetEventLogFromLatestComponentSnapshots)
+                    : stateless ? nameof(EventSourceActorDbSql.GetStatelessEventLogFromCreationSnapshot)
+                    : checkpointIdentities is not null ? nameof(EventSourceActorDbSql.GetEventLogFromCreationWithCheckpointIdentities)
+                    : checkpointNames is null ? nameof(EventSourceActorDbSql.GetEventLogFromCreationSnapshot)
+                    : nameof(EventSourceActorDbSql.GetEventLogFromCreationWithCheckpoint);
+                var query = context._dbFactory.ActorEventSourceDb.Use($"{nameof(EventSourceActorDbSql)}.{statementName}", context.EventLogSql(sql));
                 if (checkpointIdentities is not null)
                     query.SetParameters(new GetCheckpointEventLogByIdentity(eventStreamId, checkpointIdentities));
                 else if (checkpointNames is null)
@@ -450,7 +450,7 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb
                 // Do not cache the alias row IDs: metadata may gain a new registered
                 // spelling while the process is running. Match resolved type, not a short-name guess.
                 var candidates = await context._dbFactory.ActorEventSourceDb
-                    .Use(nameof(EventSourceDbSql.GetCompatibleEventNameIds), EventSourceDbSql.GetCompatibleEventNameIds)
+                    .Use(nameof(EventSourceActorDbSql.GetCompatibleEventNameIds), EventSourceActorDbSql.GetCompatibleEventNameIds)
                 .SetParameters(preparedParameters6)
                 .ExecuteQueryAsync<EventNameIdReadModel>(EventSourceActorDbContext.MapToEventNameId, cancellationToken)
                 .ConfigureAwait(false);
@@ -462,16 +462,16 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb
         {
             /// <summary>Reads explicitly selected source streams without choosing replay policy.</summary>
             internal Task<IReadOnlyList<EventStreamSourceReadModel>> ReadMaintenanceSourcesAsync(string[] exactStreams, string[] prefixes, CancellationToken token)
-                => transaction.QueryAsync(EventSourceDbSql.ReadMaintenanceSourceEvents, (object? [])new MaintenanceSourceStreams(exactStreams, prefixes).Bind(), EventSourceActorDbContext.MapToMaintenanceSource, token);
+                => transaction.QueryAsync(EventSourceActorDbSql.ReadMaintenanceSourceEvents, (object? [])new MaintenanceSourceStreams(exactStreams, prefixes).Bind(), EventSourceActorDbContext.MapToMaintenanceSource, token);
 
             /// <summary>Checks for committed history matching the supplied prefixes and exclusions.</summary>
             internal async Task<bool> HasCommittedStreamWithPrefixAsync(string[] excludedStreams, string[] prefixes, CancellationToken token)
-                => await transaction.ScalarAsync(EventSourceDbSql.HasCommittedStreamWithPrefix, (object? [])new MaintenanceSourceStreams(excludedStreams, prefixes).Bind(), token)
+                => await transaction.ScalarAsync(EventSourceActorDbSql.HasCommittedStreamWithPrefix, (object? [])new MaintenanceSourceStreams(excludedStreams, prefixes).Bind(), token)
                 .ConfigureAwait(false) is true;
 
             /// <summary>Reports whether a stream has committed source history without creating metadata.</summary>
             internal async Task<bool> HasCommittedMaintenanceStreamAsync(string stream, CancellationToken token)
-                => await transaction.ScalarAsync(EventSourceDbSql.HasCommittedMaintenanceStream, (object? [])new MaintenanceSourceStream(stream).Bind(), token)
+                => await transaction.ScalarAsync(EventSourceActorDbSql.HasCommittedMaintenanceStream, (object? [])new MaintenanceSourceStream(stream).Bind(), token)
                 .ConfigureAwait(false) is not null;
         }
     }
@@ -591,17 +591,17 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb
 
         /// <summary>Reads the highest committed event version visible in this transaction.</summary>
         public async Task<long> ReadCommittedEventCutAsync(CancellationToken cancellationToken)
-            => (long)(await ScalarAsync(EventSourceDbSql.ReadCommittedEventCut, [], cancellationToken)
+            => (long)(await ScalarAsync(EventSourceActorDbSql.ReadCommittedEventCut, [], cancellationToken)
                 .ConfigureAwait(false))!;
 
         /// <summary>Reads the committed head revision for the requested stream in this transaction.</summary>
         public async Task<long> ReadCommittedStreamRevisionAsync(string stream, CancellationToken cancellationToken)
-            => (long)(await ScalarAsync(EventSourceDbSql.ReadCommittedStreamRevision, [stream], cancellationToken)
+            => (long)(await ScalarAsync(EventSourceActorDbSql.ReadCommittedStreamRevision, [stream], cancellationToken)
                 .ConfigureAwait(false))!;
 
         /// <summary>Reads the latest committed event and its original payload for the requested stream.</summary>
         public async Task<EventStreamReadModel?> ReadLatestCommittedEventAsync(string stream, CancellationToken cancellationToken)
-            => (await QueryAsync(EventSourceDbSql.ReadLatestCommittedEvent, [stream], MapToLatestCommittedEvent, cancellationToken)
+            => (await QueryAsync(EventSourceActorDbSql.ReadLatestCommittedEvent, [stream], MapToLatestCommittedEvent, cancellationToken)
                 .ConfigureAwait(false)).SingleOrDefault();
 
         private static EventStreamReadModel MapToLatestCommittedEvent(System.Data.Common.DbDataReader row)
@@ -611,19 +611,19 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb
         public async Task<bool> AppendAggregateCheckpointAsync(string stream, string sidecar, long sourceRevision,
             IEvent snapshot, CancellationToken cancellationToken)
         {
-            var head = await ScalarAsync(EventSourceDbSql.LockAggregateCheckpointSource, [stream], cancellationToken)
+            var head = await ScalarAsync(EventSourceActorDbSql.LockAggregateCheckpointSource, [stream], cancellationToken)
                 .ConfigureAwait(false);
             if (head is not long committed || sourceRevision <= 0 || sourceRevision > committed)
                 throw new InvalidOperationException("A checkpoint must identify a committed source revision.");
-            if (await ScalarAsync(EventSourceDbSql.ReadAggregateCheckpointVersion, [stream, sourceRevision], cancellationToken)
+            if (await ScalarAsync(EventSourceActorDbSql.ReadAggregateCheckpointVersion, [stream, sourceRevision], cancellationToken)
                 .ConfigureAwait(false) is not null)
                 return false;
-            var current = await ScalarAsync(EventSourceDbSql.ReadAggregateCheckpointHead, [sidecar], cancellationToken)
+            var current = await ScalarAsync(EventSourceActorDbSql.ReadAggregateCheckpointHead, [sidecar], cancellationToken)
                 .ConfigureAwait(false);
             var checkpoint = await AppendAsync(new EnlistedEventAppend(sidecar, snapshot.CommandId, snapshot, current is long version ? version : 0),
                 cancellationToken)
                 .ConfigureAwait(false);
-            await ExecuteAsync(EventSourceDbSql.RegisterAggregateCheckpoint, [stream, sourceRevision, checkpoint], cancellationToken)
+            await ExecuteAsync(EventSourceActorDbSql.RegisterAggregateCheckpoint, [stream, sourceRevision, checkpoint], cancellationToken)
                 .ConfigureAwait(false);
             return true;
         }
@@ -645,15 +645,15 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb
         /// <summary>Locks the existing command audit row and checks whether any event committed for that command.</summary>
         public async Task<bool> HasCommittedAuditEventsUnderLockAsync(Guid commandId, CancellationToken cancellationToken)
         {
-            _ = await ScalarAsync(EventSourceDbSql.EnlistedEventTransaction_ReserveCommandAsync_1, [commandId], cancellationToken)
+            _ = await ScalarAsync(EventSourceActorDbSql.EnlistedEventTransaction_ReserveCommandAsync_1, [commandId], cancellationToken)
                 .ConfigureAwait(false);
-            return await ScalarAsync(EventSourceDbSql.EnlistedEventTransaction_ReserveCommandAsync_2, [commandId], cancellationToken)
+            return await ScalarAsync(EventSourceActorDbSql.EnlistedEventTransaction_ReserveCommandAsync_2, [commandId], cancellationToken)
                 .ConfigureAwait(false) is true;
         }
 
         /// <summary>Checks for an event from this command on the requested stream.</summary>
         public async Task<bool> HasCommittedCommandEventsAsync(Guid commandId, string streamId, CancellationToken cancellationToken)
-            => await ScalarAsync(EventSourceDbSql.EnlistedEventTransaction_ReserveCommandAsync_3, [commandId, streamId], cancellationToken)
+            => await ScalarAsync(EventSourceActorDbSql.EnlistedEventTransaction_ReserveCommandAsync_3, [commandId, streamId], cancellationToken)
                 .ConfigureAwait(false) is true;
 
         /// <summary>Appends to the event stream using its optimistic version and standard serialization.</summary>
@@ -663,17 +663,17 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb
             using var trace = FinancialTelemetry.ActivitySource.StartActivity("financial.event.append");
             var (stream, commandId, domainEvent, expectedStreamVersion) =
                 (request.Stream, request.CommandId, request.DomainEvent, request.ExpectedStreamVersion);
-            var streamId = Convert.ToInt64(await ScalarAsync(EventSourceDbSql.EnlistedEventTransaction_AppendAsync_1, [stream], cancellationToken)
+            var streamId = Convert.ToInt64(await ScalarAsync(EventSourceActorDbSql.EnlistedEventTransaction_AppendAsync_1, [stream], cancellationToken)
                 .ConfigureAwait(false)
-                ?? await ScalarAsync(EventSourceDbSql.InsertEventStreamId, [stream], cancellationToken)
+                ?? await ScalarAsync(EventSourceActorDbSql.InsertEventStreamId, [stream], cancellationToken)
                 .ConfigureAwait(false),System.Globalization.CultureInfo.InvariantCulture);
             var type = domainEvent.GetType();
             var identity = EventWriteIdentityRegistry.Default.GetIdentity(type);
             // The existing upsert takes an UPDATE lock even when the registry row is unchanged.
             // Reading pre-registered metadata avoids serializing unrelated Portfolio transactions on an event name.
-            var nameId = (int)(await ScalarAsync(EventSourceDbSql.EnlistedEventTransaction_AppendAsync_2, [identity.EventName, identity.EventTypeName], cancellationToken)
+            var nameId = (int)(await ScalarAsync(EventSourceActorDbSql.EnlistedEventTransaction_AppendAsync_2, [identity.EventName, identity.EventTypeName], cancellationToken)
                 .ConfigureAwait(false)
-                ?? await ScalarAsync(EventSourceDbSql.InsertEventNameId, [identity.EventName, identity.EventTypeName], cancellationToken)
+                ?? await ScalarAsync(EventSourceActorDbSql.InsertEventNameId, [identity.EventName, identity.EventTypeName], cancellationToken)
                 .ConfigureAwait(false))!;
             using var serializeTrace = FinancialTelemetry.ActivitySource.StartActivity("financial.event.serialize");
             MessageOrigins.ForPublication(domainEvent, businessClock);
@@ -683,7 +683,7 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb
             using var insertTrace = FinancialTelemetry.ActivitySource.StartActivity("financial.event.insert");
             var parameters = new InsertEventLogExpectedVersion(streamId, nameId, payloadBytes, commandId,
                 $"{businessClock.GetUtcNow().UtcDateTime:o}", expectedStreamVersion, MessageOriginJson.Serialize(MessageOrigins.Get(domainEvent)));
-            var eventId = await ScalarAsync(EventSourceDbSql.InsertEventLogExpectedVersion, (object?[])parameters.Bind(), cancellationToken)
+            var eventId = await ScalarAsync(EventSourceActorDbSql.InsertEventLogExpectedVersion, (object?[])parameters.Bind(), cancellationToken)
                 .ConfigureAwait(false);
             insertTrace?.Stop();
             if (eventId is not long id) throw new ConcurrencyException($"Event stream {stream} is not at expected version {expectedStreamVersion}.");
@@ -696,7 +696,7 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb
                     or TomasAI.IFM.Shared.EventProjector.EventProjectorStageType.ApplyProjection))
                     throw new ArgumentException("Invalid durable projection stage.", nameof(domainEvent));
                 var now = DateTime.UtcNow;
-                var marker = await ScalarAsync(EventSourceDbSql.TryCreateEventProjectorExecutionState, [id, rule.ActorName, rule.ProjectorName, false, 0, "Processing", rule.InitialStage.ToString(), string.Empty, $"{now:o}", $"{now:o}", now], cancellationToken)
+                var marker = await ScalarAsync(EventSourceActorDbSql.TryCreateEventProjectorExecutionState, [id, rule.ActorName, rule.ProjectorName, false, 0, "Processing", rule.InitialStage.ToString(), string.Empty, $"{now:o}", $"{now:o}", now], cancellationToken)
                 .ConfigureAwait(false);
                 if (marker is null) throw new InvalidOperationException("Required durable projection marker was not persisted.");
             }
@@ -891,7 +891,7 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb
             if (selected == activeTimeout) return;
             // The query owns the server timer. A second provider timer must not expire earlier.
             await using var configure = new NpgsqlCommand(
-                EventSourceDbSql.PostgresQueryTimeoutScope_ApplyAsync_1, connection, transaction)
+                EventSourceActorDbSql.PostgresQueryTimeoutScope_ApplyAsync_1, connection, transaction)
                 { CommandTimeout = 0 };
             PostgresValueBinding.AddParameter(configure, checked((int)Math.Ceiling(selected.StatementTimeout.TotalMilliseconds)).ToString(System.Globalization.CultureInfo.InvariantCulture));
             PostgresValueBinding.AddParameter(configure, checked((int)Math.Ceiling((selected.LockTimeout ?? selected.StatementTimeout).TotalMilliseconds)).ToString(System.Globalization.CultureInfo.InvariantCulture));
@@ -967,9 +967,9 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb
             var options = (eventLogPersistenceOptions ?? new EventLogPersistenceOptions()).Validate();
             var layout = EventLogSqlLayout.ForProduction(options);
             connection = settings[EventSourceActorDbContext.EventSourceActorDbConnection].ConnectionString;
-            pendingSql = layout.Resolve(EventSourceDbSql.ReadPendingBusinessEvents);
-            priorSql = layout.Resolve(EventSourceDbSql.ReadPriorBusinessEvent);
-            handoffsSql = layout.Resolve(EventSourceDbSql.ReadPendingBusinessHandoffs);
+            pendingSql = layout.Resolve(EventSourceActorDbSql.ReadPendingBusinessEvents);
+            priorSql = layout.Resolve(EventSourceActorDbSql.ReadPriorBusinessEvent);
+            handoffsSql = layout.Resolve(EventSourceActorDbSql.ReadPendingBusinessHandoffs);
         }
 
         public Task<IReadOnlyList<EventLogReadModel>> ReadPendingAsync(IReadOnlyList<string> eventNames, CancellationToken cancellationToken)
@@ -984,7 +984,7 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb
             await using var dbDisposal = db.ConfigureAwait(false);
             await db.OpenAsync(cancellationToken)
                 .ConfigureAwait(false);
-            var command = new NpgsqlCommand(EventSourceDbSql.PostgresCommittedBusinessEventJournal_CompleteHandoffAsync_1, db) { CommandTimeout = 10 };
+            var command = new NpgsqlCommand(EventSourceActorDbSql.PostgresCommittedBusinessEventJournal_CompleteHandoffAsync_1, db) { CommandTimeout = 10 };
             await using var commandDisposal = command.ConfigureAwait(false);
             PostgresValueBinding.AddParameter(command, eventId);
             if (await command.ExecuteNonQueryAsync(cancellationToken)
@@ -1033,13 +1033,13 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb
             var transaction = await db.BeginTransactionAsync(cancellationToken)
                 .ConfigureAwait(false);
             await using var transactionDisposal = transaction.ConfigureAwait(false);
-            using (var issue = new NpgsqlCommand(EventSourceDbSql.PostgresCommittedBusinessEventJournal_RejectAsync_1, db, transaction) { CommandTimeout = 10 })
+            using (var issue = new NpgsqlCommand(EventSourceActorDbSql.PostgresCommittedBusinessEventJournal_RejectAsync_1, db, transaction) { CommandTimeout = 10 })
             {
                 PostgresValueBinding.AddParameter(issue, eventId); PostgresValueBinding.AddParameter(issue, reasonCode); PostgresValueBinding.AddParameter(issue, detail);
                 await issue.ExecuteNonQueryAsync(cancellationToken)
                 .ConfigureAwait(false);
             }
-            using (var receipt = new NpgsqlCommand(EventSourceDbSql.PostgresCommittedBusinessEventJournal_RejectAsync_2, db, transaction) { CommandTimeout = 10 })
+            using (var receipt = new NpgsqlCommand(EventSourceActorDbSql.PostgresCommittedBusinessEventJournal_RejectAsync_2, db, transaction) { CommandTimeout = 10 })
             {
                 PostgresValueBinding.AddParameter(receipt, eventId);
                 await receipt.ExecuteNonQueryAsync(cancellationToken)
@@ -1054,7 +1054,7 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb
             await using var dbDisposal = db.ConfigureAwait(false);
             await db.OpenAsync(cancellationToken)
                 .ConfigureAwait(false);
-            var command = new NpgsqlCommand(EventSourceDbSql.PostgresCommittedBusinessEventJournal_RejectAsync_2, db) { CommandTimeout = 10 };
+            var command = new NpgsqlCommand(EventSourceActorDbSql.PostgresCommittedBusinessEventJournal_RejectAsync_2, db) { CommandTimeout = 10 };
             await using var commandDisposal = command.ConfigureAwait(false);
             PostgresValueBinding.AddParameter(command, eventId);
             await command.ExecuteNonQueryAsync(cancellationToken)
@@ -1073,13 +1073,13 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb
         public Task<long> LoadCursorAsync(CancellationToken token = default, string projectionName = HistoryProjection)
             => transactions.ExecuteAsync(async (db, ct) =>
             {
-                await (db.ExecuteAsync(Schema.EventSourceSchemaSql.CreateRiskHistoryJournal, [], ct))
+                await (db.ExecuteAsync(Schema.EventSourceActorSchemaSql.CreateRiskHistoryJournal, [], ct))
                 .ConfigureAwait(false);
-                var value = await (db.ScalarAsync(EventSourceDbSql.RiskHistoryJournal_LoadCursorAsync_1, [projectionName], ct))
+                var value = await (db.ScalarAsync(EventSourceActorDbSql.RiskHistoryJournal_LoadCursorAsync_1, [projectionName], ct))
                 .ConfigureAwait(false);
                 var cursor = value is null ? 0 : Convert.ToInt64(value,System.Globalization.CultureInfo.InvariantCulture);
                 // Compatible migration: the old cursor proves these events were previously projected.
-                await (db.ExecuteAsync(EventSourceDbSql.RiskHistoryJournal_LoadCursorAsync_2, [projectionName, cursor], ct))
+                await (db.ExecuteAsync(EventSourceActorDbSql.RiskHistoryJournal_LoadCursorAsync_2, [projectionName, cursor], ct))
                 .ConfigureAwait(false);
                 return cursor;
             }, token);
@@ -1088,7 +1088,7 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb
         public Task SaveCursorAsync(long after, CancellationToken token = default, string projectionName = HistoryProjection)
             => transactions.ExecuteAsync(async (db, ct) =>
             {
-                await (db.ExecuteAsync(EventSourceDbSql.RiskHistoryJournal_SaveCursorAsync_1, [after, projectionName], ct))
+                await (db.ExecuteAsync(EventSourceActorDbSql.RiskHistoryJournal_SaveCursorAsync_1, [after, projectionName], ct))
                 .ConfigureAwait(false);
                 return true;
             }, token);
@@ -1098,7 +1098,7 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb
             string projectionName = HistoryProjection)
             => transactions.ExecuteAsync(async (db, ct) =>
             {
-                var rows = await (db.QueryAsync(EventSourceDbSql.RiskHistoryJournal_PageAsync_1, [projectionName], EventSourceActorDbContext.MapToJournalEvent, ct))
+                var rows = await (db.QueryAsync(EventSourceActorDbSql.RiskHistoryJournal_PageAsync_1, [projectionName], EventSourceActorDbContext.MapToJournalEvent, ct))
                 .ConfigureAwait(false);
                 return (IReadOnlyList<WorkflowStrategyStateUpdatedEvent>)rows.Select(x => (WorkflowStrategyStateUpdatedEvent)x.ToDomainEvent()).ToArray();
             }, token);
@@ -1112,7 +1112,7 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb
 
         /// <summary>Records the receipt on the caller's transaction alongside the projection write.</summary>
         public Task<int> AcknowledgeAsync(IEnlistedPostgresTransaction transaction, string projectionName, long eventId, CancellationToken token)
-            => transaction.ExecuteAsync(EventSourceDbSql.RiskHistoryJournal_AcknowledgeAsync_1, [projectionName, eventId], token);
+            => transaction.ExecuteAsync(EventSourceActorDbSql.RiskHistoryJournal_AcknowledgeAsync_1, [projectionName, eventId], token);
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3928", Justification = "The parameter is captured by the transaction callback from the enclosing public method.")]
         public Task QuarantineConflictAsync(long eventId, RiskHistoryProjectionResult result, CancellationToken token = default)
@@ -1120,10 +1120,10 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb
             {
                 if (result.Disposition != RiskHistoryProjectionDisposition.Conflict || result.WorkflowId == Guid.Empty || result.InvocationId == Guid.Empty)
                     throw new ArgumentException("A complete Risk history conflict result is required.", nameof(result));
-                await (db.ExecuteAsync(EventSourceDbSql.RiskHistoryJournal_QuarantineConflictAsync_1, [HistoryProjection, eventId, result.WorkflowId, result.InvocationId, result.Revision, result.StoredHash!, result.IncomingHash!], ct))
+                await (db.ExecuteAsync(EventSourceActorDbSql.RiskHistoryJournal_QuarantineConflictAsync_1, [HistoryProjection, eventId, result.WorkflowId, result.InvocationId, result.Revision, result.StoredHash!, result.IncomingHash!], ct))
                 .ConfigureAwait(false);
                 await (db.ExecuteAsync(
-                    EventSourceDbSql.RiskHistoryJournal_AcknowledgeAsync_1,
+                    EventSourceActorDbSql.RiskHistoryJournal_AcknowledgeAsync_1,
                     [HistoryProjection, eventId], ct))
                 .ConfigureAwait(false);
                 return true;
@@ -1132,7 +1132,7 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb
         /// <summary>Reads one ordered page of unacknowledged source events of the supplied name.</summary>
         public Task<IReadOnlyList<EventLogReadModel>> ReadPendingPageAsync(IEnlistedPostgresTransaction transaction,
             string eventName, string projectionName, CancellationToken token)
-            => transaction.QueryAsync(EventSourceDbSql.ReadPendingRiskJournalEventsByName, [eventName, projectionName], EventSourceActorDbContext.MapToJournalEvent, token);
+            => transaction.QueryAsync(EventSourceActorDbSql.ReadPendingRiskJournalEventsByName, [eventName, projectionName], EventSourceActorDbContext.MapToJournalEvent, token);
     }
 }
 
@@ -1350,7 +1350,7 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit
             CancellationToken cancellationToken)
         {
             var command = new NpgsqlCommand(
-                EventSourceDbSql.InsertCommandLogMessagePackWindow, connection, transaction)
+                EventSourceActorDbSql.InsertCommandLogMessagePackWindow, connection, transaction)
             { CommandTimeout = PostgresQueryTimeout.Default.CommandTimeoutSeconds };
             await using var commandDisposal = command.ConfigureAwait(false);
             Add(command, envelopes.Select(static item => item.CommandId).ToArray());
@@ -1413,7 +1413,7 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit
         static async Task<bool?> MatchesStoredRetryAsync(NpgsqlConnection connection, NpgsqlTransaction transaction,
             CommandAuditEnvelope candidate, CancellationToken token)
         {
-            var read = new NpgsqlCommand(EventSourceDbSql.CommandAuditPostgres_MatchesStoredRetryAsync_1, connection, transaction) { CommandTimeout = PostgresQueryTimeout.Default.CommandTimeoutSeconds };
+            var read = new NpgsqlCommand(EventSourceActorDbSql.CommandAuditPostgres_MatchesStoredRetryAsync_1, connection, transaction) { CommandTimeout = PostgresQueryTimeout.Default.CommandTimeoutSeconds };
             await using var readDisposal = read.ConfigureAwait(false);
             PostgresValueBinding.AddParameter(read, candidate.CommandId);
             var reader = await read.ExecuteReaderAsync(token)
@@ -1676,7 +1676,7 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb.EventLog
             var layout = configuration.Layout;
             layout.ValidateConnection(connectionString);
             _copySql = layout.Resolve(CopySql);
-            _projectionSql = layout.Resolve(EventSourceDbSql.TryCreateEventProjectorExecutionState);
+            _projectionSql = layout.Resolve(EventSourceActorDbSql.TryCreateEventProjectorExecutionState);
             _batchProjectionMarkers = layout.BatchProjectionMarkers;
             _batchedProjectionSql = layout.Resolve(BatchedProjectionMarkerWriter.Sql);
             _connectionString = connectionString;
@@ -1922,7 +1922,7 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb.EventLog
             CancellationToken cancellationToken)
         {
             var ids = batch.Select(static request => request.Request.EventStreamId).Distinct().Order().ToArray();
-            var command = EventLogAppenderSupport.Command(connection, transaction, EventSourceDbSql.BinaryCopyEventLogAppender_LockStreamsAsync_1);
+            var command = EventLogAppenderSupport.Command(connection, transaction, EventSourceActorDbSql.BinaryCopyEventLogAppender_LockStreamsAsync_1);
             await using var commandDisposal = command.ConfigureAwait(false);
             EventLogAppenderSupport.Add(command, ids);
             var current = new Dictionary<long, long>(ids.Length);
@@ -1967,7 +1967,7 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb.EventLog
             CancellationToken cancellationToken)
         {
             var ordered = finalVersions.OrderBy(static pair => pair.Key).ToArray();
-            var command = EventLogAppenderSupport.Command(connection, transaction, EventSourceDbSql.ReserveCopiedStreamVersions);
+            var command = EventLogAppenderSupport.Command(connection, transaction, EventSourceActorDbSql.ReserveCopiedStreamVersions);
             await using var commandDisposal = command.ConfigureAwait(false);
             EventLogAppenderSupport.Add(command, ordered.Select(static pair => pair.Key).ToArray());
             EventLogAppenderSupport.Add(command, ordered.Select(static pair => pair.Value).ToArray());
@@ -1984,7 +1984,7 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb.EventLog
         {
             var count = planned.Sum(static request => request.Assignments.Length);
             var command = EventLogAppenderSupport.Command(connection, transaction,
-                EventSourceDbSql.BinaryCopyEventLogAppender_ReserveEventIdsAsync_1);
+                EventSourceActorDbSql.BinaryCopyEventLogAppender_ReserveEventIdsAsync_1);
             await using var commandDisposal = command.ConfigureAwait(false);
             EventLogAppenderSupport.Add(command, BindValues.Integer(count));
             var reader = await command.ExecuteReaderAsync(cancellationToken)
@@ -2055,8 +2055,8 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb.EventLog
 
     public sealed class SequentialEventLogAppender : IEventLogAppender
     {
-        const string InsertReturningVersion = EventSourceDbSql.InsertEventLog;
-        const string InsertExpectedReturningEventVersion = EventSourceDbSql.InsertEventLogExpectedVersion;
+        const string InsertReturningVersion = EventSourceActorDbSql.InsertEventLog;
+        const string InsertExpectedReturningEventVersion = EventSourceActorDbSql.InsertEventLogExpectedVersion;
         readonly EventLogPersistenceOptions _options;
         readonly EventLogMessagePackCodec _codec;
         readonly string _connectionString;
@@ -2080,7 +2080,7 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb.EventLog
             layout.ValidateConnection(connectionString);
             _insertSql = layout.Resolve(InsertReturningVersion);
             _expectedInsertSql = layout.Resolve(InsertExpectedReturningEventVersion);
-            _projectionSql = layout.Resolve(EventSourceDbSql.TryCreateEventProjectorExecutionState);
+            _projectionSql = layout.Resolve(EventSourceActorDbSql.TryCreateEventProjectorExecutionState);
             _options = configuration.Options;
             UseLz4Compression = useLz4Compression;
             _codec = new EventLogMessagePackCodec(useLz4Compression);
@@ -2297,7 +2297,7 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb.EventLog
         {
             var started = Stopwatch.GetTimestamp();
             var now = DateTime.UtcNow;
-            var command = Command(connection, transaction, sql ?? EventSourceDbSql.TryCreateEventProjectorExecutionState);
+            var command = Command(connection, transaction, sql ?? EventSourceActorDbSql.TryCreateEventProjectorExecutionState);
             await using var commandDisposal = command.ConfigureAwait(false);
             Add(command, BindValues.Bigint(eventId));
             Add(command, BindValues.Text(requirement.ActorName));
@@ -2321,7 +2321,7 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb.EventLog
     /// Only enabled through the guarded benchmark layout; caller owns commit/rollback.</summary>
     internal static class BatchedProjectionMarkerWriter
     {
-        internal const string Sql = EventSourceDbSql.BatchedProjectionMarkerWriter_Statement_1;
+        internal const string Sql = EventSourceActorDbSql.BatchedProjectionMarkerWriter_Statement_1;
 
         internal static async Task InsertAsync(NpgsqlConnection connection, NpgsqlTransaction transaction,
             IReadOnlyList<ProjectionMarker> markers, string sql, CancellationToken cancellationToken)

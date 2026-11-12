@@ -255,10 +255,10 @@ public sealed class MarketDataDbContextConventionTests
     {
         var folder = Path.Combine(FindRepositoryRoot(), "TomasAI.IFM.Application.Storage", "MarketDataDb", "Schema");
         var executor = File.ReadAllText(Path.Combine(folder, "MarketDataSchemaDb.cs"));
-        Assert.Contains("MarketDataSchemaSql.GetDefinitions()", executor, StringComparison.Ordinal);
+        Assert.Contains("Definitions => GetDefinitions()", executor, StringComparison.Ordinal);
         Assert.DoesNotContain("Cql", executor, StringComparison.Ordinal);
         Assert.DoesNotContain("DROP TABLE", executor, StringComparison.Ordinal);
-        var definitions = TomasAI.IFM.Application.Storage.MarketDataDb.Schema.MarketDataSchemaSql.GetDefinitions();
+        var definitions = TomasAI.IFM.Application.Storage.MarketDataDb.Schema.MarketDataSchemaDb.GetDefinitions();
         Assert.Equal(definitions.Length, definitions.Select(value => value.Name).Distinct().Count());
         Assert.Contains(definitions, value => value.Name == "market_data");
         Assert.Contains(definitions, value => value.Name == "historical_data_loader");

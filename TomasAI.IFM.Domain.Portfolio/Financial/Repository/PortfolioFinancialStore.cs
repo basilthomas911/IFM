@@ -19,7 +19,7 @@ public sealed class PortfolioFinancialStore(IPostgresEventTransaction transactio
 
     public Task<FinancialBookConfiguration?> ReadBookAsync(int portfolioId, CancellationToken token = default) => transactions.ExecuteAsync(async (db, cancellation) =>
     {
-        var value = await db.ScalarAsync(PortfolioDbSql.Financial.ReadBook, [portfolioId], cancellation).ConfigureAwait(false);
+        var value = await db.ScalarAsync(PortfolioDbSql.Financial_ReadBook, [portfolioId], cancellation).ConfigureAwait(false);
         return value is string json ? FinancialRepositorySupport.Decode<FinancialBookConfiguration>(json) : null;
     }, token);
 

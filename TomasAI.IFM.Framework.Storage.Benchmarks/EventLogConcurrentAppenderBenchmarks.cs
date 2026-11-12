@@ -55,7 +55,7 @@ public class EventLogConcurrentAppenderBenchmarks
         _serialStreams = await CreateStreamsAsync(connection, "Serial");
         _parallelStreams = await CreateStreamsAsync(connection, "Parallel");
         var eventType = typeof(UnknownEvent);
-        await using (var command = new NpgsqlCommand(EventSourceDbSql.InsertEventNameId, connection))
+        await using (var command = new NpgsqlCommand(EventSourceActorDbSql.InsertEventNameId, connection))
         {
             command.Parameters.Add(new NpgsqlParameter { NpgsqlDbType = NpgsqlDbType.Text, Value = eventType.Name });
             command.Parameters.Add(new NpgsqlParameter { NpgsqlDbType = NpgsqlDbType.Text, Value = eventType.AssemblyQualifiedName! });
@@ -123,7 +123,7 @@ public class EventLogConcurrentAppenderBenchmarks
         for (var index = 0; index < streams.Length; index++)
         {
             var name = $"EventLogConcurrentBenchmark.{dispatchMode}.{WriteMode}.{UseLz4Compression}.{index}.{Guid.NewGuid():N}";
-            await using var command = new NpgsqlCommand(EventSourceDbSql.InsertEventStreamId, connection);
+            await using var command = new NpgsqlCommand(EventSourceActorDbSql.InsertEventStreamId, connection);
             command.Parameters.Add(new NpgsqlParameter { NpgsqlDbType = NpgsqlDbType.Text, Value = name });
             streams[index] = (name, Convert.ToInt64(await command.ExecuteScalarAsync()));
         }

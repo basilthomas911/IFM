@@ -126,7 +126,7 @@ public sealed class EmaSeedBatchSnapshotTests(EventSourceActorSnapshotRangeFixtu
         return (repository, context, projector);
     }
 
-    Task SchemaAsync() => ExecuteSqlAsync(MarketDataSchemaSql.Create);
+    Task SchemaAsync() => ExecuteSqlAsync(MarketDataSchemaDb.CreateStatement);
     async Task ExecuteSqlAsync(string sql)
     {
         await using var connection = new NpgsqlConnection(fixture.ConnectionString); await connection.OpenAsync();

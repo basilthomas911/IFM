@@ -21,10 +21,34 @@ public sealed record StrategyCatalogSourceEvent : IEvent<ActorEntityId>, IRequir
     [Key(6)] public string EventSource { get; init; } = string.Empty;
     [Key(7)] public DateTime ReceivedOn { get; init; }
     [Key(8)] public string RequestJson { get; init; } = string.Empty;
+    // The original JSON slots remain reserved for replay of historical events.
     [Key(9)] public string BeforeJson { get; init; } = string.Empty;
     [Key(10)] public string AfterJson { get; init; } = string.Empty;
     [Key(11)] public string Principal { get; init; } = string.Empty;
     [Key(12)] public bool IsBaseline { get; init; }
+    [Key(13)] public StoredStrategyCatalogDefinition? BeforeVersion { get; init; }
+    [Key(14)] public StoredStrategyCatalogDefinition? AfterVersion { get; init; }
+
+    /// <summary>Reads the accepted state from either persisted event format.</summary>
+    public StoredStrategyCatalogDefinition ReadAfterVersion()
+    {
+        if (AfterVersion is { } version)
+        {
+            if (!string.IsNullOrEmpty(BeforeJson) || !string.IsNullOrEmpty(AfterJson))
+                throw new InvalidDataException("Catalog event contains both typed and legacy version state.");
+            return version;
+        }
+
+        if (BeforeVersion is not null || string.IsNullOrEmpty(AfterJson))
+            throw new InvalidDataException("Catalog event has no accepted version.");
+        return StrategyCatalogJson.Read<StoredStrategyCatalogDefinition>(AfterJson);
+    }
+
+    /// <summary>Reads the predecessor state, which is absent on creation and baseline events.</summary>
+    public StoredStrategyCatalogDefinition? ReadBeforeVersion()
+        => AfterVersion is not null
+            ? BeforeVersion
+            : string.IsNullOrEmpty(BeforeJson) ? null : StrategyCatalogJson.Read<StoredStrategyCatalogDefinition>(BeforeJson);
 
     [IgnoreMember] public string UserName => Principal;
     [IgnoreMember] public string EventName => nameof(StrategyCatalogSourceEvent);

@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Shared.Order.Execution;
 using TomasAI.IFM.Shared.EventSourcing.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Execution;
 using TomasAI.IFM.Domain.MarketData.Shared;
@@ -1274,6 +1275,44 @@ public sealed class TradeDbContext(IDbConnectionSettings connectionSettings, IDb
 
     /// <inheritdoc/>
     public Task UpsertOrderExecutionAsync(OrderExecutionDefinition execution, CancellationToken token = default) => this.UpsertOrderExecutionAsyncCoreBinding(execution, token);
+    /// <inheritdoc/>
+    public Task<FundOrderFillsRow[]> GetFundOrderFillsAsync(
+        int portfolioId, int fundId, DateOnly valueDate, int afterOrderId, Guid afterAttemptId, CancellationToken token = default)
+        => this.NativeTransaction().ExecuteOnceAsync(async (db, ct) =>
+            (await db.QueryAsync(TradeDbSql.ReadFundOrderFills,
+                [portfolioId, fundId, valueDate, afterOrderId, afterAttemptId, FundOrderFillsRow.PageSize],
+                MapToFundOrderFillsRow, ct)
+                .ConfigureAwait(false)).ToArray(), token);
+
+    static FundOrderFillsRow MapToFundOrderFillsRow(System.Data.Common.DbDataReader row)
+    {
+        var order = MessagePackBinarySerializer.Shared.Deserialize<TradeOrderDefinition>(row.GetFieldValue<byte[]>(0))!;
+        var execution = row.IsDBNull(1) ? null :
+            MessagePackBinarySerializer.Shared.Deserialize<OrderExecutionDefinition>(row.GetFieldValue<byte[]>(1));
+        var tradeId = order.SetupTrade?.TradeId ?? (row.IsDBNull(2) ? (int?)null : row.GetInt32(2));
+        var fills = execution?.Fills ?? [];
+        var components = execution is { Components.Length: > 0 } ? execution.Components : order.Components;
+        var orderQuantity = execution is { OrderQuantity: > 0 } ? execution.OrderQuantity :
+            components.Sum(static component => component.Legs.Select(static leg => Math.Abs(leg.SignedQuantity)).DefaultIfEmpty().Max());
+        var filledQuantity = execution?.CumulativeFilledQuantity ?? 0;
+        if (filledQuantity == 0 && fills.Length > 0 && components.Length > 0)
+        {
+            var quantities = fills.GroupBy(static fill => (fill.ComponentId, fill.TradeLegId))
+                .ToDictionary(static group => group.Key, static group => Math.Abs(group.Sum(static fill => fill.SignedQuantity)));
+            filledQuantity = components.Sum(component => component.Legs
+                .Select(leg => quantities.GetValueOrDefault((component.ComponentId, leg.TradeLegId))).DefaultIfEmpty().Min());
+        }
+        // A lifecycle update can overwrite the timestamp on the original order revision.
+        // Prefer the durable order binding, then the execution start for legacy attempts.
+        DateTime? started = execution is { StartedAtUtc: var start } && start != default ? start : null;
+        DateTime? projected = row.IsDBNull(3) ? null : row.GetDateTime(3);
+        var orderDateTime = execution?.Order?.ExecutionBoundAtUtc ?? order.ExecutionBoundAtUtc ?? started ?? projected;
+        return new(order.Id.OrderId, tradeId, execution?.ExecutionAttemptId ?? Guid.Empty,
+            execution?.Status.ToString() ?? order.Status.ToString(), fills,
+            orderDateTime, orderQuantity, filledQuantity,
+            fills.Length == 0 ? null : fills.Max(static fill => fill.FilledAtUtc), execution?.RejectionDetail, components);
+    }
+
     /// <inheritdoc/>
     public Task<OrderExecutionDefinition?> GetOrderExecutionAsync(TradeOrderId id, Guid executionAttemptId, CancellationToken token = default)
     {

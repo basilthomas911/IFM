@@ -18,7 +18,7 @@ internal static class ExecutionCapacitySettlement
     internal static async Task<AcceptedExecutionCapacityFacts> PrepareAndApplyAsync(EnlistedEventTransaction db,
         int portfolioId, ExecutionCapacityAdjustment outcome, long financialRevision, CancellationToken token)
     {
-        var sources = await db.QueryAsync(ExecutionCapacitySql.Source, [outcome.SourceCommandId],
+        var sources = await db.QueryAsync(PortfolioDbSql.ReadExecutionCapacitySource, [outcome.SourceCommandId],
             row => new EventLogReadModel(row.GetInt64(0), row.GetString(1), row.GetString(2), row.GetInt64(3),
                 row.GetFieldValue<byte[]>(4), row.GetGuid(5), row.GetString(6), row.GetInt64(7)), token).ConfigureAwait(false);
         var events = sources.Select(row => row.ToDomainEvent()).ToArray();
@@ -58,11 +58,11 @@ internal static class ExecutionCapacitySettlement
         order = execution!.Order;
         sourceVersion = source!.EventId;
         }
-        var approved = await db.ScalarAsync(ExecutionCapacitySql.Approval,
+        var approved = await db.ScalarAsync(PortfolioDbSql.ReadExecutionCapacityApproval,
             [outcome.OrderId, portfolioId, outcome.FundId, order.PortfolioApprovalId], token).ConfigureAwait(false);
         Require(approved is string hash && hash == order.DefinitionHash,
             FinancialReasons.AuthorityDenied, "Execution must retain its authoritative Portfolio approval.");
-        var stored = await db.ScalarAsync(ExecutionCapacitySql.Read, [outcome.OrderId], token).ConfigureAwait(false);
+        var stored = await db.ScalarAsync(PortfolioDbSql.LockAcceptedExecutionCapacity, [outcome.OrderId], token).ConfigureAwait(false);
         var prior = stored is byte[] bytes ? MessagePackBinarySerializer.Shared.Deserialize<AcceptedExecutionCapacityFacts>(bytes) : null;
         Require(prior is null || prior.Outcome.ExecutionId == outcome.ExecutionId && prior.Outcome.FundId == outcome.FundId &&
             prior.Outcome.ApprovedUnits == outcome.ApprovedUnits, FinancialReasons.SourceConflict, "Execution capacity ownership changed.");
@@ -70,7 +70,7 @@ internal static class ExecutionCapacitySettlement
             return new() { Outcome = prior.Outcome, SourceEventVersion = prior.SourceEventVersion };
         Require(prior is null || outcome.FilledUnits >= prior.Outcome.FilledUnits,
             FinancialReasons.SourceConflict, "Confirmed cumulative fills cannot regress.");
-        var exposures = await db.QueryAsync(ExecutionCapacitySql.Exposures, [outcome.OrderId, portfolioId, outcome.FundId],
+        var exposures = await db.QueryAsync(PortfolioDbSql.ReadExecutionCapacityExposures, [outcome.OrderId, portfolioId, outcome.FundId],
             row => new CapacityExposure { ScopeKind = (CapacityScopeKind)row.GetInt32(0), ScopeKey = row.GetString(1),
                 Measure = (CapacityMeasure)row.GetInt32(2), Unit = (CapacityUnit)row.GetInt32(3), Amount = row.GetDecimal(4), MethodVersion = row.GetInt32(5) }, token).ConfigureAwait(false);
         Require(exposures.Count > 0, FinancialReasons.AuthorityDenied, "Original accepted capacity effects are required.");
@@ -95,7 +95,7 @@ internal static class ExecutionCapacitySettlement
     {
         foreach (var delta in facts.UsageDeltas)
             await CapacityReservationStore.ApplyUsageAsync(db, portfolioId, delta, revision, token).ConfigureAwait(false);
-        await db.ExecuteAsync(ExecutionCapacitySql.Write, [facts.Outcome.OrderId, portfolioId, facts.Outcome.FundId,
+        await db.ExecuteAsync(PortfolioDbSql.WriteAcceptedExecutionCapacity, [facts.Outcome.OrderId, portfolioId, facts.Outcome.FundId,
             facts.Outcome.ExecutionId, facts.SourceEventVersion, revision, MessagePackBinarySerializer.Shared.Serialize(facts)], token).ConfigureAwait(false);
     }
 }

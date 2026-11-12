@@ -34,7 +34,7 @@ public sealed class TickAggregationStorageTests(MarketDataFixture fixture) : ICl
         ];
 
         await fixture.TickDatabase
-            .UseTest(TradeTickQuoteDbCql.InsertTickQuoteData)
+            .UseTest(TradeTickQuoteDbSql.InsertTickQuoteData)
             .SetParameters((object)values)
             .ExecuteCommandAsync();
 
@@ -58,7 +58,7 @@ public sealed class TickAggregationStorageTests(MarketDataFixture fixture) : ICl
         var payload = new byte[] { 0, 0, 0, 0 }; // Valid CQL binary encoding of an empty list.
 
         await fixture.TickDatabase
-            .UseTest(TradeTickQuoteDbCql.InsertTickQuoteData)
+            .UseTest(TradeTickQuoteDbSql.InsertTickQuoteData)
             .SetParameters((object)new object?[] {
                 (sbyte)AssetTypeId.Futures, contractId, valueDate,
                 TimeOnly.FromDateTime(timestamp), 4L, timestamp, timestamp.Ticks,

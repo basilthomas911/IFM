@@ -266,7 +266,7 @@ public sealed class AuditIntegrationTests
             logging ??= NullLoggerFactory.Instance;
             var settings=new DbConnectionSettings().Add(EventSourceActorDbContext.EventSourceActorDbConnection,Connection,"System.Data.Postgres");
             await new EventSourceSchemaDb(settings,NullLogger<DbProvider>.Instance).CreateAllAsync();
-            await using(var database=new PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(Connection)){await database.OpenAsync();await using var sql=new NpgsqlCommand(MarketDataServiceSchemaSql.CreateSchema+MarketDataServiceSchemaSql.CreateRecoveryLog,database);await sql.ExecuteNonQueryAsync();}
+            await using(var database=new PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(Connection)){await database.OpenAsync();await using var sql=new NpgsqlCommand(MarketDataServiceSchemaDb.RecoveryLogCreateStatement,database);await sql.ExecuteNonQueryAsync();}
             var dbs=Substitute.For<IDbContextFactory>();
 
             var source=new EventSourceActorDbContext(settings,dbs,NullLogger<DbProvider>.Instance);

@@ -19,7 +19,7 @@ public sealed class BrokerAccountingIntentStore(IPostgresEventTransaction transa
         var values = requests.ToArray();
         if (values.Length == 0) return Task.FromResult<IReadOnlyDictionary<(string, string), string>>(new Dictionary<(string, string), string>());
         return transactions.ExecuteOnceAsync<IReadOnlyDictionary<(string, string), string>>(async (db, ct) =>
-            (await db.QueryAsync(ExecutionCapacitySql.PostedSources,
+            (await db.QueryAsync(PortfolioDbSql.ReadPostedExecutionCapacitySources,
                 [bookId, "IBKR-Emulator", values.Select(value => value.Source.SourceEventId.ToString("N")).Distinct().ToArray()],
                 row => (Id: row.GetString(0), Purpose: row.GetString(1), Hash: row.GetString(2)), ct).ConfigureAwait(false))
                 .ToDictionary(value => (value.Id, value.Purpose), value => value.Hash), token);
@@ -75,7 +75,7 @@ public sealed class BrokerAccountingIntentStore(IPostgresEventTransaction transa
         if(source.SchemaVersion!=1 || source.EventId<=0 || source.Id==Guid.Empty) throw new InvalidDataException("Committed accounting intent facts required.");
         return transactions.ExecuteAsync(async(db,ct)=>
         {
-            await (db.ScalarAsync(PortfolioDbSql.Financial.LedgerConfigurationStore.Select01,[source.PortfolioId],ct)).ConfigureAwait(false);
+            await (db.ScalarAsync(PortfolioDbSql.Financial_LedgerConfigurationStore_Select01,[source.PortfolioId],ct)).ConfigureAwait(false);
             if(!await (FinancialOperationalEventPersistence.ClaimAsync(db,source,source.PortfolioId,ct)).ConfigureAwait(false)) return false;
             var payload=new CommandAuditPayload((CommandAuditPayloadFormat)source.PayloadFormat,source.PayloadVersion,source.CommandBytes,source.CommandSha256,MessageOriginJson.Deserialize(source.CommandOriginJson));
             await (db.ExecuteAsync("""

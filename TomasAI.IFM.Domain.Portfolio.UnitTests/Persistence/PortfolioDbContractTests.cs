@@ -1,3 +1,4 @@
+using System.Reflection;
 using TomasAI.IFM.Application.Storage.PortfolioDb.Schema;
 using FluentAssertions;
 using TomasAI.IFM.Application.Storage.PortfolioDb;
@@ -12,8 +13,8 @@ public sealed class PortfolioDbContractTests
     [Trait("Gate", "PPG-05")]
     public void Every_Postgres_query_is_schema_qualified_and_contains_no_CQL_filtering()
     {
-        var queries = Nested(typeof(PortfolioDbSql))
-            .SelectMany(type => type.GetFields().Where(field => field.IsLiteral && field.FieldType == typeof(string)))
+        var queries = typeof(PortfolioDbSql).GetFields(BindingFlags.NonPublic | BindingFlags.Static)
+            .Where(field => field.IsLiteral && field.FieldType == typeof(string))
             .Select(field => (string)field.GetRawConstantValue()!).ToArray();
         queries.Should().NotBeEmpty();
         queries.Should().OnlyContain(sql => !sql.Contains("ALLOW FILTERING", StringComparison.OrdinalIgnoreCase));
@@ -32,7 +33,7 @@ public sealed class PortfolioDbContractTests
     [Trait("Gate", "PPG-05")]
     public void Schema_is_additive_schema_qualified_and_has_required_book_of_record_tables()
     {
-        var schema = PortfolioSchemaSql.Portfolio;
+        var schema = PortfolioSchemaDb.CreateStatement;
         schema.Should().Contain("CREATE SCHEMA IF NOT EXISTS portfolio");
         schema.Should().Contain("portfolio.portfolio_by_id");
         schema.Should().Contain("portfolio.fund_by_portfolio");
@@ -71,15 +72,16 @@ public sealed class PortfolioDbContractTests
     [Trait("Gate", "PPG-05")]
     public void Portfolio_delete_tombstone_guards_every_child_projection_upsert()
     {
-        var guarded = new[] { PortfolioDbSql.Fund.Upsert, PortfolioDbSql.Fund.UpsertAssignment,
-            PortfolioDbSql.Fund.UpsertAllocation, PortfolioDbSql.Fund.UpsertEnvelope,
-            PortfolioDbSql.Orders.UpsertOrder, PortfolioDbSql.Orders.UpsertTrade,
-            PortfolioDbSql.Orders.UpsertComposition };
+        static string Query(string name) => (string)typeof(PortfolioDbSql)
+            .GetField(name, BindingFlags.NonPublic | BindingFlags.Static)!.GetRawConstantValue()!;
+
+        var guarded = new[] { Query("Fund_Upsert"), Query("Fund_UpsertAssignment"),
+            Query("Fund_UpsertAllocation"), Query("Fund_UpsertEnvelope"),
+            Query("Orders_UpsertOrder"), Query("Orders_UpsertTrade"),
+            Query("Orders_UpsertComposition") };
         guarded.Should().OnlyContain(sql => sql.Contains("projection_tombstone", StringComparison.Ordinal));
-        PortfolioDbSql.Portfolio.DeleteDraft.Should().Contain("fund_order_trade")
+        Query("Portfolio_DeleteDraft").Should().Contain("fund_order_trade")
             .And.Contain("fund_composition").And.Contain("fund_order");
     }
 
-    static IEnumerable<Type> Nested(Type type) => type.GetNestedTypes()
-        .SelectMany(child => new[] { child }.Concat(Nested(child)));
 }

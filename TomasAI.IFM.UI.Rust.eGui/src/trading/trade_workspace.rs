@@ -19,6 +19,7 @@ mod blotter;
 mod display_cache;
 /// Established Iron Condor trade view, plan window, and spread chart.
 mod iron_condor;
+mod fund_fills;
 /// Trade-order layout helpers for selectors, order lists, leg grids, execution/fills, and drafts. Rectangles convert reference coordinates to the current scale; controls obey the managed eligibility flags and local pending state.
 mod order_layout;
 pub use display_cache::PreparedTradeDisplay;
@@ -55,6 +56,7 @@ pub struct TradeWorkspace {
     dismissed_submission_error: String,
     /// Whether an established-trade center view is open.
     loaded_open: bool,
+    loaded_show_fills: bool,
     /// Stable identity of the chart/position currently cached for the selected trade.
     loaded_spread_id: String,
     /// Cached net-spread points for the active loaded trade.
@@ -80,7 +82,7 @@ pub struct TradeWorkspace {
     /// Current trade blotter source filter.
     source_filter: String,
     /// Last blotter refresh time in egui seconds, used to throttle automatic queries.
-    last_blotter_refresh: f64,
+    last_quote_refresh: f64,
 }
 
 
@@ -130,7 +132,8 @@ impl TradeWorkspace {
 
     /// Report whether trading UI, a loaded trade, a pending request, or a load error requires drawing.
     pub fn is_visible(&self) -> bool {
-        self.open || self.loaded_open || self.pending.is_some() || !self.load_error.is_empty()
+        self.open || self.loaded_open || self.pending.is_some() || self.deferred_action.is_some()
+            || !self.load_error.is_empty()
     }
 
 
@@ -247,17 +250,13 @@ impl TradeWorkspace {
                     }
                     self.dialog = "change-trade".into();
                 }
-                if self.pending_action == "load-trade" {
+                if self.pending_action == "load-trade" && outcome.state == "Completed" {
                     self.open = false;
-                    let loaded = outcome.state == "Completed";
-                    self.loaded_open |= loaded;
-                    if !loaded {
-                        self.load_error = if outcome.message.is_empty() {
-                            "The selected trade could not be loaded.".into()
-                        } else {
-                            outcome.message.clone()
-                        };
-                    }
+                    self.loaded_open = true;
+                    self.loaded_show_fills = false;
+                }
+                if matches!(self.pending_action.as_str(), "activate-trade" | "close-trade") {
+                    self.loaded_show_fills = false;
                 }
             }
             if self.pending_action == "close-trade" {
@@ -344,18 +343,18 @@ impl TradeWorkspace {
                         )),
                         |ui| {
                             ui.horizontal(|ui| {
-                                crate::presentation::tab_value(
-                                    ui,
-                                    &mut self.tab,
-                                    0,
-                                    "Trade Orders",
-                                );
+                                let was_blotter = self.tab == 1;
+                                let orders = crate::presentation::tab_value(ui, &mut self.tab, 0, "Trade Orders");
+                                if orders.clicked() && was_blotter {
+                                    action = Some("close-blotter");
+                                    self.compose_tab = 0;
+                                }
                                 if ui
                                     .add_enabled_ui(
                                         self.interaction_ready(s)
                                             && s.result
                                                 .context
-                                                .get("tradeId")
+                                                .get("fundId")
                                                 .is_some_and(|id| !id.is_empty()),
                                         |ui| {
                                             crate::presentation::tab_label(
@@ -369,7 +368,16 @@ impl TradeWorkspace {
                                     .clicked()
                                 {
                                     self.tab = 1;
-                                    action = Some("compose");
+                                    let trade_id = s.result.context.get("tradeId").map(String::as_str).unwrap_or_default();
+                                    let established = s.result.context.get("tradeState")
+                                        .is_some_and(|state| matches!(state.as_str(), "Open" | "Closed"));
+                                    if !trade_id.is_empty() && !established {
+                                        action = Some("compose");
+                                    } else {
+                                        self.compose_tab = 2;
+                                        self.draft.insert("blotterTrade".into(), trade_id.into());
+                                        action = Some("refresh-execution");
+                                    }
                                 }
                             });
                         },
@@ -395,11 +403,12 @@ impl TradeWorkspace {
                 });
             });
         self.bounds = response.map(|shown| shown.response.rect);
-        if action == Some("load-trade") {
-            open = false;
-        }
         if self.open && !open && action.is_none() {
-            action = Some("close");
+            if self.pending.is_some() || s.busy {
+                self.deferred_action = Some("close");
+            } else {
+                action = Some("close");
+            }
         }
         self.open = open;
         action = self.draw_loaded_trade(ctx, s).or(action);
@@ -632,15 +641,6 @@ impl TradeWorkspace {
                         self.load_error.clear();
                     }
                 });
-        }
-        if !open
-            && !self.loaded_open
-            && self.pending.is_none()
-            && self.load_error.is_empty()
-            && action != Some("load-trade")
-        {
-            self.deferred_action = None;
-            action = Some("close");
         }
         if let Ok(path) = std::env::var("IFM_RUST_TRADE_METRICS") {
             let controls: BTreeMap<_, _> = self
@@ -959,25 +959,6 @@ impl TradeWorkspace {
         );
         self.drawn_rows = drawn;
         clicked.map(|index| rows[index].id.split_once(':').unwrap().1.to_string())
-    }
-
-
-    /// Render a published object's scalar properties as a read-only grid.
-    fn properties(ui: &mut egui::Ui, value: &impl crate::models::cells::Cells) {
-        egui::ScrollArea::both().bordered_show(ui, |ui| {
-            crate::presentation::form_grid(ui, "trade-properties")
-                .striped(true)
-                .show(ui, |ui| {
-                    for key in crate::services::broker_order_ui::SUMMARY_NAMES {
-                        let cell = value.cell(key);
-                        if !cell.is_missing() {
-                            crate::presentation::form_caption(ui, *key);
-                            ui.trading_label(cell.text());
-                            ui.end_row();
-                        }
-                    }
-                });
-        });
     }
 
 

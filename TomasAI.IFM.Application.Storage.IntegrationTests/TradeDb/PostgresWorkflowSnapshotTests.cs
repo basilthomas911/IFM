@@ -55,7 +55,7 @@ public sealed class PostgresWorkflowSnapshotTests(PostgresTradePlanFixture fixtu
     [InlineData(false, true)]
     public async Task Command_repository_owns_atomic_rows_and_notifies_only_after_commit(bool failAfterWrite, bool failNotification)
     {
-        await fixture.Transactions.ExecuteOnceAsync((db, token) => db.ExecuteAsync(TradeSchemaSql.Create, [], token));
+        await fixture.Transactions.ExecuteOnceAsync((db, token) => db.ExecuteAsync(TradeSchemaDb.CreateStatement, [], token));
         var now = DateTime.UtcNow;
         var entity = IntrinsicTimeStrategyWorkflowEntityId.Create(new("repository-" + Guid.NewGuid().ToString("N"), DateOnly.FromDateTime(now), TimeFrameType.Monthly));
         var workflow = new StrategyWorkflowId(Guid.NewGuid());
@@ -119,7 +119,7 @@ public sealed class PostgresWorkflowSnapshotTests(PostgresTradePlanFixture fixtu
     [InlineData(true)]
     public async Task Source_and_all_workflow_and_risk_rows_are_atomic_and_rebuildable(bool failAfterWrites)
     {
-        await fixture.Transactions.ExecuteOnceAsync((db, token) => db.ExecuteAsync(TradeSchemaSql.Create, [], token));
+        await fixture.Transactions.ExecuteOnceAsync((db, token) => db.ExecuteAsync(TradeSchemaDb.CreateStatement, [], token));
         var now = DateTime.UtcNow;
         var workflow = new StrategyWorkflowId(Guid.NewGuid());
         var entity = IntrinsicTimeStrategyWorkflowEntityId.Create(new("native-workflow-" + Guid.NewGuid().ToString("N"), DateOnly.FromDateTime(now), TimeFrameType.Monthly));

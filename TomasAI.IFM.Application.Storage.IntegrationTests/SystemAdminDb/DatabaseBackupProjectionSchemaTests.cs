@@ -82,7 +82,7 @@ public sealed class DatabaseBackupProjectionSchemaTests(TomasAI.IFM.Application.
             SystemAdminSchemaSql.CreateProjectionReceipt
         ];
         var queryDefinitions = typeof(SystemAdminDbSql)
-            .GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)
+            .GetFields(System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)
             .Where(static field => field.FieldType == typeof(string))
             .Select(static field => (string)field.GetValue(null)!)
             .ToArray();

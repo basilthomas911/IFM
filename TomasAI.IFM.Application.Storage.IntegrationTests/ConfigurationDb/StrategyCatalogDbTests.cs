@@ -113,7 +113,7 @@ public sealed class StrategyCatalogDbTests(MarketConditionConfigurationDbFixture
         var schema = new ConfigurationSchemaDb(settings, Substitute.For<ILogger<DbProvider>>());
         await schema.CreateAllAsync();
         await schema.CreateAllAsync();
-        var sql = string.Join("\n", ConfigurationSchemaSql.GetDefinitions().Select(definition => definition.CreateStatement));
+        var sql = string.Join("\n", ConfigurationSchemaDb.GetDefinitions().Select(definition => definition.CreateStatement));
         var relations = System.Text.RegularExpressions.Regex.Matches(sql,
             @"CREATE\s+(?:UNIQUE\s+)?(?:TABLE|INDEX|SEQUENCE)\s+(?:IF\s+NOT\s+EXISTS\s+)?(?<name>[a-zA-Z_][a-zA-Z_0-9.]*)")
             .Select(match => match.Groups["name"].Value)

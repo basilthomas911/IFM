@@ -30,7 +30,7 @@ internal static class IsolatedConfigurationVerifier
         var transactions = new PostgresEventTransaction(settings);
         await transactions.ExecuteOnceAsync(async (db, token) =>
         {
-            await db.ExecuteAsync(MarketDataSchemaSql.OptionChainPoliciesCreate, [], token).ConfigureAwait(false);
+            await db.ExecuteAsync(MarketDataSchemaDb.OptionChainPoliciesCreateStatement, [], token).ConfigureAwait(false);
             return true;
         }).ConfigureAwait(false);
         var baseline = ConfigurationBaselineServices.Create(settings, transactions);

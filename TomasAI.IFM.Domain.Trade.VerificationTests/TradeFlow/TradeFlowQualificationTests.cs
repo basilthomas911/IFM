@@ -288,7 +288,7 @@ public sealed class TradeFlowQualificationTests
     [Fact]
     public void Additive_trade_plan_schema_has_one_immutable_history_table_per_strategy()
     {
-        var sql = TradePlanSchemaSql.Create;
+        var sql = TradePlanSchemaDb.CreateStatement;
         string[] tables = ["iron_condor_trade_plan", "vertical_spread_trade_plan", "futures_trade_plan", "position_trade_plan_activity_by_date", "position_exit_workflow"];
         foreach (var table in tables)
             sql.Should().Contain("CREATE TABLE IF NOT EXISTS trade_plan." + table);
@@ -388,7 +388,7 @@ public sealed class TradeFlowQualificationTests
     [Fact]
     public void Additive_trade_flow_schema_contains_recovery_and_history_without_destructive_create_statements()
     {
-        var schema = TradeSchemaSql.Create;
+        var schema = TradeSchemaDb.CreateStatement;
         string[] tables =
         [
             "trade_order", "order_execution", "order_execution_fill",

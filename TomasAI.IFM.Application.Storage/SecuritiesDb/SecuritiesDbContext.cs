@@ -981,7 +981,7 @@ public sealed class SecuritiesDbContext(IDbConnectionSettings connectionSettings
 
     /// <inheritdoc/>
     public async Task<long> ReadCatalogRevisionAsync(string stream, CancellationToken token)
-        => await Use(nameof(EventSourceDbSql.HasCommittedMaintenanceStream), EventSourceDbSql.HasCommittedMaintenanceStream)
+        => await Use(nameof(EventSourceActorDbSql.HasCommittedMaintenanceStream), EventSourceActorDbSql.HasCommittedMaintenanceStream)
             .SetParameters(new MaintenanceSourceStream(stream))
             .ExecuteScalarAsync(MapToCatalogRevision, token)
             .ConfigureAwait(false);

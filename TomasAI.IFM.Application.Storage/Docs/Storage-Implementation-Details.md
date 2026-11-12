@@ -166,8 +166,8 @@ Each application DbContext directory contains exactly seven C# source files at i
 | `<Domain>DbContextExtensions.cs` | DbContext extension helpers and their internal implementation types, including relational mapping, transaction sessions and disposable leases. |
 | `<Domain>DbSql.cs` | All checked-in runtime query and command text for the context. The filename is common across providers. PostgreSQL statements remain SQL and raw tick statements remain ScyllaDB CQL. |
 | `<Domain>DbParameters.cs` | Parameter records/classes bound to command text. |
-| `Schema/<Domain>SchemaDb.cs` | Ordered schema-object catalog and connection selection. |
-| `Schema/<Domain>SchemaSql.cs` | The context's single DDL catalog, including schemas, tables, indexes, constraints, dependency order and required initialization metadata. |
+| `Schema/<Domain>SchemaDb.cs` | Schema execution, connection selection, initialization policy, and dependency-ordered object definitions. |
+| `Schema/<Domain>SchemaSql.cs` | The context's single catalog of documented native schema and seed SQL constants. |
 
 Additional persistence capabilities that callers already use may be declared in the appropriate read, write, or combined contract file. Keep implementation-only types, including context-owned exceptions and provider helpers, beside their implementation in the context or extensions file. Documentation and independent services have their own locations outside the context directory. The shared schema executor is infrastructure used by the concrete contexts.
 
@@ -331,15 +331,20 @@ static LookupTypeReadModel MapToLookupType(IObjectDataRecord e)
 
 - Each database owns a `Schema/` folder containing one `<Domain>SchemaDb.cs` executor and one `<Domain>SchemaSql.cs` catalog containing the database's native DDL.
 - `<Domain>SchemaDb` inherits `SchemaDbContext<<Domain>SchemaDb>` and selects the database context's named connection setting. Its `Definitions` cover every owned schema, table, index, constraint, sequence, function, trigger and required initialization step, in dependency order.
-- All create/drop SQL and schema metadata belong in the single schema SQL catalog. Related definition groups may be nested in that catalog; additional feature-specific schema SQL files or schema folders such as `ParameterSets/` are prohibited.
+- Each schema SQL file contains one top-level `public static` class. Every member is an `internal const string` initialized directly with a multiline raw string using triple quotes. Give each constant a short XML `<summary>` describing the statement's purpose. Sort the constants alphabetically by C# identifier using ordinal order. The executor specifies dependency order independently.
+- Place the opening triple quotes on their own line after the declaration and the closing `""";` on its own line. End the final SQL statement in each literal with a semicolon. Put each table field and ScyllaDB type field definition on its own line, with a comma after each entry followed by another field or table constraint. Put the table's closing parenthesis on its own line.
+- Keep create, alter, drop and seed SQL in the schema SQL constants. The schema executor assembles the dependency-ordered definitions and selects initialization modes. Put mapping types, binding models and persistence helpers in their prescribed DbContext files. Nested types, extra types, methods, properties, computed values and non-SQL members are prohibited in the schema SQL catalog.
 - The executor uses the inherited `CreateAllAsync`, targeted `CreateAsync`, and table-validation operations. Schema creation must be additive and repeatable; ordinary startup must not drop application data.
 - PostgreSQL contexts use PostgreSQL DDL. The raw tick context uses ScyllaDB CQL DDL in the same catalog layout.
 - Runtime query/command SQL remains in `<Domain>DbSql.cs`; schema DDL remains in `Schema/<Domain>SchemaSql.cs`.
-- Focused tests verify the single-catalog layout and actual PostgreSQL creation, including indexes and lifecycle guards. `ConfigurationDb/Schema` implements this pattern; the shared schema executor provides the creation mechanism used by the MarketData schema executor as well.
+- The convention audit checks all 13 catalogs. PostgreSQL and ScyllaDB integration tests exercise schema creation, including PostgreSQL indexes and lifecycle guards and ScyllaDB type dependencies.
 
 ### Statement and parameter catalogs
 
 - Every runtime query or command string must be declared in `NameOfDbSql.cs` using the context's database dialect.
+- Each `<Domain>DbSql.cs` contains one top-level `public static` class. Its only members are `internal const string` fields initialized directly with multiline triple-quoted raw strings. Every field has a short XML `<summary>` that describes the statement or template. Sort the fields alphabetically by C# identifier using ordinal order.
+- Place the opening triple quotes on their own line after the declaration and the closing `""";` on its own line. End each statement with a semicolon. Use uppercase keywords, lowercase unquoted database identifiers, and consistent indentation for clauses, joins, predicates, and wrapped field lists. Preserve the spelling of quoted identifiers, literals, JSON keys, and parameter markers.
+- The statement catalog permits only the single catalog class and its SQL or CQL constants. Place nested types, methods, properties, computed values, and other member types in their prescribed context files. Declare fixed query templates as documented constants and assemble runtime variants in `<Domain>DbContextExtensions.cs` using allowlisted identifiers and bound values.
 - SQL and CQL must not be embedded directly in DbContext method bodies.
 - `NameOfDbParameters.cs` must contain the query/command parameter-binding models used by `SetParameters`.
 - Parameter models should be internal `readonly record struct` values implementing `IBindValue`.
@@ -348,9 +353,11 @@ static LookupTypeReadModel MapToLookupType(IObjectDataRecord e)
 ScyllaDB statement example:
 
 ```csharp
-public const string DeleteReferenceProjectionStateV3 = """
+/// <summary>Deletes the state for one reference projection.</summary>
+internal const string DeleteReferenceProjectionStateV3 =
+    """
     DELETE FROM reference_projection_state_v3
-    WHERE projectionName = :projectionName;
+    WHERE projectionname = :projectionName;
     """;
 ```
 
@@ -638,7 +645,7 @@ The structural cleanup and domain ownership separation below follow the DbContex
 
 EventSourceDb retains its established `EventSourceActorDbContext` and read/write contracts. The concrete context implements read/write persistence and resource lifetime contracts; `EventSourceActorDbContextExtensions` owns its C# 14 context helpers. Both carry explicit XML operation documentation. Local cache-resolution helpers and inline projector protocol guards are owned by that extension class. Existing revision checks, execution ownership, timestamp requirements and command deduplication remain enforced.
 
-`EventSourceActorDbParameters.cs` is the single catalog for all context `IBindValue` records; the former per-record `Parameters` directory is removed. `Schema/EventSourceActorSchemaSql.cs` owns all production DDL and dependency-ordered schema definitions, including the business-subscription and risk-history receipt tables. `EventSourceSchemaDb` selects the named connection and delegates to that catalog and the inherited schema executor. Runtime journal operations reference the catalog when they need additive initialization. Benchmark-specific provider fixtures reside in `Framework.Storage.Benchmarks/CommandLog` and are not compiled into production Storage.
+`EventSourceActorDbParameters.cs` is the single catalog for all context `IBindValue` records; the former per-record `Parameters` directory is removed. `Schema/EventSourceActorSchemaSql.cs` contains the production DDL for the event store, including the business-subscription and risk-history receipt tables. `EventSourceSchemaDb` selects the named connection and supplies the definitions in dependency order to the inherited schema executor. Runtime journal operations reference the catalog when they need additive initialization. Benchmark-specific provider fixtures reside in `Framework.Storage.Benchmarks/CommandLog` and are not compiled into production Storage.
 
 ## EventSourceDb domain ownership separation
 
@@ -657,7 +664,7 @@ Provider serialization, command-audit writes, event-log appending and technical 
 
 MarketDataDb uses one non-partial `MarketDataDbContext` that implements its read/write contracts. All 190 context binding types are consolidated in `MarketDataDbParameters.cs`; the former individual parameter source files are removed. Public context and contract operations have XML summaries, parameter and return documentation. Context helpers are consolidated in the C# 14 blocks in `MarketDataDbContextExtensions.cs`, including transaction-bound realtime and VIX helpers.
 
-`Schema/MarketDataSchemaSql.cs` owns the PostgreSQL DDL and the complete dependency-ordered schema definition catalog. `MarketDataSchemaDb` selects the named MarketData connection and delegates schema execution to that catalog. Existing PostgreSQL table/index statements and historical loader table names are preserved. Normal persistence paths use PostgreSQL statements. Raw trade/quote persistence continues delegating to TradeTickQuoteDb.
+`Schema/MarketDataSchemaSql.cs` contains the PostgreSQL DDL. `MarketDataSchemaDb` selects the named MarketData connection and assembles the definitions in dependency order. Existing PostgreSQL table/index statements and historical loader table names are preserved. Normal persistence paths use PostgreSQL statements. Raw trade/quote persistence continues delegating to TradeTickQuoteDb.
 
 Calendar calculations are owned by `Domain.MarketData.Shared/Calendar/TradingCalendar.cs`; context queries read current persisted holidays and pass them to that calculator. The context no longer keeps trading-day or normal-curve caches. Missing option quote Greeks are calculated by `Domain.MarketData.Feed/Pricing/OptionQuoteGreekEnrichment.cs` in the option tick domain projector before quote persistence. The raw tick is preserved and supplied Greeks remain unchanged. Historical backfill test tooling uses the same domain calculator. Storage receives the resulting quote facts.
 
@@ -856,8 +863,8 @@ The single parameter catalog consolidates the existing internal readonly binding
 without changing their ordered values. The one receiver-helper catalog owns technical
 serialization, query cursor validation, immutable revision checks and persistence resource
 handling. Its small internal cursor/result records are declared at file scope. Separate
-PostgreSQL trade-flow, pipeline, regime and workflow stores are retired. SQL constants and
-fixed query builders reside in TradeDbSql; all schema creation and additive changes use
+PostgreSQL trade-flow, pipeline, regime and workflow stores are retired. TradeDbSql holds SQL constants and
+templates. TradeDbContextExtensions assembles dynamic queries. All schema creation and additive changes use
 Schema/TradeSchemaSql through TradeSchemaDb. Retired Scylla schema catalogs and provider
 fallback branches are removed.
 
@@ -901,9 +908,9 @@ TradePlanDb is PostgreSQL-only. Its persistence folder contains nine C# files:
 
 - TradePlanDbContext.cs: the non-partial public context implements the documented read/write contracts and owns ordinal result mapping.
 - ITradePlanDbContext.cs, ITradePlanDbReadContext.cs and ITradePlanDbWriteContext.cs: typed repository, query and mutation capabilities, including caller-owned transactions.
-- TradePlanDbContextExtensions.cs: C# 14 receiver helpers for accepted mutations, local transaction/resource ownership, identity validation and scoped keyset pagination. The internal cursor type is file-scoped here.
+- TradePlanDbContextExtensions.cs: C# 14 receiver helpers for accepted mutations, local transaction/resource ownership, identity validation and assembly of scoped keyset queries. The internal cursor type is file-scoped here.
 - TradePlanDbParameters.cs: the position binding and the complete Iron Condor scalar binding; scalar ordinals are unchanged.
-- TradePlanDbSql.cs: native PostgreSQL positional SQL, immutable-revision conflict fences and deterministic paging query construction. No runtime CQL conversion remains.
+- TradePlanDbSql.cs: native PostgreSQL positional SQL with immutable-revision conflict fences and paging templates.
 - Schema/TradePlanSchemaSql.cs: the single PostgreSQL DDL catalog for all plan/workflow tables, scalar columns, indexes and additive migrations, plus explicit administrative teardown.
 - Schema/TradePlanSchemaDb.cs: executes that catalog through SchemaDbContext.
 

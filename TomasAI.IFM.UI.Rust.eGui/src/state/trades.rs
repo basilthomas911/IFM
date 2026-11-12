@@ -15,6 +15,7 @@ mod account;
 mod broker_mutations;
 mod composer;
 mod eod;
+pub(crate) mod fund_fills;
 mod mutations;
 mod submissions;
 
@@ -53,6 +54,8 @@ pub struct TradeController {
     reconciled: Vec<EditorOutcome>,
     /// Optional composer; `None` represents an absent value.
     composer: Option<composer::Composer>,
+    blotter_fills: Option<fund_fills::Snapshot>,
+    loaded_fills: Option<fund_fills::Snapshot>,
     /// Keyed submission operations retained by TradeController.
     submission_operations: BTreeMap<String, crate::services::order_submission::Operation>,
     /// Whether submissions loaded is enabled or currently true.
@@ -202,6 +205,9 @@ impl TradeController {
         if action != "load" && intent["expectedGeneration"].as_u64() != Some(self.generation) {
             return Err("Trade workspace changed; review the current selection".into());
         }
+        if matches!(action, "refresh-execution" | "refresh-loaded-fills" | "leave-blotter-fills" | "leave-loaded-fills" | "close-blotter" | "select-fill-order") {
+            return self.fills_action(backend, registry, intent, deadline).await;
+        }
         if matches!(action, "eod-open" | "eod-load" | "eod-run") {
             let result = self.eod_action(backend, registry, intent, deadline).await;
             if result.is_ok() {
@@ -231,6 +237,12 @@ impl TradeController {
                 {
                     return Err("Order selection changed".into());
                 }
+                let order = self.data.order.ok_or("Select a Fund order")?;
+                let trade_id = self.data.trade.ok_or("Select a trade")?;
+                let mut refreshed = self.data.clone();
+                refreshed.select_order(backend, registry, order, deadline).await?;
+                refreshed.trade = Some(trade_id);
+                self.data = refreshed;
                 let trade = selected(
                     registry,
                     "FundOrderTradeProjectionReadModel",
@@ -276,6 +288,7 @@ impl TradeController {
                     .await?;
                 }
                 self.composer = None;
+                self.blotter_fills = None;
                 self.monitors
                     .open(
                         backend,
@@ -300,6 +313,9 @@ impl TradeController {
                     .await
             };
             if result.is_ok() {
+                if matches!(action, "load-trade" | "activate-trade" | "close-trade") {
+                    self.loaded_fills = None;
+                }
                 self.message.clear();
             }
             return result;
@@ -312,6 +328,7 @@ impl TradeController {
                 composer.close(backend, registry, deadline).await?;
             }
             self.composer = None;
+            self.blotter_fills = None;
         }
         if matches!(
             action,
@@ -335,7 +352,7 @@ impl TradeController {
                 | "qualification-release"
                 | "qualification-resync"
                 | "submit-order"
-                | "refresh-execution"
+                | "recover-submission"
                 | "update-limit"
                 | "cancel-unfilled"
                 | "reconcile-broker-order"
@@ -738,6 +755,11 @@ impl TradeController {
                 .push(typed_row("eod", session.scope.key()?, &session.document())?);
         }
         crate::state::trade_monitors::Hub::merge(&mut result, &self.monitors.current().result);
+        for (view, fills) in [("blotter", &self.blotter_fills), ("loaded", &self.loaded_fills)] {
+            if let Some(fills) = fills {
+                fills.append(view, &mut result)?;
+            }
+        }
         if let (Some(composer), Some(context)) = (&self.composer, &data.context) {
             composer.append(&mut result, context)?;
             composer.append_evidence(&mut result, &self.order_operations)?;
@@ -837,20 +859,35 @@ impl TradeController {
                 .await;
         }
         if intent["intent"] == "reconcile-broker-order" {
-            let composer = self.composer.as_mut().ok_or("Open Trade Blotter first")?;
-            let (order, _) = composer.broker_order(field(intent, "brokerOrderId"))?;
+            let view = field(intent, "fillsView");
+            let key = field(intent, "brokerOrderId");
+            let (order, _) = if view.is_empty() {
+                self.composer.as_ref().ok_or("Open Trade Blotter first")?.broker_order(key)?
+            } else {
+                self.fill_broker_order(backend, registry, intent, deadline).await?
+            };
             let id = uuid::Uuid::parse_str(intent["requestId"].as_str().unwrap_or_default())
                 .map_err(|_| "Invalid reconciliation request identity")?;
             crate::services::broker_order_commands::reconcile_order(backend, registry, &order, id, deadline).await?;
-            composer.refresh_evidence(backend, registry, deadline).await?;
+            if view.is_empty() {
+                if let Some(composer) = self.composer.as_mut() {
+                    composer.refresh_evidence(backend, registry, deadline).await?;
+                }
+            } else {
+                self.refresh_fill_controls(backend, registry, view, deadline).await?;
+            }
             return Ok("Broker evidence retrieved and queued for reconciliation".into());
         }
         self.load_submissions(registry).await?;
-        if intent["intent"] == "refresh-execution"
-            && !self.composer.as_ref().is_some_and(composer::Composer::awaiting_broker_reply)
-        {
-            self.reconcile_submissions(backend, registry, &context, deadline)
-                .await?;
+        if intent["intent"] == "recover-submission" {
+            if let Some(composer) = self.composer.as_mut() {
+                composer.refresh_evidence(backend, registry, deadline).await?;
+            }
+            if self.composer.as_ref().is_some_and(composer::Composer::awaiting_broker_reply) {
+                return Err("The order was already dispatched. Use Reconcile to check its broker status.".into());
+            }
+            self.reconcile_submissions(backend, registry, &context, deadline).await?;
+            return Ok("Checked the retained submission".into());
         }
         if intent["intent"] == "submit-order"
             && self
@@ -861,6 +898,7 @@ impl TradeController {
             return Err("This setup already has a retained submission; refresh execution evidence instead of submitting it again".into());
         }
         if intent["intent"] == "compose" {
+            self.blotter_fills = None;
             if let Some(composer) = self.composer.as_mut() {
                 composer.close(backend, registry, deadline).await?;
             }

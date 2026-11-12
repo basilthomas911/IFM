@@ -47,7 +47,8 @@ internal static class StorageConventionAudit
     ];
 
     internal static readonly string[] Rules = ["Layout", "Structure", "Capabilities", "ContractMethods", "Helpers", "Statements",
-        "Parameters", "Dialect", "Schema", "Validation", "Ownership", "QueryResults", "Mappers", "Documentation", "FluentCalls"];
+        "Parameters", "Dialect", "Schema", "SchemaSqlFormat", "RuntimeSqlFormat", "Validation", "Ownership", "QueryResults", "Mappers", "Documentation", "FluentCalls"];
+
     static readonly Lazy<Dictionary<string, StorageSource[]>> Sources = new(() => Contexts.ToDictionary(spec => spec.Name,
         spec => Directory.GetFiles(spec.Folder, "*.cs", SearchOption.AllDirectories)
             .Select(path => StorageSource.Parse(path, File.ReadAllText(path))).ToArray(), StringComparer.Ordinal));
@@ -78,11 +79,157 @@ internal static class StorageConventionAudit
         return findings;
     }
 
+    internal static IReadOnlyList<string> InspectSchemaSqlFormat(StorageSource source) =>
+        InspectSqlCatalogFormat(source, schema: true);
+
+    internal static IReadOnlyList<string> InspectRuntimeSqlFormat(StorageSource source) =>
+        InspectSqlCatalogFormat(source, schema: false);
+
+    static IReadOnlyList<string> InspectSqlCatalogFormat(StorageSource source, bool schema)
+    {
+        var label = schema ? "Schema SQL" : "Runtime SQL";
+        var findings = new List<string>();
+        void Add(SyntaxNode node, string message)
+            => findings.Add($"{source.Path}:{node.GetLocation().GetLineSpan().StartLinePosition.Line + 1}: {message}");
+
+        var declarations = source.Root.DescendantNodes().OfType<MemberDeclarationSyntax>()
+            .Where(member => member is not BaseNamespaceDeclarationSyntax
+                && member.Parent is CompilationUnitSyntax or BaseNamespaceDeclarationSyntax)
+            .ToArray();
+        if (declarations is not [ClassDeclarationSyntax catalog]
+            || catalog.Identifier.ValueText != Path.GetFileNameWithoutExtension(source.Path)
+            || catalog.Modifiers.Count != 2 || !catalog.Modifiers.Any(SyntaxKind.PublicKeyword)
+            || !catalog.Modifiers.Any(SyntaxKind.StaticKeyword) || catalog.BaseList is not null
+            || catalog.TypeParameterList is not null)
+        {
+            Add(source.Root, $"{label} files must declare exactly one public static catalog class.");
+            return findings;
+        }
+
+        if (catalog.Members.Count == 0)
+            Add(catalog, $"{label} catalogs must contain SQL constants.");
+
+        string? previousName = null;
+        foreach (var member in catalog.Members)
+        {
+            if (member is not FieldDeclarationSyntax field || field.Modifiers.Count != 2
+                || !field.Modifiers.Any(SyntaxKind.InternalKeyword) || !field.Modifiers.Any(SyntaxKind.ConstKeyword)
+                || field.Declaration.Type is not PredefinedTypeSyntax type || !type.Keyword.IsKind(SyntaxKind.StringKeyword)
+                || field.Declaration.Variables is not [var variable]
+                || variable.Initializer?.Value is not LiteralExpressionSyntax literal
+                || !literal.Token.IsKind(SyntaxKind.MultiLineRawStringLiteralToken))
+            {
+                Add(member, $"{label} members must each be an internal const string with one direct multiline raw literal.");
+                continue;
+            }
+            var name = variable.Identifier.ValueText;
+            if (previousName is not null && string.CompareOrdinal(previousName, name) >= 0)
+                Add(field, $"Order SQL constants alphabetically by identifier. {name} follows {previousName}.");
+            previousName = name;
+
+            if (!Regex.IsMatch(Documentation(field), @"<summary>\s*[^\s<][\s\S]*?</summary>", RegexOptions.CultureInvariant))
+                Add(field, $"{label} constants require a short XML summary.");
+
+            var lines = literal.Token.Text.ReplaceLineEndings("\n").Split('\n');
+            var rawSpan = literal.GetLocation().GetLineSpan();
+            if (lines[0] != "\"\"\"" || lines[^1].Trim() != "\"\"\""
+                || variable.Initializer.EqualsToken.GetLocation().GetLineSpan().StartLinePosition.Line >= rawSpan.StartLinePosition.Line
+                || field.SemicolonToken.GetLocation().GetLineSpan().StartLinePosition.Line != rawSpan.EndLinePosition.Line)
+                Add(literal, "Place the opening triple quotes and closing triple quotes with the C# semicolon on their own lines.");
+
+            var sql = literal.Token.ValueText;
+            var isStatement = schema
+                ? LooksLikeSql(sql) || Regex.IsMatch(sql, @"^\s*(DO|COMMENT|GRANT|REVOKE|SET|RESET)\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)
+                : Regex.IsMatch(sql, @"^\s*(SELECT|WITH|INSERT|UPDATE|DELETE|SET|SAVEPOINT|ROLLBACK|LOCK|TRUNCATE|BEGIN|RELEASE)\b",
+                    RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+            if (!isStatement)
+                Add(literal, $"{label} constants must contain a database statement or template.");
+            if (!sql.TrimEnd().EndsWith(';'))
+                Add(literal, "The final SQL statement must end with a semicolon.");
+            if (schema)
+            {
+                foreach (var table in MisformattedSchemaFields(sql))
+                    Add(literal, $"Put each field or constraint of {table} on its own line, with commas between entries and the closing parenthesis on its own line.");
+            }
+            else
+            {
+                foreach (var token in MisformattedRuntimeSqlTokens(sql))
+                    Add(literal, $"Use uppercase SQL keywords and lowercase unquoted identifiers. Check '{token}'.");
+            }
+        }
+        return findings;
+    }
+
+    static readonly HashSet<string> RuntimeSqlKeywords = new(
+        ("ALL AND AS ASC BETWEEN BY CASE CAST COALESCE COLLATE CONFLICT CROSS DELETE DESC DISTINCT DO ELSE END EXCLUSIVE " +
+         "EXISTS FALSE FETCH FOR FROM GROUP HAVING IN INNER INSERT INTERSECT INTO IS JOIN LATERAL LEFT LIKE LIMIT LOCAL LOCK " +
+         "MAX MIN MODE NOT NOTHING NULL OFFSET ON OR ORDER OUTER OVERRIDING RECURSIVE RETURNING RIGHT ROLLBACK ROW SAVEPOINT " +
+         "SELECT SET SHARE SYSTEM TABLE THEN TO TRUE UNION UPDATE USING VALUE VALUES WHEN WHERE WITH " +
+         "ALLOW ANY APPLY ARRAY AVG BATCH COUNT CURRENT_TIMESTAMP EXCEPT EXCLUDED FILTER FILTERING FOLLOWING GREATEST INTERVAL LEAST LOCKED MATERIALIZED NOWAIT NULLIF " +
+         "OF ONLY OVER PARTITION PRECEDING RANGE RELEASE ROWS SIMILAR SKIP SUM TRUNCATE UNBOUNDED UNLOGGED").Split(' '),
+        StringComparer.OrdinalIgnoreCase);
+
+    static IEnumerable<string> MisformattedRuntimeSqlTokens(string sql)
+    {
+        // Quoted data, quoted identifiers, positional binds and template holes retain their spelling.
+        var tokens = Regex.Matches(sql, """"
+            '(?:''|[^'])*'|"(?:""|[^"])*"|--[^\r\n]*|/\*[\s\S]*?\*/|\$\d+|\{\d+\}|(?<!:):[A-Za-z_]\w*|(?<word>[A-Za-z_][A-Za-z_0-9]*)
+            """", RegexOptions.CultureInvariant);
+        return tokens.Select(token => token.Groups["word"].Value)
+            .Where(word => word.Length > 0 && (RuntimeSqlKeywords.Contains(word)
+                ? word != word.ToUpperInvariant()
+                : word != word.ToLowerInvariant()))
+            .Distinct(StringComparer.Ordinal);
+    }
+
+    static IEnumerable<string> MisformattedSchemaFields(string sql)
+    {
+        var text = sql.ReplaceLineEndings("\n");
+        var tokens = new Regex(""""'(?:''|[^'])*'|"(?:""|[^"])*"|[(),]"""", RegexOptions.CultureInvariant);
+        foreach (Match table in Regex.Matches(text, @"\bCREATE\s+(?:TABLE|TYPE)\s+(?:IF\s+NOT\s+EXISTS\s+)?(?<name>[\w.]+)\s*\(",
+                     RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
+        {
+            var start = table.Index + table.Length;
+            var depth = 0;
+            foreach (Match token in tokens.Matches(text, start))
+            {
+                if (depth == 0 && token.Value is "," or ")")
+                {
+                    var entry = text[start..token.Index];
+                    var trimmed = entry.Trim();
+                    var startsOnNewLine = entry[..(entry.Length - entry.TrimStart().Length)].Contains('\n');
+                    var endsOnNewLine = entry[entry.TrimEnd().Length..].Contains('\n');
+                    if (trimmed.Length == 0 || trimmed.Contains('\n') || !startsOnNewLine || endsOnNewLine != (token.Value == ")"))
+                    {
+                        yield return table.Groups["name"].Value;
+                        break;
+                    }
+                    if (token.Value == ")") break;
+                    start = token.Index + token.Length;
+                }
+                else if (token.Value == "(")
+                    depth++;
+                else if (token.Value == ")")
+                    depth--;
+            }
+        }
+    }
+
     internal static IReadOnlyList<string> Inspect(StorageContextSpec spec, string rule, StorageSource[] sources)
     {
         var errors = new List<string>();
         void Add(StorageSource source, SyntaxNode node, string reason) => errors.Add(
             $"{spec.Name}/{rule}: {source.Path}:{node.GetLocation().GetLineSpan().StartLinePosition.Line + 1}: {reason}");
+        if (rule is "SchemaSqlFormat" or "RuntimeSqlFormat")
+        {
+            var schema = rule == "SchemaSqlFormat";
+            var filename = schema ? spec.SchemaCatalog : spec.RuntimeCatalog;
+            var catalog = sources.SingleOrDefault(source => Path.GetFileName(source.Path) == filename);
+            return catalog is null
+                ? [$"{spec.Name}/{rule}: missing {filename}."]
+                : InspectSqlCatalogFormat(catalog, schema);
+        }
+
         var context = sources.SelectMany(source => source.Root.DescendantNodes().OfType<ClassDeclarationSyntax>()
             .Where(type => type.Identifier.ValueText == spec.Context).Select(type => (Source: source, Type: type))).ToArray();
         if (rule == "Structure")
@@ -241,6 +388,12 @@ internal static class StorageConventionAudit
                     if (rule == "Schema" && Regex.IsMatch(text, @"\b(?:TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?|FROM\s+|JOIN\s+|INTO\s+)(?:\w+\.)?\w+_v\d+\b", RegexOptions.IgnoreCase))
                         Add(source, node, "Physical table name has a prohibited schema-generation suffix.");
                 }
+            if (rule == "Statements" && file != spec.RuntimeCatalog && file != spec.SchemaCatalog)
+                foreach (var addition in source.Root.DescendantNodes().OfType<BinaryExpressionSyntax>()
+                    .Where(expression => expression.IsKind(SyntaxKind.AddExpression)))
+                    if (addition.Left is MemberAccessExpressionSyntax catalogMember
+                        && catalogMember.Expression.ToString() == spec.Stem + "DbSql")
+                        Add(source, addition, "Select a complete statement or fill a runtime SQL template in the extensions instead of appending SQL to a catalog statement.");
             if (rule == "Dialect" && spec.Name != "TradeTickQuoteDb" && (file.Contains("Cql", StringComparison.Ordinal)
                 || source.Root.DescendantTokens().Any(token => token.IsKind(SyntaxKind.IdentifierToken) && token.ValueText.EndsWith("DbCql", StringComparison.Ordinal))))
                 Add(source, source.Root, "Retire the non-tick CQL catalog/fallback.");
@@ -560,9 +713,8 @@ internal static class StorageConventionAudit
                 && record.ClassOrStructKeyword.IsKind(SyntaxKind.StructKeyword)
                 && record.Modifiers.Any(SyntaxKind.InternalKeyword) && record.Modifiers.Any(SyntaxKind.ReadOnlyKeyword);
         if (file == spec.RuntimeCatalog)
-            return type is ClassDeclarationSyntax && type.Modifiers.Any(SyntaxKind.StaticKeyword)
-                && (name.EndsWith("Sql", StringComparison.Ordinal)
-                    || spec.Name == "TradeTickQuoteDb" && name == "TradeTickQuoteDbCql");
+            return type is ClassDeclarationSyntax && type.Parent is BaseNamespaceDeclarationSyntax or CompilationUnitSyntax
+                && name == spec.Stem + "DbSql";
         if (file == spec.SchemaExecutor)
             return type.BaseList?.Types.Any(item => Compact(item.Type.ToString()).StartsWith("SchemaDbContext<", StringComparison.Ordinal)) == true;
         return file == spec.Extensions || file == spec.SchemaCatalog;

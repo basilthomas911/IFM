@@ -5,6 +5,7 @@ use crate::{
     backend::{schema::Registry, transport::Backend},
     models::trade_contracts::{BrokerOrderStatus, TradeOrderDefinition},
 };
+use futures_util::StreamExt;
 use serde_json::Value as Json;
 
 const REJECTION_PREFIX: &str = "Broker rejected the accepted order:";
@@ -23,8 +24,8 @@ pub async fn wait_for_broker(
     if orders.is_empty() {
         return Err("No accepted orders to acknowledge".into());
     }
-    // Existing immutable journal receipts cross this boundary once. Polling retains
-    // concrete identities and reads typed broker evidence without recreating JSON.
+    // Subscribe before the first read so an acknowledgement committed during that read
+    // is still observed.
     let orders = orders
         .iter()
         .cloned()
@@ -32,6 +33,8 @@ pub async fn wait_for_broker(
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| format!("Invalid accepted order receipt: {e}"))?;
     tokio::time::timeout_at(deadline, async {
+        let mut notices = backend.subscribe("Event", "BrokerOrderEvent").await?;
+        let mut connection = backend.watch_connection();
         loop {
             let mut all = true;
             for order in &orders {
@@ -96,7 +99,23 @@ pub async fn wait_for_broker(
             if all {
                 return Ok(());
             }
-            tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+            loop {
+                let refresh = tokio::select! {
+                    notice = notices.next() => {
+                        let notice = notice.ok_or("OutcomeUnknown: Broker notifications are unavailable")?;
+                        orders.iter().any(|order| order.id.as_ref().is_some_and(|id| {
+                            let prefix = format!("Event.BrokerOrderEvent.BrokerOrderChanged.{}.{}.{}.",
+                                id.portfolio_id.unwrap_or_default(), id.fund_id.unwrap_or_default(), id.order_id.unwrap_or_default());
+                            notice.subject.starts_with(&prefix)
+                        }))
+                    }
+                    changed = connection.changed() => {
+                        changed.map_err(|_| "OutcomeUnknown: Broker connection closed")?;
+                        connection.borrow_and_update().connected
+                    }
+                };
+                if refresh { break; }
+            }
         }
     })
     .await

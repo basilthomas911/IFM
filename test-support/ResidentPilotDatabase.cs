@@ -82,7 +82,7 @@ public sealed class ResidentPilotDatabase(string? existingTestConnection = null)
             await new EventSourceSchemaDb(settings, NullLogger<DbProvider>.Instance).CreateAllAsync().ConfigureAwait(false);
             await using (var connection = await OpenAsync().ConfigureAwait(false))
             {
-                await using var command = new NpgsqlCommand(MarketDataSchemaSql.Create, connection);
+                await using var command = new NpgsqlCommand(MarketDataSchemaDb.CreateStatement, connection);
                 await command.ExecuteNonQueryAsync().ConfigureAwait(false);
             }
             await new TradePlanSchemaDb(settings, NullLogger<DbProvider>.Instance).CreateAllAsync().ConfigureAwait(false);

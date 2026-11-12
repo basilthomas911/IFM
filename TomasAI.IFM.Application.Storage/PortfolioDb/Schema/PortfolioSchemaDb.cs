@@ -12,6 +12,15 @@ namespace TomasAI.IFM.Application.Storage.PortfolioDb.Schema;
 public sealed class PortfolioSchemaDb(IDbConnectionSettings settings, ILogger<DbProvider> logger)
     : SchemaDbContext<PortfolioSchemaDb>(settings[PortfolioDbContext.PortfolioDbConnection], logger)
 {
+    /// <summary>Gets the portfolio projection schema for baseline rebuilds.</summary>
+    public static string CreateStatement => PortfolioSchemaSql.Portfolio;
+
+    /// <summary>Gets the financial schema for event-store initialization and baseline rebuilds.</summary>
+    public static string FinancialCreateStatement => PortfolioSchemaSql.Financial;
+
+    /// <summary>Gets the financial-history projection schema for event-store initialization.</summary>
+    public static string FinancialHistoryCreateStatement => PortfolioSchemaSql.FinancialHistory;
+
     static readonly SchemaObjectDefinition[] Objects =
     [
         new("portfolio_schema", PortfolioSchemaSql.Portfolio, PortfolioSchemaSql.Drop),

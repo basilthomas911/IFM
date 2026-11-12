@@ -277,7 +277,7 @@ public sealed class LedgerEventOnlyRebuildTests(PortfolioEventStoreFixture fixtu
             builder.Database=sourceDatabase;
             var sourceSettings=new DbConnectionSettings().Add(EventSourceActorDbContext.EventSourceActorDbConnection,builder.ConnectionString,"System.Data.Postgres");
             await new EventSourceSchemaDb(sourceSettings,NullLogger<DbProvider>.Instance).CreateAllAsync();var sourceOwner=new PostgresEventTransaction(sourceSettings);
-            await sourceOwner.ExecuteAsync((db,ct)=>db.ExecuteAsync(TomasAI.IFM.Application.Storage.PortfolioDb.Schema.PortfolioSchemaSql.Portfolio,[],ct));
+            await sourceOwner.ExecuteAsync((db,ct)=>db.ExecuteAsync(TomasAI.IFM.Application.Storage.PortfolioDb.Schema.PortfolioSchemaDb.CreateStatement,[],ct));
             var book=await PortfolioOrderCompositionIntegrationTests.CreateOrderBook(owner:sourceOwner);
             if(includeComposition) await new TomasAI.IFM.Domain.Portfolio.OrderComposition.Repository.PortfolioOrderCompositionStore(sourceOwner)
                 .EvaluateAsync(PortfolioOrderCompositionIntegrationTests.Request(book),PortfolioOrderCompositionIntegrationTests.Evaluate);
@@ -296,7 +296,7 @@ public sealed class LedgerEventOnlyRebuildTests(PortfolioEventStoreFixture fixtu
             later.Should().ContainSingle();
             builder.Database=database;var settings=new DbConnectionSettings().Add(EventSourceActorDbContext.EventSourceActorDbConnection,builder.ConnectionString,"System.Data.Postgres");
             await new EventSourceSchemaDb(settings,NullLogger<DbProvider>.Instance).CreateAllAsync();var target=new PostgresEventTransaction(settings);await new PortfolioFinancialSchema(target).InitializeAsync();
-            await target.ExecuteAsync((db,ct)=>db.ExecuteAsync(TomasAI.IFM.Application.Storage.PortfolioDb.Schema.PortfolioSchemaSql.Portfolio,[],ct));
+            await target.ExecuteAsync((db,ct)=>db.ExecuteAsync(TomasAI.IFM.Application.Storage.PortfolioDb.Schema.PortfolioSchemaDb.CreateStatement,[],ct));
             // The new target schema pre-registers event names. Replace only that empty target registry with source identities.
             await target.ExecuteAsync((db,ct)=>db.ExecuteAsync("DELETE FROM event_name_id WHERE NOT EXISTS(SELECT 1 FROM event_log);",[],ct));
             // Preserve the source log identities referenced by baseline receipts. No source rows are removed or overwritten.

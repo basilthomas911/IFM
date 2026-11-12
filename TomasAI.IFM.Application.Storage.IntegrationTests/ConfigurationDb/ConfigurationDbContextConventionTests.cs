@@ -192,7 +192,7 @@ public sealed class ConfigurationDbContextConventionTests
         Assert.False(Directory.Exists(Path.Combine(folder, "ParameterSets")));
         Assert.Empty(Directory.GetFiles(folder, "*.cql", SearchOption.AllDirectories));
         Assert.Empty(Directory.GetFiles(folder, "*Cql.cs", SearchOption.AllDirectories));
-        var definitions = TomasAI.IFM.Application.Storage.ConfigurationDb.Schema.ConfigurationSchemaSql.GetDefinitions();
+        var definitions = TomasAI.IFM.Application.Storage.ConfigurationDb.Schema.ConfigurationSchemaDb.GetDefinitions();
         Assert.Equal(definitions.Length, definitions.Select(definition => definition.Name).Distinct().Count());
         Assert.Equal("reference_configuration", definitions[0].Name);
         var sql = string.Join("\n", definitions.Select(definition => definition.CreateStatement));
@@ -201,6 +201,22 @@ public sealed class ConfigurationDbContextConventionTests
         Assert.Contains("CREATE OR REPLACE FUNCTION", sql, StringComparison.Ordinal);
         Assert.Contains("CREATE TRIGGER", sql, StringComparison.Ordinal);
         Assert.Contains("configuration_baseline_application", sql, StringComparison.Ordinal);
+
+        foreach (var table in ParameterValueMapping.Tables.Concat(ParameterProjectionMapping.Tables))
+        {
+            var definition = Assert.Single(definitions, definition => definition.Name == table.Name);
+            var fields = definition.CreateStatement.Split('\n').Select(line => line.Trim().TrimEnd(','));
+            foreach (var column in table.Columns)
+                Assert.Contains($"{column.Name} {ParameterValueMapping.SqlType(column.Type)}", fields);
+        }
+    }
+
+    [Fact]
+    public void Schema_sql_catalog_contains_only_documented_and_formatted_sql_constants()
+    {
+        var catalog = Path.Combine(GetFolder(), "Schema", "ConfigurationSchemaSql.cs");
+        var findings = StorageConventionAudit.InspectSchemaSqlFormat(StorageSource.Parse(catalog, File.ReadAllText(catalog)));
+        Assert.Empty(findings);
     }
 
     private static bool SameSignature(

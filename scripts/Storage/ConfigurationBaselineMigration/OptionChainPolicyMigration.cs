@@ -29,7 +29,7 @@ internal static class OptionChainPolicyMigration
             if(row.Revision<1 || !versions.Any(x=>x.Id==row.Id && x.Number==row.Number && string.Equals(x.Payload,row.Payload,StringComparison.Ordinal)))
                 throw new InvalidDataException("Source policy revision/content does not match its immutable version.");
         await transactions.ExecuteOnceAsync(async(db,ct)=>{
-            await db.ExecuteAsync(MarketDataSchemaSql.OptionChainPoliciesCreate,[],ct).ConfigureAwait(false);
+            await db.ExecuteAsync(MarketDataSchemaDb.OptionChainPoliciesCreateStatement,[],ct).ConfigureAwait(false);
             foreach(var row in versions)await CopyVersionAsync(db,row,ct).ConfigureAwait(false);
             foreach(var row in current)await CopyCurrentAsync(db,row,ct).ConfigureAwait(false);
             return true;

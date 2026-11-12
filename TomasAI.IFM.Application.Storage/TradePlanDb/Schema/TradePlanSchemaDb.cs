@@ -12,6 +12,9 @@ namespace TomasAI.IFM.Application.Storage.TradePlanDb.Schema;
 public sealed class TradePlanSchemaDb(IDbConnectionSettings settings, ILogger<DbProvider> logger)
     : SchemaDbContext<TradePlanSchemaDb>(settings[TradePlanDbContext.TradePlanDbConnection], logger)
 {
+    /// <summary>Gets the trade plan schema for isolated setup and verification.</summary>
+    public static string CreateStatement => TradePlanSchemaSql.Create;
+
     static readonly SchemaObjectDefinition[] Objects =
         [new("trade_plan", TradePlanSchemaSql.Create, TradePlanSchemaSql.Drop)];
 

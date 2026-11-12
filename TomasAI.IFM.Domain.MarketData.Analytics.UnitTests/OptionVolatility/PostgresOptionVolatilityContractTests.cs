@@ -13,7 +13,7 @@ public sealed class PostgresOptionVolatilityContractTests
     [Fact]
     public void HistorySchemasIndexSeriesDatesAndRevisions()
     {
-        MarketDataSchemaSql.Create.Should().Contain("option_iv_observation_history_ordered")
+        MarketDataSchemaDb.CreateStatement.Should().Contain("option_iv_observation_history_ordered")
             .And.Contain("option_iv_metric_history_ordered")
             .And.Contain("value_date ASC,sampling_slot ASC,revision DESC")
             .And.Contain("calendar_bucket int");
@@ -24,7 +24,7 @@ public sealed class PostgresOptionVolatilityContractTests
     {
         Sql("InsertLatest").Should().Contain("ON CONFLICT (environment,series_id,methodology_version,metric_policy_version)")
             .And.Contain("WHERE market_data.option_iv_latest.publication_sequence < EXCLUDED.publication_sequence");
-        MarketDataSchemaSql.Create.Should().Contain("PRIMARY KEY (environment,series_id,methodology_version,metric_policy_version)");
+        MarketDataSchemaDb.CreateStatement.Should().Contain("PRIMARY KEY (environment,series_id,methodology_version,metric_policy_version)");
     }
 
     [Fact]

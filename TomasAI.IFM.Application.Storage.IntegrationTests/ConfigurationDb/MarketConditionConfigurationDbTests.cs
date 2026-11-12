@@ -238,12 +238,12 @@ public sealed class MarketConditionConfigurationDbTests(MarketConditionConfigura
     [Fact]
     public void Lifecycle_table_selection_is_closed_to_supported_typed_kinds()
     {
-        var action = () => ConfigurationDbSql.PublishFor((StrategyParameterSetKind)byte.MaxValue);
+        var action = () => ((StrategyParameterSetKind)byte.MaxValue).PublishFor();
 
         action.Should().Throw<NotSupportedException>();
-        ConfigurationDbSql.PublishFor(StrategyParameterSetKind.TradeSelection)
+        StrategyParameterSetKind.TradeSelection.PublishFor()
             .Should().Contain("reference_configuration.trade_selection_parameter_set");
-        ConfigurationDbSql.PublishFor(StrategyParameterSetKind.MarketCondition)
+        StrategyParameterSetKind.MarketCondition.PublishFor()
             .Should().Contain("reference_configuration.market_condition_parameter_set");
     }
 

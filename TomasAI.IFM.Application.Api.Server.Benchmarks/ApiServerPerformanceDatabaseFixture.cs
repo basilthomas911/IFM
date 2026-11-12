@@ -51,7 +51,7 @@ internal sealed class ApiServerPerformanceDatabaseFixture : IAsyncDisposable
             await using (var connection = new NpgsqlConnection(AuthenticatedPostgres))
             {
                 await connection.OpenAsync();
-                await using var schema = new NpgsqlCommand(MarketDataSchemaSql.Create, connection);
+                await using var schema = new NpgsqlCommand(MarketDataSchemaDb.CreateStatement, connection);
                 await schema.ExecuteNonQueryAsync();
             }
             var repositories = new Dictionary<Type, object>();
@@ -87,7 +87,7 @@ internal sealed class ApiServerPerformanceDatabaseFixture : IAsyncDisposable
 
     public void ClearCallHistory()
     {
-        cache.ClearReceivedCalls(); stateFactory.ClearReceivedCalls(); projector.ClearReceivedCalls();
+        stateFactory.ClearReceivedCalls(); projector.ClearReceivedCalls();
         foreach (var additional in additionalProjectors) additional.ClearReceivedCalls();
     }
 

@@ -18,14 +18,14 @@ public sealed class SnapshotLookupPlanTests(EventSourceActorSnapshotRangeFixture
         await using var connection = new NpgsqlConnection(fixture.ConnectionString);
         await connection.OpenAsync();
         const string table = "dense_snapshot_lookup_plan";
-        var sql = EventSourceDbSql.GetMaxEventVersion.Replace("event_log", table, StringComparison.Ordinal);
+        var sql = EventSourceActorDbSql.GetMaxEventVersion.Replace("event_log", table, StringComparison.Ordinal);
         await using (var setup = new NpgsqlCommand("""
             CREATE TEMP TABLE dense_snapshot_lookup_plan (
                 eventstreamid bigint, eventnameid integer, eventversion bigint, streamversion bigint);
             INSERT INTO dense_snapshot_lookup_plan
                 SELECT 1,7,i,i FROM generate_series(1,100000) i;
             INSERT INTO dense_snapshot_lookup_plan VALUES (1,11,100001,100001);
-            """ + EventSourceSchemaSql.CreateSnapshotLookupIndex.Replace("public.event_log", table, StringComparison.Ordinal)
+            """ + EventSourceActorSchemaSql.CreateSnapshotLookupIndex.Replace("public.event_log", table, StringComparison.Ordinal)
             + "; ANALYZE dense_snapshot_lookup_plan; SET plan_cache_mode=force_generic_plan;", connection))
             await setup.ExecuteNonQueryAsync();
 
@@ -59,7 +59,7 @@ public sealed class SnapshotLookupPlanTests(EventSourceActorSnapshotRangeFixture
         await using var connection = new NpgsqlConnection(fixture.ConnectionString);
         await connection.OpenAsync();
         const string table = "snapshot_lookup_plan";
-        var sql = EventSourceDbSql.GetMaxEventVersion.Replace("event_log", table, StringComparison.Ordinal);
+        var sql = EventSourceActorDbSql.GetMaxEventVersion.Replace("event_log", table, StringComparison.Ordinal);
         await using (var setup = new NpgsqlCommand("""
             CREATE TEMP TABLE snapshot_lookup_plan (
                 eventstreamid bigint, eventnameid integer, eventversion bigint, streamversion bigint);
@@ -69,7 +69,7 @@ public sealed class SnapshotLookupPlanTests(EventSourceActorSnapshotRangeFixture
                 (1,7,1,1),(1,7,2,2),(1,11,4,3),(1,99,5,4),(3,7,6,1);
             CREATE UNIQUE INDEX probe_event_version ON snapshot_lookup_plan(eventversion);
             CREATE INDEX probe_stream_version ON snapshot_lookup_plan(eventstreamid,streamversion);
-            """ + EventSourceSchemaSql.CreateSnapshotLookupIndex.Replace("public.event_log", table, StringComparison.Ordinal)
+            """ + EventSourceActorSchemaSql.CreateSnapshotLookupIndex.Replace("public.event_log", table, StringComparison.Ordinal)
             + "; ANALYZE snapshot_lookup_plan; SET plan_cache_mode=force_generic_plan;", connection))
             await setup.ExecuteNonQueryAsync();
 

@@ -32,7 +32,7 @@ public sealed class TradeOrderAtomicRepositoryTests(PostgresTradePlanFixture fix
     [InlineData(true)]
     public async Task Repository_accepts_state_and_submits_handoff_only_after_required_commit(bool fail)
     {
-        await fixture.Transactions.ExecuteOnceAsync((db,ct)=>db.ExecuteAsync(TradeSchemaSql.Create,[],ct));
+        await fixture.Transactions.ExecuteOnceAsync((db,ct)=>db.ExecuteAsync(TradeSchemaDb.CreateStatement,[],ct));
         var settings=new TomasAI.IFM.Shared.Storage.DbConnectionSettings().Add(TradeDbContext.TradeDbConnection,fixture.Connection,"System.Data.Postgres");
         var factory=new Mock<IDbContextFactory>();
         var tradeDb=new TradeDbContext(settings,factory.Object,Mock.Of<ISequenceIdGenerator>(),NullLogger<DbProvider>.Instance);

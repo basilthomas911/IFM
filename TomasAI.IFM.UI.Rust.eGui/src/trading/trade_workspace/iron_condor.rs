@@ -740,6 +740,23 @@ impl TradeWorkspace {
                     action = Some(tab_action);
                 }
                 bounds.min.y += 34. / p;
+                let mut header = bounds;
+                header.max.y = header.min.y + 29. / p;
+                at(ui, header, "loaded-trade-views", |ui| {
+                    ui.horizontal(|ui| {
+                        let previous = self.loaded_show_fills;
+                        crate::presentation::tab_value(ui, &mut self.loaded_show_fills, false, "Position");
+                        crate::presentation::tab_value(ui, &mut self.loaded_show_fills, true, "Order Fills");
+                        if previous != self.loaded_show_fills && action.is_none() {
+                            action = Some(if self.loaded_show_fills { "refresh-loaded-fills" } else { "leave-loaded-fills" });
+                        }
+                    });
+                });
+                bounds.min.y = header.bottom();
+                if self.loaded_show_fills {
+                    action = at(ui, bounds, "loaded-fund-fills", |ui| self.draw_order_fills(ui, s, "loaded")).or(action);
+                    return;
+                }
                 let o = bounds.min;
                 let w = bounds.width() * p;
                 let h = bounds.height() * p;

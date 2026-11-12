@@ -24,7 +24,7 @@ public sealed class PostgresCommandLogBenchmarkStore(
     public override IObjectRepository Database => this;
 
     public async Task CreateSchemaAsync(CancellationToken cancellationToken = default)
-        => _ = await Database.Use($"{nameof(EventSourceSchemaSql)}.{nameof(EventSourceSchemaSql.CreateCommandLog)}", EventSourceSchemaSql.CreateCommandLog)
+        => _ = await Database.Use($"{nameof(EventSourceActorSchemaSql)}.{nameof(EventSourceActorSchemaSql.CreateCommandLog)}", EventSourceActorSchemaSql.CreateCommandLog)
             .ExecuteCommandAsync(cancellationToken)
             .ConfigureAwait(false);
 
@@ -33,7 +33,7 @@ public sealed class PostgresCommandLogBenchmarkStore(
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(entry);
-        return await Database.Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.TryInsertCommandLog)}", EventSourceDbSql.TryInsertCommandLog)
+        return await Database.Use($"{nameof(EventSourceActorDbSql)}.{nameof(EventSourceActorDbSql.TryInsertCommandLog)}", EventSourceActorDbSql.TryInsertCommandLog)
             .SetParameters(new InsertParameters(entry))
             .ExecuteScalarAsync(static row => row.GetBool(0), cancellationToken)
             .ConfigureAwait(false);

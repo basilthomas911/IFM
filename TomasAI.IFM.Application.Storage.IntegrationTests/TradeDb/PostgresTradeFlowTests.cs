@@ -30,7 +30,7 @@ public sealed class PostgresTradeFlowTests(PostgresTradePlanFixture fixture)
     [Fact]
     public async Task Historical_eod_requires_committed_mark_and_preserves_closed_current_and_routes()
     {
-        await fixture.Transactions.ExecuteOnceAsync((db,ct)=>db.ExecuteAsync(TradeSchemaSql.Create,[],ct));
+        await fixture.Transactions.ExecuteOnceAsync((db,ct)=>db.ExecuteAsync(TradeSchemaDb.CreateStatement,[],ct));
         var settings=new DbConnectionSettings().Add(TradeDbContext.TradeDbConnection,fixture.Connection,"System.Data.Postgres");
         var context=new TradeDbContext(settings,Mock.Of<IDbContextFactory>(),Mock.Of<ISequenceIdGenerator>(),NullLogger<DbProvider>.Instance);
         var source=Mock.Of<TomasAI.IFM.Application.Storage.IEventSourceActorDbContext>(
@@ -82,7 +82,7 @@ public sealed class PostgresTradeFlowTests(PostgresTradePlanFixture fixture)
     [Fact]
     public async Task Stored_option_trade_lookup_binds_ordinary_values_and_filters_both_keys()
     {
-        await fixture.Transactions.ExecuteOnceAsync((db, ct) => db.ExecuteAsync(TradeSchemaSql.Create, [], ct));
+        await fixture.Transactions.ExecuteOnceAsync((db, ct) => db.ExecuteAsync(TradeSchemaDb.CreateStatement, [], ct));
         var settings = new DbConnectionSettings().Add(TradeDbContext.TradeDbConnection, fixture.Connection, "System.Data.Postgres");
         var context = new TradeDbContext(settings, Mock.Of<IDbContextFactory>(), Mock.Of<ISequenceIdGenerator>(), NullLogger<DbProvider>.Instance);
         var orderId = Random.Shared.Next(60_000_000, 70_000_000);
@@ -100,7 +100,7 @@ public sealed class PostgresTradeFlowTests(PostgresTradePlanFixture fixture)
     [Fact]
     public async Task Position_history_persists_currency_without_requiring_a_trade_plan()
     {
-        await fixture.Transactions.ExecuteOnceAsync((db, ct) => db.ExecuteAsync(TradeSchemaSql.Create, [], ct));
+        await fixture.Transactions.ExecuteOnceAsync((db, ct) => db.ExecuteAsync(TradeSchemaDb.CreateStatement, [], ct));
         var id = new TradeEntityId(Random.Shared.Next(60_000_000, 70_000_000), 1, 1, 1);
         var at = new DateTime(2026, 10, 16, 14, 0, 0, DateTimeKind.Utc);
         var leg = Guid.NewGuid();
@@ -128,7 +128,7 @@ public sealed class PostgresTradeFlowTests(PostgresTradePlanFixture fixture)
     [Fact]
     public async Task Order_lifecycle_advances_within_one_definition_revision_and_conflicting_terms_roll_back()
     {
-        await fixture.Transactions.ExecuteOnceAsync((db, ct) => db.ExecuteAsync(TradeSchemaSql.Create, [], ct));
+        await fixture.Transactions.ExecuteOnceAsync((db, ct) => db.ExecuteAsync(TradeSchemaDb.CreateStatement, [], ct));
         var id = new TradeOrderId(Random.Shared.Next(50_000_000, 60_000_000), 1, 1);
         var accepted = DateTime.UtcNow;
         var order = new TradeOrderDefinition { Id = id, Revision = 1, DefinitionHash = "immutable-terms" };
@@ -198,7 +198,7 @@ public sealed class PostgresTradeFlowTests(PostgresTradePlanFixture fixture)
     [InlineData(true)]
     public async Task Order_and_source_commit_together_or_rollback_together(bool injectFailure)
     {
-        await fixture.Transactions.ExecuteAsync((db,ct)=>db.ExecuteAsync(TradeSchemaSql.Create,[],ct));
+        await fixture.Transactions.ExecuteAsync((db,ct)=>db.ExecuteAsync(TradeSchemaDb.CreateStatement,[],ct));
         var id=new TradeOrderId(Random.Shared.Next(10_000_000,20_000_000),1,1);
         var acceptedAt=DateTime.UtcNow;
         var order=new TradeOrderDefinition { Id=id,Revision=1,Status=TradeOrderStatus.Draft,ValueDate=DateOnly.FromDateTime(acceptedAt),ValidUntilUtc=acceptedAt.AddMinutes(5) };
@@ -232,7 +232,7 @@ public sealed class PostgresTradeFlowTests(PostgresTradePlanFixture fixture)
     [Fact]
     public async Task Established_trade_revisions_are_immutable_and_stale_history_cannot_replace_current_state()
     {
-        await fixture.Transactions.ExecuteOnceAsync((db,ct)=>db.ExecuteAsync(TradeSchemaSql.Create,[],ct));
+        await fixture.Transactions.ExecuteOnceAsync((db,ct)=>db.ExecuteAsync(TradeSchemaDb.CreateStatement,[],ct));
         var trade = new EstablishedTradeDefinition
         {
             Id = new TradeEntityId(Random.Shared.Next(60_000_000,70_000_000),1,1,1),
@@ -267,7 +267,7 @@ public sealed class PostgresTradeFlowTests(PostgresTradePlanFixture fixture)
     [Fact]
     public async Task Position_daily_history_routes_and_close_are_atomic_and_stale_marks_cannot_restore_routes()
     {
-        await fixture.Transactions.ExecuteAsync((db,ct)=>db.ExecuteAsync(TradeSchemaSql.Create,[],ct));
+        await fixture.Transactions.ExecuteAsync((db,ct)=>db.ExecuteAsync(TradeSchemaDb.CreateStatement,[],ct));
         var now=DateTime.UtcNow;var id=new StrategyPositionId(new TradeEntityId(Random.Shared.Next(20_000_000,30_000_000),1,1,1),Guid.NewGuid());
 
         var opening=new StrategyPositionSnapshot { Id=id,StrategyKind=TradeStrategyKind.IronCondor,Phase=StrategyPositionPhase.Open,
@@ -293,7 +293,7 @@ public sealed class PostgresTradeFlowTests(PostgresTradePlanFixture fixture)
     [Fact]
     public async Task Position_history_pages_include_all_rows_after_200_and_reject_cross_position_cursors()
     {
-        await fixture.Transactions.ExecuteOnceAsync((db,ct)=>db.ExecuteAsync(TradeSchemaSql.Create,[],ct));
+        await fixture.Transactions.ExecuteOnceAsync((db,ct)=>db.ExecuteAsync(TradeSchemaDb.CreateStatement,[],ct));
         var id=new StrategyPositionId(new TradeEntityId(Random.Shared.Next(30_000_000,40_000_000),1,1,1),Guid.NewGuid());
         var from=new DateTime(2026,1,1,12,0,0,DateTimeKind.Utc);var to=from.AddDays(220);
 
@@ -325,7 +325,7 @@ public sealed class PostgresTradeFlowTests(PostgresTradePlanFixture fixture)
     [Fact]
     public async Task Native_context_loads_latest_order_position_history_and_committed_routes()
     {
-        await fixture.Transactions.ExecuteOnceAsync((db,ct)=>db.ExecuteAsync(TradeSchemaSql.Create,[],ct));
+        await fixture.Transactions.ExecuteOnceAsync((db,ct)=>db.ExecuteAsync(TradeSchemaDb.CreateStatement,[],ct));
         var settings=new TomasAI.IFM.Shared.Storage.DbConnectionSettings().Add(TradeDbContext.TradeDbConnection,fixture.Connection,"System.Data.Postgres");
         var factory=new Mock<IDbContextFactory>();var context=new TradeDbContext(settings,factory.Object,Mock.Of<ISequenceIdGenerator>(),NullLogger<DbProvider>.Instance);
         factory.SetupGet(x=>x.TradeDb).Returns(context);
@@ -372,7 +372,7 @@ public sealed class PostgresTradeFlowTests(PostgresTradePlanFixture fixture)
     [InlineData(true)]
     public async Task Command_audit_source_and_order_share_commit_and_duplicate_boundary(bool fail)
     {
-        await fixture.Transactions.ExecuteOnceAsync((db,ct)=>db.ExecuteAsync(TradeSchemaSql.Create,[],ct));
+        await fixture.Transactions.ExecuteOnceAsync((db,ct)=>db.ExecuteAsync(TradeSchemaDb.CreateStatement,[],ct));
         var id=new TradeOrderId(Random.Shared.Next(50_000_000,60_000_000),1,1);var now=DateTime.UtcNow;
         var order=new TradeOrderDefinition {Id=id,Revision=1,DefinitionHash="audit-order"};
         var command=new CreateTradeOrderCommand {CommandId=Guid.NewGuid(),EntityId=id,Order=order,
@@ -410,7 +410,7 @@ public sealed class PostgresTradeFlowTests(PostgresTradePlanFixture fixture)
     [InlineData(true)]
     public async Task Monitoring_limits_commit_together_and_saved_values_are_available_without_live_feed(bool fail)
     {
-        await fixture.Transactions.ExecuteOnceAsync((db,ct)=>db.ExecuteAsync(TradeSchemaSql.Create,[],ct));
+        await fixture.Transactions.ExecuteOnceAsync((db,ct)=>db.ExecuteAsync(TradeSchemaDb.CreateStatement,[],ct));
         var tradeId=Random.Shared.Next(70_000_000,80_000_000);var now=DateTime.UtcNow;
         var limit=new TradeLimitReadModel {TradeId=tradeId,TradeType=TradeType.ShortIronCondor,RiskMargin=1200.12m,MaxProfit=100.10m,MaxLoss=900.90m,
             MaxReturn=0.25m,MaxLossLimit=200.20m,MinProfitLimit=20.02m,MaxProfitLimit=80.08m,MinProfitTarget=30.03m,DailyProfitTarget=10.01m,
@@ -442,7 +442,7 @@ public sealed class PostgresTradeFlowTests(PostgresTradePlanFixture fixture)
     [Fact]
     public async Task Established_trade_and_approved_limits_rollback_commit_and_replay_together()
     {
-        await fixture.Transactions.ExecuteOnceAsync((db,ct)=>db.ExecuteAsync(TradeSchemaSql.Create,[],ct));
+        await fixture.Transactions.ExecuteOnceAsync((db,ct)=>db.ExecuteAsync(TradeSchemaDb.CreateStatement,[],ct));
         var settings = new TomasAI.IFM.Shared.Storage.DbConnectionSettings().Add(TradeDbContext.TradeDbConnection,fixture.Connection,"System.Data.Postgres");
         var factory = new Mock<IDbContextFactory>();
         var context = new TradeDbContext(settings,factory.Object,Mock.Of<ISequenceIdGenerator>(),NullLogger<DbProvider>.Instance);

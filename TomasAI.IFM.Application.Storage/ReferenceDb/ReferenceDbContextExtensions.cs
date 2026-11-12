@@ -80,7 +80,7 @@ public static class ReferenceDbContextExtensions
             .ConfigureAwait(false);
         }
 
-        internal Task<IReadOnlyList<ScheduledJobReadModel>> ReadScheduledJobsAsync(CancellationToken token) => transaction.QueryAsync(ReferenceDbSql.ReadScheduledJobs + " ORDER BY j.jobId;", [], ReferenceDbContext.MapToScheduledJobJoined, token);
+        internal Task<IReadOnlyList<ScheduledJobReadModel>> ReadScheduledJobsAsync(CancellationToken token) => transaction.QueryAsync(ReferenceDbSql.ReadScheduledJobs, [], ReferenceDbContext.MapToScheduledJobJoined, token);
         internal async Task<int> ReadScheduledJobIdAsync(string name, CancellationToken token) => (int? )await transaction.ScalarAsync(ReferenceDbSql.GetScheduledJobId, [name], token)
             .ConfigureAwait(false) ?? 0;
         Task<int> LockScheduledJobAsync(int id, CancellationToken token) => transaction.ExecuteAsync(ReferenceDbSql.LockScheduledJob, ["reference.scheduled_job:" + id.ToString(System.Globalization.CultureInfo.InvariantCulture)], token);

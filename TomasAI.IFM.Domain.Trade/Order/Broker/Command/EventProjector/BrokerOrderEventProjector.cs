@@ -28,7 +28,7 @@ public sealed class BrokerOrderEventProjector : ConventionalEventProjector<Broke
     {
         _context = Typed(actorContext);
         businessClock = timeProvider ?? TimeProvider.System;
-        _descriptors = [DescribeNotification<BrokerOrderChangedEvent, BrokerOrderId>(ProjectAsync).WithReadModelRebuild((source, _) =>
+        _descriptors = [DescribeNotification<BrokerOrderChangedEvent, BrokerOrderId>(ProjectAsync, publishProcessingAfterApply: true).WithReadModelRebuild((source, _) =>
         {
             _context.ReadStore.Set(((BrokerOrderChangedEvent)source).BrokerOrderDefinition);
             return Task.CompletedTask;

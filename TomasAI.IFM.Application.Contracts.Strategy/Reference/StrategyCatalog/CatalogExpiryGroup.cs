@@ -1,5 +1,8 @@
-using System.Text.Json;
-using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
+using MessagePack;
 
 namespace TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
-public sealed record CatalogExpiryGroup(string Key, string? AfterGroup = null);
+
+[MessagePackObject]
+public sealed record CatalogExpiryGroup(
+    [property: Key(0)] string Key,
+    [property: Key(1)] string? AfterGroup = null);

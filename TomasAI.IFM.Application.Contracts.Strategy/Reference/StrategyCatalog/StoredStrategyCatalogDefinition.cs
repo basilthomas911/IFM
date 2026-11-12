@@ -1,8 +1,15 @@
-using System.Text.Json;
-using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
+using MessagePack;
 
 namespace TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
 
-public sealed record StoredStrategyCatalogDefinition(StrategyCatalogDefinition Definition, string ContentHash,
-    CatalogLifecycleStatus Status, DateTime CreatedUtc, string CreatedBy,
-    DateTime? EffectiveFromUtc, string? PublishedBy, DateTime? RetiredAtUtc, string? RetiredBy);
+[MessagePackObject]
+public sealed record StoredStrategyCatalogDefinition(
+    [property: Key(0)] StrategyCatalogDefinition Definition,
+    [property: Key(1)] string ContentHash,
+    [property: Key(2)] CatalogLifecycleStatus Status,
+    [property: Key(3)] DateTime CreatedUtc,
+    [property: Key(4)] string CreatedBy,
+    [property: Key(5)] DateTime? EffectiveFromUtc,
+    [property: Key(6)] string? PublishedBy,
+    [property: Key(7)] DateTime? RetiredAtUtc,
+    [property: Key(8)] string? RetiredBy);

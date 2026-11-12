@@ -51,13 +51,13 @@ public class EventLogAppenderBenchmarks
         _stream = $"EventLogAppenderBenchmark.{WriteMode}.{UseLz4Compression}.{EventCount}.{Guid.NewGuid():N}";
         await using var connection = new PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(_connectionString);
         await connection.OpenAsync();
-        await using (var streamCommand = new NpgsqlCommand(EventSourceDbSql.InsertEventStreamId, connection))
+        await using (var streamCommand = new NpgsqlCommand(EventSourceActorDbSql.InsertEventStreamId, connection))
         {
             streamCommand.Parameters.Add(new NpgsqlParameter { NpgsqlDbType = NpgsqlDbType.Text, Value = _stream });
             _streamId = Convert.ToInt64(await streamCommand.ExecuteScalarAsync());
         }
         var eventType = typeof(UnknownEvent);
-        await using (var nameCommand = new NpgsqlCommand(EventSourceDbSql.InsertEventNameId, connection))
+        await using (var nameCommand = new NpgsqlCommand(EventSourceActorDbSql.InsertEventNameId, connection))
         {
             nameCommand.Parameters.Add(new NpgsqlParameter { NpgsqlDbType = NpgsqlDbType.Text, Value = eventType.Name });
             nameCommand.Parameters.Add(new NpgsqlParameter { NpgsqlDbType = NpgsqlDbType.Text, Value = eventType.AssemblyQualifiedName! });

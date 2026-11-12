@@ -21,16 +21,16 @@ public sealed class PortfolioOrderCompositionProjection(IPostgresEventTransactio
         if(source.EventId<=0 || source.Id==Guid.Empty || revision<=0) throw new InvalidDataException("Committed composition source required.");
         return transactions.ExecuteAsync(async(db,ct)=>
         {
-            await (db.ScalarAsync(PortfolioDbSql.Financial.LedgerConfigurationStore.Select01,[source.PortfolioId],ct)).ConfigureAwait(false);
+            await (db.ScalarAsync(PortfolioDbSql.Financial_LedgerConfigurationStore_Select01,[source.PortfolioId],ct)).ConfigureAwait(false);
             if(!await (LedgerFinancialProjection.RecordAppliedAsync(db,source,revision,ct)).ConfigureAwait(false)) return false;
             var authority=await (LockAuthorityAsync(db,source.PortfolioId,null,ct)).ConfigureAwait(false);
             if(authority.Revision+1!=revision) throw new InvalidDataException("Composition sources must follow financial revision order.");
             if(source is PortfolioOrderCompositionCompletedEvent opening) await (PortfolioOrderCompositionStore.ProjectMaterialAsync(db,opening,ct)).ConfigureAwait(false);
             else await (PortfolioCloseOrderCompositionStore.ProjectMaterialAsync(db,(PortfolioCloseOrderCompositionCompletedEvent)source,ct)).ConfigureAwait(false);
             var actor=source is PortfolioCloseOrderCompositionCompletedEvent closing?closing.ProjectionFacts!.ActorName:source.Subject.Name;
-            await (db.ExecuteAsync(PortfolioDbSql.Financial.PortfolioDbFinancialSupport.Insert06,
+            await (db.ExecuteAsync(PortfolioDbSql.Financial_PortfolioDbFinancialSupport_Insert06,
                 [source.PortfolioId,source.OperationId,actor,source.InputHash,source.EventId,revision],ct)).ConfigureAwait(false);
-            await (db.ExecuteAsync(PortfolioDbSql.Financial.PortfolioDbFinancialSupport.Update01,[source.PortfolioId,revision],ct)).ConfigureAwait(false);
+            await (db.ExecuteAsync(PortfolioDbSql.Financial_PortfolioDbFinancialSupport_Update01,[source.PortfolioId,revision],ct)).ConfigureAwait(false);
             return true;
         },token);
     }

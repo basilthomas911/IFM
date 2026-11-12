@@ -120,7 +120,7 @@ public sealed class PostgresConfigurationBaselineTests(PostgresTradePlanFixture 
                 var qualified = "market_data." + name;
                 var columns = await transaction.QueryAsync(ConfigurationDbSql.ReadBaselineColumns, ["market_data", name],
                     ConfigurationDbContext.MapToBaselineColumn, token);
-                var rows = (string)(await transaction.ScalarAsync(ConfigurationDbSql.ReadBaselineRows(qualified), [], token))!;
+                var rows = (string)(await transaction.ScalarAsync(qualified.ReadBaselineRows(), [], token))!;
                 tables.Add(new(qualified, JsonSerializer.Serialize(columns), rows, Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(rows)))));
             }
             return source with { SchemaVersion = 1, Tables = tables.ToArray() };

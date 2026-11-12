@@ -85,11 +85,11 @@ internal sealed partial class RedisRemovalFixture : IAsyncDisposable
 
     async Task<long> ResolvePostgresAsync(string stream)
     {
-        var existing = await raw.Use(nameof(EventSourceDbSql.GetEventStreamId), EventSourceDbSql.GetEventStreamId)
+        var existing = await raw.Use(nameof(EventSourceActorDbSql.GetEventStreamId), EventSourceActorDbSql.GetEventStreamId)
             .SetParameters(new StreamBinding(stream)).ExecuteSingleAsync<EventStreamIdReadModel>(
                 row => new(row.GetLong(0), row.GetString(1)));
         if (existing is not null) return existing.EventStreamId;
-        return await raw.Use(nameof(EventSourceDbSql.InsertEventStreamId), EventSourceDbSql.InsertEventStreamId)
+        return await raw.Use(nameof(EventSourceActorDbSql.InsertEventStreamId), EventSourceActorDbSql.InsertEventStreamId)
             .SetParameters(new StreamBinding(stream)).ExecuteScalarAsync(row => row.GetLong(0));
     }
 

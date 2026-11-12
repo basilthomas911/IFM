@@ -563,7 +563,7 @@ fn snapshot() -> ContractPublication {
     ];
     rows.push(serde_json::json!({"id":"trade:1","fields":{"kind":"trade","data":"{\"index\":0,\"tradeId\":1,\"tradeState\":\"NewTrade\"}"}}));
     rows.push(serde_json::json!({"id":"market:0","fields":{"kind":"market","data":serde_json::json!({"windowMethod":"Frozen emulator preview","underlyingPrice":"100","contracts":[{"contractId":"SC","isCall":true,"strike":"110","bid":"2","ask":"2.4","delta":0.16}]}).to_string()}}));
-    serde_json::from_value(serde_json::json!({"schema":1,"generation":3,"busy":false,"status":"Completed","outcomes":[],"result":{"view":"trade-orders","rows":rows,"choices":{"portfolio":["Development"],"fund":["Test Fund"],"expiry":["2026-11-20","2026-12-18"]},"hasMore":false,"context":{"orderId":"27","tradeId":"1","tradeState":"NewTrade","valueDate":"2026-10-14","expiry":"2026-11-20","editable":"True","compositionType":"ShortIronCondor","brokerMode":"Emulator","canSelectChainSource":"True","quantity":"1","price":"-3.20","previewKey":"SC","canPlaceOrder":"True"}}})).unwrap()
+    serde_json::from_value(serde_json::json!({"schema":1,"generation":3,"busy":false,"status":"Completed","outcomes":[],"result":{"view":"trade-orders","rows":rows,"choices":{"portfolio":["Development"],"fund":["Test Fund"],"expiry":["2026-11-20","2026-12-18"]},"hasMore":false,"context":{"orderId":"27","tradeId":"1","fundId":"701","composerSessionId":"fixture-session","tradeState":"NewTrade","valueDate":"2026-10-14","expiry":"2026-11-20","editable":"True","compositionType":"ShortIronCondor","brokerMode":"Emulator","canSelectChainSource":"True","quantity":"1","price":"-3.20","previewKey":"SC","canPlaceOrder":"True"}}})).unwrap()
 }
 
 
@@ -826,7 +826,7 @@ fn switching_to_fills_requests_durable_evidence_and_empty_actions_are_disabled()
             .iter()
             .any(|v| v["intent"] == "refresh-execution")
     );
-    assert!(h.query_by_label("ORDERS / FILLS").is_some());
+    assert!(h.query_by_label("Orders").is_some());
     h.get_by_label("Cancel Unfilled").click();
     h.run();
     assert!(
@@ -1106,31 +1106,47 @@ fn qualification_exposes_report_and_durable_actions() {
 }
 
 
+fn publish_fill_controls(h: &mut Harness<'static, State>, id: &str, order: i64, attempt: &str, can_mutate: bool) {
+    let snapshot = serde_json::json!({
+        "date": "2026-10-14",
+        "selected": [order, attempt],
+        "orders": [{
+            "order_id": order, "trade_id": 1, "attempt": attempt, "status": "Submitted",
+            "order_time": "", "order_quantity": 1, "filled_quantity": 0,
+            "last_fill": "", "rejection": "", "fills": []
+        }],
+        "controls": [{
+            "id": id, "caption": "Broker component", "price": "-3.2",
+            "mutation": {"canMutate": can_mutate, "minimum": "-10", "maximum": "0", "tick": "0.05"}
+        }]
+    });
+    h.state_mut().snapshot.result.documents.insert(
+        "blotter-fund-fills".into(), ifm_ui_egui::wire::encode_value(&snapshot).unwrap().into()
+    );
+}
+
 /// Verifies that working order mutations target the selected broker identity.
 #[test]
 fn working_order_mutations_target_the_selected_broker_identity() {
     let mut h = harness();
-    for (kind, value) in [
-        (
-            "broker-order",
-            serde_json::json!({"id":{"componentId":"component"},"status":"Working","currentSignedNetDebitLimit":"-3.2","order":{"components":[{"strategyKind":"IronCondor"}]}}),
-        ),
-        (
-            "broker-mutation",
-            serde_json::json!({"canMutate":true,"minimum":"-10","maximum":"0","tick":"0.05"}),
-        ),
-    ] {
-        h.state_mut().snapshot.result.rows.push(serde_json::from_value(serde_json::json!({"id":format!("{kind}:owner"),"fields":{"kind":kind,"data":value.to_string()}})).unwrap());
-    }
+    let attempt = "6fb55186-c479-73ea-b0af-65a34f98c51c";
+    publish_fill_controls(&mut h, "owner", 2202, attempt, true);
     h.get_by_label("Order Fills").click();
     h.run();
+    let reconcile = h.get_by_label("Reconcile").rect();
+    let update = h.get_by_label("Update Order Price").rect();
+    let cancel = h.get_by_label("Cancel Unfilled").rect();
+    assert!(update.left() - reconcile.right() > 100.);
+    assert!(cancel.left() > update.right());
+    assert!((cancel.center().y - reconcile.center().y).abs() < 3.);
     h.get_by_label("Update Order Price").click();
     h.run();
     assert!(
         h.state()
             .requests
             .iter()
-            .any(|v| v["intent"] == "update-limit" && v["fields"]["brokerOrderId"] == "owner")
+            .any(|v| v["intent"] == "update-limit" && v["fields"]["brokerOrderId"] == "owner"
+                && v["fields"]["fillsOrderId"] == "2202" && v["fields"]["fillsAttempt"] == attempt)
     );
     h.get_by_label("Cancel Unfilled").click();
     h.run();
@@ -1462,10 +1478,7 @@ fn physical_pointer_click_switches_the_blotter_tab() {
 fn reconcile_button_uses_the_restored_pending_broker_identity() {
     let mut h = harness();
     let id = "101.701.2202.6fb55186c47973eab0af65a34f98c51c.8c6aaaa142c745998c1a2caae964a793";
-    h.state_mut().snapshot.result.rows.push(serde_json::from_value(serde_json::json!({
-        "id": format!("broker-order:{id}"),
-        "fields":{"kind":"broker-order","data":serde_json::json!({"status":"OutcomeUnknown"}).to_string()}
-    })).unwrap());
+    publish_fill_controls(&mut h, id, 2202, "6fb55186-c479-73ea-b0af-65a34f98c51c", false);
     h.run();
     h.get_by_label("Order Fills").click();
     h.run();
@@ -1503,13 +1516,13 @@ fn accepted_submission_selects_fills_before_evidence_refresh_completes() {
         .context
         .insert("submissionStatus".into(), "Broker accepted".into());
     h.run();
-    assert!(h.query_by_label("ORDERS / FILLS").is_some());
-    assert!(h.query_by_label("Broker accepted").is_some());
+    assert!(h.query_by_label("Orders").is_some());
+    assert!(h.query_by_label("Broker accepted").is_none());
     assert!(h.query_by_label("Place Order").is_none());
     h.state_mut().snapshot.status = "Execution evidence unavailable".into();
     h.run();
-    assert!(h.query_by_label("ORDERS / FILLS").is_some());
-    assert!(h.query_by_label("Broker accepted").is_some());
+    assert!(h.query_by_label("Orders").is_some());
+    assert!(h.query_by_label("Broker accepted").is_none());
 }
 
 
@@ -1660,7 +1673,7 @@ fn broker_leg_delta_precision_and_grid_bounds_survive_value_updates() {
 
 /// Verifies that failed load closes editor and shows a separate error.
 #[test]
-fn failed_load_closes_editor_and_shows_a_separate_error() {
+fn failed_load_keeps_editor_open_and_uses_the_correlated_error() {
     let mut h = harness();
     h.state_mut().fail_load = true;
     h.state_mut()
@@ -1684,18 +1697,12 @@ fn failed_load_closes_editor_and_shows_a_separate_error() {
     h.run();
     h.get_by_label("Load Trade").click();
     h.run();
-    assert!(!h.state().view.open);
-    h.run();
-    assert!(h.query_by_label("Trade Order Editor").is_none());
-    assert!(h.query_by_label("Load Trade Error").is_some());
-    assert!(
-        h.query_by_label("Persisted trade limits were not found.")
-            .is_some()
-    );
+    assert!(h.state().view.open);
+    assert!(h.query_by_label("Trade Order Editor").is_some());
+    assert!(h.query_by_label("Load Trade Error").is_none());
+    assert_eq!(h.state().snapshot.outcomes[0].message, "Persisted trade limits were not found.");
     assert!(h.state().view.loaded_bounds.is_none());
-    h.get_by_label("OK").click();
-    h.run();
-    assert!(h.state().requests.iter().any(|v| v["intent"] == "close"));
+    assert!(!h.state().requests.iter().any(|v| v["intent"] == "close"));
 }
 
 
@@ -2082,7 +2089,8 @@ fn a_failed_additional_load_keeps_existing_center_tabs_open() {
     h.get_by_label("Load Trade").click();
     h.run();
     h.run();
-    assert!(h.query_by_label("Load Trade Error").is_some());
+    assert!(h.state().view.open);
+    assert_eq!(h.state().snapshot.outcomes[0].message, "Persisted trade limits were not found.");
     assert!(h.query_by_label("28:2").is_some());
     assert!(h.state().view.loaded_bounds.is_some());
 }

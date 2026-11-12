@@ -16,14 +16,14 @@ public sealed class FinancialHistoryJournal(IPostgresEventTransaction transactio
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1068", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
     public Task<IReadOnlyList<IFinancialCompletedEvent>> PendingAsync(CancellationToken token = default, int? portfolioId = null) => transactions.ExecuteAsync(async (db, ct) =>
     {
-        var rows = await (db.QueryAsync(PortfolioDbSql.Financial.FinancialHistoryJournal.Select01, [EventNames, portfolioId], r => new EventLogReadModel(r.GetInt64(0), r.GetString(1), r.GetString(2), r.GetInt64(3), r.GetFieldValue<byte[]>(4), r.GetGuid(5), r.GetString(6), r.GetInt64(7)), ct)).ConfigureAwait(false);
+        var rows = await (db.QueryAsync(PortfolioDbSql.Financial_FinancialHistoryJournal_Select01, [EventNames, portfolioId], r => new EventLogReadModel(r.GetInt64(0), r.GetString(1), r.GetString(2), r.GetInt64(3), r.GetFieldValue<byte[]>(4), r.GetGuid(5), r.GetString(6), r.GetInt64(7)), ct)).ConfigureAwait(false);
         return (IReadOnlyList<IFinancialCompletedEvent>)rows.Select(row => row.ToDomainEvent() as IFinancialCompletedEvent
             ?? throw new InvalidDataException($"Unsupported financial history event {row.EventVersion}.")).ToArray();
     }, token);
 
     public Task AcknowledgeAsync(long eventId, CancellationToken token = default) => transactions.ExecuteAsync(async (db, ct) =>
     {
-        await (db.ExecuteAsync(PortfolioDbSql.Financial.FinancialHistoryJournal.Insert01, [eventId, DateTime.UtcNow], ct)).ConfigureAwait(false);
+        await (db.ExecuteAsync(PortfolioDbSql.Financial_FinancialHistoryJournal_Insert01, [eventId, DateTime.UtcNow], ct)).ConfigureAwait(false);
         return true;
     }, token);
 
@@ -31,7 +31,7 @@ public sealed class FinancialHistoryJournal(IPostgresEventTransaction transactio
     public Task<int> ProjectPendingFundAuthorizationsAsync(Guid? commandId = null, CancellationToken token = default)
         => transactions.ExecuteAsync(async (db, ct) =>
         {
-            var rows = await db.QueryAsync(PortfolioDbSql.Financial.FinancialHistoryJournal.ReadPendingFundAuthorizations,
+            var rows = await db.QueryAsync(PortfolioDbSql.Financial_FinancialHistoryJournal_ReadPendingFundAuthorizations,
                 [nameof(FundCompositionStateChangedEvent), commandId],
                 r => new EventLogReadModel(r.GetInt64(0), r.GetString(1), r.GetString(2), r.GetInt64(3),
                     r.GetFieldValue<byte[]>(4), r.GetGuid(5), r.GetString(6), r.GetInt64(7)), ct).ConfigureAwait(false);

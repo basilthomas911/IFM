@@ -17,7 +17,7 @@ public sealed class StrategyFundOrderRegistrationProof(IPostgresEventTransaction
     public Task<bool> VerifyExpiryAsync(ReleaseExpiredStrategyFundOrderCommand command, CancellationToken token = default)
         => transactions.ExecuteOnceAsync(async (db, ct) =>
         {
-            var rows = await db.QueryAsync(ExecutionCapacitySql.Source, [command.SourceCommandId],
+            var rows = await db.QueryAsync(PortfolioDbSql.ReadExecutionCapacitySource, [command.SourceCommandId],
                 row => new EventLogReadModel(row.GetInt64(0), row.GetString(1), row.GetString(2), row.GetInt64(3),
                     row.GetFieldValue<byte[]>(4), row.GetGuid(5), row.GetString(6), row.GetInt64(7)), ct).ConfigureAwait(false);
             var source = rows.Select(row => row.ToDomainEvent()).OfType<TomasAI.IFM.Domain.Trade.Shared.Order.TradeOrderChangedEvent>().SingleOrDefault();
@@ -26,7 +26,7 @@ public sealed class StrategyFundOrderRegistrationProof(IPostgresEventTransaction
                 { Status: TomasAI.IFM.Domain.Trade.Shared.TradeOrderStatus.Expired, BoundExecutionAttemptId: null, StrategyWorkflowId: not null } ||
                 order.Id.PortfolioId != command.EntityId.PortfolioId || order.Id.FundId != command.EntityId.FundId || order.Id.OrderId != command.OrderId)
                 return false;
-            var receipts = await db.QueryAsync(PortfolioDbSql.Financial.FinancialQueryStore.ReadOutcome,
+            var receipts = await db.QueryAsync(PortfolioDbSql.Financial_FinancialQueryStore_ReadOutcome,
                 [command.EntityId.PortfolioId, command.FinancialOperationId], row => (Type: row.GetString(0), Payload: row.GetString(1)), ct).ConfigureAwait(false);
             if (receipts.Count != 1 || receipts[0].Type != typeof(LedgerPostingBatchCompletedEvent).FullName)
                 return false;
@@ -39,7 +39,7 @@ public sealed class StrategyFundOrderRegistrationProof(IPostgresEventTransaction
     public Task<bool> VerifyAsync(RegisterStrategyFundOrderCommand command, CancellationToken token = default)
         => transactions.ExecuteOnceAsync(async (db, ct) =>
         {
-            var rows = await db.QueryAsync(ExecutionCapacitySql.Source, [command.SourceCommandId],
+            var rows = await db.QueryAsync(PortfolioDbSql.ReadExecutionCapacitySource, [command.SourceCommandId],
                 row => new EventLogReadModel(row.GetInt64(0), row.GetString(1), row.GetString(2), row.GetInt64(3),
                     row.GetFieldValue<byte[]>(4), row.GetGuid(5), row.GetString(6), row.GetInt64(7)), ct).ConfigureAwait(false);
             var source = rows.Select(row => row.ToDomainEvent()).OfType<WorkflowStrategyStateUpdatedEvent>()

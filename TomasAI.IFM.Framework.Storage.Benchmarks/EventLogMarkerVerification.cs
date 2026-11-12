@@ -123,7 +123,7 @@ public static class EventLogMarkerVerification
         else
             foreach (var marker in markers)
                 await EventLogAppenderSupport.InsertProjectionMarkerAsync(connection, transaction, marker.EventId,
-                    marker.Requirement, CancellationToken.None, layout.Resolve(EventSourceDbSql.TryCreateEventProjectorExecutionState));
+                    marker.Requirement, CancellationToken.None, layout.Resolve(EventSourceActorDbSql.TryCreateEventProjectorExecutionState));
     }
 
     static async Task MustReject(Func<Task> action)

@@ -633,7 +633,7 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
                 createdTimestamp: $"{createdTimestamp:o}",
                 updatedTimestamp: $"{now:o}");
         await _dbFactory.ActorEventSourceDb
-            .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.UpsertEventProjectorState)}", this.EventLogSql(EventSourceDbSql.UpsertEventProjectorState))
+            .Use($"{nameof(EventSourceActorDbSql)}.{nameof(EventSourceActorDbSql.UpsertEventProjectorState)}", this.EventLogSql(EventSourceActorDbSql.UpsertEventProjectorState))
             .SetParameters(preparedParameters1)
             .ExecuteCommandAsync(cancellationToken)
             .ConfigureAwait(false);
@@ -666,7 +666,7 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
     {
         var preparedParameters2 = new GetEventProjectorState(eventId, projectorName);
         return await _dbFactory.ActorEventSourceDb
-            .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.GetEventProjectorState)}", EventSourceDbSql.GetEventProjectorState)
+            .Use($"{nameof(EventSourceActorDbSql)}.{nameof(EventSourceActorDbSql.GetEventProjectorState)}", EventSourceActorDbSql.GetEventProjectorState)
             .SetParameters(preparedParameters2)
             .ExecuteSingleAsync<EventProjectorStateReadModel>(MapToEventProjectorState, cancellationToken)
             .ConfigureAwait(false);
@@ -682,7 +682,7 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
     {
         var preparedParameters3 = new GetEventLogByEventVersion(eventId);
         return await _dbFactory.ActorEventSourceDb
-            .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.GetEventLogByEventVersion)}", this.EventLogSql(EventSourceDbSql.GetEventLogByEventVersion))
+            .Use($"{nameof(EventSourceActorDbSql)}.{nameof(EventSourceActorDbSql.GetEventLogByEventVersion)}", this.EventLogSql(EventSourceActorDbSql.GetEventLogByEventVersion))
             .SetParameters(preparedParameters3)
             .ExecuteSingleAsync<EventLogReadModel>(MapToEventLog, cancellationToken)
             .ConfigureAwait(false);
@@ -712,7 +712,7 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
                 updatedAtUtc);
 
         return await _dbFactory.ActorEventSourceDb
-            .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.TryCreateEventProjectorExecutionState)}", this.EventLogSql(EventSourceDbSql.TryCreateEventProjectorExecutionState))
+            .Use($"{nameof(EventSourceActorDbSql)}.{nameof(EventSourceActorDbSql.TryCreateEventProjectorExecutionState)}", this.EventLogSql(EventSourceActorDbSql.TryCreateEventProjectorExecutionState))
             .SetParameters(preparedParameters4)
             .ExecuteSingleAsync<EventProjectorExecutionStateReadModel>(MapToEventProjectorExecutionState, cancellationToken)
             .ConfigureAwait(false);
@@ -728,7 +728,7 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
     {
         var preparedParameters5 = new GetEventProjectorState(identity.EventId, identity.ProjectorName);
         return await _dbFactory.ActorEventSourceDb
-            .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.GetEventProjectorExecutionState)}", EventSourceDbSql.GetEventProjectorExecutionState)
+            .Use($"{nameof(EventSourceActorDbSql)}.{nameof(EventSourceActorDbSql.GetEventProjectorExecutionState)}", EventSourceActorDbSql.GetEventProjectorExecutionState)
             .SetParameters(preparedParameters5)
             .ExecuteSingleAsync<EventProjectorExecutionStateReadModel>(MapToEventProjectorExecutionState, cancellationToken)
             .ConfigureAwait(false);
@@ -746,7 +746,7 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
     {
         var preparedParameters6 = new GetEventProjectorStreamCheckpoint(projectorName, eventStreamId);
         return await _dbFactory.ActorEventSourceDb
-            .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.GetEventProjectorStreamCheckpoint)}", EventSourceDbSql.GetEventProjectorStreamCheckpoint)
+            .Use($"{nameof(EventSourceActorDbSql)}.{nameof(EventSourceActorDbSql.GetEventProjectorStreamCheckpoint)}", EventSourceActorDbSql.GetEventProjectorStreamCheckpoint)
             .SetParameters(preparedParameters6)
             .ExecuteSingleAsync<EventProjectorStreamCheckpointReadModel>(MapToEventProjectorStreamCheckpoint, cancellationToken)
             .ConfigureAwait(false);
@@ -764,7 +764,7 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
             lease.EventId, lease.ProjectorName, lease.ExecutionToken,
             lease.ExpiresAtUtc, lease.NowUtc, $"{lease.NowUtc:o}");
         return await _dbFactory.ActorEventSourceDb
-            .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.TryClaimEventProjectorExecution)}", EventSourceDbSql.TryClaimEventProjectorExecution)
+            .Use($"{nameof(EventSourceActorDbSql)}.{nameof(EventSourceActorDbSql.TryClaimEventProjectorExecution)}", EventSourceActorDbSql.TryClaimEventProjectorExecution)
             .SetParameters(parameters)
             .ExecuteSingleAsync<EventProjectorExecutionStateReadModel>(MapToEventProjectorExecutionState, cancellationToken)
             .ConfigureAwait(false);
@@ -780,7 +780,7 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
     {
         var preparedParameters8 = new GetEventProjectorState(identity.EventId, identity.ProjectorName);
         return await _dbFactory.ActorEventSourceDb
-            .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.HasEarlierUnresolvedEventProjectorExecution)}", EventSourceDbSql.HasEarlierUnresolvedEventProjectorExecution)
+            .Use($"{nameof(EventSourceActorDbSql)}.{nameof(EventSourceActorDbSql.HasEarlierUnresolvedEventProjectorExecution)}", EventSourceActorDbSql.HasEarlierUnresolvedEventProjectorExecution)
             .SetParameters(preparedParameters8)
             .ExecuteScalarAsync(MapToHasEarlierUnresolvedEventProjectorExecutionRow1, cancellationToken)
             .ConfigureAwait(false);
@@ -798,7 +798,7 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
             lease.EventId, lease.ProjectorName, lease.ExecutionToken,
             lease.ExpectedRevision, lease.NowUtc, lease.ExpiresAtUtc, $"{lease.NowUtc:o}");
         return await _dbFactory.ActorEventSourceDb
-            .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.TryRenewEventProjectorExecution)}", EventSourceDbSql.TryRenewEventProjectorExecution)
+            .Use($"{nameof(EventSourceActorDbSql)}.{nameof(EventSourceActorDbSql.TryRenewEventProjectorExecution)}", EventSourceActorDbSql.TryRenewEventProjectorExecution)
             .SetParameters(parameters)
             .ExecuteSingleAsync<EventProjectorExecutionStateReadModel>(MapToEventProjectorExecutionState, cancellationToken)
             .ConfigureAwait(false);
@@ -828,7 +828,7 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
                 nowUtc,
                 $"{nowUtc:o}");
         return await _dbFactory.ActorEventSourceDb
-            .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.TryReleaseEventProjectorExecution)}", EventSourceDbSql.TryReleaseEventProjectorExecution)
+            .Use($"{nameof(EventSourceActorDbSql)}.{nameof(EventSourceActorDbSql.TryReleaseEventProjectorExecution)}", EventSourceActorDbSql.TryReleaseEventProjectorExecution)
             .SetParameters(preparedParameters10)
             .ExecuteSingleAsync<EventProjectorExecutionStateReadModel>(MapToEventProjectorExecutionState, cancellationToken)
             .ConfigureAwait(false);
@@ -862,7 +862,7 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
                 nowUtc,
                 $"{nowUtc:o}");
         return await _dbFactory.ActorEventSourceDb
-            .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.TryTransitionEventProjectorExecution)}", EventSourceDbSql.TryTransitionEventProjectorExecution)
+            .Use($"{nameof(EventSourceActorDbSql)}.{nameof(EventSourceActorDbSql.TryTransitionEventProjectorExecution)}", EventSourceActorDbSql.TryTransitionEventProjectorExecution)
             .SetParameters(preparedParameters11)
             .ExecuteSingleAsync<EventProjectorExecutionStateReadModel>(MapToEventProjectorExecutionState, cancellationToken)
             .ConfigureAwait(false);
@@ -894,7 +894,7 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
                 nowUtc,
                 $"{nowUtc:o}");
         return await _dbFactory.ActorEventSourceDb
-            .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.TryTerminalizeEventProjectorExecution)}", EventSourceDbSql.TryTerminalizeEventProjectorExecution)
+            .Use($"{nameof(EventSourceActorDbSql)}.{nameof(EventSourceActorDbSql.TryTerminalizeEventProjectorExecution)}", EventSourceActorDbSql.TryTerminalizeEventProjectorExecution)
             .SetParameters(preparedParameters12)
             .ExecuteSingleAsync<EventProjectorExecutionStateReadModel>(MapToEventProjectorExecutionState, cancellationToken)
             .ConfigureAwait(false);
@@ -938,7 +938,7 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
                 nowUtc,
                 MessageOriginJson.Serialize(message.Origin));
         return await _dbFactory.ActorEventSourceDb
-            .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.TryTransitionEventProjectorExecutionWithOutbox)}", EventSourceDbSql.TryTransitionEventProjectorExecutionWithOutbox)
+            .Use($"{nameof(EventSourceActorDbSql)}.{nameof(EventSourceActorDbSql.TryTransitionEventProjectorExecutionWithOutbox)}", EventSourceActorDbSql.TryTransitionEventProjectorExecutionWithOutbox)
             .SetParameters(preparedParameters13)
             .ExecuteSingleAsync<EventProjectorExecutionStateReadModel>(MapToEventProjectorExecutionState, cancellationToken)
             .ConfigureAwait(false);
@@ -980,7 +980,7 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
                 nowUtc,
                 MessageOriginJson.Serialize(message.Origin));
         return await _dbFactory.ActorEventSourceDb
-            .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.TryTerminalizeEventProjectorExecutionWithOutbox)}", EventSourceDbSql.TryTerminalizeEventProjectorExecutionWithOutbox)
+            .Use($"{nameof(EventSourceActorDbSql)}.{nameof(EventSourceActorDbSql.TryTerminalizeEventProjectorExecutionWithOutbox)}", EventSourceActorDbSql.TryTerminalizeEventProjectorExecutionWithOutbox)
             .SetParameters(preparedParameters14)
             .ExecuteSingleAsync<EventProjectorExecutionStateReadModel>(MapToEventProjectorExecutionState, cancellationToken)
             .ConfigureAwait(false);
@@ -1010,7 +1010,7 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
                 nowUtc,
                 batchSize);
         return [.. await _dbFactory.ActorEventSourceDb
-            .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.ClaimEventProjectorOutbox)}", EventSourceDbSql.ClaimEventProjectorOutbox)
+            .Use($"{nameof(EventSourceActorDbSql)}.{nameof(EventSourceActorDbSql.ClaimEventProjectorOutbox)}", EventSourceActorDbSql.ClaimEventProjectorOutbox)
             .SetParameters(preparedParameters15)
             .ExecuteQueryAsync<EventProjectorOutboxReadModel>(MapToEventProjectorOutbox, cancellationToken)
             .ConfigureAwait(false)];
@@ -1034,7 +1034,7 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
                 nowUtc,
                 nowUtc);
         var affected = await _dbFactory.ActorEventSourceDb
-            .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.MarkEventProjectorOutboxPublished)}", EventSourceDbSql.MarkEventProjectorOutboxPublished)
+            .Use($"{nameof(EventSourceActorDbSql)}.{nameof(EventSourceActorDbSql.MarkEventProjectorOutboxPublished)}", EventSourceActorDbSql.MarkEventProjectorOutboxPublished)
             .SetParameters(preparedParameters16)
             .ExecuteCommandAsync(cancellationToken)
             .ConfigureAwait(false);
@@ -1067,7 +1067,7 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
                 nextAttemptAtUtc,
                 lastError ?? string.Empty);
         var affected = await _dbFactory.ActorEventSourceDb
-            .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.ReleaseEventProjectorOutbox)}", EventSourceDbSql.ReleaseEventProjectorOutbox)
+            .Use($"{nameof(EventSourceActorDbSql)}.{nameof(EventSourceActorDbSql.ReleaseEventProjectorOutbox)}", EventSourceActorDbSql.ReleaseEventProjectorOutbox)
             .SetParameters(preparedParameters17)
             .ExecuteCommandAsync(cancellationToken)
             .ConfigureAwait(false);
@@ -1091,7 +1091,7 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
         var preparedParameters18 = new GetEventProjectorOperationalStatePage(
                 projectorName, $"{status}", afterEventId, batchSize);
         return [.. await _dbFactory.ActorEventSourceDb
-            .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.GetEventProjectorOperationalStatePage)}", this.EventLogSql(EventSourceDbSql.GetEventProjectorOperationalStatePage))
+            .Use($"{nameof(EventSourceActorDbSql)}.{nameof(EventSourceActorDbSql.GetEventProjectorOperationalStatePage)}", this.EventLogSql(EventSourceActorDbSql.GetEventProjectorOperationalStatePage))
             .SetParameters(preparedParameters18)
             .ExecuteQueryAsync<EventProjectorExecutionStateReadModel>(MapToEventProjectorExecutionState, cancellationToken)
             .ConfigureAwait(false)];
@@ -1109,7 +1109,7 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
     {
         var preparedParameters19 = new GetEventProjectorOperationalSnapshot(projectorName, nowUtc);
         return await _dbFactory.ActorEventSourceDb
-            .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.GetEventProjectorOperationalSnapshot)}", this.EventLogSql(EventSourceDbSql.GetEventProjectorOperationalSnapshot))
+            .Use($"{nameof(EventSourceActorDbSql)}.{nameof(EventSourceActorDbSql.GetEventProjectorOperationalSnapshot)}", this.EventLogSql(EventSourceActorDbSql.GetEventProjectorOperationalSnapshot))
             .SetParameters(preparedParameters19)
             .ExecuteSingleAsync<EventProjectorOperationalSnapshotReadModel>(MapToEventProjectorOperationalSnapshot, cancellationToken)
             .ConfigureAwait(false)
@@ -1131,7 +1131,7 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
         var preparedParameters20 = new RetryEventProjectorExecution(
                 eventId, projectorName, nowUtc, $"{nowUtc:o}");
         return await _dbFactory.ActorEventSourceDb
-            .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.TryRetryEventProjectorExecution)}", EventSourceDbSql.TryRetryEventProjectorExecution)
+            .Use($"{nameof(EventSourceActorDbSql)}.{nameof(EventSourceActorDbSql.TryRetryEventProjectorExecution)}", EventSourceActorDbSql.TryRetryEventProjectorExecution)
             .SetParameters(preparedParameters20)
             .ExecuteSingleAsync<EventProjectorExecutionStateReadModel>(MapToEventProjectorExecutionState, cancellationToken)
             .ConfigureAwait(false);
@@ -1154,7 +1154,7 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
         var preparedParameters21 = new SkipEventProjectorExecution(
                 eventId, projectorName, reason, nowUtc, $"{nowUtc:o}");
         return await _dbFactory.ActorEventSourceDb
-            .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.TrySkipEventProjectorExecution)}", EventSourceDbSql.TrySkipEventProjectorExecution)
+            .Use($"{nameof(EventSourceActorDbSql)}.{nameof(EventSourceActorDbSql.TrySkipEventProjectorExecution)}", EventSourceActorDbSql.TrySkipEventProjectorExecution)
             .SetParameters(preparedParameters21)
             .ExecuteSingleAsync<EventProjectorExecutionStateReadModel>(MapToEventProjectorExecutionState, cancellationToken)
             .ConfigureAwait(false);
@@ -1186,7 +1186,7 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
                 batchSize);
 
         return [.. await _dbFactory.ActorEventSourceDb
-            .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.GetEventProjectorRecoveryPage)}", this.EventLogSql(EventSourceDbSql.GetEventProjectorRecoveryPage))
+            .Use($"{nameof(EventSourceActorDbSql)}.{nameof(EventSourceActorDbSql.GetEventProjectorRecoveryPage)}", this.EventLogSql(EventSourceActorDbSql.GetEventProjectorRecoveryPage))
             .SetParameters(preparedParameters22)
             .ExecuteQueryAsync<EventProjectorRecoveryItemReadModel>(MapToEventProjectorRecoveryItem, cancellationToken)
             .ConfigureAwait(false)];
@@ -1224,7 +1224,7 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
                 string.Join(',', eventNames));
 
         return await _dbFactory.ActorEventSourceDb
-            .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.GetUncompletedEventProjectorEvents)}", this.EventLogSql(EventSourceDbSql.GetUncompletedEventProjectorEvents))
+            .Use($"{nameof(EventSourceActorDbSql)}.{nameof(EventSourceActorDbSql.GetUncompletedEventProjectorEvents)}", this.EventLogSql(EventSourceActorDbSql.GetUncompletedEventProjectorEvents))
             .SetParameters(preparedParameters23)
             .ExecuteQueryAsync<EventLogReadModel>(MapToEventLog, cancellationToken)
             .ConfigureAwait(false);
@@ -1255,7 +1255,7 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
     {
         var parameters = new UpdateCommandLog(commandId: commandId, commandStatus: $"{commandStatus}", updateTimestamp: updateTimestamp);
         await _dbFactory.ActorEventSourceDb
-            .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.UpdateCommandLog)}", EventSourceDbSql.UpdateCommandLog)
+            .Use($"{nameof(EventSourceActorDbSql)}.{nameof(EventSourceActorDbSql.UpdateCommandLog)}", EventSourceActorDbSql.UpdateCommandLog)
             .SetParameters(parameters)
             .ExecuteCommandAsync(cancellationToken)
             .ConfigureAwait(false);
@@ -1270,7 +1270,7 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
     /// <returns>A task that represents the asynchronous operation.</returns>
     public async Task DeleteEventLogAsync(long eventVersion)
         => await (_dbFactory.ActorEventSourceDb
-            .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.DeleteEventLog)}", this.EventLogSql(EventSourceDbSql.DeleteEventLog))
+            .Use($"{nameof(EventSourceActorDbSql)}.{nameof(EventSourceActorDbSql.DeleteEventLog)}", this.EventLogSql(EventSourceActorDbSql.DeleteEventLog))
             .SetParameters(new DeleteEventLog(eventVersion))
             .ExecuteCommandAsync())
             .ConfigureAwait(false);
@@ -1297,7 +1297,7 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
     /// <returns>A task that represents the asynchronous delete operation.</returns>
     public async Task DeleteEventLogByStreamIdAsync(long streamId)
         => await (_dbFactory.ActorEventSourceDb
-            .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.DeleteEventLogByStreamId)}", this.EventLogSql(EventSourceDbSql.DeleteEventLogByStreamId))
+            .Use($"{nameof(EventSourceActorDbSql)}.{nameof(EventSourceActorDbSql.DeleteEventLogByStreamId)}", this.EventLogSql(EventSourceActorDbSql.DeleteEventLogByStreamId))
             .SetParameters(new DeleteEventLogByStreamId(streamId))
             .ExecuteCommandAsync())
             .ConfigureAwait(false);
@@ -1309,7 +1309,7 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
     /// <returns>A task that represents the asynchronous delete operation.</returns>
     public async Task DeleteEventStreamByIdAsync(long eventStreamId)
         => await (_dbFactory.ActorEventSourceDb
-            .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.DeleteEventStreamById)}", EventSourceDbSql.DeleteEventStreamById)
+            .Use($"{nameof(EventSourceActorDbSql)}.{nameof(EventSourceActorDbSql.DeleteEventStreamById)}", EventSourceActorDbSql.DeleteEventStreamById)
             .SetParameters(new DeleteEventStreamById(eventStreamId))
             .ExecuteCommandAsync())
             .ConfigureAwait(false);
@@ -1324,7 +1324,7 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
     /// <returns>A <see cref="CommandLogReadModel"/> representing the command log if found; otherwise, <see langword="null"/>.</returns>
     public async Task<CommandLogReadModel?> GetCommandLogAsync(Guid commandId)
         => await (_dbFactory.ActorEventSourceDb
-            .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.GetCommandLog)}", EventSourceDbSql.GetCommandLog)
+            .Use($"{nameof(EventSourceActorDbSql)}.{nameof(EventSourceActorDbSql.GetCommandLog)}", EventSourceActorDbSql.GetCommandLog)
             .SetParameters(new GetCommandLog(commandId))
             .ExecuteSingleAsync<CommandLogReadModel>(MapToCommandLog))
             .ConfigureAwait(false);
@@ -1334,7 +1334,7 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
     /// <returns>The typed result of the event-source operation.</returns>
     public async Task<bool> HasEventForCommandAsync(Guid commandId)
         => await (_dbFactory.ActorEventSourceDb
-            .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.HasEventForCommand)}", this.EventLogSql(EventSourceDbSql.HasEventForCommand))
+            .Use($"{nameof(EventSourceActorDbSql)}.{nameof(EventSourceActorDbSql.HasEventForCommand)}", this.EventLogSql(EventSourceActorDbSql.HasEventForCommand))
             .SetParameters(new GetCommandLog(commandId))
             .ExecuteScalarAsync(MapToHasEventForCommandRow2))
             .ConfigureAwait(false);
@@ -1346,7 +1346,7 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
     public async Task<long> GetCommittedStreamVersionAsync(long eventStreamId, CancellationToken cancellationToken = default)
     {
         var preparedParameters24 = new GetEventLogByEventStreamId(eventStreamId);
-        return await Database.Use("EventSource.StreamVersion", this.EventLogSql(EventSourceDbSql.EventSourceActorDbContext_GetCommittedStreamVersionAsync_1))
+        return await Database.Use("EventSource.StreamVersion", this.EventLogSql(EventSourceActorDbSql.EventSourceActorDbContext_GetCommittedStreamVersionAsync_1))
             .SetParameters(preparedParameters24)
             .ExecuteSingleAsync(MapToGetCommittedStreamVersionRow3, cancellationToken)
             .ConfigureAwait(false);
@@ -1364,7 +1364,7 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
     /// <returns>The typed result of the event-source operation.</returns>
     public async Task<EventStreamIdReadModel?> GetEventStreamIdFromDbAsync(string eventStream)
         => await (_dbFactory.ActorEventSourceDb
-            .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.GetEventStreamId)}", EventSourceDbSql.GetEventStreamId)
+            .Use($"{nameof(EventSourceActorDbSql)}.{nameof(EventSourceActorDbSql.GetEventStreamId)}", EventSourceActorDbSql.GetEventStreamId)
             .SetParameters(new GetEventStreamId(eventStream))
             .ExecuteSingleAsync<EventStreamIdReadModel>(MapToEventStreamId))
             .ConfigureAwait(false);
@@ -1405,17 +1405,17 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
             .ConfigureAwait(false);
         var db = _dbFactory.ActorEventSourceDb;
         var preparedParameters25 = new GetMaxEventVersion(eventStreamId, snapshotEventNameId);
-        var maxEventVersion = await (db.Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.GetMaxEventVersion)}", this.EventLogSql(EventSourceDbSql.GetMaxEventVersion))
+        var maxEventVersion = await (db.Use($"{nameof(EventSourceActorDbSql)}.{nameof(EventSourceActorDbSql.GetMaxEventVersion)}", this.EventLogSql(EventSourceActorDbSql.GetMaxEventVersion))
             .SetParameters(preparedParameters25)
             .ExecuteScalarAsync(MapToLong))
             .ConfigureAwait(false);
         var preparedParameters26 = new GetEventLogByMaxEventVersion(eventStreamId, maxEventVersion);
         return maxEventVersion > 0
-            ? await (db.Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.GetEventLogByMaxEventVersion)}", this.EventLogSql(EventSourceDbSql.GetEventLogByMaxEventVersion))
+            ? await (db.Use($"{nameof(EventSourceActorDbSql)}.{nameof(EventSourceActorDbSql.GetEventLogByMaxEventVersion)}", this.EventLogSql(EventSourceActorDbSql.GetEventLogByMaxEventVersion))
             .SetParameters(preparedParameters26)
             .ExecuteQueryAsync<EventStreamReadModel>(MapToEventStream))
             .ConfigureAwait(false)
-            : await (db.Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.GetEventLogByEventStreamId)}", this.EventLogSql(EventSourceDbSql.GetEventLogByEventStreamId))
+            : await (db.Use($"{nameof(EventSourceActorDbSql)}.{nameof(EventSourceActorDbSql.GetEventLogByEventStreamId)}", this.EventLogSql(EventSourceActorDbSql.GetEventLogByEventStreamId))
             .SetParameters(new GetEventLogByEventStreamId(eventStreamId))
             .ExecuteQueryAsync<EventStreamReadModel>(MapToEventStream))
             .ConfigureAwait(false);
@@ -1533,7 +1533,7 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
         var eventStream = new EventStreamReadModel();
         var preparedParameters28 = new GetEventLogByEventStreamId(eventStreamId);
         await (_dbFactory.ActorEventSourceDb
-                .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.GetEventLogByEventStreamId)}", this.EventLogSql(EventSourceDbSql.GetEventLogByEventStreamId))
+                .Use($"{nameof(EventSourceActorDbSql)}.{nameof(EventSourceActorDbSql.GetEventLogByEventStreamId)}", this.EventLogSql(EventSourceActorDbSql.GetEventLogByEventStreamId))
             .SetParameters(preparedParameters28)
             .ExecuteMapReduceAsync(row => MapToEventStream(row, eventStream), reducerAction, cancellationToken))
             .ConfigureAwait(false);
@@ -1577,7 +1577,7 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
                 eventNameId,
                 Math.Max(0, lastNRange));
         await (_dbFactory.ActorEventSourceDb
-            .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.GetEventLogLastNRangeByEventName)}", this.EventLogSql(EventSourceDbSql.GetEventLogLastNRangeByEventName))
+            .Use($"{nameof(EventSourceActorDbSql)}.{nameof(EventSourceActorDbSql.GetEventLogLastNRangeByEventName)}", this.EventLogSql(EventSourceActorDbSql.GetEventLogLastNRangeByEventName))
             .SetParameters(preparedParameters29)
             .ExecuteMapReduceAsync(MapToEventStream, reducerAction, cancellationToken))
             .ConfigureAwait(false);
@@ -1617,17 +1617,17 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
             .ConfigureAwait(false);
         var db = _dbFactory.ActorEventSourceDb;
         var preparedParameters30 = new GetMaxEventVersion(eventStreamId, snapshotEventNameId);
-        var maxEventVersion = await (db.Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.GetMaxEventVersion)}", this.EventLogSql(EventSourceDbSql.GetMaxEventVersion))
+        var maxEventVersion = await (db.Use($"{nameof(EventSourceActorDbSql)}.{nameof(EventSourceActorDbSql.GetMaxEventVersion)}", this.EventLogSql(EventSourceActorDbSql.GetMaxEventVersion))
             .SetParameters(preparedParameters30)
             .ExecuteScalarAsync(MapToLong, cancellationToken))
             .ConfigureAwait(false);
         if (maxEventVersion > 0)
-            await (db.Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.GetEventLogByMaxEventVersion)}", this.EventLogSql(EventSourceDbSql.GetEventLogByMaxEventVersion))
+            await (db.Use($"{nameof(EventSourceActorDbSql)}.{nameof(EventSourceActorDbSql.GetEventLogByMaxEventVersion)}", this.EventLogSql(EventSourceActorDbSql.GetEventLogByMaxEventVersion))
             .SetParameters(new GetEventLogByMaxEventVersion(eventStreamId, maxEventVersion))
             .ExecuteMapReduceAsync(row => MapToEventStream(row, eventStream), reducerAction, cancellationToken))
             .ConfigureAwait(false);
         else
-            await (db.Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.GetEventLogByEventStreamId)}", this.EventLogSql(EventSourceDbSql.GetEventLogByEventStreamId))
+            await (db.Use($"{nameof(EventSourceActorDbSql)}.{nameof(EventSourceActorDbSql.GetEventLogByEventStreamId)}", this.EventLogSql(EventSourceActorDbSql.GetEventLogByEventStreamId))
             .SetParameters(new GetEventLogByEventStreamId(eventStreamId))
             .ExecuteMapReduceAsync(row => MapToEventStream(row, eventStream), reducerAction, cancellationToken))
             .ConfigureAwait(false);
@@ -1686,7 +1686,7 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
                 rangeEventNameId,
                 Math.Max(0, lastNRange));
         await (_dbFactory.ActorEventSourceDb
-            .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.GetEventLogFromSnapshotLastNRange)}", this.EventLogSql(EventSourceDbSql.GetEventLogFromSnapshotLastNRange))
+            .Use($"{nameof(EventSourceActorDbSql)}.{nameof(EventSourceActorDbSql.GetEventLogFromSnapshotLastNRange)}", this.EventLogSql(EventSourceActorDbSql.GetEventLogFromSnapshotLastNRange))
             .SetParameters(preparedParameters31)
             .ExecuteMapReduceAsync(MapToEventStream, reducerAction, cancellationToken))
             .ConfigureAwait(false);
@@ -1722,7 +1722,7 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
                 eventNameId,
                 Math.Max(0, lastNRange));
         return await (_dbFactory.ActorEventSourceDb
-            .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.GetEventLogLastNRangeByEventName)}", this.EventLogSql(EventSourceDbSql.GetEventLogLastNRangeByEventName))
+            .Use($"{nameof(EventSourceActorDbSql)}.{nameof(EventSourceActorDbSql.GetEventLogLastNRangeByEventName)}", this.EventLogSql(EventSourceActorDbSql.GetEventLogLastNRangeByEventName))
             .SetParameters(preparedParameters32)
             .ExecuteQueryAsync<EventStreamReadModel>(MapToEventStream))
             .ConfigureAwait(false);
@@ -1756,7 +1756,7 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
     {
         var preparedParameters33 = new AggregateWindowParameters(stream, sidecar, through, maximumCheckpointRevision, replayAfter);
         var rows = await _dbFactory.ActorEventSourceDb
-            .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.ReadAggregateCheckpointWindow)}", EventSourceDbSql.ReadAggregateCheckpointWindow)
+            .Use($"{nameof(EventSourceActorDbSql)}.{nameof(EventSourceActorDbSql.ReadAggregateCheckpointWindow)}", EventSourceActorDbSql.ReadAggregateCheckpointWindow)
             .SetParameters(preparedParameters33)
             .ExecuteQueryAsync(MapToAggregateCheckpointRow, cancellationToken)
             .ConfigureAwait(false);
@@ -1772,13 +1772,13 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
         string stream, Guid? commandId, CancellationToken cancellationToken)
     {
         var sql = commandId.HasValue
-            ? EventSourceDbSql.ReadAggregateEventByCommand
-            : EventSourceDbSql.ReadAggregateCreation;
+            ? EventSourceActorDbSql.ReadAggregateEventByCommand
+            : EventSourceActorDbSql.ReadAggregateCreation;
         var name = commandId.HasValue
-            ? nameof(EventSourceDbSql.ReadAggregateEventByCommand)
-            : nameof(EventSourceDbSql.ReadAggregateCreation);
+            ? nameof(EventSourceActorDbSql.ReadAggregateEventByCommand)
+            : nameof(EventSourceActorDbSql.ReadAggregateCreation);
         var preparedParameters34 = new AggregateFindParameters(stream, commandId);
-        var rows = await _dbFactory.ActorEventSourceDb.Use($"{nameof(EventSourceDbSql)}.{name}", sql)
+        var rows = await _dbFactory.ActorEventSourceDb.Use($"{nameof(EventSourceActorDbSql)}.{name}", sql)
             .SetParameters(preparedParameters34)
             .ExecuteQueryAsync(MapToUnindexedAggregateEvent, cancellationToken)
             .ConfigureAwait(false);
@@ -1853,7 +1853,7 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
             .Distinct(StringComparer.Ordinal).ToArray();
         var preparedParameters35 = new ConcernWindowParameters(concernStream, legacyStream, identities, useCheckpoint);
         await _dbFactory.ActorEventSourceDb
-            .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.ReadConcernCheckpointWindow)}", EventSourceDbSql.ReadConcernCheckpointWindow)
+            .Use($"{nameof(EventSourceActorDbSql)}.{nameof(EventSourceActorDbSql.ReadConcernCheckpointWindow)}", EventSourceActorDbSql.ReadConcernCheckpointWindow)
             .SetParameters(preparedParameters35)
             .ExecuteMapReduceAsync(MapToConcernCheckpointRow, reduce, cancellationToken)
             .ConfigureAwait(false);

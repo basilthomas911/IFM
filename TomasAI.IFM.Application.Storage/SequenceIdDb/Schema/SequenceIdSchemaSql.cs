@@ -1,11 +1,11 @@
-using TomasAI.IFM.Application.Storage.SchemaDb;
-using TomasAI.IFM.Framework.SequenceId;
-
 namespace TomasAI.IFM.Application.Storage.SequenceIdDb.Schema;
 
-internal static class SequenceIdSchemaSql
+/// <summary>Contains PostgreSQL schema statements for SequenceIdDb.</summary>
+public static class SequenceIdSchemaSql
 {
-    public static readonly string CreateGetCurrentSequenceIdFunction = $"""
+    /// <summary>Creates the get current sequence id function.</summary>
+    internal const string CreateGetCurrentSequenceIdFunction =
+        """
         CREATE OR REPLACE FUNCTION public.fn_get_current_sequence_id(sequenceIdName TEXT)
         RETURNS BIGINT AS $$
         DECLARE
@@ -13,7 +13,7 @@ internal static class SequenceIdSchemaSql
             curr_val BIGINT;
         BEGIN
             EXECUTE format(
-                'SELECT CASE WHEN is_called THEN last_value + {SequenceIdSettings.AllocationSize - 1} ELSE 0 END FROM public.%I',
+                'SELECT CASE WHEN is_called THEN last_value + {0} ELSE 0 END FROM public.%I',
                 lower(seq_name))
             INTO curr_val;
             RETURN curr_val;
@@ -21,7 +21,9 @@ internal static class SequenceIdSchemaSql
         $$ LANGUAGE plpgsql;
         """;
 
-    public const string CreateGetNextSequenceIdFunction = """
+    /// <summary>Creates the get next sequence id function.</summary>
+    internal const string CreateGetNextSequenceIdFunction =
+        """
         CREATE OR REPLACE FUNCTION public.fn_get_next_sequence_id(sequenceIdName TEXT)
         RETURNS BIGINT AS $$
         DECLARE
@@ -33,41 +35,33 @@ internal static class SequenceIdSchemaSql
         END;
         $$ LANGUAGE plpgsql;
         """;
-    /// <summary>Verifies required sequence functions without allocating identifiers.</summary>
-    internal const string ValidateFunctions = """
-        SELECT to_regprocedure('public.fn_get_current_sequence_id(text)') IS NOT NULL
-        AND to_regprocedure('public.fn_get_next_sequence_id(text)') IS NOT NULL;
+
+    /// <summary>Creates a sequence for a known identifier and allocation size.</summary>
+    internal const string CreateSequence =
+        """
+        CREATE SEQUENCE IF NOT EXISTS public.{0}
+        START WITH 1
+        INCREMENT BY {1}
+        NO MINVALUE
+        NO MAXVALUE
+        CACHE 1;
         """;
 
-    /// <summary>Reads a sequence selected exclusively from the checked-in enum identities.</summary>
-    internal static string ReadSequenceValue(string persistedName) => $"SELECT last_value FROM public.{persistedName};";
+    /// <summary>Drops the get current sequence id function.</summary>
+    internal const string DropGetCurrentSequenceIdFunction =
+        """
+        DROP FUNCTION IF EXISTS public.fn_get_current_sequence_id(TEXT);
+        """;
 
-    internal static SchemaObjectDefinition[] BuildDefinitions()
-    {
-        var definitions = new List<SchemaObjectDefinition>
-        {
-            new(
-                "fn_get_current_sequence_id",
-                SequenceIdSchemaSql.CreateGetCurrentSequenceIdFunction,
-                "DROP FUNCTION IF EXISTS public.fn_get_current_sequence_id(TEXT);"),
-            new(
-                "fn_get_next_sequence_id",
-                SequenceIdSchemaSql.CreateGetNextSequenceIdFunction,
-                "DROP FUNCTION IF EXISTS public.fn_get_next_sequence_id(TEXT);")
-        };
-        definitions.AddRange(Enum.GetNames<SequenceName>().Select(sequenceName =>
-            new SchemaObjectDefinition(
-                sequenceName,
-                $"""
-                CREATE SEQUENCE IF NOT EXISTS public.{sequenceName}
-                START WITH 1
-                INCREMENT BY {SequenceIdSettings.AllocationSize}
-                NO MINVALUE
-                NO MAXVALUE
-                CACHE 1;
-                """,
-                $"DROP SEQUENCE IF EXISTS public.{sequenceName};")));
-        return definitions.ToArray();
-    }
+    /// <summary>Drops the get next sequence id function.</summary>
+    internal const string DropGetNextSequenceIdFunction =
+        """
+        DROP FUNCTION IF EXISTS public.fn_get_next_sequence_id(TEXT);
+        """;
 
+    /// <summary>Drops a sequence for a known identifier.</summary>
+    internal const string DropSequence =
+        """
+        DROP SEQUENCE IF EXISTS public.{0};
+        """;
 }

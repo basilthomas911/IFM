@@ -178,7 +178,7 @@ public sealed class TradeTickQuoteDbContextConventionTests
         var actual = Directory.GetFiles(folder, "*.cs", SearchOption.AllDirectories).Select(p => Path.GetRelativePath(folder, p)).OrderBy(p => p).ToArray();
         Assert.Equal(expected.OrderBy(p => p).ToArray(), actual);
         var schema = File.ReadAllText(Path.Combine(folder, "Schema", "TradeTickQuoteSchemaDb.cs"));
-        Assert.Contains("TradeTickQuoteSchemaCql.Definitions", schema, StringComparison.Ordinal);
+        Assert.Contains("Definitions => Objects", schema, StringComparison.Ordinal);
         Assert.DoesNotContain("ProviderName", schema, StringComparison.Ordinal);
     }
 

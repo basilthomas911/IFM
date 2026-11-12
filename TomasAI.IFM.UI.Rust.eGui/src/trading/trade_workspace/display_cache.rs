@@ -91,26 +91,6 @@ impl BusinessRow {
     }
 
 
-    /// Provides fill for the business row implementation.
-    pub fn fill(&self) -> Option<&ExecutionFillEvidence> {
-        if let Self::Fill(v) = self {
-            Some(v)
-        } else {
-            None
-        }
-    }
-
-
-    /// Provides properties for the business row implementation.
-    pub fn properties(&self) -> Option<&Properties> {
-        if let Self::Properties(v) = self {
-            Some(v)
-        } else {
-            None
-        }
-    }
-
-
     /// Provides preview for the business row implementation.
     pub fn preview(&self) -> Option<&PreviewDisplay> {
         if let Self::Preview(v) = self {

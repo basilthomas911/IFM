@@ -92,6 +92,22 @@ pub(crate) fn loaded_trade_tab_title(
     } else {
         trade_type
     };
+    let (strikes, maturity) = leg_caption_parts(legs);
+    let _ = write!(title, " {trade_type}");
+    if strikes.iter().any(Option::is_some) {
+        let [lc, sc, sp, lp] = strikes.map(|value| value.unwrap_or("—"));
+        let _ = write!(title, "={lc}:{sc}|{sp}:{lp}");
+    }
+    if let Some(maturity) = maturity {
+        let _ = write!(title, " {}", maturity.format("%y-%b-%d"));
+    }
+    title
+}
+
+/// Identifies unique signed option roles and the latest maturity for a complete composition.
+pub(crate) fn leg_caption_parts(
+    legs: &[TradeLegDefinition],
+) -> ([Option<&str>; 4], Option<chrono::NaiveDate>) {
     let strike = |right, long| {
         let mut matches = legs.iter().filter(|leg| {
             leg.put_call == Some(right)
@@ -112,21 +128,13 @@ pub(crate) fn loaded_trade_tab_title(
         strike(2, false),
         strike(2, true),
     ];
-    let _ = write!(title, " {trade_type}");
-    if strikes.iter().any(Option::is_some) {
-        let [lc, sc, sp, lp] = strikes.map(|value| value.unwrap_or("—"));
-        let _ = write!(title, "={lc}:{sc}|{sp}:{lp}");
-    }
     // Match EstablishedTradeDefinition.MaturityDate. An incomplete expiry
     // list cannot establish a maturity date.
     let maturity = legs.iter().try_fold(chrono::NaiveDate::MIN, |latest, leg| {
         let expiry = chrono::NaiveDate::parse_from_str(leg.expiry.as_ref()?.as_str(), "%Y-%m-%d").ok()?;
         Some(latest.max(expiry))
     });
-    if let Some(maturity) = maturity {
-        let _ = write!(title, " {}", maturity.format("%y-%b-%d"));
-    }
-    title
+    (strikes, maturity.filter(|_| !legs.is_empty()))
 }
 
 /// Every retained monitor row has a concrete schema; arbitrary documents are not accepted.

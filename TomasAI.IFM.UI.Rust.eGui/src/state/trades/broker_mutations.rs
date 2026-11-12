@@ -31,17 +31,20 @@ impl TradeController {
         deadline: tokio::time::Instant,
     ) -> Result<String, String> {
         self.reconcile_order_operations();
-        let composer = self.composer.as_mut().ok_or("Open Trade Blotter first")?;
-        if let Some(session) = intent["fields"]["composerSessionId"].as_str() {
-            if session != composer.session {
-                return Err("Blotter incarnation changed; reload its current evidence".into());
-            }
-        }
-        composer
-            .refresh_evidence(backend, registry, deadline)
-            .await?;
+        let view = field(intent, "fillsView");
         let key = field(intent, "brokerOrderId");
-        let (order, execution) = composer.broker_order(key)?;
+        let (order, execution) = if view.is_empty() {
+            let composer = self.composer.as_mut().ok_or("Open Trade Blotter first")?;
+            if let Some(session) = intent["fields"]["composerSessionId"].as_str() {
+                if session != composer.session {
+                    return Err("Blotter incarnation changed; reload its current evidence".into());
+                }
+            }
+            composer.refresh_evidence(backend, registry, deadline).await?;
+            composer.broker_order(key)?
+        } else {
+            self.fill_broker_order(backend, registry, intent, deadline).await?
+        };
         let pending = self
             .order_operations
             .values()
@@ -86,11 +89,13 @@ impl TradeController {
                 return Err(error);
             }
         }
-        self.composer
-            .as_mut()
-            .unwrap()
-            .refresh_evidence(backend, registry, deadline)
-            .await?;
+        if view.is_empty() {
+            if let Some(composer) = self.composer.as_mut() {
+                composer.refresh_evidence(backend, registry, deadline).await?;
+            }
+        } else {
+            self.refresh_fill_controls(backend, registry, view, deadline).await?;
+        }
         Ok("Broker mutation accepted; refresh for execution acknowledgement".into())
     }
 }

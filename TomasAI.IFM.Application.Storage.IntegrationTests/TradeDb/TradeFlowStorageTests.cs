@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
@@ -47,6 +48,74 @@ public sealed class TradeFlowStorageFixture : IDisposable
 public sealed class TradeFlowStorageTests(TradeFlowStorageFixture fixture)
     : IClassFixture<TradeFlowStorageFixture>
 {
+    [Fact]
+    public async Task Fund_order_fills_page_includes_unfilled_orders_and_four_distinct_fills_after_replay()
+    {
+        const int portfolio = 910001;
+        const int fund = 710001;
+        var date = new DateOnly(2026, 11, 12);
+        var now = new DateTime(2026, 11, 12, 15, 0, 0, DateTimeKind.Utc);
+        for (var id = 1; id <= 10; id++)
+        {
+            var projected = Order(new TradeOrderId(portfolio, fund, id), date);
+            await fixture.TradeDb.UpsertTradeOrderAsync(projected, now);
+        }
+        var order = Order(new TradeOrderId(portfolio, fund, 8), date);
+        await fixture.TradeDb.UpsertTradeOrderAsync(order with { Revision = 2, DefinitionHash = "revision-2" }, now.AddMinutes(1));
+        await fixture.TradeDb.UpsertTradeOrderAsync(Order(new TradeOrderId(portfolio, fund + 1, 11), date), now);
+        await fixture.TradeDb.UpsertTradeOrderAsync(Order(new TradeOrderId(portfolio, fund, 12), date.AddDays(-1)), now);
+        await fixture.TradeDb.UpsertTradeOrderAsync(Order(new TradeOrderId(portfolio + 1, fund, 13), date), now);
+
+        var attempt = Guid.NewGuid();
+        var fillEvidence = new[] { "ES-C7900", "ES-C7950", "ES-P7175", "ES-P7125" }.Select((contract, index) =>
+            new ExecutionFillEvidence
+            {
+                ExecutionFillId = Guid.NewGuid(), ExecutionAttemptId = attempt, ComponentId = Guid.NewGuid(),
+                TradeLegId = Guid.NewGuid(), ContractId = contract, SignedQuantity = index % 2 == 0 ? -1 : 1,
+                Price = index + 0.25m, FilledAtUtc = now, ExternalExecutionId = contract
+            }).ToArray();
+        var execution = new OrderExecutionDefinition
+        {
+            TradeOrderId = order.Id, ExecutionAttemptId = attempt, OrderRevision = 2, Channel = ExecutionChannel.Manual,
+            Status = OrderExecutionStatus.Filled, StartedAtUtc = now, CompletedAtUtc = now, Fills = fillEvidence,
+            OrderQuantity = 1, CumulativeFilledQuantity = 1,
+            Order = order with { ExecutionBoundAtUtc = now.AddSeconds(-30) }
+        };
+        await fixture.TradeDb.UpsertOrderExecutionAsync(execution);
+        await fixture.TradeDb.UpsertOrderExecutionAsync(execution);
+        await fixture.TradeDb.UpsertOrderExecutionAsync(execution with
+        {
+            TradeOrderId = new(portfolio, fund, 9), ExecutionAttemptId = Guid.NewGuid(), OrderRevision = 1,
+            Status = OrderExecutionStatus.Rejected, Fills = [], CumulativeFilledQuantity = 0,
+            RejectionDetail = "EM.EXPIRED: Approval expired."
+        });
+
+        var first = await fixture.TradeDb.GetFundOrderFillsAsync(portfolio, fund, date, 0, Guid.Empty);
+        first.Select(row => row.OrderId).Should().Equal(Enumerable.Range(1, 8));
+        first[0].Fills.Should().BeEmpty();
+        first[^1].TradeId.Should().Be(4301);
+        first[^1].Status.Should().Be("Filled");
+        first[^1].Fills.Should().BeEquivalentTo(fillEvidence);
+        first[^1].OrderQuantity.Should().Be(1);
+        first[^1].FilledQuantity.Should().Be(1);
+        first[^1].OrderDateTime.Should().Be(now.AddSeconds(-30));
+        first[0].OrderDateTime.Should().Be(now);
+        first[^1].LastFillDateTime.Should().Be(now);
+        first[0].LastFillDateTime.Should().BeNull();
+        var second = await fixture.TradeDb.GetFundOrderFillsAsync(portfolio, fund, date, first[^1].OrderId, first[^1].ExecutionAttemptId);
+        second.Select(row => row.OrderId).Should().Equal(9, 10);
+        second[0].Status.Should().Be("Rejected");
+        second[0].RejectionDetail.Should().Be("EM.EXPIRED: Approval expired.");
+        second[0].FilledQuantity.Should().Be(0);
+        second[0].LastFillDateTime.Should().BeNull();
+
+        static TradeOrderDefinition Order(TradeOrderId id, DateOnly valueDate) => new()
+        {
+            Id = id, Revision = 1, ValueDate = valueDate, DefinitionHash = "revision-1",
+            SetupTrade = new() { FundId = id.FundId, OrderId = 4001, TradeId = 4301 }
+        };
+    }
+
     [Fact]
     public async Task Trade_flow_projections_round_trip_and_closed_position_removes_realtime_routes()
     {
@@ -167,6 +236,10 @@ public sealed class TradeFlowStorageTests(TradeFlowStorageFixture fixture)
 
         (await fixture.TradeDb.GetTradeOrderAsync(orderId)).Should().BeEquivalentTo(order);
         (await fixture.TradeDb.GetOrderExecutionAsync(orderId, executionAttemptId)).Should().BeEquivalentTo(execution);
+        var legacyExecution = (await fixture.TradeDb.GetFundOrderFillsAsync(orderId.PortfolioId, orderId.FundId, order.ValueDate, 0, Guid.Empty)).Single();
+        legacyExecution.OrderQuantity.Should().Be(1);
+        legacyExecution.FilledQuantity.Should().Be(1);
+        legacyExecution.Components.Should().BeEquivalentTo(order.Components);
         (await fixture.TradeDb.GetEstablishedTradeAsync(tradeId)).Should().BeEquivalentTo(trade);
         (await fixture.TradeDb.GetEstablishedTradesAsync(tradeId.PortfolioId, tradeId.FundId,
             TradeStrategyKind.FuturesOutright, now.AddMinutes(-1), now.AddMinutes(1), 10))

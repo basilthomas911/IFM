@@ -6,6 +6,62 @@ use ifm_ui_egui::{backend::schema::Registry, state::lookup::LookupController};
 use ifm_ui_egui::services::business_context::BusinessContext;
 use std::{sync::mpsc, time::Duration};
 
+/// Keep open fill views synchronized with committed projections and reconnects.
+async fn observe_order_fills(
+    backend: Backend,
+    registry: std::sync::Arc<Registry>,
+    state: std::sync::Arc<tokio::sync::Mutex<ifm_ui_egui::state::trades::TradeController>>,
+    results: tokio::sync::mpsc::Sender<Update>,
+    mut session: tokio::sync::watch::Receiver<Option<BusinessContext>>,
+) -> Result<(), String> {
+    use futures_util::{FutureExt, StreamExt};
+    let mut executions = backend.subscribe("Event", "OrderExecutionEvent").await?;
+    let mut orders = backend.subscribe("Event", "TradeOrderEvent").await?;
+    let mut brokers = backend.subscribe("Event", "BrokerOrderEvent").await?;
+    let mut connection = backend.watch_connection();
+    let mut value_date = session.borrow().as_ref().map(|session| session.value_date);
+    loop {
+        let subject = tokio::select! {
+            event = executions.next() => Some(event.ok_or("Order execution subscription closed")?.subject),
+            event = orders.next() => Some(event.ok_or("Trade order subscription closed")?.subject),
+            event = brokers.next() => Some(event.ok_or("Broker order subscription closed")?.subject),
+            changed = connection.changed() => {
+                if changed.is_err() { return Ok(()); }
+                if !connection.borrow_and_update().connected { continue; }
+                None
+            }
+            changed = session.changed() => {
+                if changed.is_err() { return Ok(()); }
+                let next = session.borrow_and_update().as_ref().map(|session| session.value_date);
+                if next.is_none() || next == value_date { continue; }
+                value_date = next;
+                None
+            }
+        };
+        let mut scope = subject;
+        for _ in 0..256 {
+            let next = executions.next().now_or_never().flatten()
+                .or_else(|| orders.next().now_or_never().flatten())
+                .or_else(|| brokers.next().now_or_never().flatten());
+            let Some(next) = next else { break; };
+            if scope.as_ref() != Some(&next.subject) {
+                scope = None;
+            }
+        }
+        let controller = &mut *state.lock().await;
+        match controller.refresh_fills_after_notice(&backend, &registry, scope.as_deref()).await {
+            Ok(Some(publication)) => {
+                if results.send(Update::Trades(publication)).await.is_err() { return Ok(()); }
+            }
+            Ok(None) => {}
+            Err(error) => {
+                if results.send(Update::Warning(format!("Order Fills refresh failed: {error}"))).await.is_err() { return Ok(()); }
+            }
+        }
+    }
+}
+
+
 /// Rechecks the API at session boundaries and reconciles changes between them.
 async fn watch_market_session(
     backend: Backend,
@@ -215,15 +271,25 @@ pub(crate) fn run(
                             let chart_backend=client.clone();let chart_registry=registry.clone();let chart_results=results.clone();
                             let outlook_backend=client.clone();let outlook_registry=registry.clone();let outlook_results=results.clone();
                             let diagnostic_backend=client.clone();let diagnostic_results=results.clone();
-                            let registry = registry.clone();
-                            let results = results.clone();
+                            let monitor_registry = registry.clone();
+                            let monitor_results = results.clone();
                             operations.spawn(async move {
-                                if let Err(error) = ifm_ui_egui::services::notifications::monitor(monitor_backend, registry, sidebar_sender,action_receiver).await {
-                                    let _ = results.send(Update::Warning(error)).await;
+                                if let Err(error) = ifm_ui_egui::services::notifications::monitor(monitor_backend, monitor_registry, sidebar_sender, action_receiver).await {
+                                    let _ = monitor_results.send(Update::Warning(error)).await;
                                 }
                             });
                             let (session_sender, session) = tokio::sync::watch::channel(Some(initial_session));
                             operations.spawn(watch_market_session(client.clone(), session_sender));
+                            let fills_backend = client.clone();
+                            let fills_registry = chart_registry.clone();
+                            let fills_state = trade_state.clone();
+                            let fills_results = results.clone();
+                            let fills_session = session.clone();
+                            operations.spawn(async move {
+                                if let Err(error) = observe_order_fills(fills_backend, fills_registry, fills_state, fills_results.clone(), fills_session).await {
+                                    let _ = fills_results.send(Update::Warning(error)).await;
+                                }
+                            });
                             operations.spawn(poll_market_view(
                                 session.clone(), Duration::from_secs(15), move |session| {
                                     let backend = chart_backend.clone();

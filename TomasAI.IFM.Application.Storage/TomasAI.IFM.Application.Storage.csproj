@@ -22,6 +22,9 @@
       <InternalsVisibleTo Include="TomasAI.IFM.Application.Api.Server" />
       <InternalsVisibleTo Include="TomasAI.IFM.Application.Api.Server.Core" />
       <InternalsVisibleTo Include="TomasAI.IFM.Application.EventSourcing.Persistence" />
+      <InternalsVisibleTo Include="TomasAI.IFM.Domain.Portfolio" />
+      <InternalsVisibleTo Include="TomasAI.IFM.Domain.Trade" />
+      <InternalsVisibleTo Include="TomasAI.IFM.Framework.Caching.Benchmarks" />
 
   </ItemGroup>
 

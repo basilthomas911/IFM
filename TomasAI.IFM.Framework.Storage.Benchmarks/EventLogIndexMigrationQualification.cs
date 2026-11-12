@@ -99,7 +99,7 @@ internal static class EventLogIndexMigrationQualification
                 await schema.CreateAllAsync();
                 await using var db = new NpgsqlConnection(direct);
                 await db.OpenAsync();
-                await Sql(db, PortfolioSchemaSql.Financial);
+                await Sql(db, PortfolioSchemaDb.FinancialCreateStatement);
                 var streamId = Convert.ToInt64(await Sql(db,
                     "INSERT INTO event_stream_id(eventstream) VALUES('MigrationProbe') RETURNING eventstreamid"));
                 var eventNameId = Convert.ToInt32(await Sql(db,

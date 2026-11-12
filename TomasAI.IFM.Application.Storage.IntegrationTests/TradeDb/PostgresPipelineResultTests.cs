@@ -40,7 +40,7 @@ public sealed class PostgresPipelineResultTests(PostgresTradePlanFixture fixture
     [InlineData(TimeFrameType.Monthly, true)]
     public async Task Native_assessment_repository_commits_source_audit_and_both_read_models_together(TimeFrameType horizon, bool fail)
     {
-        await fixture.Transactions.ExecuteOnceAsync((db,ct)=>db.ExecuteAsync(TradeSchemaSql.Create,[],ct));
+        await fixture.Transactions.ExecuteOnceAsync((db,ct)=>db.ExecuteAsync(TradeSchemaDb.CreateStatement,[],ct));
         var request=AssessmentFixture.Command(horizon);
         var snapshot=new MarketConditionAssessmentSnapshot
         {

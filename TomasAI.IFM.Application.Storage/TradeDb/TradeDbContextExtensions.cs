@@ -1378,7 +1378,7 @@ public static class TradeDbContextExtensions
                     throw new ArgumentException("Position history cursor does not match this query.", nameof(cursor));
             }
 
-            var sql = TradeDbSql.PositionHistory(last is not null);
+            var sql = last is null ? TradeDbSql.ReadPositionHistory : TradeDbSql.ReadPositionHistoryAfter;
             object? [] values;
             if (last is null)
             {
@@ -1414,7 +1414,7 @@ public static class TradeDbContextExtensions
         public Task<IReadOnlyList<OpenPositionRouteReadModel>> TradeReadRoutesAsync(string? contractId = null, CancellationToken token = default)
         {
             ArgumentNullException.ThrowIfNull(db);
-            return contractId is null ? db.QueryAsync(TradeDbSql.Routes(false), [], TradeDbContext.MapToNativeRoute, token) : db.QueryAsync(TradeDbSql.Routes(true), [contractId], TradeDbContext.MapToNativeRoute, token);
+            return contractId is null ? db.QueryAsync(TradeDbSql.ReadRecoveryRoutes, [], TradeDbContext.MapToNativeRoute, token) : db.QueryAsync(TradeDbSql.ReadRoutesByContract, [contractId], TradeDbContext.MapToNativeRoute, token);
         }
 
         /// <summary>Reads bounded route recovery pages without Scylla paging-state tokens.</summary>
@@ -1439,7 +1439,7 @@ public static class TradeDbContextExtensions
                     throw new ArgumentException("Invalid route recovery cursor.", nameof(cursor));
             }
 
-            var sql = TradeDbSql.RoutePage(last is not null);
+            var sql = last is null ? TradeDbSql.ReadRecoveryRoutesPage : TradeDbSql.ReadRecoveryRoutesAfter;
             object? [] values;
             if (last is null)
             {
@@ -1483,7 +1483,7 @@ public static class TradeDbContextExtensions
         public Task<IReadOnlyList<TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradeLimitReadModel>> TradeReadLimitsAsync(int? tradeId = null, CancellationToken token = default)
         {
             ArgumentNullException.ThrowIfNull(db);
-            var sql = TradeDbSql.Limits(tradeId.HasValue);
+            var sql = tradeId.HasValue ? TradeDbSql.ReadTradeLimitsByTrade : TradeDbSql.ReadTradeLimits;
             return db.QueryAsync(sql, tradeId.HasValue ? [tradeId.Value] : [], TradeDbContext.MapToNativeTradeLimit, token);
         }
 
@@ -1493,7 +1493,12 @@ public static class TradeDbContextExtensions
             (int TradeId, TradeType? Type)? scope, CancellationToken token = default)
         {
             ArgumentNullException.ThrowIfNull(db);
-            var sql = TradeDbSql.SpreadLimits(scope.HasValue, scope?.Type.HasValue == true);
+            var sql = scope switch
+            {
+                { Type: not null } => TradeDbSql.ReadSpreadLimitsByTradeAndType,
+                not null => TradeDbSql.ReadSpreadLimitsByTrade,
+                null => TradeDbSql.ReadSpreadLimits
+            };
             object?[] values = scope switch
             {
                 { Type: { } type } value => [value.TradeId, type.ToString()],
@@ -1623,6 +1628,21 @@ public static class TradeDbContextExtensions
             .ConfigureAwait(false);
         }
 
+        /// <summary>Builds a workflow upsert from the projection's fixed table and column metadata.</summary>
+        private string BuildWorkflowUpsert(string table, string columnList, string keyList, int valueCount, string? revision)
+        {
+            var columns = columnList.Split(',');
+            var keys = keyList.Split(',');
+            var assignments = string.Join(',', columns.Except(keys, StringComparer.Ordinal)
+                .Select(name => name + "=EXCLUDED." + name));
+            var markers = string.Join(',', Enumerable.Range(1, valueCount)
+                .Select(index => "$" + index.ToString(CultureInfo.InvariantCulture)));
+            var revisionCheck = revision is null ? string.Empty : $" WHERE trade.{table}.{revision}<=EXCLUDED.{revision}";
+
+            return string.Format(CultureInfo.InvariantCulture, TradeDbSql.UpsertWorkflowTemplate,
+                table, columnList, markers, keyList, assignments, revisionCheck);
+        }
+
         internal async Task<int> WorkflowUpsertAsync(string table, string columnList, string keyList, object? [] values, CancellationToken token, string? revision = null)
         {
             var operation = table switch
@@ -1633,7 +1653,7 @@ public static class TradeDbContextExtensions
                 _ => null
             };
             using var write = operation is null ? null : TradeStorageTelemetry.Source.StartActivity(operation);
-            return await db.ExecuteAsync(TradeDbSql.WorkflowUpsert(table, columnList, keyList, values.Length, revision), values, token)
+            return await db.ExecuteAsync(db.BuildWorkflowUpsert(table, columnList, keyList, values.Length, revision), values, token)
             .ConfigureAwait(false);
         }
 
@@ -1645,7 +1665,7 @@ public static class TradeDbContextExtensions
         RiskReadCursor? cursor=null;
         if(pagingState is not null){if(pagingState.Length>2048)throw new ArgumentException("Invalid Risk history cursor.", nameof(pagingState));try{cursor=JsonSerializer.Deserialize<RiskReadCursor>(pagingState);}catch(JsonException e){throw new ArgumentException("Invalid Risk history cursor.",nameof(pagingState),e);}if(cursor is null||cursor.Scope!=scope||cursor.AtUtc.Kind!=DateTimeKind.Utc||cursor.Invocation==Guid.Empty)throw new ArgumentException("Risk history cursor does not belong to this scope.", nameof(pagingState));}
         object?[] values=cursor is null?[portfolio,fund,date,size+1]:[portfolio,fund,date,cursor.AtUtc,cursor.Invocation,size+1];
-        var rows=await db.QueryAsync(TradeDbSql.RiskHistory(cursor is not null), values, TradeDbContext.MapToRiskReadHistoryRow3, token)
+        var rows=await db.QueryAsync(cursor is null ? TradeDbSql.ReadRiskHistory : TradeDbSql.ReadRiskHistoryAfter, values, TradeDbContext.MapToRiskReadHistoryRow3, token)
             .ConfigureAwait(false);
         var items=rows.Take(size).ToArray();
         var next=rows.Count>size?JsonSerializer.SerializeToUtf8Bytes(new RiskReadCursor(scope,items[^1].AtUtc,items[^1].Invocation)):null;
@@ -1688,9 +1708,22 @@ public static class TradeDbContextExtensions
 
     extension(IEnlistedPostgresTransaction transaction)
     {
+        /// <summary>Builds pipeline history SQL from the two supported projection layouts.</summary>
+        private string BuildPipelineHistory(bool composition, bool continued)
+        {
+            var table = composition ? "trade.order_composition_history" : "trade.trade_selection_history_by_fund_date";
+            var timestamp = composition ? "evaluated_at_utc" : "occurred_at_utc";
+            var hash = composition ? "result_hash" : "result_sha256";
+            var continuation = continued ? $" AND ({timestamp},workflow_id,invocation_id)<($4,$5,$6)" : string.Empty;
+            var limit = continued ? "$7" : "$4";
+
+            return string.Format(CultureInfo.InvariantCulture, TradeDbSql.ReadPipelineHistoryTemplate,
+                timestamp, hash, table, continuation, limit);
+        }
+
         /// <summary>Reads the exact committed authorization source row for the claimed event and command.</summary>
         public async Task<EventLogReadModel?> ReadStrategyHandoffAuthorizationAsync(long eventId, Guid commandId, CancellationToken token)
-            => (await transaction.QueryAsync(TradeDbSql.StrategyHandoff.Authorization, (object? [])new StrategyHandoffAuthorizationSelection(eventId, commandId).Bind(), TradeDbContext.MapToStrategyHandoffAuthorization, token)
+            => (await transaction.QueryAsync(TradeDbSql.ReadStrategyHandoffAuthorization, (object? [])new StrategyHandoffAuthorizationSelection(eventId, commandId).Bind(), TradeDbContext.MapToStrategyHandoffAuthorization, token)
             .ConfigureAwait(false)).SingleOrDefault();
 
         /// <summary>Writes an accepted handoff projection under its monotonic revision fence.</summary>
@@ -1698,22 +1731,22 @@ public static class TradeDbContextExtensions
         {
             var parameters = new StrategyHandoffWrite(value.Id.Format(), value.Authorization.WorkflowId.Value,
                 value.Revision, (int)value.Phase, value.UpdatedAtUtc, MessagePackBinarySerializer.Shared.Serialize(value)!);
-            return transaction.ExecuteAsync(TradeDbSql.StrategyHandoff.Upsert, (object?[])parameters.Bind(), token);
+            return transaction.ExecuteAsync(TradeDbSql.UpsertStrategyHandoff, (object?[])parameters.Bind(), token);
         }
 
         /// <summary>Reads one exact projected handoff identity.</summary>
         public async Task<StrategyExecutionHandoffDefinition?> ReadStrategyHandoffAsync(string id, CancellationToken token)
-            => await transaction.ScalarAsync(TradeDbSql.StrategyHandoff.Read, (object? [])new StrategyHandoffCursor(id).Bind(), token)
+            => await transaction.ScalarAsync(TradeDbSql.ReadStrategyHandoff, (object? [])new StrategyHandoffCursor(id).Bind(), token)
             .ConfigureAwait(false) is byte[] payload
                 ? MessagePackBinarySerializer.Shared.Deserialize<StrategyExecutionHandoffDefinition>(payload) : null;
 
         /// <summary>Reads the bounded pending handoff projection page after the supplied key.</summary>
         public Task<IReadOnlyList<StrategyExecutionHandoffDefinition>> ReadPendingStrategyHandoffsAsync(string after, CancellationToken token)
-            => transaction.QueryAsync(TradeDbSql.StrategyHandoff.Pending, (object? [])new StrategyHandoffCursor(after).Bind(), TradeDbContext.MapToStrategyHandoff, token);
+            => transaction.QueryAsync(TradeDbSql.ReadPendingStrategyHandoffs, (object? [])new StrategyHandoffCursor(after).Bind(), TradeDbContext.MapToStrategyHandoff, token);
 
         /// <summary>Reads the ordered projected handoff rows for one workflow.</summary>
         public Task<IReadOnlyList<StrategyExecutionHandoffDefinition>> ReadWorkflowStrategyHandoffsAsync(Guid workflow, CancellationToken token)
-            => transaction.QueryAsync(TradeDbSql.StrategyHandoff.ReadWorkflow, (object? [])new StrategyHandoffWorkflowSelection(workflow).Bind(), TradeDbContext.MapToStrategyHandoff, token);
+            => transaction.QueryAsync(TradeDbSql.ReadStrategyHandoffsByWorkflow, (object? [])new StrategyHandoffWorkflowSelection(workflow).Bind(), TradeDbContext.MapToStrategyHandoff, token);
 
 
         public async Task<OrderCompositionFunctionCompletedEvent?> PipelineReadCompositionAsync(StrategyWorkflowId workflow, Guid invocation, CancellationToken token = default)
@@ -1782,7 +1815,7 @@ public static class TradeDbContextExtensions
                     throw new ArgumentException("History cursor does not belong to this scope.", nameof(pagingState));
             }
 
-            var sql = TradeDbSql.PipelineHistory(composition, cursor is not null);
+            var sql = transaction.BuildPipelineHistory(composition, cursor is not null);
             object? [] values = cursor is null ? [portfolio, fund, date, pageSize + 1] : [portfolio, fund, date, cursor.AtUtc, cursor.Workflow, cursor.Invocation, pageSize + 1];
             var rows = await transaction.QueryAsync(sql, values, TradeDbContext.MapToPipelineHistory, token)
             .ConfigureAwait(false);

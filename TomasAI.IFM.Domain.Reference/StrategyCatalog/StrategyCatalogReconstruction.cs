@@ -28,7 +28,7 @@ public static class StrategyCatalogReconstruction
                 Subject = new(ActorType.Event, "StrategyCatalogEvent", "BaselineCaptured", entityId.Format()),
                 EntityId = entityId, Id = id, CommandId = id, AggregateId = entityId.Format(),
                 EventSource = "StrategyCatalogMigration", ReceivedOn = (clock ?? TimeProvider.System).GetUtcNow().UtcDateTime,
-                AfterJson = StrategyCatalogJson.Write(version), Principal = version.CreatedBy
+                AfterVersion = version, Principal = version.CreatedBy
             };
             await enlisted.AppendAsync(new EnlistedEventAppend($"StrategyCatalog.{entityId.Format()}", id, fact, 0), token)
             .ConfigureAwait(false);
@@ -41,7 +41,7 @@ public static class StrategyCatalogReconstruction
         IReadOnlyCollection<StrategyCatalogSourceEvent> sourceHeads, CancellationToken token = default)
     {
         ArgumentNullException.ThrowIfNull(sourceHeads);
-        var remaining = sourceHeads.Select(fact => (Fact: fact, Version: StrategyCatalogJson.Read<StoredStrategyCatalogDefinition>(fact.AfterJson)))
+        var remaining = sourceHeads.Select(fact => (Fact: fact, Version: fact.ReadAfterVersion()))
             .GroupBy(item => item.Version.Definition.Key)
             .ToDictionary(group => group.Key, group => group.MaxBy(item => item.Fact.EventId));
         while (remaining.Count > 0)

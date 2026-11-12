@@ -33,7 +33,7 @@ public sealed class CapacityReservationStore(IPostgresEventTransaction transacti
         Require(result is not null, FinancialReasons.AuthorityDenied, "Committed qualified Risk assessment is unavailable.");
         Require(body.Requirements.Exposures.Length is > 0 and <= 256, FinancialReasons.InvalidContract, "Capacity scope count exceeds its bound.");
         using var usageTrace = FinancialTelemetry.ActivitySource.StartActivity("financial.capacity.read_usage");
-        var used = await (db.QueryAsync(PortfolioDbSql.Financial.CapacityReservationStore.Select01, [request.PortfolioId,Json(body.Requirements.Exposures.Select(x=>new
+        var used = await (db.QueryAsync(PortfolioDbSql.Financial_CapacityReservationStore_Select01, [request.PortfolioId,Json(body.Requirements.Exposures.Select(x=>new
                 { scope_kind=(int)x.ScopeKind,scope_key=x.ScopeKey,measure=(int)x.Measure,unit=(int)x.Unit }).ToArray())], r => new CapacityUsed((CapacityScopeKind)r.GetInt32(0), r.GetString(1),
                 (CapacityMeasure)r.GetInt32(2), (CapacityUnit)r.GetInt32(3), r.GetDecimal(4), r.GetDecimal(5), r.GetDecimal(6)), cancellation)).ConfigureAwait(false);
         usageTrace?.Stop();
@@ -44,7 +44,7 @@ public sealed class CapacityReservationStore(IPostgresEventTransaction transacti
         using (FinancialTelemetry.ActivitySource.StartActivity("financial.capacity.validate"))
             validate(body, result!.CapacityAssessment, authority.Book, available, used, now);
         using var existingTrace = FinancialTelemetry.ActivitySource.StartActivity("financial.capacity.find_existing");
-        var existing = await (db.ScalarAsync(PortfolioDbSql.Financial.CapacityReservationStore.Select02, [body.ReservationId, request.PortfolioId, body.OrderId], cancellation)).ConfigureAwait(false);
+        var existing = await (db.ScalarAsync(PortfolioDbSql.Financial_CapacityReservationStore_Select02, [body.ReservationId, request.PortfolioId, body.OrderId], cancellation)).ConfigureAwait(false);
         existingTrace?.Stop();
         Require(existing is null, FinancialReasons.RequestMismatch, "Reservation identity/order already has a capacity decision.");
         var revision = checked(authority.Revision + 1);
@@ -73,7 +73,7 @@ public sealed class CapacityReservationStore(IPostgresEventTransaction transacti
             InputHash = request.InputSha256
         };
         using var writeTrace = FinancialTelemetry.ActivitySource.StartActivity("financial.capacity.write_reservation");
-        await (db.ExecuteAsync(PortfolioDbSql.Financial.CapacityReservationStore.Insert01, [body.ReservationId,request.PortfolioId,request.OperationId,body.FundId,body.BookId,body.OrderId,
+        await (db.ExecuteAsync(PortfolioDbSql.Financial_CapacityReservationStore_Insert01, [body.ReservationId,request.PortfolioId,request.OperationId,body.FundId,body.BookId,body.OrderId,
                 body.UnitCandidateHash,body.RiskAssessmentHash,body.SizedOrderHash,body.StrategyUnits,Json(body.Requirements),
                 body.ExecutionEnvironment,body.ValidUntilUtc,receipt.CompletedEventId,LedgerFinancialProjection.PayloadJson(body),LedgerFinancialProjection.PayloadJson(receipt),request.InputSha256], cancellation)).ConfigureAwait(false);
         writeTrace?.Stop();
@@ -106,7 +106,7 @@ public sealed class CapacityReservationStore(IPostgresEventTransaction transacti
         Require(body.Source.SourceEventId != Guid.Empty && !string.IsNullOrWhiteSpace(body.Source.System) &&
             !string.IsNullOrWhiteSpace(body.Source.SourceContentHash), FinancialReasons.InvalidContract, "Lifecycle source identity/hash is required.");
         var source = $"{body.Source.System}:{body.Source.SourceEventId:N}";
-        var prior = await (db.ScalarAsync(PortfolioDbSql.Financial.CapacityReservationStore.Select03,
+        var prior = await (db.ScalarAsync(PortfolioDbSql.Financial_CapacityReservationStore_Select03,
             [body.ReservationId, source], cancellation)).ConfigureAwait(false);
         if (prior is Guid priorOperation) throw new FinancialOperationException(FinancialReasons.SourceConflict,
             "Lifecycle source has already been committed.", FinancialCommitDisposition.NoNewMutation, priorOperation);
@@ -158,9 +158,9 @@ public sealed class CapacityReservationStore(IPostgresEventTransaction transacti
             CompletedEventId = Guid.NewGuid(),
             InputHash = request.InputSha256
         };
-        await (db.ExecuteAsync(PortfolioDbSql.Financial.CapacityReservationStore.Update01, [body.ReservationId,request.PortfolioId,(int)next.Status,receipt.ReservationVersion,
+        await (db.ExecuteAsync(PortfolioDbSql.Financial_CapacityReservationStore_Update01, [body.ReservationId,request.PortfolioId,(int)next.Status,receipt.ReservationVersion,
                 body.ExecutionId==Guid.Empty?null:body.ExecutionId,next.FilledUnits,next.CancelledUnits,next.RemainingUnits,next.ClosedUnits], cancellation)).ConfigureAwait(false);
-        await (db.ExecuteAsync(PortfolioDbSql.Financial.CapacityReservationStore.Insert02, [body.ReservationId,receipt.ReservationVersion,source,request.OperationId,(int)current.Status,(int)next.Status,Json(next),
+        await (db.ExecuteAsync(PortfolioDbSql.Financial_CapacityReservationStore_Insert02, [body.ReservationId,receipt.ReservationVersion,source,request.OperationId,(int)current.Status,(int)next.Status,Json(next),
                 next.FilledUnits,next.CancelledUnits,next.RemainingUnits,body.ExecutionId==Guid.Empty?null:body.ExecutionId,
                 body.ExecutionRevision,now,receipt.CompletedEventId,request.InputSha256,LedgerFinancialProjection.PayloadJson(receipt)], cancellation)).ConfigureAwait(false);
         var snapshot = current with
@@ -227,7 +227,7 @@ public sealed class CapacityReservationStore(IPostgresEventTransaction transacti
     internal static async Task<(ReservationSnapshot State, CapacityReservationRequest Request)?> ReadReservationAsync(
         EnlistedEventTransaction db, int portfolioId, Guid reservationId, CancellationToken token)
     {
-        var snapshots = await db.QueryAsync(PortfolioDbSql.Financial.CapacityReservationStore.SelectReservationSnapshotEvents,
+        var snapshots = await db.QueryAsync(PortfolioDbSql.Financial_CapacityReservationStore_SelectReservationSnapshotEvents,
             [portfolioId, reservationId], row => (Version: row.GetInt64(0), Creation: ReadEvent(row, 1),
                 Latest: ReadEvent(row, 9)), token).ConfigureAwait(false);
         if (snapshots.Count == 0)
@@ -260,7 +260,7 @@ public sealed class CapacityReservationStore(IPostgresEventTransaction transacti
         }
 
         // Older lifecycle facts did not capture the full execution watermark.
-        var rows = await (db.QueryAsync(PortfolioDbSql.Financial.CapacityReservationStore.Select04, [portfolioId, reservationId], r => (new ReservationSnapshot(reservationId, r.GetInt64(0), (ReservationStatus)r.GetInt32(1),
+        var rows = await (db.QueryAsync(PortfolioDbSql.Financial_CapacityReservationStore_Select04, [portfolioId, reservationId], r => (new ReservationSnapshot(reservationId, r.GetInt64(0), (ReservationStatus)r.GetInt32(1),
                 r.GetInt32(2), r.GetInt32(3), r.GetInt32(4), r.GetInt32(5), r.GetString(6), r.GetDateTime(7), r.IsDBNull(8) ? null : r.GetGuid(8), r.GetInt64(9), r.GetInt32(11)),
                 Decode<CapacityReservationRequest>(r.GetString(10))), token)).ConfigureAwait(false);
         return rows.Count == 0 ? null : rows.Single();
@@ -273,7 +273,7 @@ public sealed class CapacityReservationStore(IPostgresEventTransaction transacti
 
     internal static async Task<T?> ReadEvidenceAsync<T>(EnlistedEventTransaction db, Guid invocationId, CancellationToken token) where T : class, IEvent
     {
-        var events = await (db.QueryAsync(PortfolioDbSql.Financial.CapacityReservationStore.Select05, [invocationId], r => new EventLogReadModel(r.GetInt64(0), r.GetString(1), r.GetString(2), r.GetInt64(3),
+        var events = await (db.QueryAsync(PortfolioDbSql.Financial_CapacityReservationStore_Select05, [invocationId], r => new EventLogReadModel(r.GetInt64(0), r.GetString(1), r.GetString(2), r.GetInt64(3),
                 r.GetFieldValue<byte[]>(4), r.GetGuid(5), r.GetString(6), r.GetInt64(7)), token)).ConfigureAwait(false);
         Require(events.Count <= 64, FinancialReasons.AuthorityDenied, "Upstream evidence exceeds its bounded event count.");
         var matches = events.Select(x => x.ToDomainEvent()).OfType<T>().Take(2).ToArray();
@@ -298,7 +298,7 @@ public sealed class CapacityReservationStore(IPostgresEventTransaction transacti
     }
 
     internal static Task<int> ApplyUsageAsync(EnlistedEventTransaction db,int portfolioId,AcceptedCapacityUsage delta,long revision,CancellationToken token)
-        => db.ExecuteAsync(PortfolioDbSql.Financial.CapacityReservationStore.Insert03,
+        => db.ExecuteAsync(PortfolioDbSql.Financial_CapacityReservationStore_Insert03,
             [portfolioId,(int)delta.ScopeKind,delta.ScopeKey,(int)delta.Measure,(int)delta.Unit,delta.Held,delta.Working,delta.Position,revision],token);
 
     static (decimal Held, decimal Working, decimal Position) PositionSlot((decimal Held, decimal Working, decimal Position) value)

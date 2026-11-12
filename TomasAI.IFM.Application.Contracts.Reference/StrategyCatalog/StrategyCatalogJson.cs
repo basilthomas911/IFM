@@ -1,14 +1,16 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using MessagePack;
-using TomasAI.IFM.Shared.EventModelActor;
-using TomasAI.IFM.Shared.EventModelActor.Contracts;
-using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Domain.Strategy.Contracts.Shared.Canonical;
 
 namespace TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
 public static class StrategyCatalogJson
 {
-    static readonly JsonSerializerOptions Options = new() { UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow, MaxDepth = 32 };
+    static readonly JsonSerializerOptions Options = new()
+    {
+        UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
+        // A command or stored version wraps the already depth-limited definition in one JSON object.
+        MaxDepth = StrategyCatalogValidation.MaximumDefinitionDepth + 1
+    };
     public static string Write<T>(T value) => JsonSerializer.Serialize(value, Options);
     public static T Read<T>(string json)
     {

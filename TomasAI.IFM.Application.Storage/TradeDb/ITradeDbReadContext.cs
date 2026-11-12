@@ -103,6 +103,17 @@ public interface ITradeDbReadContext
     /// <param name="token">Cancels the database operation.</param>
     /// <returns>The selected row, or null when no matching published row exists.</returns>
     Task<OrderExecutionDefinition?> GetOrderExecutionAsync(TradeOrderId id, Guid executionAttemptId, CancellationToken token = default);
+
+    /// <summary>Reads the committed orders and fills for the requested Fund and ValueDate.</summary>
+    /// <param name="portfolioId">The portfolio that owns the Fund.</param>
+    /// <param name="fundId">The Fund whose orders are requested.</param>
+    /// <param name="valueDate">The trading ValueDate to read.</param>
+    /// <param name="afterOrderId">The last order ID on the previous page.</param>
+    /// <param name="afterAttemptId">The last execution attempt ID within that order.</param>
+    /// <param name="token">Cancels the database operation.</param>
+    /// <returns>The next page of matching order and fill rows.</returns>
+    Task<TomasAI.IFM.Domain.Trade.Shared.Order.Execution.FundOrderFillsRow[]> GetFundOrderFillsAsync(
+        int portfolioId, int fundId, DateOnly valueDate, int afterOrderId, Guid afterAttemptId, CancellationToken token = default);
     /// <summary>Get Established Trade through the typed trade persistence boundary.</summary>
     /// <param name="id">The id supplied by the caller.</param>
     /// <param name="token">Cancels the database operation.</param>

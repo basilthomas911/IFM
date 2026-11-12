@@ -17,11 +17,18 @@ public sealed class OrderExecutionQueryActor(IQueryActorContext<OrderExecutionQu
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap =
         new Dictionary<string, Func<IActorMessage, IQuery>>(StringComparer.Ordinal)
         {
-            [GetOrderExecutionQuery.Verb] = static message => message.AsQuery<GetOrderExecutionQuery, OrderExecutionDefinition>()!
+            [GetOrderExecutionQuery.Verb] = static message => message.AsQuery<GetOrderExecutionQuery, OrderExecutionDefinition>()!,
+            [GetFundOrderFillsQuery.Verb] = static message => message.AsQuery<GetFundOrderFillsQuery, FundOrderFillsRow[]>()!
         }.ToFrozenDictionary(StringComparer.Ordinal);
     static readonly IReadOnlyDictionary<Type, Func<IOrderExecutionQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap =
         new Dictionary<Type, Func<IOrderExecutionQueryContext, IQuery, CancellationToken, ValueTask>>
         {
+            [typeof(GetFundOrderFillsQuery)] = static async (context, query, cancellationToken) =>
+            {
+                var result = await ((GetFundOrderFillsQuery)query).ExecuteAsync(context.DbFactory.TradeDb, cancellationToken).ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
+                await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceResult<FundOrderFillsRow[]>(result)).ConfigureAwait(false);
+            },
             [typeof(GetOrderExecutionQuery)] = static async (context, query, cancellationToken) =>
             {
                 var result = await ((GetOrderExecutionQuery)query).ExecuteAsync(context.DbFactory.TradeDb, cancellationToken).ConfigureAwait(false);

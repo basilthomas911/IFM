@@ -35,8 +35,8 @@ public sealed class SecuritiesCapabilityTests
         Assert.Null(typeof(SecuritiesDbContext).Assembly.GetType("TomasAI.IFM.Application.Storage.SecuritiesDb.SecuritiesDbCql"));
         Assert.Null(typeof(SecuritiesDbContext).Assembly.GetType("TomasAI.IFM.Application.Storage.SecuritiesDb.Schema.SecuritiesSchemaCql"));
         foreach (var table in new[] { "securities_projection_state", "securities_symbol_projection_state", "securities_projection_operation" })
-            Assert.DoesNotContain(table, SecuritiesSchemaSql.Create, StringComparison.Ordinal);
-        Assert.Contains("securities.futures_contract_by_symbol", SecuritiesSchemaSql.Create, StringComparison.Ordinal);
-        Assert.Contains("securities.futures_option_contract_by_symbol", SecuritiesSchemaSql.Create, StringComparison.Ordinal);
+            Assert.DoesNotContain(table, SecuritiesSchemaDb.CreateStatement, StringComparison.Ordinal);
+        Assert.Contains("securities.futures_contract_by_symbol", SecuritiesSchemaDb.CreateStatement, StringComparison.Ordinal);
+        Assert.Contains("securities.futures_option_contract_by_symbol", SecuritiesSchemaDb.CreateStatement, StringComparison.Ordinal);
     }
 }

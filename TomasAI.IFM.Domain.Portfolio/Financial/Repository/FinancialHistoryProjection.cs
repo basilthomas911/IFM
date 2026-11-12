@@ -15,7 +15,7 @@ namespace TomasAI.IFM.Domain.Portfolio.Financial.Repository;
 /// <summary>Rebuildable monthly history. It never supplies financial spending authority.</summary>
 public sealed class FinancialHistoryProjection(IDbContextFactory factory) : IFinancialHistoryProjection
 {
-    public const string CreateTable = PortfolioSchemaSql.FinancialHistory;
+    public static readonly string CreateTable = PortfolioSchemaDb.FinancialHistoryCreateStatement;
 
     public Task ApplyAsync(IFinancialCompletedEvent completed, CancellationToken token = default)
     {

@@ -96,7 +96,7 @@ internal static class EventLogMarkerQualification
                 await new EventSourceSchemaDb(settings, NullLogger<DbProvider>.Instance).CreateAllAsync();
                 await using var db = new NpgsqlConnection(direct);
                 await db.OpenAsync();
-                await Sql(db, PortfolioSchemaSql.Financial);
+                await Sql(db, PortfolioSchemaDb.FinancialCreateStatement);
                 await Sql(db, "ALTER TABLE event_log RENAME TO event_log");
                 if (schemaComparison && candidate)
                     await Sql(db, """
