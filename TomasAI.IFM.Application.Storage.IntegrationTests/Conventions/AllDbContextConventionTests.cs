@@ -18,19 +18,85 @@ public sealed class AllDbContextConventionTests
     [InlineData("ParameterValueMapping")]
     [InlineData("ParameterWriteLease")]
     [InlineData("ConfigurationDbSession")]
-    public void Configuration_support_types_must_be_declared_beside_the_extensions(string type)
+    public void Context_support_types_must_be_declared_beside_the_extensions(string type)
     {
         var source = $$"""
             namespace Storage;
             internal sealed class {{type}} { }
             """;
-        var spec = StorageConventionAudit.Contexts.Single(context => context.Name == "ConfigurationDb");
-
         var standalone = StorageSource.Parse(type + ".cs", source);
-        var colocated = StorageSource.Parse("ConfigurationDbContextExtensions.cs", source);
 
-        Assert.Contains(type, Assert.Single(StorageConventionAudit.Inspect(spec, "Helpers", [standalone])), StringComparison.Ordinal);
-        Assert.Empty(StorageConventionAudit.Inspect(spec, "Helpers", [colocated]));
+        foreach (var spec in StorageConventionAudit.Contexts)
+        {
+            var colocated = StorageSource.Parse(spec.Extensions, source);
+            Assert.Contains(type, Assert.Single(StorageConventionAudit.Inspect(spec, "Helpers", [standalone])), StringComparison.Ordinal);
+            Assert.Empty(StorageConventionAudit.Inspect(spec, "Helpers", [colocated]));
+        }
+    }
+
+    [Fact]
+    public void Layout_reports_all_missing_extra_and_legacy_paths()
+    {
+        var spec = StorageConventionAudit.Contexts.Single(context => context.Name == "EventSourceDb");
+        string[] valid =
+        [
+            "EventSourceActorDbContext.cs", "EventSourceActorDbContextExtensions.cs", "EventSourceActorDbParameters.cs",
+            "EventSourceActorDbSql.cs", "IEventSourceActorDbContext.cs", "IEventSourceActorDbReadContext.cs",
+            "IEventSourceActorDbWriteContext.cs", "Schema\\EventSourceActorSchemaDb.cs", "Schema/EventSourceActorSchemaSql.cs"
+        ];
+        Assert.Empty(StorageConventionAudit.InspectLayout(spec, valid, ["Schema"]));
+        var findings = StorageConventionAudit.InspectLayout(spec,
+            [.. valid.Where(path => path != "EventSourceActorDbSql.cs"), "EventSourceDbSql.cs", "IExtraWriteContext.cs", "Schema/Nested/notes.md"],
+            ["Schema", "Schema\\Nested", "Empty"]);
+        Assert.Equal(6, findings.Count);
+        Assert.Contains(findings, finding => finding.EndsWith("missing file EventSourceActorDbSql.cs", StringComparison.Ordinal));
+        Assert.Contains(findings, finding => finding.EndsWith("unexpected directory Schema/Nested", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Catalog_placement_and_dialect_are_checked_independently()
+    {
+        var postgres = StorageConventionAudit.Contexts.Single(context => context.Name == "EventSourceDb");
+        var scylla = StorageConventionAudit.Contexts.Single(context => context.Name == "TradeTickQuoteDb");
+        var misplaced = StorageSource.Parse(postgres.Extensions, """class Example { const string Query = "SELECT id FROM example;"; }""");
+        var cql = StorageSource.Parse(postgres.RuntimeCatalog, """class Example { const string Query = "SELECT id FROM example ALLOW FILTERING;"; }""");
+        var sql = StorageSource.Parse(scylla.RuntimeCatalog, """class Example { const string Query = "SELECT id FROM example WHERE id=$1;"; }""");
+        var adapter = StorageSource.Parse(postgres.Parameters, "interface IExtraTransaction {}");
+        var contract = StorageSource.Parse(postgres.Write + ".cs", "interface IExtraTransaction {}");
+        var misplacedHelper = StorageSource.Parse(postgres.RuntimeCatalog, "internal sealed class TransactionAdapter {}");
+
+        Assert.Single(StorageConventionAudit.Inspect(postgres, "Statements", [misplaced]));
+        Assert.Empty(StorageConventionAudit.Inspect(postgres, "Statements", [cql]));
+        Assert.Single(StorageConventionAudit.Inspect(postgres, "Dialect", [cql]));
+        Assert.Single(StorageConventionAudit.Inspect(scylla, "Dialect", [sql]));
+        Assert.Single(StorageConventionAudit.Inspect(postgres, "Helpers", [adapter]));
+        Assert.Single(StorageConventionAudit.Inspect(postgres, "Helpers", [misplacedHelper]));
+        Assert.Empty(StorageConventionAudit.Inspect(postgres, "Helpers", [contract]));
+    }
+
+    [Fact]
+    public void Event_source_audit_reports_misplaced_helpers_sql_replay_mappers_and_risk_replay()
+    {
+        var source = StorageSource.Parse("Journal.cs", """
+            namespace Storage;
+            internal sealed class AtomicPreparationLane { }
+            internal sealed class Journal
+            {
+                const string Query = Columns + "WHERE el.eventStreamId=$1 ORDER BY el.eventVersion;";
+                const string Join = Columns + "JOIN projection_receipt r ON r.event_id=el.eventVersion;";
+                void Replay()
+                {
+                    object Read(IObjectDataRecord record) => record.GetLong(0);
+                    RiskCompletionProjection.WriteAsync(transaction, completed, token);
+                }
+            }
+            """);
+        var spec = StorageConventionAudit.Contexts.Single(context => context.Name == "EventSourceDb");
+
+        Assert.Equal(2, StorageConventionAudit.Inspect(spec, "Helpers", [source]).Count);
+        Assert.Equal(2, StorageConventionAudit.Inspect(spec, "Statements", [source]).Count);
+        Assert.Single(StorageConventionAudit.Inspect(spec, "Mappers", [source]));
+        Assert.Single(StorageConventionAudit.Inspect(spec, "Ownership", [source]));
     }
 
     [Fact]
@@ -47,7 +113,7 @@ public sealed class AllDbContextConventionTests
             }
             """);
         Assert.Equal(2, StorageConventionAudit.Inspect(
-            new("ExampleDb", "ExampleDbContext", "Example"), "Mappers", [source]).Count);
+            new("ExampleDb", "ExampleDbContext"), "Mappers", [source]).Count);
     }
 
     [Fact]
@@ -95,7 +161,7 @@ public sealed class AllDbContextConventionTests
         var sources = Directory.GetFiles(root, "*.cs", SearchOption.AllDirectories)
             .Where(path => !path.Split(Path.DirectorySeparatorChar).Any(part => part is "obj" or "bin"))
             .Select(path => StorageSource.Parse(path, File.ReadAllText(path))).ToArray();
-        var issues = StorageConventionAudit.Inspect(new("StorageBoundary", "StorageBoundaryDbContext", "Storage"), "Ownership", sources);
+        var issues = StorageConventionAudit.Inspect(new("StorageBoundary", "StorageBoundaryDbContext"), "Ownership", sources);
         Assert.True(issues.Count == 0, string.Join("\n", issues));
     }
 
@@ -119,14 +185,14 @@ public sealed class AllDbContextConventionTests
         var root = Path.Combine(DbContextConventionSource.RepositoryRoot, "TomasAI.IFM.Application.Storage", "SchemaDb");
         var sources = Directory.GetFiles(root, "*.cs", SearchOption.AllDirectories)
             .Select(path => StorageSource.Parse(path, File.ReadAllText(path))).ToArray();
-        var issues = StorageConventionAudit.Inspect(new("SchemaDb", "SchemaDbContext", "Schema"), rule, sources);
+        var issues = StorageConventionAudit.Inspect(new("SchemaDb", "SchemaDbContext"), rule, sources);
         Assert.True(issues.Count == 0, string.Join("\n", issues));
     }
 
     [Fact]
     public void Auditor_reports_all_helper_validation_and_event_creation_occurrences()
     {
-        var spec = new StorageContextSpec("ExampleDb", "ExampleDbContext", "Example");
+        var spec = new StorageContextSpec("ExampleDb", "ExampleDbContext");
         var source = StorageSource.Parse("ExampleDbContextExtensions.cs", """
             class ExampleDbContextExtensions {
               void ValidateRequiredArgument(object first) { ArgumentNullException.ThrowIfNull(first); }
@@ -147,14 +213,14 @@ public sealed class AllDbContextConventionTests
             }
             """);
         var finding = Assert.Single(StorageConventionAudit.Inspect(
-            new("ExampleDb", "ExampleDbContext", "Example"), "Ownership", [source]));
+            new("ExampleDb", "ExampleDbContext"), "Ownership", [source]));
         Assert.Contains("cache policy", finding, StringComparison.Ordinal);
     }
 
     [Fact]
     public void Auditor_preserves_constructor_and_database_resource_integrity_guards()
     {
-        var spec = new StorageContextSpec("ExampleDb", "ExampleDbContext", "Example");
+        var spec = new StorageContextSpec("ExampleDb", "ExampleDbContext");
         var source = StorageSource.Parse("ExampleDbContext.cs", """
             class ExampleDbContext {
               ExampleDbContext(object connection) { ArgumentNullException.ThrowIfNull(connection); }
@@ -191,13 +257,13 @@ public sealed class AllDbContextConventionTests
             }
             """);
         Assert.Single(StorageConventionAudit.Inspect(
-            new("TradeDb", "TradeDbContext", "Trade"), "Validation", [source]));
+            new("TradeDb", "TradeDbContext"), "Validation", [source]));
     }
 
     [Fact]
     public void Projector_request_helpers_are_flagged_but_the_enlisted_executor_keeps_binding_guards()
     {
-        var spec = new StorageContextSpec("ExampleDb", "ExampleDbContext", "Example");
+        var spec = new StorageContextSpec("ExampleDb", "ExampleDbContext");
         var source = StorageSource.Parse("ExampleDbContext.cs", """
             class EnlistedEventTransaction {
               void ExecuteAsync(object[] parameters) { ArgumentNullException.ThrowIfNull(parameters); }
@@ -225,7 +291,7 @@ public sealed class AllDbContextConventionTests
             }
             """);
         Assert.Single(StorageConventionAudit.Inspect(
-            new("ExampleDb", "ExampleDbContext", "Example"), "Validation", [source]));
+            new("ExampleDb", "ExampleDbContext"), "Validation", [source]));
     }
 
     [Fact]
@@ -238,10 +304,10 @@ public sealed class AllDbContextConventionTests
             }
             """);
         var finding = Assert.Single(StorageConventionAudit.Inspect(
-            new("ExampleDb", "ExampleDbContext", "Example"), "Ownership", [source]));
+            new("ExampleDb", "ExampleDbContext"), "Ownership", [source]));
         Assert.Contains("Allocate application identities", finding, StringComparison.Ordinal);
         Assert.Empty(StorageConventionAudit.Inspect(
-            new("SequenceIdDb", "ExampleDbContext", "Example"), "Ownership", [source]));
+            new("SequenceIdDb", "ExampleDbContext"), "Ownership", [source]));
     }
 
     [Fact]
@@ -253,7 +319,7 @@ public sealed class AllDbContextConventionTests
               static long MapToValue(IObjectDataRecord row) => row.GetLong(0);
             }
             """);
-        Assert.Equal(2, StorageConventionAudit.Inspect(new("ExampleDb", "ExampleDbContext", "Example"), "Mappers", [source]).Count);
+        Assert.Equal(2, StorageConventionAudit.Inspect(new("ExampleDb", "ExampleDbContext"), "Mappers", [source]).Count);
     }
 
     [Fact]
@@ -264,14 +330,14 @@ public sealed class AllDbContextConventionTests
             /// <param name="connection"></param>
             class ExampleDbContext(object connection) {}
             """);
-        var findings = StorageConventionAudit.Inspect(new("ExampleDb", "ExampleDbContext", "Example"), "Documentation", [source]);
+        var findings = StorageConventionAudit.Inspect(new("ExampleDb", "ExampleDbContext"), "Documentation", [source]);
         Assert.Contains(findings, finding => finding.Contains("primary-constructor parameter documentation: connection", StringComparison.Ordinal));
     }
 
     [Fact]
     public void Auditor_recognizes_valid_CSharp14_blocks_and_rejects_ordinary_helpers()
     {
-        var spec = new StorageContextSpec("ExampleDb", "ExampleDbContext", "Example");
+        var spec = new StorageContextSpec("ExampleDb", "ExampleDbContext");
         var source = StorageSource.Parse("ExampleDbContextExtensions.cs", """
             static class ExampleDbContextExtensions {
               extension(ExampleDbContext context) { void Bind() {} }

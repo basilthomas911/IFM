@@ -10,7 +10,9 @@ using TomasAI.IFM.Shared.Validation;
 
 namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Function.Actor;
 
-public sealed class IronCondorTradePlanFunctionActor(IIronCondorTradePlanFunctionContext actorContext, ResidentActorPilotOptions? residency = null)
+public sealed class IronCondorTradePlanFunctionActor(
+    IIronCondorTradePlanFunctionContext actorContext,
+    ResidentActorPilotOptions? residency = null)
     : BaseInMemoryEventSourceFunctionActor<IronCondorTradePlanFunctionActor, UpdateIronCondorTradePlanCommand,
         IronCondorPlanId, IronCondorPlanId, IronCondorTradePlanFunctionState,
         IronCondorTradePlanUpdatedEvent, TradePlanFailedEvent<IronCondorPlanId>>(

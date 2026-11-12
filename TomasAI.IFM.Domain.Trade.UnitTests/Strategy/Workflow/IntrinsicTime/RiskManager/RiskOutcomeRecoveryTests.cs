@@ -45,9 +45,9 @@ public sealed class RiskOutcomeRecoveryTests
             aggregate.Replay([new FundCompositionStateChangedEvent(Guid.NewGuid(), command.CommandId, 2, DateTime.UtcNow, "fixture", order with { AggregateVersion = 4, Status = "Expired", TerminalRisk = evidence })]);
             return ValueTask.FromException<ServiceResult<Guid>>(new TimeoutException("Reply lost after durable commit"));
         });
-        var service = new RiskObservationRecoveryService(null!, null!, funds, actors, NullLogger<RiskObservationRecoveryService>.Instance);
+        var service = new RiskObservationRecoveryService(null!, null!, funds, actors, NullLogger<RiskObservationRecoveryService>.Instance, null!);
         await FluentActions.Awaiting(() => service.SynchronizeAsync(source, CancellationToken.None)).Should().ThrowAsync<TimeoutException>();
-        var restarted = new RiskObservationRecoveryService(null!, null!, funds, actors, NullLogger<RiskObservationRecoveryService>.Instance);
+        var restarted = new RiskObservationRecoveryService(null!, null!, funds, actors, NullLogger<RiskObservationRecoveryService>.Instance, null!);
         await restarted.SynchronizeAsync(source, CancellationToken.None); calls.Should().Be(1);
         aggregate.Composition(order.OrderId).Order.TerminalRisk!.DecidedAtUtc.Should().Be(input.ExpiresAtUtc);
     }

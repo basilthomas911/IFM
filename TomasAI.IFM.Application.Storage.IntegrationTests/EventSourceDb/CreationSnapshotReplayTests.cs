@@ -14,6 +14,37 @@ public sealed class CreationSnapshotReplayTests(EventSourceActorSnapshotRangeFix
     : IClassFixture<EventSourceActorSnapshotRangeFixture>
 {
     [Fact]
+    public async Task Streaming_replay_preserves_payloads_and_order_with_and_without_a_snapshot()
+    {
+        var name = $"Replay.Mapper.{Guid.NewGuid():N}";
+        var first = Started();
+        var snapshot = Started();
+        var tail = new FuturesRsiSignalStoppedEvent { EntityId = snapshot.EntityId, Id = Guid.NewGuid() };
+        var database = fixture.ActorEventDb;
+        await database.SaveEventsAsync(name, Guid.NewGuid(), new DomainEventCollection([first, snapshot, tail]), 0, CancellationToken.None);
+        var stream = await database.GetEventStreamIdAsync(name, CancellationToken.None);
+        var seen = new List<(long Version, Guid Id)>();
+        void Consume(IEnumerable<EventStreamReadModel> rows)
+        {
+            foreach (var row in rows)
+                seen.Add((row.StreamVersion, row.ToDomainEvent().Id));
+        }
+
+        await database.MapReduceActorEventStreamAsync<FuturesRsiSignalCommandState>(stream, Consume, CancellationToken.None);
+        Assert.Equal(new[] { (1L, first.Id), (2L, snapshot.Id), (3L, tail.Id) }, seen);
+        seen.Clear();
+
+        await database.MapReduceActorEventStreamAsync<FuturesRsiSignalCommandState, FuturesRsiSignalStartedEvent>(
+            stream, Consume, CancellationToken.None);
+        Assert.Equal(new[] { (2L, snapshot.Id), (3L, tail.Id) }, seen);
+        seen.Clear();
+
+        await database.MapReduceActorEventStreamAsync<FuturesRsiSignalCommandState, FuturesRsiSignalGeneratedEvent>(
+            stream, Consume, CancellationToken.None);
+        Assert.Equal(new[] { (1L, first.Id), (2L, snapshot.Id), (3L, tail.Id) }, seen);
+    }
+
+    [Fact]
     public async Task Repeated_start_does_not_replace_the_first_committed_creation_fact()
     {
         var name = $"CreationReplay.Start.{Guid.NewGuid():N}";

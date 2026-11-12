@@ -1,21 +1,14 @@
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Execution;
 using TomasAI.IFM.Shared.EventSourcing.ViewModels;
-
 using TomasAI.IFM.Domain.Trade.Shared.Persistence;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using System.Text.Json;
 using System.Globalization;
-
 using TomasAI.IFM.Domain.MarketData.Shared;
-
 using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
-
-
-using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Domain.Trade.Shared.TradeOrder;
-
 using MessagePack;
 using System.Security.Cryptography;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events;
@@ -30,11 +23,14 @@ using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
-
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events;
+using Npgsql;
+using TomasAI.IFM.Framework.Storage.Postgres;
+using TomasAI.IFM.Domain.Trade.Shared.Recovery;
 
 namespace TomasAI.IFM.Application.Storage.TradeDb;
+
 /// <summary>Provides internal persistence helpers for <see cref = "TradeDbContext"/>.</summary>
 public static class TradeDbContextExtensions
 {
@@ -1943,3 +1939,62 @@ public static class RiskCompletionProjection
 }
 
 internal sealed record TradeReadEstablishedCursor(int Portfolio, int Fund, TradeStrategyKind Kind, DateTime From, DateTime Through, DateTime At, int Order, int Trade, int Revision);
+
+/// <summary>Operational subscription intent; no market ticks, orders or financial events are replayed.</summary>
+public sealed class TradeFeedRecoveryStore(IDbConnectionSettings settings) : ITradeFeedRecoveryStore
+{
+    async Task<NpgsqlConnection> OpenAsync(CancellationToken token)
+    {
+        var connection = new PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(
+            new NpgsqlConnectionStringBuilder(settings[TradeDbContext.TradeDbConnection].ConnectionString)
+            { CommandTimeout = 120 }.ConnectionString);
+        try { await connection.OpenAsync(token); return connection; }
+        catch { await connection.DisposeAsync(); throw; }
+    }
+    public async Task<TradeFeedRecoveryRegistration[]> ReadAsync(DateOnly date, CancellationToken token)
+    {
+        await using var connection = await OpenAsync(token);
+        await using var command = new NpgsqlCommand(TradeDbSql.TradeFeedRecoveryStore_ReadAsync_1, connection);
+        PostgresValueBinding.AddParameter(command, date);
+        await using var reader = await command.ExecuteReaderAsync(token);
+        var rows = new List<TradeFeedRecoveryRegistration>();
+        while (await reader.ReadAsync(token)) rows.Add(new(reader.GetString(0), date, reader.GetFieldValue<string[]>(1), reader.GetFieldValue<DateTimeOffset>(2)));
+        return rows.ToArray();
+    }
+    public async Task SaveAsync(TradeFeedRecoveryRegistration registration, CancellationToken token)
+    {
+        _ = TradeEntityId.Parse(registration.TradeId);
+        if (registration.ValueDate == default || registration.OptionContracts.Length == 0 || registration.OptionContracts.Any(string.IsNullOrWhiteSpace)
+            || registration.OptionContracts.Distinct(StringComparer.Ordinal).Count() != registration.OptionContracts.Length)
+            throw new ArgumentException("Recovery requires a value date and distinct option contracts.");
+        await using var connection = await OpenAsync(token);
+        await using var transaction = await connection.BeginTransactionAsync(token);
+        await using var command = new NpgsqlCommand(TradeDbSql.TradeFeedRecoveryStore_SaveAsync_1, connection, transaction);
+        PostgresValueBinding.AddParameter(command, registration.TradeId + ":" + registration.ValueDate.ToString("yyyy-MM-dd"));
+        await command.ExecuteNonQueryAsync(token);
+        command.CommandText = TradeDbSql.TradeFeedRecoveryStore_SaveAsync_2;
+        command.Parameters.Clear(); PostgresValueBinding.AddParameter(command, registration.TradeId); PostgresValueBinding.AddParameter(command, registration.ValueDate);
+        await command.ExecuteNonQueryAsync(token);
+        command.CommandText = TradeDbSql.TradeFeedRecoveryStore_SaveAsync_3;
+        PostgresValueBinding.AddParameter(command, registration.OptionContracts); PostgresValueBinding.AddParameter(command, registration.UpdatedAtUtc);
+        await command.ExecuteNonQueryAsync(token);
+        await transaction.CommitAsync(token);
+    }
+    public async Task RemoveAsync(string tradeId, DateOnly date, CancellationToken token)
+    {
+        _ = TradeEntityId.Parse(tradeId);
+        await using var connection = await OpenAsync(token);
+        await using var transaction = await connection.BeginTransactionAsync(token);
+        await using var command = new NpgsqlCommand(TradeDbSql.TradeFeedRecoveryStore_SaveAsync_1, connection, transaction);
+        PostgresValueBinding.AddParameter(command, tradeId + ":" + date.ToString("yyyy-MM-dd")); await command.ExecuteNonQueryAsync(token);
+        command.CommandText = TradeDbSql.TradeFeedRecoveryStore_SaveAsync_2;
+        command.Parameters.Clear(); PostgresValueBinding.AddParameter(command, tradeId); PostgresValueBinding.AddParameter(command, date);
+        await command.ExecuteNonQueryAsync(token); await transaction.CommitAsync(token);
+    }
+    public async Task CloseAsync(DateOnly date, CancellationToken token)
+    {
+        await using var connection = await OpenAsync(token);
+        await using var command = new NpgsqlCommand(TradeDbSql.TradeFeedRecoveryStore_CloseAsync_1, connection);
+        PostgresValueBinding.AddParameter(command, date); await command.ExecuteNonQueryAsync(token);
+    }
+}

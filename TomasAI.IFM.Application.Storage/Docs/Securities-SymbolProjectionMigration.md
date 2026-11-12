@@ -1,5 +1,7 @@
 # Securities symbol projections
 
+Historical ScyllaDB migration notes. Current Securities persistence uses the PostgreSQL context and schema catalog.
+
 The Securities store uses the explicit `futures_contract_by_symbol_v2` and
 `futures_option_contract_by_symbol_v2` query tables instead of `ALLOW
 FILTERING`. The contract-ID tables remain canonical. Application writes

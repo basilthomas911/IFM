@@ -127,7 +127,7 @@ Use the same machine, runtime, Release settings and comparable system load for b
 
 [Production binary cutover: percentage changes for all 20 events](EventLogBaselines/binary-cutover-v1/README.md) compares a fresh run of the production codec with the saved JSON baseline.
 
-[All 20 events: JSON versus MessagePack and LZ4](EventLogBaselines/MessagePack-Comparison.md) contains the measured comparison, payload sizes, validation details and raw result links. The benchmark now uses the production shared codec. Application event storage has completed its [binary-only cutover](../TomasAI.IFM.Application.Storage/EventSourceDb/BinaryCutover.md); the JSON reader is retained only here for reproducible baseline comparisons.
+[All 20 events: JSON versus MessagePack and LZ4](EventLogBaselines/MessagePack-Comparison.md) contains the measured comparison, payload sizes, validation details and raw result links. The benchmark now uses the production shared codec. Application event storage has completed its [binary-only cutover](../TomasAI.IFM.Application.Storage/Docs/EventSource-BinaryCutover.md); the JSON reader is retained only here for reproducible baseline comparisons.
 
 ```powershell
 dotnet run -c Release --project TomasAI.IFM.Framework.Storage.Benchmarks -- --event-log-messagepack-verify TomasAI.IFM.Framework.Storage.Benchmarks/EventLogCorpus/v1 BenchmarkDotNet.Artifacts/verify-messagepack none

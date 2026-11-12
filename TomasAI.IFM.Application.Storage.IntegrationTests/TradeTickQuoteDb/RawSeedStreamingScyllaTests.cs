@@ -21,7 +21,8 @@ public sealed class RawSeedStreamingScyllaTests
         await infrastructure.StartAsync();
         var settings = new DbConnectionSettings().Add(TradeTickQuoteDbContext.TradeTickQuoteDbConnection,
             infrastructure.CqlConnectionString, "System.Data.ScyllaDb");
-        await new TradeTickQuoteSchemaDb(settings, NullLogger<DbProvider>.Instance).CreateAllAsync();
+        var schema = new TradeTickQuoteSchemaDb(settings, NullLogger<DbProvider>.Instance);
+        await schema.CreateAllAsync();
         var db = new TradeTickQuoteDbContext(settings, NullLogger<DbProvider>.Instance);
         var date = new DateOnly(2026, 11, 6);
         var contract = "ES-stream-" + Guid.NewGuid().ToString("N");
@@ -42,6 +43,7 @@ public sealed class RawSeedStreamingScyllaTests
                 TradeData = new((uint)index, ns, ns, 0, 5000000000000, 5000m, 1, (byte)'T', 0, 0)
             });
         });
+        await schema.CreateAllAsync();
         var from = TimeOnly.FromDateTime(start);
         var through = TimeOnly.FromDateTime(start.AddSeconds(7));
         var rows = new List<BootstrapTradeRow>();

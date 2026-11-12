@@ -625,14 +625,9 @@ public static class EventLogV2Benchmark
         string[] files = [
             "TomasAI.IFM.Framework.Storage.Benchmarks/EventLogV2Benchmark.cs",
             "TomasAI.IFM.Framework.Storage.Benchmarks/EventLogSoakObserver.cs",
-            "TomasAI.IFM.Application.Storage/EventSourceDb/EventLog/BinaryCopyEventLogAppender.cs",
-            "TomasAI.IFM.Application.Storage/EventSourceDb/EventLog/SequentialEventLogAppender.cs",
-            "TomasAI.IFM.Application.Storage/EventSourceDb/EventLog/BatchedProjectionMarkerWriter.cs",
-            "TomasAI.IFM.Application.Storage/EventSourceDb/EventLog/EventLogAppenderSupport.cs",
-            "TomasAI.IFM.Application.Storage/EventSourceDb/EventLog/EventLogSqlLayout.cs",
-            "TomasAI.IFM.Application.Storage/EventSourceDb/EventLog/EventLogPersistenceMetrics.cs",
+            "TomasAI.IFM.Application.Storage/EventSourceDb/EventSourceActorDbContextExtensions.cs",
             "TomasAI.IFM.Framework.Storage.Benchmarks/EventLogMarkerVerification.cs",
-            "TomasAI.IFM.Application.Storage/EventSourceDb/Schema/EventSourceSchemaSql.cs",
+            "TomasAI.IFM.Application.Storage/EventSourceDb/Schema/EventSourceActorSchemaSql.cs",
             "TomasAI.IFM.Application.Storage/PortfolioDb/PortfolioDbSql.cs"];
         return files.ToDictionary(p => p, p => File.Exists(p) ? Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(p))) : "unavailable");
     }

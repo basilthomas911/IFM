@@ -2,18 +2,23 @@ using TomasAI.IFM.Domain.Portfolio.Shared.Common;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
+using TomasAI.IFM.Application.Storage.TradeDb;
 using TomasAI.IFM.Application.Contracts.Portfolio;
 using TomasAI.IFM.Domain.Portfolio.Shared.Commands;
 using TomasAI.IFM.Domain.Portfolio.Shared.Identities;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RiskManagement;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Model;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Realtime;
 /// <summary>Projects delivered workflow events and exposes bounded recovery operations for explicit repair.</summary>
-public sealed class RiskObservationRecoveryService(RiskHistoryJournal journal, IDbContextFactory db, IPortfolioFundOrderReader funds, IActorService actors, ILogger<RiskObservationRecoveryService> logger) : IWorkflowRiskProjection, IDisposable
+public sealed class RiskObservationRecoveryService(RiskHistoryJournal journal, IDbContextFactory db,
+    IPortfolioFundOrderReader funds, IActorService actors, ILogger<RiskObservationRecoveryService> logger,
+    IPostgresEventTransaction transactions) : IWorkflowRiskProjection, IDisposable
 {
     int disposed;
     /// <summary>Releases the owned serialization gate after the host has stopped its workers; safe for DI aliases.</summary>
@@ -48,8 +53,23 @@ public sealed class RiskObservationRecoveryService(RiskHistoryJournal journal, I
         }
     }
 
+    /// <summary>Replays committed Risk completions and records their receipts atomically in source order.</summary>
     public Task<int> ProjectCompletionPageAsync(CancellationToken token)
-        => journal.ProjectCompletionPageAsync(token);
+        => transactions.ExecuteAsync(async (transaction, cancellationToken) =>
+        {
+            const string projection = "risk-completion-v1";
+            var rows = await journal.ReadPendingPageAsync(transaction, nameof(RiskManagementFunctionCompletedEvent), projection, cancellationToken)
+                .ConfigureAwait(false);
+            foreach (var row in rows)
+            {
+                var completed = (RiskManagementFunctionCompletedEvent)row.ToDomainEvent();
+                if (completed.CommandId != row.CommandId)
+                    throw new InvalidDataException("Risk completion does not match its committed command identity.");
+                await RiskCompletionProjection.WriteAsync(transaction, completed, cancellationToken).ConfigureAwait(false);
+                await journal.AcknowledgeAsync(transaction, projection, completed.EventId, cancellationToken).ConfigureAwait(false);
+            }
+            return rows.Count;
+        }, token);
 
     public async Task<long> ProjectPageAsync(long after, bool synchronize, CancellationToken token)
     {

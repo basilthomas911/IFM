@@ -1,10 +1,8 @@
 using TomasAI.IFM.Shared.Identity;
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Shared.Extensions;
-using TomasAI.IFM.Shared.Storage;
 
 namespace TomasAI.IFM.Application.Storage.SequenceIdDb;
 
@@ -32,45 +30,29 @@ public class SequenceIdDbContext(IDbConnectionSettings connectionSettings, IDbCo
 
     /// <summary>The named PostgreSQL connection used for identifier allocation.</summary>
     public const string SequenceIdDbConnection = "SequenceIdDbConnection";
-    static long MapToSequenceId(IObjectDataRecord o) => o.GetLong(0);
+    internal static long MapToSequenceId(IObjectDataRecord row) => row.GetLong(0);
 
     /// <inheritdoc cref="ISequenceIdDbReadContext.GetSequenceAllocationSizeAsync"/>
     public async Task<long> GetSequenceAllocationSizeAsync(
         SequenceName sequenceName,
         CancellationToken cancellationToken = default)
-        => await _dbFactory.SequenceIdDb
-            .Use($"{nameof(SequenceIdDbSql)}.{nameof(SequenceIdDbSql.GetSequenceAllocationSize)}", SequenceIdDbSql.GetSequenceAllocationSize)
-
-            .SetParameters(new GetNextSequenceId(sequenceName.ToStringFast()))
-
-            .ExecuteScalarAsync(MapToSequenceId, cancellationToken)
-
+        => await _dbFactory.SequenceIdDb.ExecuteSequenceAsync(nameof(SequenceIdDbSql.GetSequenceAllocationSize),
+            SequenceIdDbSql.GetSequenceAllocationSize, sequenceName, cancellationToken)
             .ConfigureAwait(false);
 
     /// <inheritdoc cref="ISequenceIdDbReadContext.GetCurrentSequenceIdAsync"/>
     public async Task<long> GetCurrentSequenceIdAsync(
         SequenceName sequenceName,
         CancellationToken cancellationToken = default)
-        => await _dbFactory.SequenceIdDb
-            .Use($"{nameof(SequenceIdDbSql)}.{nameof(SequenceIdDbSql.GetCurrentSequenceId)}", SequenceIdDbSql.GetCurrentSequenceId)
-
-            .SetParameters(new GetNextSequenceId(sequenceName.ToStringFast()))
-
-            .ExecuteScalarAsync(MapToSequenceId, cancellationToken)
-
+        => await _dbFactory.SequenceIdDb.ExecuteSequenceAsync(nameof(SequenceIdDbSql.GetCurrentSequenceId),
+            SequenceIdDbSql.GetCurrentSequenceId, sequenceName, cancellationToken)
             .ConfigureAwait(false);
 
     /// <inheritdoc cref="ISequenceIdDbWriteContext.GetNextSequenceIdAsync"/>
     public async Task<long> GetNextSequenceIdAsync(
         SequenceName sequenceName,
         CancellationToken cancellationToken = default)
-        => await _dbFactory.SequenceIdDb
-                .Use($"{nameof(SequenceIdDbSql)}.{nameof(SequenceIdDbSql.GetNextSequenceId)}", SequenceIdDbSql.GetNextSequenceId)
-
-            .SetParameters(new GetNextSequenceId(sequenceName.ToStringFast()))
-
-            .ExecuteScalarAsync(MapToSequenceId, cancellationToken)
-
+        => await _dbFactory.SequenceIdDb.ExecuteSequenceAsync(nameof(SequenceIdDbSql.GetNextSequenceId),
+            SequenceIdDbSql.GetNextSequenceId, sequenceName, cancellationToken)
             .ConfigureAwait(false);
-
 }

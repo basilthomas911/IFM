@@ -8,6 +8,7 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.R
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Function.Actor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Function.State;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Model;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Realtime;
 using TomasAI.IFM.Domain.Trade.UnitTests.Strategy.Workflow.IntrinsicTime.RiskManager;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -83,7 +84,7 @@ public sealed partial class TradeSelectionRuntimeTests
             var repository = host.Services.GetRequiredService<SimpleInjector.Container>()
                 .GetInstance<IEventSourceFunctionStateRepository<RiskManagementFunctionState, ExecuteRiskManagementPipelineCommand>>();
             var store = host.Services.GetRequiredService<IDbContextFactory>().TradeDb.DbReader;
-            var journal = host.Services.GetRequiredService<TomasAI.IFM.Application.Storage.EventSourceDb.RiskHistoryJournal>();
+            var recovery = host.Services.GetRequiredService<RiskObservationRecoveryService>();
             foreach (var (request, result) in new[] { (original, first), (resized, second) })
             {
                 var persisted = await repository.LoadStateAsync(request);
@@ -97,17 +98,48 @@ public sealed partial class TradeSelectionRuntimeTests
 
             // A legacy completion is reconstructed from verified committed history.
             var postgres = host.Services.GetRequiredService<TomasAI.IFM.Application.Storage.EventSourceDb.IPostgresEventTransaction>();
+            var sourceIds = new[] { first.EventId, second.EventId };
+            sourceIds.Should().OnlyContain(id => id > 0);
+            const string receiptConstraint = "test_reject_second_risk_completion_receipt";
             await postgres.ExecuteAsync(async (db, token) =>
             {
-                await db.ExecuteAsync("DELETE FROM trade.risk_management_completion WHERE workflow_id=$1 AND invocation_id=$2",
-                    [original.WorkflowId.Value, original.CommandId], token);
+                await db.ExecuteAsync("DELETE FROM trade.risk_management_completion WHERE workflow_id=$1 AND invocation_id=ANY($2)",
+                    [original.WorkflowId.Value, new[] { original.CommandId, resized.CommandId }], token);
+                await db.ExecuteAsync("DELETE FROM risk_history_projection_receipt WHERE projection_name='risk-completion-v1' AND event_id=ANY($1)",
+                    [sourceIds], token);
+                var rejectedId = second.EventId.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                await db.ExecuteAsync($"ALTER TABLE risk_history_projection_receipt ADD CONSTRAINT {receiptConstraint} CHECK (event_id <> {rejectedId}) NOT VALID",
+                    [], token);
                 return true;
             });
-            (await store.GetRiskCompletionAsync(original.WorkflowId.Value, original.CommandId)).Should().BeNull();
-            while (await journal.ProjectCompletionPageAsync() > 0) { }
+            try
+            {
+                await FluentActions.Awaiting(() => recovery.ProjectCompletionPageAsync(CancellationToken.None))
+                    .Should().ThrowAsync<Npgsql.PostgresException>()
+                    .Where(error => error.ConstraintName == receiptConstraint);
+                (await store.GetRiskCompletionAsync(original.WorkflowId.Value, original.CommandId)).Should().BeNull();
+                (await store.GetRiskCompletionAsync(resized.WorkflowId.Value, resized.CommandId)).Should().BeNull();
+                var receipts = await postgres.ExecuteOnceAsync((db, token) => db.ScalarAsync(
+                    "SELECT count(*) FROM risk_history_projection_receipt WHERE projection_name='risk-completion-v1' AND event_id=ANY($1)",
+                    [sourceIds], token));
+                receipts.Should().Be(0L);
+            }
+            finally
+            {
+                await postgres.ExecuteOnceAsync((db, token) => db.ExecuteAsync(
+                    $"ALTER TABLE risk_history_projection_receipt DROP CONSTRAINT {receiptConstraint}", [], token));
+            }
+            while (await recovery.ProjectCompletionPageAsync(CancellationToken.None) > 0) { }
             var rebuilt = await store.GetRiskCompletionAsync(original.WorkflowId.Value, original.CommandId);
             rebuilt.Should().NotBeNull();
             RiskContracts.Hash(rebuilt!.Result).Should().Be(RiskContracts.Hash(first.Result));
+            var rebuiltResize = await store.GetRiskCompletionAsync(resized.WorkflowId.Value, resized.CommandId);
+            rebuiltResize.Should().NotBeNull();
+            RiskContracts.Hash(rebuiltResize!.Result).Should().Be(RiskContracts.Hash(second.Result));
+            var rebuiltReceipts = await postgres.ExecuteOnceAsync((db, token) => db.ScalarAsync(
+                "SELECT count(*) FROM risk_history_projection_receipt WHERE projection_name='risk-completion-v1' AND event_id=ANY($1)",
+                [sourceIds], token));
+            rebuiltReceipts.Should().Be(2L);
         }
         finally { await global::SupervisorTestLifecycle.ShutdownAsync(host.Services); await producer.StopAsync(); }
     }

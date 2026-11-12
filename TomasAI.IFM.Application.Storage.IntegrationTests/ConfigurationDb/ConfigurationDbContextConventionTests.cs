@@ -120,7 +120,7 @@ public sealed class ConfigurationDbContextConventionTests
                 "partial class ConfigurationDbContext",
                 StringComparison.Ordinal));
         Assert.Empty(StorageConventionAudit.Inspect(
-            new("ConfigurationDb", "ConfigurationDbContext", "Configuration"), "Validation",
+            new("ConfigurationDb", "ConfigurationDbContext"), "Validation",
             [StorageSource.Parse("ConfigurationDbContext.cs", context)]));
         Assert.Contains(
             "extension(ConfigurationDbContext context)",

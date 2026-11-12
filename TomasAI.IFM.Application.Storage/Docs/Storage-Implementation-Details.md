@@ -155,7 +155,7 @@ Do not manually edit or commit `bin` or `obj` contents.
 
 ## Source organization conventions
 
-Database folders follow this pattern:
+Each application DbContext directory contains exactly seven C# source files at its root and one `Schema/` folder. The schema folder contains exactly two C# files and has no nested folders. Use the concrete context's name stem for the layout. Keep DbContext responsibilities within these files and keep supporting services owned by other layers outside the context directory.
 
 | File kind | Purpose |
 | --- | --- |
@@ -164,13 +164,12 @@ Database folders follow this pattern:
 | `I<Domain>DbWriteContext.cs` | Insert, update, delete, bulk, or backup contract. |
 | `<Domain>DbContext.cs` | Model mappings and operation implementation using `ObjectDataRepository<T>`. |
 | `<Domain>DbContextExtensions.cs` | DbContext extension helpers and their internal implementation types, including relational mapping, transaction sessions and disposable leases. |
-| `<Domain>DbCql.cs` or `<Domain>DbSql.cs` | Checked-in provider command text. |
+| `<Domain>DbSql.cs` | All checked-in runtime query and command text for the context. The filename is common across providers. PostgreSQL statements remain SQL and raw tick statements remain ScyllaDB CQL. |
 | `<Domain>DbParameters.cs` | Parameter records/classes bound to command text. |
-| `<Domain>DbException.cs` | Domain-specific storage exception where present. |
 | `Schema/<Domain>SchemaDb.cs` | Ordered schema-object catalog and connection selection. |
-| `Schema/<Domain>SchemaCql.cs` or `...Sql.cs` | Checked-in create statements. |
+| `Schema/<Domain>SchemaSql.cs` | The context's single DDL catalog, including schemas, tables, indexes, constraints, dependency order and required initialization metadata. |
 
-Every class named `*DbContext` is governed by the mandatory implementation conventions below. Any DbContext that does not conform is an alignment finding. Focused storage components that are not DbContext implementations, such as Log and Sequence ID services, may expose narrower contracts.
+Additional persistence capabilities that callers already use may be declared in the appropriate read, write, or combined contract file. Keep implementation-only types, including context-owned exceptions and provider helpers, beside their implementation in the context or extensions file. Documentation and independent services have their own locations outside the context directory. The shared schema executor is infrastructure used by the concrete contexts.
 
 ## Mandatory DbContext implementation conventions
 
@@ -187,7 +186,7 @@ These rules define the minimum implementation pattern for every application DbCo
 
 ### Persistence and orchestration boundary
 
-A DbContext must be as close to an ORM-style persistence adapter as possible. It exposes typed queries and mutations over its owned tables, maps records and delegates provider mechanics. It must contain minimal application or domain functionality. This rule applies to the entire database implementation, including its extension class and supporting folders; moving orchestration out of the context class into a Storage helper does not satisfy the boundary.
+A DbContext must be as close to an ORM-style persistence adapter as possible. It exposes typed queries and mutations over its owned tables, maps records and delegates provider mechanics. This boundary applies to all files in the context directory.
 
 - **Domain ownership:** business calculations, business invariants, strategy decisions and rules determining which events or read models should be produced belong in the owning domain. Incoming request validation belongs to the caller before persistence is invoked.
 - **Domain coordination ownership:** command execution coordination, duplicate-request coordination, workflow and pipeline sequencing, actor messaging, notifications, schedules, recovery/replay coordination, import orchestration and application-driven cache policy belong in the owning domain repositories, command actors, query handlers and workflow services.
@@ -197,7 +196,7 @@ A DbContext must be as close to an ORM-style persistence adapter as possible. It
 - **Audit and event sourcing:** deciding when a command is audited, reserving execution and coordinating event production belong to the domain command/repository layer. Storage persists the supplied audit/event facts and reports database outcomes. Audit orchestration interfaces must not be added to a DbContext simply because they eventually write rows.
 - **Lifetime:** DbContext lifetime behavior is limited to releasing its database/provider resources. Starting or stopping application workers, recovery loops or background coordination is not a DbContext responsibility.
 - **Dependencies:** DbContexts must not depend on domain actors, workflow runners, external market-data/broker clients, schedulers or application coordination services. The permitted dependency direction is application/domain consumers toward persistence contracts; the concrete Storage implementation does not call back into business orchestration.
-- **Helper and folder ownership:** context extension methods contain persistence helpers only. Supporting Storage folders must represent substantial provider/persistence responsibilities. Domain orchestration must be moved to its owning layer, not hidden in a database folder. Benchmark fixtures and comparison stores belong in benchmark/test projects and must not be shipped as production Storage services.
+- **Helper and folder ownership:** context extension methods contain persistence helpers only. Place context-specific batching, append, audit persistence, transaction and resource-lifetime helpers in the prescribed context files. Put shared provider infrastructure, shared telemetry, domain orchestration and benchmark fixtures in their owning locations outside the context directory.
 
 Apply the following split when reviewing EventSourceDb:
 
@@ -330,18 +329,17 @@ static LookupTypeReadModel MapToLookupType(IObjectDataRecord e)
 
 ### Database schema implementation
 
-- Each database owns a `Schema/` folder containing one `<Domain>SchemaDb.cs` executor and one `<Domain>SchemaSql.cs` PostgreSQL DDL catalog.
+- Each database owns a `Schema/` folder containing one `<Domain>SchemaDb.cs` executor and one `<Domain>SchemaSql.cs` catalog containing the database's native DDL.
 - `<Domain>SchemaDb` inherits `SchemaDbContext<<Domain>SchemaDb>` and selects the database context's named connection setting. Its `Definitions` cover every owned schema, table, index, constraint, sequence, function, trigger and required initialization step, in dependency order.
 - All create/drop SQL and schema metadata belong in the single schema SQL catalog. Related definition groups may be nested in that catalog; additional feature-specific schema SQL files or schema folders such as `ParameterSets/` are prohibited.
 - The executor uses the inherited `CreateAllAsync`, targeted `CreateAsync`, and table-validation operations. Schema creation must be additive and repeatable; ordinary startup must not drop application data.
-- PostgreSQL databases must not retain `.cql` files, `*SchemaCql.cs` classes or CQL compatibility catalogs. ScyllaDB databases retain their provider-specific CQL schema catalog.
+- PostgreSQL contexts use PostgreSQL DDL. The raw tick context uses ScyllaDB CQL DDL in the same catalog layout.
 - Runtime query/command SQL remains in `<Domain>DbSql.cs`; schema DDL remains in `Schema/<Domain>SchemaSql.cs`.
 - Focused tests verify the single-catalog layout and actual PostgreSQL creation, including indexes and lifecycle guards. `ConfigurationDb/Schema` implements this pattern; the shared schema executor provides the creation mechanism used by the MarketData schema executor as well.
 
 ### Statement and parameter catalogs
 
-- Every ScyllaDB query or command string must be declared in `NameOfDbCql.cs`.
-- Every PostgreSQL query or command string must be declared in `NameOfDbSql.cs`.
+- Every runtime query or command string must be declared in `NameOfDbSql.cs` using the context's database dialect.
 - SQL and CQL must not be embedded directly in DbContext method bodies.
 - `NameOfDbParameters.cs` must contain the query/command parameter-binding models used by `SetParameters`.
 - Parameter models should be internal `readonly record struct` values implementing `IBindValue`.
@@ -640,13 +638,13 @@ The structural cleanup and domain ownership separation below follow the DbContex
 
 EventSourceDb retains its established `EventSourceActorDbContext` and read/write contracts. The concrete context implements read/write persistence and resource lifetime contracts; `EventSourceActorDbContextExtensions` owns its C# 14 context helpers. Both carry explicit XML operation documentation. Local cache-resolution helpers and inline projector protocol guards are owned by that extension class. Existing revision checks, execution ownership, timestamp requirements and command deduplication remain enforced.
 
-`EventSourceDbParameters.cs` is the single catalog for all context `IBindValue` records; the former per-record `Parameters` directory is removed. `Schema/EventSourceSchemaSql.cs` owns all production DDL and dependency-ordered schema definitions, including the business-subscription and risk-history receipt tables. `EventSourceSchemaDb` selects the named connection and delegates to that catalog and the inherited schema executor. Runtime journal operations reference the catalog when they need additive initialization. Benchmark-specific provider fixtures reside in `Framework.Storage.Benchmarks/CommandLog` and are not compiled into production Storage.
+`EventSourceActorDbParameters.cs` is the single catalog for all context `IBindValue` records; the former per-record `Parameters` directory is removed. `Schema/EventSourceActorSchemaSql.cs` owns all production DDL and dependency-ordered schema definitions, including the business-subscription and risk-history receipt tables. `EventSourceSchemaDb` selects the named connection and delegates to that catalog and the inherited schema executor. Runtime journal operations reference the catalog when they need additive initialization. Benchmark-specific provider fixtures reside in `Framework.Storage.Benchmarks/CommandLog` and are not compiled into production Storage.
 
 ## EventSourceDb domain ownership separation
 
 Shared domain event-source repository coordination is owned by `TomasAI.IFM.Domain.EventSourcing/Repository/BaseEventSourceActorRepository.cs`; concrete domain repositories continue inheriting that base. `Command/CommandAuditCoordinator.cs` implements `ICommandAuditLogger` and owns pre-parse acceptance, duplicate callers and command reservation diagnostics. The bounded coordinator resides in `Command/Deduplication`. Hosts only register this domain service. DbContext no longer implements the audit coordination interface or retains command acceptance caches. It persists supplied audit facts through `TryInsertCommandAuditAsync` and retains atomic command-audit/event commits and database optimistic concurrency.
 
-Provider serialization and command-audit SQL writers remain in `EventSourceDb/CommandAudit`; event-log appending and technical per-stream preparation remain in `EventSourceDb/EventLog`. Command-log comparison stores are owned by `Framework.Storage.Benchmarks/CommandLog` and excluded from the production Storage assembly. Historical checkpoint/manifest persistence is owned by `MarketDataDbContext`, with statements in `MarketDataDbSql`, bindings in `MarketDataDbParameters` and DDL in the MarketData schema catalog. Physical table names remain unchanged, preserving existing records in the consolidated PostgreSQL database. Import orchestration already resides in the owning market-data services.
+Provider serialization, command-audit writes, event-log appending and technical per-stream preparation live alongside the EventSource context extensions. Shared financial telemetry lives in Storage Diagnostics. Command-log comparison stores are owned by `Framework.Storage.Benchmarks/CommandLog` and excluded from the production Storage assembly. Historical checkpoint/manifest persistence is owned by `MarketDataDbContext`, with statements in `MarketDataDbSql`, bindings in `MarketDataDbParameters` and DDL in the MarketData schema catalog. Physical table names remain unchanged, preserving existing records in the consolidated PostgreSQL database. Import orchestration already resides in the owning market-data services.
 
 ### Verification (2026-10-12)
 
@@ -921,7 +919,7 @@ Verification: all 25 TradePlanDb storage/convention regressions and all 12 trade
 
 ## TradeTickQuoteDb convention alignment
 
-TradeTickQuoteDb remains the ScyllaDB owner of raw Databento trade/quote observations and futures/option ticks. This provider exception keeps CQL query and schema catalogs; it does not introduce PostgreSQL dual writes or business event-log appends.
+TradeTickQuoteDb remains the ScyllaDB owner of raw Databento trade/quote observations and futures/option ticks. Its runtime and schema catalogs use CQL in the common file layout.
 
 Its persistence folder contains nine C# files:
 
@@ -929,8 +927,8 @@ Its persistence folder contains nine C# files:
 - ITradeTickQuoteDbContext.cs, ITradeTickQuoteDbReadContext.cs and ITradeTickQuoteDbWriteContext.cs: documented repository/read/write contracts, retaining existing parameter names and defaults.
 - TradeTickQuoteDbContextExtensions.cs: C# 14 receiver helpers for ingestion binding, validation and partition-scoped technical batching. The unchanged Scylla prepared-value adapter is a file-scoped internal type alongside these helpers.
 - TradeTickQuoteDbParameters.cs: all eight binding declarations in one file, retaining their names, namespaces and ordinal values.
-- TradeTickQuoteDbCql.cs: the unchanged provider queries and mutations.
-- Schema/TradeTickQuoteSchemaCql.cs: the sole Scylla DDL catalog and ordered schema definitions, including the quote UDT before the quote table and the administrative drop statements.
+- TradeTickQuoteDbSql.cs: the ScyllaDB queries and mutations.
+- Schema/TradeTickQuoteSchemaSql.cs: the sole Scylla DDL catalog and ordered schema definitions, including the quote UDT before the quote table and the administrative drop statements.
 - Schema/TradeTickQuoteSchemaDb.cs: executes that dependency-ordered catalog through SchemaDbContext.
 
 The former Parameters folder and separate raw trade/quote binding and prepared-adapter files are consolidated. The six insert overload bodies move to receiver helpers without changing write behavior. Futures tick batches still group by contract/value date and contain at most 24 rows, writing both the identity and time indexes with the existing CQL batch behavior; Scylla batching is not a PostgreSQL transaction boundary. Option price/Greek columns remain double. Table identities, partition keys, CQL text, source timestamp precision, MessagePack event contracts and query result ordinals remain unchanged.

@@ -121,9 +121,9 @@ public sealed class TradeDbContextConventionTests
         var folder = GetFolder();
         string[] expected =
         [
-            "IEnlistedTradeDbWriter.cs", "ITradeDbContext.cs", "ITradeDbReadContext.cs",
+            "ITradeDbContext.cs", "ITradeDbReadContext.cs",
             "ITradeDbWriteContext.cs", "TradeDbContext.cs", "TradeDbContextExtensions.cs",
-            "TradeDbParameters.cs", "TradeDbSql.cs", "TradeFeedRecoveryStore.cs", "TradeStorageTelemetry.cs",
+            "TradeDbParameters.cs", "TradeDbSql.cs",
             Path.Combine("Schema", "TradeSchemaDb.cs"), Path.Combine("Schema", "TradeSchemaSql.cs")
         ];
         var actual = Directory.GetFiles(folder, "*.cs", SearchOption.AllDirectories)

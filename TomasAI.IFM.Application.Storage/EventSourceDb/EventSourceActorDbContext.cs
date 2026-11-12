@@ -350,14 +350,36 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
     /// <param name="o">The object map reader containing the event data to map.</param>
     /// <returns>An <see cref="EventStreamReadModel"/> populated with data from the object map reader.</returns>
     internal static EventStreamReadModel MapToEventStream(IObjectDataRecord o)
-        => new()
-        {
-            EventTypeName = o.GetString(2),
-            EventVersion = o.GetLong(3),
-            EventData = o.GetBytes(4),
-            StreamVersion = o.GetLong(7),
-            Origin = MapToOrigin(o)
-        };
+        => MapToEventStream(o, new EventStreamReadModel());
+
+    /// <summary>Maps a replay row into the buffer owned by the streaming reducer call.</summary>
+    private static EventStreamReadModel MapToEventStream(IObjectDataRecord row, EventStreamReadModel buffer)
+    {
+        buffer.EventTypeName = row.GetString(2);
+        buffer.EventVersion = row.GetLong(3);
+        buffer.EventData = row.GetBytes(4);
+        buffer.StreamVersion = row.GetLong(7);
+        buffer.Origin = MapToOrigin(row);
+        return buffer;
+    }
+
+    /// <summary>Maps an ordered creation replay row and its captured stream metadata.</summary>
+    internal static CreationReplayRow MapToCreationReplayRow(IObjectDataRecord row, bool hasCheckpointColumn)
+    {
+        var head = row.GetLong(8);
+        if (row.IsNull(3))
+            return new(head, 0, null);
+        return new(head, hasCheckpointColumn ? row.GetLong(9) : 0, MapToEventStream(row));
+    }
+
+    /// <summary>Maps the common committed journal columns and a payload already read by the caller.</summary>
+    internal static EventLogReadModel MapToJournalEvent(System.Data.Common.DbDataReader row, byte[] payload)
+        => new(row.GetInt64(0), row.GetString(1), row.GetString(2), row.GetInt64(3),
+            payload, row.GetGuid(5), row.GetString(6), row.GetInt64(7));
+
+    /// <summary>Maps an enlisted journal event with its payload.</summary>
+    internal static EventLogReadModel MapToJournalEvent(System.Data.Common.DbDataReader row)
+        => MapToJournalEvent(row, row.GetFieldValue<byte[]>(4));
 
     /// <summary>Maps selected event-store columns to the typed result.</summary>
     /// <param name="e">The e used by this operation.</param>
@@ -1507,23 +1529,14 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
         CancellationToken cancellationToken)
         where TState : IActorState<TState>
     {
+        // This streaming overload reuses one row buffer throughout the reducer callback.
         var eventStream = new EventStreamReadModel();
         var preparedParameters28 = new GetEventLogByEventStreamId(eventStreamId);
         await (_dbFactory.ActorEventSourceDb
                 .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.GetEventLogByEventStreamId)}", this.EventLogSql(EventSourceDbSql.GetEventLogByEventStreamId))
             .SetParameters(preparedParameters28)
-            .ExecuteMapReduceAsync(EventStreamMapper, reducerAction, cancellationToken))
+            .ExecuteMapReduceAsync(row => MapToEventStream(row, eventStream), reducerAction, cancellationToken))
             .ConfigureAwait(false);
-
-        EventStreamReadModel EventStreamMapper(IObjectDataRecord o)
-        {
-            eventStream.EventVersion = o.GetLong(3);
-            eventStream.EventTypeName = o.GetString(2);
-            eventStream.EventData = o.GetBytes(4);
-            eventStream.Origin = MapToOrigin(o);
-            eventStream.StreamVersion = o.GetLong(7);
-            return eventStream;
-        }
     }
 
     /// <summary>
@@ -1598,6 +1611,7 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
         where TState : IActorState<TState>
         where TSnapshot : IEvent
     {
+        // This streaming overload reuses one row buffer throughout the reducer callback.
         var eventStream = new EventStreamReadModel();
         var snapshotEventNameId = await this.GetCompatibleEventNameIdsAsync<TSnapshot>(cancellationToken)
             .ConfigureAwait(false);
@@ -1610,23 +1624,13 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
         if (maxEventVersion > 0)
             await (db.Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.GetEventLogByMaxEventVersion)}", this.EventLogSql(EventSourceDbSql.GetEventLogByMaxEventVersion))
             .SetParameters(new GetEventLogByMaxEventVersion(eventStreamId, maxEventVersion))
-            .ExecuteMapReduceAsync(EventStreamMapper, reducerAction, cancellationToken))
+            .ExecuteMapReduceAsync(row => MapToEventStream(row, eventStream), reducerAction, cancellationToken))
             .ConfigureAwait(false);
         else
             await (db.Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.GetEventLogByEventStreamId)}", this.EventLogSql(EventSourceDbSql.GetEventLogByEventStreamId))
             .SetParameters(new GetEventLogByEventStreamId(eventStreamId))
-            .ExecuteMapReduceAsync(EventStreamMapper, reducerAction, cancellationToken))
+            .ExecuteMapReduceAsync(row => MapToEventStream(row, eventStream), reducerAction, cancellationToken))
             .ConfigureAwait(false);
-
-        EventStreamReadModel EventStreamMapper(IObjectDataRecord o)
-        {
-            eventStream.EventVersion = o.GetLong(3);
-            eventStream.EventTypeName = o.GetString(2);
-            eventStream.EventData = o.GetBytes(4);
-            eventStream.Origin = MapToOrigin(o);
-            eventStream.StreamVersion = o.GetLong(7);
-            return eventStream;
-        }
     }
 
     /// <summary>

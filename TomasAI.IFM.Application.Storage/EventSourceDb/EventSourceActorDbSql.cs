@@ -1447,7 +1447,10 @@ RETURNING eventStreamId;
     internal const string EventSourceActorDbContext_GetCommittedStreamVersionAsync_1 = "SELECT COALESCE(MAX(StreamVersion),0) FROM event_log WHERE EventStreamId=$1;";
 
     /// <summary>Parameter-bound persistence statement.</summary>
-    internal const string PostgresCommittedBusinessEventJournal_Statement_1 = "SELECT el.eventStreamId,en.eventName,en.eventTypeName,el.eventVersion,el.EventPayload,el.commandId,el.eventTimestamp::text,el.StreamVersion FROM event_log el JOIN event_name_id en ON en.eventNameId=el.eventNameId ";
+    private const string BusinessJournalColumns = "SELECT el.eventStreamId,en.eventName,en.eventTypeName,el.eventVersion,el.EventPayload,el.commandId,el.eventTimestamp::text,el.StreamVersion FROM event_log el JOIN event_name_id en ON en.eventNameId=el.eventNameId ";
+    internal const string ReadPendingBusinessHandoffs = BusinessJournalColumns + "JOIN business_subscription_projection_receipt r ON r.event_id=el.eventVersion WHERE en.eventName='WorkflowStrategyStateUpdatedEvent' AND NOT r.handoff_completed ORDER BY el.eventVersion LIMIT 32;";
+    internal const string ReadPriorBusinessEvent = BusinessJournalColumns + "WHERE el.eventStreamId=$1 AND el.eventVersion<=$2 AND en.eventName=ANY($3) ORDER BY el.eventVersion DESC LIMIT 1;";
+    internal const string ReadPendingBusinessEvents = BusinessJournalColumns + "WHERE en.eventName=ANY($1) AND NOT EXISTS(SELECT 1 FROM business_subscription_projection_receipt r WHERE r.event_id=el.eventVersion) ORDER BY el.eventVersion LIMIT 32;";
 
     /// <summary>Parameter-bound persistence statement.</summary>
     internal const string PostgresCommittedBusinessEventJournal_CompleteHandoffAsync_1 = "UPDATE business_subscription_projection_receipt SET handoff_completed=true WHERE event_id=$1;";
@@ -1503,7 +1506,7 @@ RETURNING eventStreamId;
                 """;
 
     /// <summary>Parameter-bound persistence statement.</summary>
-    internal const string RiskHistoryJournal_ProjectCompletionPageAsync_1 = """
+    internal const string ReadPendingRiskJournalEventsByName = """
                 SELECT e.eventstreamid,n.eventname,n.eventtypename,e.eventversion,e.EventPayload,e.commandid,e.eventtimestamp::text,e.streamversion
                 FROM event_log e JOIN event_name_id n ON n.eventnameid=e.eventnameid
                 WHERE n.eventname=$1

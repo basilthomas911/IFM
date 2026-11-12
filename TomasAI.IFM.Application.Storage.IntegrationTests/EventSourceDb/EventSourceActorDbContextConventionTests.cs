@@ -89,7 +89,7 @@ public sealed class EventSourceActorDbContextConventionTests
     public void Sql_parameter_records_are_consolidated_in_the_database_parameter_catalog()
     {
         var folder = Path.Combine(FindRepositoryRoot(), "TomasAI.IFM.Application.Storage", "EventSourceDb");
-        var catalog = Path.Combine(folder, "EventSourceDbParameters.cs");
+        var catalog = Path.Combine(folder, "EventSourceActorDbParameters.cs");
         Assert.True(File.Exists(catalog));
         Assert.Contains(": IBindValue", File.ReadAllText(catalog), StringComparison.Ordinal);
         Assert.False(Directory.Exists(Path.Combine(folder, "Parameters")));
@@ -104,9 +104,9 @@ public sealed class EventSourceActorDbContextConventionTests
     {
         var folder = Path.Combine(FindRepositoryRoot(), "TomasAI.IFM.Application.Storage", "EventSourceDb");
         var schema = Path.Combine(folder, "Schema");
-        Assert.Equal(new[] { "EventSourceSchemaDb.cs", "EventSourceSchemaSql.cs" },
+        Assert.Equal(new[] { "EventSourceActorSchemaDb.cs", "EventSourceActorSchemaSql.cs" },
             Directory.GetFiles(schema, "*.cs").Select(Path.GetFileName).OrderBy(name => name).ToArray());
-        var executor = File.ReadAllText(Path.Combine(schema, "EventSourceSchemaDb.cs"));
+        var executor = File.ReadAllText(Path.Combine(schema, "EventSourceActorSchemaDb.cs"));
         Assert.Contains("EventSourceSchemaSql.GetDefinitions(options)", executor, StringComparison.Ordinal);
         Assert.DoesNotContain("DROP TABLE", executor, StringComparison.Ordinal);
         var definitions = TomasAI.IFM.Application.Storage.EventSourceDb.Schema.EventSourceSchemaSql.GetDefinitions(new());

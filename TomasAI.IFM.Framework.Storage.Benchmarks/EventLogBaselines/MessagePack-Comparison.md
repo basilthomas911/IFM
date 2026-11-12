@@ -1,6 +1,6 @@
 # Event-log JSON and MessagePack comparison
 
-Follow-up: the [binary-only application cutover](../../TomasAI.IFM.Application.Storage/EventSourceDb/BinaryCutover.md) is now implemented. The measurements below remain the original pre-cutover runs.
+Follow-up: the [binary-only application cutover](../../TomasAI.IFM.Application.Storage/Docs/EventSource-BinaryCutover.md) is now implemented. The measurements below remain the original pre-cutover runs.
 
 Measured on 2026-09-09 using the same frozen 20-event corpus as the original JSON baseline. The original fixtures and JSON measurements are unchanged.
 

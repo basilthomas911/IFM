@@ -6,12 +6,18 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.Conventions;
 
-internal sealed record StorageContextSpec(string Name, string Context, string Stem)
+internal sealed record StorageContextSpec(string Name, string Context)
 {
+    internal string Stem => Context[..^"DbContext".Length];
     internal string Combined => "I" + Context;
     internal string Read => "I" + Context.Replace("DbContext", "DbReadContext", StringComparison.Ordinal);
     internal string Write => "I" + Context.Replace("DbContext", "DbWriteContext", StringComparison.Ordinal);
     internal string Folder => Path.Combine(DbContextConventionSource.RepositoryRoot, "TomasAI.IFM.Application.Storage", Name);
+    internal string RuntimeCatalog => Stem + "DbSql.cs";
+    internal string Parameters => Stem + "DbParameters.cs";
+    internal string SchemaCatalog => Stem + "SchemaSql.cs";
+    internal string SchemaExecutor => Stem + "SchemaDb.cs";
+    internal string Extensions => Context + "Extensions.cs";
 }
 
 internal sealed record StorageSource(string Path, CompilationUnitSyntax Root)
@@ -25,29 +31,52 @@ internal static class StorageConventionAudit
 {
     internal static readonly StorageContextSpec[] Contexts =
     [
-        new("ConfigurationDb", "ConfigurationDbContext", "Configuration"),
-        new("EventSourceDb", "EventSourceActorDbContext", "EventSource"),
-        new("MarketDataDb", "MarketDataDbContext", "MarketData"),
-        new("MarketDataServiceDb", "MarketDataServiceDbContext", "MarketDataService"),
-        new("PortfolioDb", "PortfolioDbContext", "Portfolio"),
-        new("ReferenceDb", "ReferenceDbContext", "Reference"),
-        new("ScheduledTaskDb", "ScheduledTaskDbContext", "ScheduledTask"),
-        new("SecuritiesDb", "SecuritiesDbContext", "Securities"),
-        new("SequenceIdDb", "SequenceIdDbContext", "SequenceId"),
-        new("SystemAdminDb", "SystemAdminDbContext", "SystemAdmin"),
-        new("TradeDb", "TradeDbContext", "Trade"),
-        new("TradePlanDb", "TradePlanDbContext", "TradePlan"),
-        new("TradeTickQuoteDb", "TradeTickQuoteDbContext", "TradeTickQuote")
+        new("ConfigurationDb", "ConfigurationDbContext"),
+        new("EventSourceDb", "EventSourceActorDbContext"),
+        new("MarketDataDb", "MarketDataDbContext"),
+        new("MarketDataServiceDb", "MarketDataServiceDbContext"),
+        new("PortfolioDb", "PortfolioDbContext"),
+        new("ReferenceDb", "ReferenceDbContext"),
+        new("ScheduledTaskDb", "ScheduledTaskDbContext"),
+        new("SecuritiesDb", "SecuritiesDbContext"),
+        new("SequenceIdDb", "SequenceIdDbContext"),
+        new("SystemAdminDb", "SystemAdminDbContext"),
+        new("TradeDb", "TradeDbContext"),
+        new("TradePlanDb", "TradePlanDbContext"),
+        new("TradeTickQuoteDb", "TradeTickQuoteDbContext")
     ];
 
-    internal static readonly string[] Rules = ["Structure", "Capabilities", "ContractMethods", "Helpers", "Statements",
+    internal static readonly string[] Rules = ["Layout", "Structure", "Capabilities", "ContractMethods", "Helpers", "Statements",
         "Parameters", "Dialect", "Schema", "Validation", "Ownership", "QueryResults", "Mappers", "Documentation", "FluentCalls"];
     static readonly Lazy<Dictionary<string, StorageSource[]>> Sources = new(() => Contexts.ToDictionary(spec => spec.Name,
         spec => Directory.GetFiles(spec.Folder, "*.cs", SearchOption.AllDirectories)
             .Select(path => StorageSource.Parse(path, File.ReadAllText(path))).ToArray(), StringComparer.Ordinal));
 
     internal static IReadOnlyList<string> Inspect(StorageContextSpec spec, string rule)
-        => Inspect(spec, rule, Sources.Value[spec.Name]);
+        => rule == "Layout"
+            ? InspectLayout(spec,
+                Directory.EnumerateFiles(spec.Folder, "*", SearchOption.AllDirectories).Select(path => Path.GetRelativePath(spec.Folder, path)),
+                Directory.EnumerateDirectories(spec.Folder, "*", SearchOption.AllDirectories).Select(path => Path.GetRelativePath(spec.Folder, path)))
+            : Inspect(spec, rule, Sources.Value[spec.Name]);
+
+    internal static IReadOnlyList<string> InspectLayout(StorageContextSpec spec, IEnumerable<string> files, IEnumerable<string> directories)
+    {
+        string[] expected =
+        [
+            spec.Context + ".cs", spec.Extensions, spec.Parameters, spec.RuntimeCatalog,
+            spec.Combined + ".cs", spec.Read + ".cs", spec.Write + ".cs",
+            "Schema/" + spec.SchemaExecutor, "Schema/" + spec.SchemaCatalog
+        ];
+        var actual = files.Select(path => path.Replace('\\', '/')).ToHashSet(StringComparer.Ordinal);
+        var folders = directories.Select(path => path.Replace('\\', '/')).ToHashSet(StringComparer.Ordinal);
+        var findings = new List<string>();
+        findings.AddRange(expected.Except(actual, StringComparer.Ordinal).Select(path => $"{spec.Name}/Layout: missing file {path}"));
+        findings.AddRange(actual.Except(expected, StringComparer.Ordinal).Order(StringComparer.Ordinal).Select(path => $"{spec.Name}/Layout: unexpected file {path}"));
+        if (!folders.Remove("Schema"))
+            findings.Add($"{spec.Name}/Layout: missing directory Schema");
+        findings.AddRange(folders.Order(StringComparer.Ordinal).Select(path => $"{spec.Name}/Layout: unexpected directory {path}"));
+        return findings;
+    }
 
     internal static IReadOnlyList<string> Inspect(StorageContextSpec spec, string rule, StorageSource[] sources)
     {
@@ -110,23 +139,22 @@ internal static class StorageConventionAudit
         {
             var inSchema = source.Path.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar).Contains("Schema", StringComparer.Ordinal);
             var file = Path.GetFileName(source.Path);
+            if (rule == "Helpers" && spec.Name != "SchemaDb" && file != spec.Extensions)
+                foreach (var member in source.Root.DescendantNodes().OfType<MemberDeclarationSyntax>()
+                    .Where(node => node.Parent is BaseNamespaceDeclarationSyntax or CompilationUnitSyntax
+                        && node is EnumDeclarationSyntax or DelegateDeclarationSyntax))
+                    Add(source, member, "Persistence support declarations belong in " + spec.Extensions + ".");
             foreach (var type in source.Root.DescendantNodes().OfType<TypeDeclarationSyntax>())
             {
                 var name = type.Identifier.ValueText;
-                if (rule == "Statements" && name == spec.Name + "Sql" && file != spec.Name + "Sql.cs")
-                    Add(source, type, "Runtime SQL catalog must have one source file: " + spec.Name + "Sql.cs.");
-                if (rule == "Schema" && name == spec.Stem + "SchemaSql" && file != spec.Stem + "SchemaSql.cs")
-                    Add(source, type, "Schema SQL catalog must have one source file.");
+                if (rule == "Helpers" && spec.Name != "SchemaDb" && type.Parent is BaseNamespaceDeclarationSyntax or CompilationUnitSyntax
+                    && !IsOwnedDeclaration(spec, type, file))
+                    Add(source, type, "Declaration belongs in its context, extensions, parameter, catalog or contract file: " + name);
                 if (rule == "Helpers" && name == spec.Context)
                     foreach (var method in type.Members.OfType<MethodDeclarationSyntax>())
                         if (!method.Modifiers.Any(SyntaxKind.PublicKeyword) && method.ExplicitInterfaceSpecifier is null
                             && !(method.Modifiers.Any(SyntaxKind.StaticKeyword) && method.Identifier.ValueText.StartsWith("MapTo", StringComparison.Ordinal)))
                             Add(source, method, "Non-contract helper must live in the context extension class: " + method.Identifier.ValueText);
-                if (rule == "Helpers" && spec.Name == "ConfigurationDb" && !inSchema
-                    && file != spec.Name + "Sql.cs" && file != spec.Name + "Parameters.cs"
-                    && type is not InterfaceDeclarationSyntax && type.Parent is BaseNamespaceDeclarationSyntax or CompilationUnitSyntax
-                    && file != (name == spec.Context ? spec.Context + ".cs" : spec.Context + "Extensions.cs"))
-                    Add(source, type, "Configuration persistence implementation belongs in the context or its extensions: " + name);
                 if (rule == "Helpers" && name.EndsWith("ContextExtensions", StringComparison.Ordinal))
                 {
                     if (name != spec.Context + "Extensions") Add(source, type, "Unexpected context extension class.");
@@ -143,7 +171,7 @@ internal static class StorageConventionAudit
                 }
                 if (rule == "Parameters" && type.BaseList?.Types.Any(item => item.Type.ToString().EndsWith("IBindValue", StringComparison.Ordinal)) == true)
                 {
-                    if (file != spec.Name + "Parameters.cs") Add(source, type, "Binding must be consolidated in " + spec.Name + "Parameters.cs.");
+                    if (file != spec.Parameters) Add(source, type, "Binding must be consolidated in " + spec.Parameters + ".");
                     if (type is not RecordDeclarationSyntax record || !record.ClassOrStructKeyword.IsKind(SyntaxKind.StructKeyword)
                         || !type.Modifiers.Any(SyntaxKind.InternalKeyword) || !type.Modifiers.Any(SyntaxKind.ReadOnlyKeyword))
                         Add(source, type, "Bindings must be internal readonly record structs.");
@@ -175,6 +203,9 @@ internal static class StorageConventionAudit
                     Add(source, invocation, "Diagnostics query must use projected read models, not reconstruct progress from command/import state.");
                 if (rule == "Ownership" && invocation.Expression.ToString().Contains("CompositionPreparationService.Validate", StringComparison.Ordinal))
                     Add(source, invocation, "Composition validation belongs to the owning command producer.");
+                if (rule == "Ownership" && spec.Name == "EventSourceDb"
+                    && invocation.Expression.ToString().EndsWith("RiskCompletionProjection.WriteAsync", StringComparison.Ordinal))
+                    Add(source, invocation, "Risk completion replay and Trade projection coordination belong to Trade.");
             }
             if (rule == "Validation")
                 foreach (var statement in source.Root.DescendantNodes().OfType<ThrowStatementSyntax>())
@@ -195,14 +226,17 @@ internal static class StorageConventionAudit
             if (rule is "Statements" or "Dialect" or "Schema")
                 foreach (var (node, text) in Strings(source))
                 {
-                    if (rule == "Dialect" && spec.Name != "TradeTickQuoteDb" && (Regex.IsMatch(text, @"\btoken\s*\(|\bALLOW\s+FILTERING\b", RegexOptions.IgnoreCase)))
-                        Add(source, node, "Non-tick CQL remains in a PostgreSQL context/catalog.");
-                    if (!LooksLikeSql(text)) continue;
-                    if (rule == "Statements" && file != spec.Name + "Sql.cs" && file != spec.Stem + "SchemaSql.cs"
-                        && !(spec.Name == "TradeTickQuoteDb" && (file == spec.Name + "Cql.cs" || file == spec.Stem + "SchemaCql.cs")))
+                    if (!LooksLikeSql(text) && !LooksLikeSqlFragment(text)) continue;
+                    if (rule == "Dialect" && spec.Name != "TradeTickQuoteDb"
+                        && Regex.IsMatch(text, @"\btoken\s*\(|\bALLOW\s+FILTERING\b|\bCREATE\s+KEYSPACE\b|\bCLUSTERING\s+ORDER\s+BY\b", RegexOptions.IgnoreCase))
+                        Add(source, node, "ScyllaDB CQL remains in a PostgreSQL context.");
+                    if (rule == "Dialect" && spec.Name == "TradeTickQuoteDb"
+                        && Regex.IsMatch(text, @"\$\d+|::\w|\bON\s+CONFLICT\b|\bRETURNING\b|\bCREATE\s+SCHEMA\b", RegexOptions.IgnoreCase))
+                        Add(source, node, "PostgreSQL SQL belongs outside the ScyllaDB raw tick context.");
+                    if (rule == "Statements" && file != spec.RuntimeCatalog && file != spec.SchemaCatalog)
                         Add(source, node, "Statement is outside the owned runtime/schema catalog.");
                     if (rule == "Schema" && Regex.IsMatch(text, @"^\s*(CREATE|ALTER|DROP)\b", RegexOptions.IgnoreCase)
-                        && file != spec.Stem + "SchemaSql.cs" && !(spec.Name == "TradeTickQuoteDb" && file == spec.Stem + "SchemaCql.cs"))
+                        && file != spec.SchemaCatalog)
                         Add(source, node, "DDL/initialization definitions belong in the schema catalog.");
                     if (rule == "Schema" && Regex.IsMatch(text, @"\b(?:TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?|FROM\s+|JOIN\s+|INTO\s+)(?:\w+\.)?\w+_v\d+\b", RegexOptions.IgnoreCase))
                         Add(source, node, "Physical table name has a prohibited schema-generation suffix.");
@@ -214,10 +248,16 @@ internal static class StorageConventionAudit
                 foreach (var creation in source.Root.DescendantNodes().OfType<ObjectCreationExpressionSyntax>())
                     if (creation.Type.ToString().EndsWith("NpgsqlParameter", StringComparison.Ordinal) || creation.Type.ToString().EndsWith("SqlParameter", StringComparison.Ordinal))
                         Add(source, creation, "Context bindings must use provider-neutral values.");
-            if (rule == "Schema" && inSchema && file.EndsWith("Sql.cs", StringComparison.Ordinal) && file != spec.Stem + "SchemaSql.cs")
+            if (rule == "Schema" && inSchema && file.EndsWith("Sql.cs", StringComparison.Ordinal) && file != spec.SchemaCatalog)
                 Add(source, source.Root, "Multiple/feature-specific schema SQL catalogs are prohibited.");
             if (rule == "Mappers")
             {
+                foreach (var local in source.Root.DescendantNodes().OfType<LocalFunctionStatementSyntax>()
+                    .Where(method => method.ParameterList.Parameters.Any(parameter =>
+                        parameter.Type?.ToString().EndsWith("IObjectDataRecord", StringComparison.Ordinal) == true
+                        || parameter.Type?.ToString().EndsWith("DbDataReader", StringComparison.Ordinal) == true)))
+                    Add(source, local, "Record mapper must be a static MapTo method declared on the context.");
+
                 foreach (var call in source.Root.DescendantNodes().OfType<InvocationExpressionSyntax>()
                     .Where(call => InvocationName(call) is "ExecuteSingleAsync" or "ExecuteQueryAsync" or "ExecuteScalarAsync" or "ExecutePageAsync" or "ExecuteStreamAsync" or "ExecuteMapReduceAsync" or "QueryAsync"))
                     foreach (var argument in call.ArgumentList.Arguments.Where(argument => argument.Expression is AnonymousFunctionExpressionSyntax))
@@ -304,24 +344,23 @@ internal static class StorageConventionAudit
             .SelectMany(type => type.GetInterfaces()).Distinct();
         foreach (var contract in contracts.Where(type => type.Assembly.GetName().Name?.StartsWith("TomasAI.IFM.", StringComparison.Ordinal) == true))
         {
-            var fileName = contract.Name.Split('`')[0] + ".cs";
-            if (!ContractSourcePaths.Value.TryGetValue(fileName, out var paths))
-            {
-                errors.Add($"{spec.Name}/Documentation: Cannot verify inherited persistence contract {contract.FullName}: source is missing.");
-                continue;
-            }
+            var contractName = contract.Name.Split('`')[0];
+            var paths = ContractSourcePaths.Value.GetValueOrDefault(contractName + ".cs", []);
+            var localSources = Sources.Value[spec.Name].Where(source =>
+                source.Root.DescendantNodes().OfType<InterfaceDeclarationSyntax>().Any(type => type.Identifier.ValueText == contractName));
+            var matchingSources = localSources.Concat(paths.Select(path => StorageSource.Parse(path, File.ReadAllText(path))))
+                .DistinctBy(source => source.Path);
             var found = false;
-            foreach (var path in paths)
+            foreach (var source in matchingSources)
             {
-                var source = StorageSource.Parse(path, File.ReadAllText(path));
                 foreach (var declaration in source.Root.DescendantNodes().OfType<InterfaceDeclarationSyntax>()
-                    .Where(type => type.Identifier.ValueText == contract.Name.Split('`')[0]
+                    .Where(type => type.Identifier.ValueText == contractName
                         && type.Ancestors().OfType<BaseNamespaceDeclarationSyntax>().FirstOrDefault()?.Name.ToString() == contract.Namespace))
                 {
                     found = true;
                     foreach (var method in declaration.Members.OfType<MethodDeclarationSyntax>())
                     {
-                        var location = $"{spec.Name}/Documentation: {path}:{method.GetLocation().GetLineSpan().StartLinePosition.Line + 1}";
+                        var location = $"{spec.Name}/Documentation: {source.Path}:{method.GetLocation().GetLineSpan().StartLinePosition.Line + 1}";
                         if (!HasDocumentation(method)) errors.Add(location + ": Missing inherited contract member documentation.");
                         if (Documentation(method).Contains("inheritdoc", StringComparison.Ordinal)) continue;
                         foreach (var parameter in method.ParameterList.Parameters)
@@ -504,7 +543,34 @@ internal static class StorageConventionAudit
     };
     static bool IsPersistenceCall(string name) => name is "Use" or "SetParameters" or "ExecuteCommandAsync" or "ExecuteSingleAsync" or "ExecuteQueryAsync"
         or "ExecuteScalarAsync" or "ExecutePageAsync" or "QueueCommand" or "ConfigureAwait";
+    static bool IsOwnedDeclaration(StorageContextSpec spec, TypeDeclarationSyntax type, string file)
+    {
+        var name = type.Identifier.ValueText;
+        if (name == spec.Context) return file == spec.Context + ".cs";
+        if (name == spec.Context + "Extensions") return file == spec.Extensions;
+        if (name == spec.Combined || name == spec.Read || name == spec.Write) return file == name + ".cs";
+        if (type is InterfaceDeclarationSyntax)
+            return file == spec.Combined + ".cs" || file == spec.Read + ".cs" || file == spec.Write + ".cs";
+        if (type.BaseList?.Types.Any(item => item.Type.ToString().EndsWith("IBindValue", StringComparison.Ordinal)
+            || item.Type.ToString().EndsWith("IScyllaOwnedBindValues", StringComparison.Ordinal)) == true)
+            return file == spec.Parameters;
+        // Positional values can have their own type before being collected into an IBindValue.
+        if (file == spec.Parameters)
+            return type is RecordDeclarationSyntax { ParameterList: not null } record
+                && record.ClassOrStructKeyword.IsKind(SyntaxKind.StructKeyword)
+                && record.Modifiers.Any(SyntaxKind.InternalKeyword) && record.Modifiers.Any(SyntaxKind.ReadOnlyKeyword);
+        if (file == spec.RuntimeCatalog)
+            return type is ClassDeclarationSyntax && type.Modifiers.Any(SyntaxKind.StaticKeyword)
+                && (name.EndsWith("Sql", StringComparison.Ordinal)
+                    || spec.Name == "TradeTickQuoteDb" && name == "TradeTickQuoteDbCql");
+        if (file == spec.SchemaExecutor)
+            return type.BaseList?.Types.Any(item => Compact(item.Type.ToString()).StartsWith("SchemaDbContext<", StringComparison.Ordinal)) == true;
+        return file == spec.Extensions || file == spec.SchemaCatalog;
+    }
+
     static bool LooksLikeSql(string text) => Regex.IsMatch(text, @"^\s*(SELECT\b|INSERT\s+INTO\b|UPDATE\s+\w|DELETE\s+FROM\b|WITH\s+\w|CREATE\b|ALTER\b|DROP\b|TRUNCATE\b|BEGIN\s+.*BATCH\b)", RegexOptions.IgnoreCase);
+    static bool LooksLikeSqlFragment(string text) => Regex.IsMatch(text,
+        @"^\s*(WHERE\s+\S[\s\S]*(\$\d|\?|\bORDER\s+BY\b)|JOIN\s+\S+\s+\S*\s*ON\s+\S)", RegexOptions.IgnoreCase);
     static IEnumerable<(SyntaxNode Node, string Text)> Strings(StorageSource source)
     {
         foreach (var literal in source.Root.DescendantNodes().OfType<LiteralExpressionSyntax>().Where(literal => literal.IsKind(SyntaxKind.StringLiteralExpression)))
