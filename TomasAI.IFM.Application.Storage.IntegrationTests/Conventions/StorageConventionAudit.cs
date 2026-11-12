@@ -122,12 +122,21 @@ internal static class StorageConventionAudit
                         if (!method.Modifiers.Any(SyntaxKind.PublicKeyword) && method.ExplicitInterfaceSpecifier is null
                             && !(method.Modifiers.Any(SyntaxKind.StaticKeyword) && method.Identifier.ValueText.StartsWith("MapTo", StringComparison.Ordinal)))
                             Add(source, method, "Non-contract helper must live in the context extension class: " + method.Identifier.ValueText);
+                if (rule == "Helpers" && spec.Name == "ConfigurationDb" && !inSchema
+                    && file != spec.Name + "Sql.cs" && file != spec.Name + "Parameters.cs"
+                    && type is not InterfaceDeclarationSyntax && type.Parent is BaseNamespaceDeclarationSyntax or CompilationUnitSyntax
+                    && file != (name == spec.Context ? spec.Context + ".cs" : spec.Context + "Extensions.cs"))
+                    Add(source, type, "Configuration persistence implementation belongs in the context or its extensions: " + name);
                 if (rule == "Helpers" && name.EndsWith("ContextExtensions", StringComparison.Ordinal))
                 {
                     if (name != spec.Context + "Extensions") Add(source, type, "Unexpected context extension class.");
                     foreach (var method in type.DescendantNodes().OfType<MethodDeclarationSyntax>())
+                    {
                         if (!method.Ancestors().Any(IsExtensionBlock) || method.ParameterList.Parameters.Any(parameter => parameter.Modifiers.Any(SyntaxKind.ThisKeyword)))
                             Add(source, method, "Helpers must use C# 14 receiver blocks, not ordinary static/legacy extension methods.");
+                        if (spec.Name == "ConfigurationDb" && !HasDocumentation(method))
+                            Add(source, method, "Configuration persistence helpers must have XML documentation.");
+                    }
                     var duplicates = type.DescendantNodes().Where(IsExtensionBlock).Select(block => block.ChildNodes().OfType<ParameterListSyntax>().FirstOrDefault())
                         .Where(parameters => parameters is not null).GroupBy(parameters => Compact(parameters!.ToString()), StringComparer.Ordinal).Where(group => group.Count() > 1);
                     foreach (var duplicate in duplicates) Add(source, type, "Repeated receiver/role block: " + duplicate.Key);
@@ -154,6 +163,8 @@ internal static class StorageConventionAudit
             {
                 var name = InvocationName(invocation);
                 if (rule == "Validation" && IsRequestValidation(invocation)) Add(source, invocation, "Incoming validation belongs to the caller: " + invocation.Expression);
+                if (rule == "Validation" && spec.Name == "ConfigurationDb" && name == "ValidateParameters")
+                    Add(source, invocation, "Draft parameter shape validation belongs to the caller; storage verifies the schema proof.");
                 if (rule == "Ownership" && spec.Name != "SequenceIdDb" && (name is "GetSequenceIdAsync" or "GetSequenceIdsAsync"))
                     Add(source, invocation, "Allocate application identities in the owning producer before persistence: " + invocation.Expression);
                 if (rule == "Ownership" && name is "ValidateProductAsync" or "ValidateLegacyFamilyAsync" or "ValidateCatalogGraph" or "ValidateCapability" or "GetCompletedMarketCloseDate")

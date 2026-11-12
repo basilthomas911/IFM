@@ -16,6 +16,19 @@ namespace TomasAI.IFM.Application.Storage.ConfigurationDb;
 /// </summary>
 public interface IConfigurationDbReadContext
 {
+    /// <summary>Captures the locked configuration tables, event-log cut, and lookup sequence state.</summary>
+    /// <param name="transaction">The caller's enlisted event transaction.</param>
+    /// <param name="cancellationToken">Cancels the database operation.</param>
+    /// <returns>The consistent database image.</returns>
+    Task<ConfigurationBaselineDatabaseImage> CaptureConfigurationBaselineAsync(EnlistedEventTransaction transaction,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Checks that the table names and order match the supported physical layout.</summary>
+    /// <param name="schemaVersion">The baseline schema version.</param>
+    /// <param name="tables">The baseline table names in capture order.</param>
+    /// <returns>Whether the layout matches.</returns>
+    bool MatchesConfigurationBaselineLayout(int schemaVersion, IEnumerable<string> tables);
+
     /// <summary>Gets one exact strategy position-risk version with validated payload identity and hash.</summary>
     /// <param name="id">The id supplied by the caller.</param>
     /// <param name="version">The exact immutable reference revision.</param>

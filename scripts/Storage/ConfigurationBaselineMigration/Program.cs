@@ -20,7 +20,8 @@ var connection = Environment.GetEnvironmentVariable("IFM_CONFIGURATION_BASELINE_
 var identity = new NpgsqlConnectionStringBuilder(connection);
 if (identity.Host is not ("localhost" or "127.0.0.1") || (identity.Database is not ("event-source-dev-db" or "ifm-dev-db" or "ifm_storage_refactor_test") && !identity.Database.StartsWith("ifm_policy_migration_qualification_",StringComparison.Ordinal)))
     throw new InvalidOperationException("Configuration baseline migration is limited to the named local Development databases.");
-var settings = new DbConnectionSettings().Add(EventSourceActorDbContext.EventSourceActorDbConnection, connection, "System.Data.Postgres");
+var settings = new DbConnectionSettings().Add(EventSourceActorDbContext.EventSourceActorDbConnection, connection, "System.Data.Postgres")
+    .Add(TomasAI.IFM.Application.Storage.ConfigurationDb.ConfigurationDbContext.ConfigurationDbConnection, connection, "System.Data.Postgres");
 var transactions = new PostgresEventTransaction(settings);
 if (string.Equals(args[0],"--prepare-development-baseline-writers-stopped",StringComparison.Ordinal))
 {
@@ -31,7 +32,7 @@ if (string.Equals(args[0],"--prepare-development-baseline-writers-stopped",Strin
     Console.WriteLine(JsonSerializer.Serialize(new {database=identity.Database,policyMigration=await OptionChainPolicyMigration.RunAsync(transactions).ConfigureAwait(false)}));
     return;
 }
-var baseline = new ConfigurationProjectionBaseline(transactions);
+var baseline = ConfigurationBaselineServices.Create(settings, transactions);
 var existing = await baseline.ReadLatestAsync().ConfigureAwait(false);
 if (string.Equals(args[0],"--capture-writers-stopped",StringComparison.Ordinal))
 {

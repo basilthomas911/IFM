@@ -12,6 +12,27 @@ public sealed class AllDbContextConventionTests
 {
     public static IEnumerable<object[]> Cases => StorageConventionAudit.Contexts.SelectMany(context => StorageConventionAudit.Rules.Select(rule => new object[] { context.Name, rule }));
 
+    [Theory]
+    [InlineData("FeatureStorage")]
+    [InlineData("ParameterProjectionMapping")]
+    [InlineData("ParameterValueMapping")]
+    [InlineData("ParameterWriteLease")]
+    [InlineData("ConfigurationDbSession")]
+    public void Configuration_support_types_must_be_declared_beside_the_extensions(string type)
+    {
+        var source = $$"""
+            namespace Storage;
+            internal sealed class {{type}} { }
+            """;
+        var spec = StorageConventionAudit.Contexts.Single(context => context.Name == "ConfigurationDb");
+
+        var standalone = StorageSource.Parse(type + ".cs", source);
+        var colocated = StorageSource.Parse("ConfigurationDbContextExtensions.cs", source);
+
+        Assert.Contains(type, Assert.Single(StorageConventionAudit.Inspect(spec, "Helpers", [standalone])), StringComparison.Ordinal);
+        Assert.Empty(StorageConventionAudit.Inspect(spec, "Helpers", [colocated]));
+    }
+
     [Fact]
     public void Named_mapper_forwarding_and_map_reduce_reducers_are_not_inline_record_mappers()
     {

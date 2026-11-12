@@ -102,6 +102,10 @@ public static class EventSourceDbSql
         SELECT CurrentVersion FROM event_stream_id WHERE EventStream=$1 FOR UPDATE;
         """;
 
+    internal const string ReadCommittedEventCut = "SELECT COALESCE(max(eventversion),0) FROM event_log;";
+    internal const string ReadCommittedStreamRevision = "SELECT COALESCE(max(e.streamversion),0) FROM event_log e JOIN event_stream_id s USING(eventstreamid) WHERE s.eventstream=$1;";
+    internal const string ReadLatestCommittedEvent = "SELECT n.eventtypename,l.eventversion,l.eventpayload FROM event_log l JOIN event_name_id n USING(eventnameid) JOIN event_stream_id s USING(eventstreamid) WHERE s.eventstream=$1 ORDER BY l.streamversion DESC LIMIT 1;";
+
     internal const string ReadAggregateCheckpointHead = """
         SELECT CurrentVersion FROM event_stream_id WHERE EventStream=$1;
         """;

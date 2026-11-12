@@ -286,6 +286,11 @@ public sealed class StrategyCatalogDbTests(MarketConditionConfigurationDbFixture
         await FluentActions.Invoking(() => ctx.InsertStrategyCatalogDraftAsync(invalid, 0, "catalog-tests")).Should().ThrowAsync<ArgumentException>();
         (await ctx.GetStrategyCatalogAsync(invalid.Key)).Should().BeNull();
         var semantic = invalid with { Settings = Json("{\"threshold\":0.5,\"enabled\":false}") };
+        var prepared = await StrategyCatalogDraftPreparation.PrepareAsync(ctx, semantic, CancellationToken.None);
+        await FluentActions.Invoking(() => ctx.InsertPreparedStrategyCatalogDraftAsync(
+                prepared with { ParameterSchemaContentHash = new string('0', 64) }, 0, "catalog-tests"))
+            .Should().ThrowAsync<InvalidOperationException>().WithMessage("*schema changed*");
+        (await ctx.GetStrategyCatalogAsync(semantic.Key)).Should().BeNull();
         var hash = await ctx.InsertStrategyCatalogDraftAsync(semantic, 0, "catalog-tests");
         await FluentActions.Invoking(() => Qualification(ctx).PublishAsync(ctx, semantic.Key, hash, Now, "catalog-tests"))
             .Should().ThrowAsync<ArgumentException>().WithMessage("*fixture semantic*");

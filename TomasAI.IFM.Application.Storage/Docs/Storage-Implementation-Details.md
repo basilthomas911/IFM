@@ -163,7 +163,7 @@ Database folders follow this pattern:
 | `I<Domain>DbReadContext.cs` | Query contract returning domain read models or scalars. |
 | `I<Domain>DbWriteContext.cs` | Insert, update, delete, bulk, or backup contract. |
 | `<Domain>DbContext.cs` | Model mappings and operation implementation using `ObjectDataRepository<T>`. |
-| `<Domain>DbContextExtensions.cs` | The single home for every DbContext helper that is not a result-set `MapTo...` mapper or a public read/write-contract implementation. |
+| `<Domain>DbContextExtensions.cs` | DbContext extension helpers and their internal implementation types, including relational mapping, transaction sessions and disposable leases. |
 | `<Domain>DbCql.cs` or `<Domain>DbSql.cs` | Checked-in provider command text. |
 | `<Domain>DbParameters.cs` | Parameter records/classes bound to command text. |
 | `<Domain>DbException.cs` | Domain-specific storage exception where present. |
@@ -276,7 +276,8 @@ public interface IExampleDbContext :
 - Every read/write interface method must be implemented as a public method on the single concrete `NameOfDbContext` class.
 - Every public method declared by a DbContext must implement a member of either `INameOfDbReadContext` or `INameOfDbWriteContext`. A DbContext must not expose public convenience or helper methods outside those contracts.
 - The only static methods permitted on a DbContext are result-set mappers named `MapTo...`.
-- Every other helper method, whether private, internal, or static, must be defined in one `NameOfDbContextExtensions` class. A DbContext folder must not distribute helpers across multiple extension classes.
+- Put DbContext helper methods in one `NameOfDbContextExtensions` class, regardless of visibility.
+- Declare internal persistence support types alongside the extensions in the same `<Domain>DbContextExtensions.cs` file. This includes relational row and projection mappings, transaction session adapters, and disposable lock leases. Each support type owns its mapping or resource-lifetime methods. For example, `ConfigurationDbContextExtensions.cs` contains `ParameterProjectionMapping`, `ParameterValueMapping`, `ParameterWriteLease`, and `ConfigurationDbSession`.
 - A `NameOfDbContextExtensions` class must use C# 14 extension blocks. Every helper must be declared inside an `extension(receiver)` block; legacy `this`-parameter extension methods and ordinary static utility methods are prohibited. Methods sharing the same receiver type and semantic receiver role must be grouped into one block. Separate blocks for the same CLR type are permitted only when the receiver has a distinct domain role and therefore a different meaningful receiver name. Extension properties and other supported extension-member forms must likewise be declared inside the receiver's extension block.
 - Every method in a `NameOfDbContextExtensions` class must have XML documentation describing its persistence operation.
 - DbContext methods must not validate their method arguments. Validation belongs to the caller before the storage method is invoked.

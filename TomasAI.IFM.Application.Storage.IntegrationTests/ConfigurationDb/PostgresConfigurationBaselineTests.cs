@@ -1,6 +1,9 @@
 using TomasAI.IFM.Application.Strategy.StrategyCatalog;
 using System;
 using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -15,6 +18,7 @@ using TomasAI.IFM.Application.Storage.IntegrationTests.TradePlanDb;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Application.Storage.MarketDataDb.Schema;
 using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
+using TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Framework.Storage.Postgres;
@@ -27,8 +31,10 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.ConfigurationDb;
 [Collection("PostgreSQL plan atomicity")]
 public sealed class PostgresConfigurationBaselineTests(PostgresTradePlanFixture fixture)
 {
-    [Fact]
-    public async Task Persisted_configuration_baseline_rebuilds_every_row_with_catalog_guards_and_original_sequence()
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    public async Task Persisted_configuration_baseline_rebuilds_every_row_with_catalog_guards_and_original_sequence(int schemaVersion)
     {
         var sourceSettings = new TomasAI.IFM.Shared.Storage.DbConnectionSettings();
         sourceSettings.Add(ConfigurationDbContext.ConfigurationDbConnection,fixture.Connection,"System.Data.Postgres");
@@ -49,12 +55,14 @@ public sealed class PostgresConfigurationBaselineTests(PostgresTradePlanFixture 
         var retiredRow=await context.GetStrategyCatalogAsync(retired.Key);
         await context.RetireStrategyCatalogAsync(retired.Key,retiredRow!.ContentHash,now.AddMinutes(1),"baseline-test");
         await fixture.Transactions.ExecuteOnceAsync(async(tx,token)=>{await tx.ExecuteAsync("SELECT setval('reference_configuration.lookup_definition_id_seq',900000,true);",[],token);return true;});
-        var baseline=new ConfigurationProjectionBaseline(fixture.Transactions);
+        var baseline=new ConfigurationProjectionBaseline(fixture.Transactions, context);
         await Assert.ThrowsAsync<ArgumentException>(()=>baseline.CaptureAsync(false));
         var captured=await baseline.CaptureAsync(true);
         var source=await baseline.ReadLatestAsync();
         source.Should().NotBeNull(); source!.Tables.Should().BeEquivalentTo(captured.Tables);
         source.LookupSequenceLastValue.Should().Be(900000); source.LookupSequenceIsCalled.Should().BeTrue();
+        if (schemaVersion == 1)
+            source = await WithLegacyOptionChainTablesAsync(source);
         var name="ifm_config_verify_"+Guid.NewGuid().ToString("N");
         var targetConnection=new NpgsqlConnectionStringBuilder(fixture.Connection){Database=name}.ConnectionString;
         await using var admin=new PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(fixture.Connection);
@@ -69,10 +77,17 @@ public sealed class PostgresConfigurationBaselineTests(PostgresTradePlanFixture 
             await ConfigurationSchemaDb.WithoutLookupDefaults(settings,NullLogger<DbProvider>.Instance).CreateAllAsync();
             await new MarketDataSchemaDb(settings,NullLogger<DbProvider>.Instance).CreateAllAsync();
             var transactions=new PostgresEventTransaction(settings);
-            var target=new ConfigurationProjectionBaseline(transactions);
+            var targetContext = new ConfigurationDbContext(settings, factory.Object, NullLogger<DbProvider>.Instance);
+            var target=new ConfigurationProjectionBaseline(transactions, targetContext);
             await Assert.ThrowsAsync<System.IO.InvalidDataException>(()=>target.MaterializeAsync(source with {Tables=source.Tables.Select((x,i)=>i==0?x with {RowsJson="[]"}:x).ToArray()}));
+            await Assert.ThrowsAsync<System.IO.InvalidDataException>(() => target.MaterializeAsync(source with
+            {
+                Tables = source.Tables.Select((table, index) => index == 1 ? table with { ColumnsJson = "[]" } : table).ToArray()
+            }));
             await target.MaterializeAsync(source);
             await target.MaterializeAsync(source);
+            await Assert.ThrowsAsync<System.IO.InvalidDataException>(() =>
+                target.MaterializeAsync(source with { EventId = source.EventId + 1 }));
             foreach(var image in source.Tables)
             {
                 var table=image.Name.Contains('.',StringComparison.Ordinal)?image.Name:"reference_configuration."+image.Name;
@@ -89,4 +104,25 @@ public sealed class PostgresConfigurationBaselineTests(PostgresTradePlanFixture 
             await drop.ExecuteNonQueryAsync();
         }
     }
+
+    private Task<ConfigurationProjectionBaselineEvent> WithLegacyOptionChainTablesAsync(ConfigurationProjectionBaselineEvent source)
+        => fixture.Transactions.ExecuteOnceAsync(async (transaction, token) =>
+        {
+            await MarketDataSchemaDb.CreateLegacyOptionChainBaselineTablesAsync(transaction, token);
+            await transaction.ExecuteAsync("""
+                INSERT INTO market_data.strategy_option_chain_parameter_version (set_id, version, payload)
+                VALUES ('ee83ac25-94bb-4b8c-925d-d5b7fd223a2c', 1, '{"legacy":true}')
+                ON CONFLICT DO NOTHING;
+                """, [], token);
+            var tables = source.Tables.TakeWhile(table => table.Name != "market_data.strategy_option_chain_policy_version").ToList();
+            foreach (var name in new[] { "strategy_option_chain_parameter_version", "strategy_option_chain_parameter_current" })
+            {
+                var qualified = "market_data." + name;
+                var columns = await transaction.QueryAsync(ConfigurationDbSql.ReadBaselineColumns, ["market_data", name],
+                    ConfigurationDbContext.MapToBaselineColumn, token);
+                var rows = (string)(await transaction.ScalarAsync(ConfigurationDbSql.ReadBaselineRows(qualified), [], token))!;
+                tables.Add(new(qualified, JsonSerializer.Serialize(columns), rows, Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(rows)))));
+            }
+            return source with { SchemaVersion = 1, Tables = tables.ToArray() };
+        });
 }

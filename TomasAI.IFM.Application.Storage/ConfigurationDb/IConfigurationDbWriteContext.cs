@@ -16,6 +16,24 @@ namespace TomasAI.IFM.Application.Storage.ConfigurationDb;
 /// </summary>
 public interface IConfigurationDbWriteContext
 {
+    /// <summary>Records a baseline application or checks the identity of a previous application.</summary>
+    /// <param name="transaction">The caller's transaction holding the baseline table locks.</param>
+    /// <param name="baselineId">The baseline identity.</param>
+    /// <param name="sourceEventId">The accepted event identity.</param>
+    /// <param name="sourceCut">The event-log cut represented by the baseline.</param>
+    /// <param name="cancellationToken">Cancels the database operation.</param>
+    /// <returns>Whether the application was newly recorded.</returns>
+    Task<bool> ClaimConfigurationBaselineAsync(IEnlistedPostgresTransaction transaction, Guid baselineId,
+        long sourceEventId, long sourceCut, CancellationToken cancellationToken = default);
+
+    /// <summary>Restores an accepted configuration image within the caller's transaction.</summary>
+    /// <param name="transaction">The caller's enlisted PostgreSQL transaction.</param>
+    /// <param name="source">The accepted baseline and lookup sequence state.</param>
+    /// <param name="cancellationToken">Cancels the database operation.</param>
+    /// <returns>Whether the image was newly applied.</returns>
+    Task<bool> MaterializeConfigurationBaselineAsync(IEnlistedPostgresTransaction transaction,
+        ConfigurationProjectionBaselineEvent source, CancellationToken cancellationToken = default);
+
     /// <summary>Invalidates prepared evidence in the same transaction as an accepted parameter mutation.</summary>
     /// <param name="transaction">The caller's enlisted PostgreSQL transaction.</param>
     /// <param name="cancellationToken">Cancels the database operation.</param>
@@ -69,9 +87,9 @@ public interface IConfigurationDbWriteContext
     /// <returns>A task representing the retirement operation.</returns>
     Task RetireAsync(StrategyParameterSetKind kind, Guid parameterSetId, int version, DateTime retiredAtUtc, CancellationToken cancellationToken = default);
     /// <summary>Inserts an immutable strategy-catalog draft and its normalized children.</summary>
-    /// <param name = "definition">The validated definition.</param><param name = "expectedPreviousVersion">The expected previous version.</param><param name = "createdBy">The author.</param><param name = "cancellationToken">The cancellation token.</param>
+    /// <param name = "draft">The caller-prepared definition and exact schema proof.</param><param name = "expectedPreviousVersion">The expected previous version.</param><param name = "createdBy">The author.</param><param name = "cancellationToken">The cancellation token.</param>
     /// <returns>The canonical content digest.</returns>
-    Task<string> InsertStrategyCatalogDraftAsync(StrategyCatalogDefinition definition, int expectedPreviousVersion, string createdBy, CancellationToken cancellationToken = default);
+    Task<string> InsertPreparedStrategyCatalogDraftAsync(PreparedStrategyCatalogDraft draft, int expectedPreviousVersion, string createdBy, CancellationToken cancellationToken = default);
 
     /// <param name="stream">The exact source stream selected by the catalog owner.</param>
     /// <summary>Prepare strategy catalog transition.</summary>
@@ -81,8 +99,10 @@ public interface IConfigurationDbWriteContext
     /// <param name="token">Cancels the database operation.</param>
     /// <returns>The selected row, or null when no matching published row exists.</returns>
     /// <param name="publication">The owner-qualified publication proof for a new publish operation.</param>
+    /// <param name="draft">The owner-prepared draft for a save operation.</param>
     Task<PreparedStrategyCatalogTransition?> PrepareStrategyCatalogTransitionAsync(EnlistedEventTransaction enlisted, CatalogCommandRequest request,
-        string principal, string stream, StrategyCatalogPublicationProof? publication = null, CancellationToken token = default);
+        string principal, string stream, StrategyCatalogPublicationProof? publication = null, PreparedStrategyCatalogDraft? draft = null,
+        CancellationToken token = default);
 
     /// <summary>Project strategy catalog source.</summary>
     /// <param name="enlisted">The enlisted supplied by the caller.</param>

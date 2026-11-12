@@ -110,9 +110,9 @@ public sealed class ConfigurationStrategyCatalogTests
         var factory = Substitute.For<IDbContextFactory>(); var db = Substitute.For<IConfigurationDbContext>(); factory.ConfigurationDb.Returns(db);
         var rows = new Dictionary<CatalogKey, StoredStrategyCatalogDefinition>();
         db.GetStrategyCatalogAsync(Arg.Any<CatalogKey>(), Arg.Any<CancellationToken>()).Returns(c => rows.GetValueOrDefault(c.Arg<CatalogKey>()));
-        db.InsertStrategyCatalogDraftAsync(Arg.Any<StrategyCatalogDefinition>(), 0, Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(c =>
+        db.InsertPreparedStrategyCatalogDraftAsync(Arg.Any<PreparedStrategyCatalogDraft>(), 0, Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(c =>
         {
-            var definition = StrategyCatalogValidation.Freeze(c.Arg<StrategyCatalogDefinition>()); var hash = StrategyCatalogValidation.ContentHash(definition);
+            var definition = StrategyCatalogValidation.Freeze(c.Arg<PreparedStrategyCatalogDraft>().Definition); var hash = StrategyCatalogValidation.ContentHash(definition);
             rows.Add(definition.Key, new(definition, hash, CatalogLifecycleStatus.Draft, DateTime.UtcNow, c.Arg<string>(), null, null, null, null)); return hash;
         });
         var legacy = TradeStrategyFamilySeed.Definitions[0].Create(5901, DateTime.UtcNow, "legacy");

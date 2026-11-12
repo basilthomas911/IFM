@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.Strategy.StrategyCatalog;
 using BenchmarkDotNet.Attributes;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;

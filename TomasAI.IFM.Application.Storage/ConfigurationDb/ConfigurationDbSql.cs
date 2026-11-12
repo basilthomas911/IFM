@@ -371,25 +371,22 @@ WHERE parameter_set_id = $3 AND version = $4 AND status = $5;
             _ => throw new NotSupportedException($"The typed lifecycle for {kind} is not defined yet.")};
         return string.Format(System.Globalization.CultureInfo.InvariantCulture, template, table);
     }
-    internal const string BaselineSourceCut = "SELECT COALESCE(max(eventversion),0) FROM event_log;";
     internal const string BaselineLookupSequence = "SELECT last_value,is_called FROM reference_configuration.lookup_definition_id_seq;";
-    internal const string BaselineStreamRevision = "SELECT COALESCE(max(e.streamversion),0) FROM event_log e JOIN event_stream_id s USING(eventstreamid) WHERE s.eventstream=$1;";
-    internal const string ReadBaselineLatestEvent = "SELECT n.eventtypename,l.eventversion,l.eventpayload FROM event_log l JOIN event_name_id n USING(eventnameid) JOIN event_stream_id s USING(eventstreamid) WHERE s.eventstream=$1 ORDER BY l.streamversion DESC LIMIT 1;";
 
     /// <summary>Parameter-bound persistence statement.</summary>
-    internal const string ConfigurationBaselineStorage_MaterializeAsync_1 = "SELECT COALESCE(jsonb_agg(j || jsonb_build_object('status',0,'content_sealed',false,'effective_from_utc',null,'published_by',null,'retired_at_utc',null,'retired_by',null)),'[]'::jsonb)::text FROM jsonb_array_elements($1::jsonb) j;";
+    internal const string PrepareBaselineCatalogDrafts = "SELECT COALESCE(jsonb_agg(j || jsonb_build_object('status',0,'content_sealed',false,'effective_from_utc',null,'published_by',null,'retired_at_utc',null,'retired_by',null)),'[]'::jsonb)::text FROM jsonb_array_elements($1::jsonb) j;";
 
     /// <summary>Parameter-bound persistence statement.</summary>
-    internal const string ConfigurationBaselineStorage_MaterializeAsync_2 = "SELECT setval(pg_get_serial_sequence('reference_configuration.lookup_definition','id'),$1,$2);";
+    internal const string RestoreBaselineLookupSequence = "SELECT setval(pg_get_serial_sequence('reference_configuration.lookup_definition','id'),$1,$2);";
 
     /// <summary>Parameter-bound persistence statement.</summary>
-    internal const string ConfigurationBaselineStorage_ClaimAsync_1 = "SELECT source_event_id FROM reference_configuration.configuration_baseline_application WHERE baseline_id=$1;";
+    internal const string GetBaselineApplication = "SELECT source_event_id FROM reference_configuration.configuration_baseline_application WHERE baseline_id=$1;";
 
     /// <summary>Parameter-bound persistence statement.</summary>
-    internal const string ConfigurationBaselineStorage_ClaimAsync_2 = "INSERT INTO reference_configuration.configuration_baseline_application(baseline_id,source_event_id,source_cut) VALUES($1,$2,$3);";
+    internal const string InsertBaselineApplication = "INSERT INTO reference_configuration.configuration_baseline_application(baseline_id,source_event_id,source_cut) VALUES($1,$2,$3);";
 
     /// <summary>Parameter-bound persistence statement.</summary>
-    internal const string ConfigurationBaselineStorage_ColumnsAsync_1 = "SELECT column_name,udt_schema,udt_name,is_nullable,COALESCE(column_default,''),is_identity,identity_generation FROM information_schema.columns WHERE table_schema=$1 AND table_name=$2 AND is_generated='NEVER' ORDER BY ordinal_position;";
+    internal const string ReadBaselineColumns = "SELECT column_name,udt_schema,udt_name,is_nullable,COALESCE(column_default,''),is_identity,identity_generation FROM information_schema.columns WHERE table_schema=$1 AND table_name=$2 AND is_generated='NEVER' ORDER BY ordinal_position;";
     internal const string RestoreBaselineCatalogLifecycle3 = "UPDATE reference_configuration.strategy_catalog_version v SET status=2,retired_at_utc=b.retired_at_utc,retired_by=b.retired_by FROM jsonb_populate_recordset(NULL::reference_configuration.strategy_catalog_version,$1::jsonb) b WHERE (b.kind,b.id,b.version)=(v.kind,v.id,v.version) AND b.status=2;";
     internal const string RestoreBaselineCatalogLifecycle2 = "UPDATE reference_configuration.strategy_catalog_version v SET status=1,effective_from_utc=b.effective_from_utc,published_by=b.published_by FROM jsonb_populate_recordset(NULL::reference_configuration.strategy_catalog_version,$1::jsonb) b WHERE (b.kind,b.id,b.version)=(v.kind,v.id,v.version) AND b.status>=1;";
     internal const string RestoreBaselineCatalogLifecycle1 = "UPDATE reference_configuration.strategy_catalog_version v SET content_sealed=true WHERE NOT v.content_sealed AND EXISTS(SELECT 1 FROM jsonb_populate_recordset(NULL::reference_configuration.strategy_catalog_version,$1::jsonb) b WHERE (b.kind,b.id,b.version)=(v.kind,v.id,v.version));";

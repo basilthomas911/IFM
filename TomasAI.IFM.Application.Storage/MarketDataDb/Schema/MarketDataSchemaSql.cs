@@ -81,6 +81,18 @@ public static class MarketDataSchemaSql
     /// <summary>Creates both option-chain policy tables for staged offline migration.</summary>
     public const string OptionChainPoliciesCreate = OptionChainVersionCreate + "\n" + OptionChainCurrentCreate + "\n";
 
+    /// <summary>Creates the historical option-chain tables needed to restore a version-one configuration baseline.</summary>
+    internal const string LegacyOptionChainBaselineCreate = """
+        CREATE SCHEMA IF NOT EXISTS market_data;
+        CREATE TABLE IF NOT EXISTS market_data.strategy_option_chain_parameter_version (
+            set_id uuid, version int, payload text, PRIMARY KEY (set_id, version)
+        );
+        CREATE TABLE IF NOT EXISTS market_data.strategy_option_chain_parameter_current (
+            environment text, set_id uuid, version int, revision bigint, published boolean, payload text,
+            PRIMARY KEY (environment, set_id, version)
+        );
+        """;
+
     public const string IndicatorSeedCoverageCreate = """
         CREATE SCHEMA IF NOT EXISTS market_data;
         CREATE TABLE IF NOT EXISTS market_data.indicator_seed_coverage (

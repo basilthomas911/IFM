@@ -77,6 +77,12 @@ public static class DomainActorIntegrationInfrastructureFixture
         => Environment.GetEnvironmentVariable("IFM_TEST_NATS_URL")
             ?? throw new InvalidOperationException("The domain actor integration fixture has not started.");
 
+    /// <summary>Gets the PostgreSQL connection owned by the disposable assembly fixture.</summary>
+    public static string OwnedPostgresConnectionString
+        => infrastructure.PostgresConnectionString is { Length: > 0 } connection
+            ? connection
+            : throw new InvalidOperationException("The domain actor integration fixture has not started.");
+
     internal static async Task InitializeAsync(string testAssemblyName)
     {
         var isTradeIntegration = testAssemblyName.Contains("TomasAI.IFM.Domain.Trade.IntegratedTests", StringComparison.Ordinal);

@@ -42,6 +42,10 @@ public sealed class StrategyCatalogService(IDbContextFactory factory, IPostgresE
         ArgumentNullException.ThrowIfNull(request);
         ArgumentException.ThrowIfNullOrWhiteSpace(principal);
         var stream = $"StrategyCatalog.{entityId.Format()}";
+        PreparedStrategyCatalogDraft? draft = null;
+        if (request.Operation == CatalogCommandOperation.SaveDraft && request.Definition is { } definition)
+            draft = await StrategyCatalogDraftPreparation.PrepareAsync(database, definition, token).ConfigureAwait(false);
+
         StrategyCatalogPublicationProof? publication = null;
         if (request.Operation == CatalogCommandOperation.Publish && request.Key is { } key
             && request.ExpectedHash is { } hash && request.EffectiveUtc is { } effective)
@@ -64,7 +68,7 @@ public sealed class StrategyCatalogService(IDbContextFactory factory, IPostgresE
         return await unitOfWork.ExecuteOnceAsync<StrategyCatalogSourceEvent?>(async (transaction, cancellationToken) =>
         {
             var prepared = await database.PrepareStrategyCatalogTransitionAsync(
-                transaction, request, principal, stream, publication, cancellationToken).ConfigureAwait(false);
+                transaction, request, principal, stream, publication, draft, cancellationToken).ConfigureAwait(false);
             if (prepared is null) return null;
             var source = new StrategyCatalogSourceEvent
             {

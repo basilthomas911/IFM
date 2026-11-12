@@ -6,6 +6,7 @@ using Npgsql;
 using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Shared.EventSourcing.ViewModels;
 using TomasAI.IFM.Shared.Exceptions;
 
 
@@ -109,6 +110,24 @@ public sealed class EnlistedEventTransaction : IEnlistedPostgresTransaction
             .ConfigureAwait(false)) values.Add(map(reader));
         return values;
     }
+
+    /// <summary>Reads the highest committed event version visible in this transaction.</summary>
+    public async Task<long> ReadCommittedEventCutAsync(CancellationToken cancellationToken)
+        => (long)(await ScalarAsync(EventSourceDbSql.ReadCommittedEventCut, [], cancellationToken)
+            .ConfigureAwait(false))!;
+
+    /// <summary>Reads the committed head revision for the requested stream in this transaction.</summary>
+    public async Task<long> ReadCommittedStreamRevisionAsync(string stream, CancellationToken cancellationToken)
+        => (long)(await ScalarAsync(EventSourceDbSql.ReadCommittedStreamRevision, [stream], cancellationToken)
+            .ConfigureAwait(false))!;
+
+    /// <summary>Reads the latest committed event and its original payload for the requested stream.</summary>
+    public async Task<EventStreamReadModel?> ReadLatestCommittedEventAsync(string stream, CancellationToken cancellationToken)
+        => (await QueryAsync(EventSourceDbSql.ReadLatestCommittedEvent, [stream], MapToLatestCommittedEvent, cancellationToken)
+            .ConfigureAwait(false)).SingleOrDefault();
+
+    private static EventStreamReadModel MapToLatestCommittedEvent(System.Data.Common.DbDataReader row)
+        => new() { EventTypeName = row.GetString(0), EventVersion = row.GetInt64(1), EventData = row.GetFieldValue<byte[]>(2) };
 
     /// <summary>Commits a full sidecar checkpoint at a known source revision without changing the source stream.</summary>
     public async Task<bool> AppendAggregateCheckpointAsync(string stream, string sidecar, long sourceRevision,

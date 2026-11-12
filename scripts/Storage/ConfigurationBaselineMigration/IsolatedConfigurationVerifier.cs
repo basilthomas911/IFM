@@ -2,13 +2,11 @@ using System.Globalization;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using TomasAI.IFM.Application.Storage.ConfigurationDb;
-using TomasAI.IFM.Application.EventSourcing.Persistence;
 using TomasAI.IFM.Application.Storage.ConfigurationDb.Schema;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.MarketDataDb.Schema;
 using TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
 using TomasAI.IFM.Framework.Storage;
-using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Shared.Storage;
 
 namespace TomasAI.IFM.Storage.Tools;
@@ -22,7 +20,7 @@ internal static class IsolatedConfigurationVerifier
             ?? throw new InvalidOperationException("Set IFM_CONFIGURATION_BASELINE_VERIFY_TARGET to an empty isolated database.");
         var identity = new NpgsqlConnectionStringBuilder(connection);
         if (identity.Host is not ("localhost" or "127.0.0.1") ||
-            !identity.Database.StartsWith("ifm_configuration_rebuild_qualification_", StringComparison.Ordinal))
+            identity.Database?.StartsWith("ifm_configuration_rebuild_qualification_", StringComparison.Ordinal) != true)
             throw new InvalidOperationException("Rebuild verification requires the isolated local qualification database prefix.");
         var settings = new DbConnectionSettings()
             .Add(EventSourceActorDbContext.EventSourceActorDbConnection, connection, "System.Data.Postgres")
@@ -35,7 +33,7 @@ internal static class IsolatedConfigurationVerifier
             await db.ExecuteAsync(MarketDataSchemaSql.OptionChainPoliciesCreate, [], token).ConfigureAwait(false);
             return true;
         }).ConfigureAwait(false);
-        var baseline = new ConfigurationProjectionBaseline(transactions);
+        var baseline = ConfigurationBaselineServices.Create(settings, transactions);
         await baseline.MaterializeAsync(source).ConfigureAwait(false);
         await baseline.MaterializeAsync(source).ConfigureAwait(false);
         await transactions.ExecuteOnceAsync(async (db, token) =>

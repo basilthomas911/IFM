@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.Strategy.StrategyCatalog;
 using TomasAI.IFM.Shared.EventProjector.ReadModels;
 using TomasAI.IFM.Domain.Reference.Repository;
 using System.Reflection;

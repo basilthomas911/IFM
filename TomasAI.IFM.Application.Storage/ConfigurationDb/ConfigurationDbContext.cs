@@ -44,6 +44,39 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
     /// <summary>Gets the configuration database write capability.</summary>
     public IConfigurationDbWriteContext DbWriter => this;
 
+    internal sealed record BaselineColumnLayout(
+        string Name, string TypeSchema, string TypeName, string Nullable, string Default, string Identity, string? IdentityGeneration);
+
+    internal static BaselineColumnLayout MapToBaselineColumn(System.Data.Common.DbDataReader row)
+        => new(row.GetString(0), row.GetString(1), row.GetString(2), row.GetString(3), row.GetString(4),
+            row.GetString(5), row.IsDBNull(6) ? null : row.GetString(6));
+
+    internal static (long Last, bool Called) MapToBaselineLookupSequence(System.Data.Common.DbDataReader row)
+        => (row.GetInt64(0), row.GetBoolean(1));
+
+    internal static (string Request, string Fact) MapToCatalogReceipt(System.Data.Common.DbDataReader row)
+        => (row.GetString(0), row.GetString(1));
+
+    /// <inheritdoc/>
+    public Task<ConfigurationBaselineDatabaseImage> CaptureConfigurationBaselineAsync(EnlistedEventTransaction transaction,
+        CancellationToken cancellationToken = default)
+        => this.CaptureBaselineImageAsync(transaction, cancellationToken);
+
+    /// <inheritdoc/>
+    public bool MatchesConfigurationBaselineLayout(int schemaVersion, IEnumerable<string> tables)
+        => this.MatchesBaselineLayout(schemaVersion, tables);
+
+    /// <inheritdoc/>
+    public Task<bool> ClaimConfigurationBaselineAsync(IEnlistedPostgresTransaction transaction, Guid baselineId,
+        long sourceEventId, long sourceCut, CancellationToken cancellationToken = default)
+        => this.ClaimConfigurationBaselineCoreAsync(transaction, baselineId, sourceEventId, sourceCut, cancellationToken);
+
+    /// <inheritdoc/>
+    public Task<bool> MaterializeConfigurationBaselineAsync(IEnlistedPostgresTransaction transaction,
+        ConfigurationProjectionBaselineEvent source, CancellationToken cancellationToken = default)
+        => this.RestoreBaselineImageAsync(transaction, source, cancellationToken);
+
+
     /// <summary>Inserts an immutable Regime Discovery draft.</summary>
     /// <param name = "parameterSet">The validated parameter set.</param>
     /// <param name = "description">The description.</param>
@@ -439,20 +472,9 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
             .ConfigureAwait(false);
     }
 
-    /// <summary>Inserts an immutable strategy-catalog draft and its normalized children.</summary>
-    /// <param name = "definition">The validated definition.</param>
-    /// <param name = "expectedPreviousVersion">The expected previous version.</param>
-    /// <param name = "createdBy">The author.</param>
-    /// <param name = "cancellationToken">The cancellation token.</param>
-    /// <returns>The canonical content digest.</returns>
-     // Each operation owns its connection/transaction. Concurrent calls on a resolved context cannot
-    // share the mutable ambient repository transaction. Connections still use the framework provider.
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3267", Justification = "Retain sequential awaited database operations and explicit loops without allocating LINQ iterators on persistence paths.")]
-        /// <param name="definition">The definition supplied for this transaction or query.</param>
-    /// <param name="expectedPreviousVersion">The expectedPreviousVersion supplied for this transaction or query.</param>
-    /// <param name="createdBy">The createdBy supplied for this transaction or query.</param>
-    /// <param name="cancellationToken">The cancellationToken supplied for this transaction or query.</param>
-    public async Task<string> InsertStrategyCatalogDraftAsync(StrategyCatalogDefinition definition, int expectedPreviousVersion, string createdBy, CancellationToken cancellationToken = default)
+    /// <inheritdoc/>
+    public async Task<string> InsertPreparedStrategyCatalogDraftAsync(PreparedStrategyCatalogDraft draft, int expectedPreviousVersion,
+        string createdBy, CancellationToken cancellationToken = default)
     {
         var connection = await this.OpenCatalogAsync(cancellationToken)
             .ConfigureAwait(false);
@@ -460,7 +482,7 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
         var transaction = await connection.BeginTransactionAsync(cancellationToken)
             .ConfigureAwait(false);
         await using var transactionDisposal = transaction.ConfigureAwait(false);
-        var hash = await this.InsertStrategyCatalogDraftCoreAsync(connection, transaction, definition, expectedPreviousVersion, createdBy, cancellationToken)
+        var hash = await this.InsertStrategyCatalogDraftCoreAsync(connection, transaction, draft, expectedPreviousVersion, createdBy, cancellationToken)
             .ConfigureAwait(false);
         await transaction.CommitAsync(cancellationToken)
             .ConfigureAwait(false);
@@ -551,10 +573,12 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
     /// <param name="principal">The accepting user or service.</param>
     /// <param name="stream">The owning catalog stream.</param>
     /// <param name="publication">The exact graph proof for a new publish, or null for other transitions.</param>
+    /// <param name="draft">The prepared draft for a save operation.</param>
     /// <param name="token">Cancels the write.</param>
     /// <returns>The persisted predecessor and candidate images, or null for an accepted retry.</returns>
     public async Task<PreparedStrategyCatalogTransition?> PrepareStrategyCatalogTransitionAsync(EnlistedEventTransaction enlisted, CatalogCommandRequest request,
-        string principal, string stream, StrategyCatalogPublicationProof? publication = null, CancellationToken token = default)
+        string principal, string stream, StrategyCatalogPublicationProof? publication = null, PreparedStrategyCatalogDraft? draft = null,
+        CancellationToken token = default)
     {
         ArgumentNullException.ThrowIfNull(enlisted);
         var key = request.Operation == CatalogCommandOperation.SaveDraft ? request.Definition?.Key : request.Key;
@@ -594,13 +618,13 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
             .ConfigureAwait(false);
         switch (request.Operation)
         {
-            case CatalogCommandOperation.SaveDraft when request.Definition is { } definition:
+            case CatalogCommandOperation.SaveDraft when draft is not null && draft.Definition.Key == key:
                 if (before is not null &&
-                    string.Equals(before.ContentHash, CanonicalContentHash(Canonicalize(definition)), StringComparison.Ordinal) &&
+                    string.Equals(before.ContentHash, CanonicalContentHash(draft.Definition), StringComparison.Ordinal) &&
                     string.Equals(before.CreatedBy, principal, StringComparison.Ordinal) &&
                     key.Version == request.ExpectedPreviousVersion + 1)
                     return null;
-                await this.InsertStrategyCatalogDraftCoreAsync(connection, transaction, definition, request.ExpectedPreviousVersion, principal, token)
+                await this.InsertStrategyCatalogDraftCoreAsync(connection, transaction, draft, request.ExpectedPreviousVersion, principal, token)
             .ConfigureAwait(false);
                 break;
             case CatalogCommandOperation.Publish when request.ExpectedHash is { } publishHash && request.EffectiveUtc is { } effective:
@@ -1050,7 +1074,7 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
         var result=new List<ParameterSetVersion>();
         foreach(var row in page)
         {
-            var metadata=await this.ReadCatalogAsync<ParameterVersionMetadata>(session,row.Id,row.Version,token)
+            var metadata=await this.ReadCatalogProjectionAsync<ParameterVersionMetadata>(session,row.Id,row.Version,token)
             .ConfigureAwait(false)
                 ??throw new InvalidDataException("Missing parameter metadata");
             var values=await GetTypedParameterValueAsync(session,row.Id,checked((int)row.Version),token)
@@ -1260,7 +1284,7 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
         var versions = new List<ParameterSetVersion>(rows.Count);
         foreach (var row in rows)
         {
-            var metadata = await this.ReadCatalogAsync<ParameterVersionMetadata>(session, setId, row.Version, cancellationToken)
+            var metadata = await this.ReadCatalogProjectionAsync<ParameterVersionMetadata>(session, setId, row.Version, cancellationToken)
             .ConfigureAwait(false)
                 ?? throw new InvalidDataException("Missing parameter metadata");
             var values = await GetTypedParameterValueAsync(session, setId, checked((int)row.Version), cancellationToken)
@@ -1342,7 +1366,7 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
         var versions = new List<ParameterSetVersion>();
         foreach (var reference in assignments.Where(item => item.Enabled).Select(item => item.Reference).Distinct())
         {
-            var metadata = await this.ReadCatalogAsync<ParameterVersionMetadata>(session, reference.SetId, reference.Version, cancellationToken)
+            var metadata = await this.ReadCatalogProjectionAsync<ParameterVersionMetadata>(session, reference.SetId, reference.Version, cancellationToken)
             .ConfigureAwait(false)
                 ?? throw new InvalidOperationException("PARAM.EXACT_VERSION_MISSING");
             var values = await GetTypedParameterValueAsync(session, reference.SetId, reference.Version, cancellationToken)
@@ -1425,7 +1449,7 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>The typed revision, or null when it does not exist.</returns>
     public Task<ParameterAssignmentRevision?> GetParameterAssignmentProjectionAsync(IEnlistedPostgresTransaction transaction, Guid assignmentId, long revision, CancellationToken cancellationToken=default)
-        => this.ReadCatalogAsync<ParameterAssignmentRevision>(transaction,assignmentId,revision,cancellationToken);
+        => this.ReadCatalogProjectionAsync<ParameterAssignmentRevision>(transaction,assignmentId,revision,cancellationToken);
 
     /// <summary>Reads and verifies the typed before/after audit values for an operation.</summary>
     /// <param name="transaction">The caller-owned PostgreSQL transaction.</param>
@@ -1433,7 +1457,7 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>The immutable audit entry, or null when absent.</returns>
     public Task<ParameterAuditEntry?> GetParameterAuditProjectionAsync(IEnlistedPostgresTransaction transaction, Guid operationId, CancellationToken cancellationToken=default)
-        => this.ReadCatalogAsync<ParameterAuditEntry>(transaction,operationId,1,cancellationToken);
+        => this.ReadCatalogProjectionAsync<ParameterAuditEntry>(transaction,operationId,1,cancellationToken);
 
     /// <summary>Loads a frozen startup projection, resolving each exact version from typed value tables.</summary>
     /// <param name="transaction">The caller-owned PostgreSQL transaction.</param>
@@ -1442,7 +1466,7 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
     /// <returns>The verified startup generation, or null when absent.</returns>
     public async Task<ParameterStartupRun?> GetParameterStartupProjectionAsync(IEnlistedPostgresTransaction transaction, Guid runId, CancellationToken cancellationToken=default)
     {
-        var stored=await this.ReadCatalogAsync<ParameterStartupProjection>(transaction,runId,1,cancellationToken)
+        var stored=await this.ReadCatalogProjectionAsync<ParameterStartupProjection>(transaction,runId,1,cancellationToken)
             .ConfigureAwait(false);
         if(stored is null)return null;
         var versions=new List<ParameterSetVersion>();
@@ -1462,7 +1486,7 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>The typed report, or null when absent.</returns>
     public Task<ParameterSignalStartupReport?> GetParameterStartupReportProjectionAsync(IEnlistedPostgresTransaction transaction, Guid runId, CancellationToken cancellationToken=default)
-        => this.ReadCatalogAsync<ParameterSignalStartupReport>(transaction,runId,1,cancellationToken);
+        => this.ReadCatalogProjectionAsync<ParameterSignalStartupReport>(transaction,runId,1,cancellationToken);
 
     /// <summary>Maps the selected database columns in their query ordinal order.</summary>
     private static global::TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogSourceEvent MapToGetStrategyCatalogSourceHeadsRow1(global::System.Data.Common.DbDataReader reader) =>             EventLogMessagePackCodec.Shared.Deserialize(reader.GetString(1), reader.GetInt64(0), (byte[])reader.GetValue(2))

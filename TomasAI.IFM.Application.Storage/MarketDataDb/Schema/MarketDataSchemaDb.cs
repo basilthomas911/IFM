@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.SchemaDb;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
@@ -27,4 +28,11 @@ public sealed class MarketDataSchemaDb(IDbConnectionSettings connectionSettings,
 
     /// <summary>Gets the dependency-ordered table and index definitions.</summary>
     protected override IReadOnlyList<SchemaObjectDefinition> Definitions => MarketDataSchemaSql.GetDefinitions();
+
+    /// <summary>Provisions historical option-chain tables for an offline version-one baseline restore.</summary>
+    /// <param name="transaction">The offline restore transaction.</param>
+    /// <param name="cancellationToken">Cancels schema preparation.</param>
+    /// <returns>Completion of schema preparation.</returns>
+    public static Task CreateLegacyOptionChainBaselineTablesAsync(IEnlistedPostgresTransaction transaction, CancellationToken cancellationToken)
+        => transaction.ExecuteAsync(MarketDataSchemaSql.LegacyOptionChainBaselineCreate, [], cancellationToken);
 }

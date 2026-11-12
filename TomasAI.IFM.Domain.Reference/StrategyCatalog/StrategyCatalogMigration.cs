@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.Strategy.StrategyCatalog;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;

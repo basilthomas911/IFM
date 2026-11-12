@@ -13,6 +13,7 @@ using TomasAI.IFM.Application.Api.Nats.Client;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.ConfigurationDb;
 using TomasAI.IFM.Application.Storage.ConfigurationDb.Schema;
+using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.TradeDb.Schema;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
@@ -71,13 +72,16 @@ public sealed class RegimeDiscoveryVerificationFixture : IAsyncDisposable
         TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint> source,
         Action<IServiceCollection>? configure = null)
     {
+        var isolatedConnection = DomainActorIntegrationInfrastructureFixture.OwnedPostgresConnectionString;
+        var expectedDatabase = PostgresDatabaseIdentity.Parse(isolatedConnection);
         MarketConditionPipelineCommandProbe probe = null!;
         var factory = source.WithWebHostBuilder(builder =>
         {
             // These scenarios publish and verify their own effective parameter sets. Keep this child host on the
             // database-backed resolution path so the immutable Development startup snapshot cannot select a
             // different parameter identity than the signal cache prepared below.
-            builder.UseSetting("ParameterSets:SingleUserDevelopmentEnabled", "false")
+            builder.UseSetting("IFM_TEST_POSTGRES_CONNECTION", isolatedConnection)
+                .UseSetting("ParameterSets:SingleUserDevelopmentEnabled", "false")
                 .UseSetting("IFM_TEST_ACTOR_DOMAIN", "TomasAI.IFM.Domain.Trade,TomasAI.IFM.Domain.MarketData.Analytics");
             builder.ConfigureServices(services =>
             {
@@ -108,12 +112,25 @@ public sealed class RegimeDiscoveryVerificationFixture : IAsyncDisposable
                 HostedServiceOverrides.Suppress<UsTreasuryRefreshHostedService>(services);
             });
         });
-        _ = factory.CreateClient();
-        var supervisor = factory.Services.GetRequiredService<IActorSupervisor>();
+        try
+        {
+            using var client = factory.CreateClient();
+            var databases = factory.Services.GetRequiredService<IDbContextFactory>();
+            if (PostgresDatabaseIdentity.Parse(databases.ConfigurationDb.ConnectionString) != expectedDatabase
+                || PostgresDatabaseIdentity.Parse(databases.TradeDb.ConnectionString) != expectedDatabase
+                || PostgresDatabaseIdentity.Parse(databases.ActorEventSourceDb.ConnectionString) != expectedDatabase)
+                throw new InvalidOperationException("Regime Discovery verification requires the PostgreSQL database owned by the test fixture.");
 
-        var publisher = factory.Services.GetRequiredService<IActorProducer>();
-        await publisher.StartAsync(new ActorMailboxId(ActorType.Realtime, $"RdvPublisher{Guid.NewGuid():N}"));
-        return new RegimeDiscoveryVerificationFixture(factory, supervisor, publisher, probe);
+            var supervisor = factory.Services.GetRequiredService<IActorSupervisor>();
+            var publisher = factory.Services.GetRequiredService<IActorProducer>();
+            await publisher.StartAsync(new ActorMailboxId(ActorType.Realtime, $"RdvPublisher{Guid.NewGuid():N}"));
+            return new RegimeDiscoveryVerificationFixture(factory, supervisor, publisher, probe);
+        }
+        catch
+        {
+            await factory.DisposeAsync().ConfigureAwait(false);
+            throw;
+        }
     }
 
     public async Task<IReadOnlyDictionary<TimeFrameType, RegimeDiscoveryParameterSet>> PrepareAsync(
