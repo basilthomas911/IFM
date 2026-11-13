@@ -595,12 +595,17 @@ internal static class SecuritiesDbContextExtensions
                 if (cursor is null || !string.Equals(cursor.Symbol, request.Symbol, StringComparison.Ordinal) || cursor.PageSize != request.PageSize)
                     throw new ArgumentException("The option catalog cursor belongs to a different query.", nameof(request));
             }
-        var preparedParameters14 = new NativeOptionPageParameters(request.Symbol, cursor?.Month, cursor?.OptionType, cursor?.Strike, cursor?.ContractId, request.PageSize + 1);
-
-            var rows = await context.DbFactory.SecuritiesDb.Use("Securities.NativeOptionPage", SecuritiesDbSql.GetNativeOptionContractsPage)
-            .SetParameters(preparedParameters14)
-            .ExecuteQueryAsync(SecuritiesDbContext.MapToFuturesOptionContract!, token)
-            .ConfigureAwait(false);
+            var db = context.DbFactory.SecuritiesDb;
+            var limit = request.PageSize + 1;
+            var rows = cursor is null
+                ? await db.Use("Securities.NativeOptionFirstPage", SecuritiesDbSql.GetNativeOptionContractsFirstPage)
+                    .SetParameters(new NativeOptionFirstPageParameters(request.Symbol, limit))
+                    .ExecuteQueryAsync(SecuritiesDbContext.MapToFuturesOptionContract!, token)
+                    .ConfigureAwait(false)
+                : await db.Use("Securities.NativeOptionContinuationPage", SecuritiesDbSql.GetNativeOptionContractsContinuationPage)
+                    .SetParameters(new NativeOptionContinuationParameters(request.Symbol, cursor.Month, cursor.OptionType, cursor.Strike, cursor.ContractId, limit))
+                    .ExecuteQueryAsync(SecuritiesDbContext.MapToFuturesOptionContract!, token)
+                    .ConfigureAwait(false);
             var items = rows.Take(request.PageSize).ToArray();
             var last = items.LastOrDefault();
             var continuation = rows.Count > request.PageSize && last is not null ? Convert.ToBase64String(System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(new SecuritiesDbContext.NativeOptionCursor(request.Symbol, request.PageSize, last.ContractMonth, last.OptionType.ToString(), last.StrikePrice, last.ContractId))) : null;

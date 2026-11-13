@@ -1220,16 +1220,40 @@ public static class EventSourceActorDbSql
         ORDER BY l.eventversion;
         """;
 
-    /// <summary>SQL for read pending business events.</summary>
-    internal const string ReadPendingBusinessEvents =
-        """
-        SELECT el.eventstreamid,en.eventname,en.eventtypename,el.eventversion,el.eventpayload,el.commandid,
-            el.eventtimestamp::text,el.streamversion
-        FROM event_log el
-        JOIN event_name_id en ON en.eventnameid=el.eventnameid
-        WHERE en.eventname=ANY($1) AND NOT EXISTS(SELECT 1 FROM business_subscription_projection_receipt r WHERE r.event_id=el.eventversion)
-        ORDER BY el.eventversion LIMIT 32;
+    const string PendingJournalStart = """
+        WITH pending AS MATERIALIZED (
+            SELECT eligible.eventversion
+            FROM event_name_id en
+            CROSS JOIN LATERAL (
+                SELECT e.eventversion FROM event_log e
+                WHERE e.eventnameid=en.eventnameid AND NOT EXISTS (
+
         """;
+
+    // A row beyond the first 32 for its event-name ID cannot be in the global first 32.
+    const string PendingJournalPerNameLimit = """
+
+                )
+                ORDER BY e.eventversion LIMIT 32
+            ) eligible
+
+        """;
+
+    const string PendingJournalPayloads = """
+
+            ORDER BY eligible.eventversion LIMIT 32
+        )
+        SELECT e.eventstreamid,n.eventname,n.eventtypename,e.eventversion,e.eventpayload,e.commandid,
+               e.eventtimestamp::text,e.streamversion
+        FROM pending p JOIN event_log e ON e.eventversion=p.eventversion
+        JOIN event_name_id n ON n.eventnameid=e.eventnameid
+        ORDER BY e.eventversion;
+        """;
+
+    /// <summary>Reads the oldest business events without a receipt.</summary>
+    internal const string ReadPendingBusinessEvents = PendingJournalStart
+        + "SELECT 1 FROM business_subscription_projection_receipt r WHERE r.event_id=e.eventversion"
+        + PendingJournalPerNameLimit + "WHERE en.eventname=ANY($1)" + PendingJournalPayloads;
 
     /// <summary>SQL for read pending business handoffs.</summary>
     internal const string ReadPendingBusinessHandoffs =
@@ -1244,17 +1268,9 @@ public static class EventSourceActorDbSql
         """;
 
     /// <summary>Reads event log rows.</summary>
-    internal const string ReadPendingRiskJournalEventsByName =
-        """
-        SELECT e.eventstreamid,n.eventname,n.eventtypename,e.eventversion,e.eventpayload,e.commandid,
-            e.eventtimestamp::text,e.streamversion
-        FROM event_log e JOIN event_name_id n ON n.eventnameid=e.eventnameid
-        WHERE n.eventname=$1
-          AND NOT EXISTS(
-            SELECT 1 FROM risk_history_projection_receipt r
-            WHERE r.projection_name=$2 AND r.event_id=e.eventversion)
-        ORDER BY e.eventversion LIMIT 32;
-        """;
+    internal const string ReadPendingRiskJournalEventsByName = PendingJournalStart
+        + "SELECT 1 FROM risk_history_projection_receipt r WHERE r.event_id=e.eventversion AND r.projection_name=$2"
+        + PendingJournalPerNameLimit + "WHERE en.eventname=$1" + PendingJournalPayloads;
 
     /// <summary>SQL for read prior business event.</summary>
     internal const string ReadPriorBusinessEvent =
@@ -1324,17 +1340,9 @@ public static class EventSourceActorDbSql
         """;
 
     /// <summary>Reads event log rows.</summary>
-    internal const string RiskHistoryJournal_PageAsync_1 =
-        """
-        SELECT e.eventstreamid,n.eventname,n.eventtypename,e.eventversion,e.eventpayload,e.commandid,
-            e.eventtimestamp::text,e.streamversion
-        FROM event_log e JOIN event_name_id n ON n.eventnameid=e.eventnameid
-        WHERE n.eventname='WorkflowStrategyStateUpdatedEvent'
-          AND NOT EXISTS(
-            SELECT 1 FROM risk_history_projection_receipt r
-            WHERE r.projection_name=$1 AND r.event_id=e.eventversion)
-        ORDER BY e.eventversion LIMIT 32;
-        """;
+    internal const string RiskHistoryJournal_PageAsync_1 = PendingJournalStart
+        + "SELECT 1 FROM risk_history_projection_receipt r WHERE r.event_id=e.eventversion AND r.projection_name=$1"
+        + PendingJournalPerNameLimit + "WHERE en.eventname='WorkflowStrategyStateUpdatedEvent'" + PendingJournalPayloads;
 
     /// <summary>Inserts risk history projection issue rows.</summary>
     internal const string RiskHistoryJournal_QuarantineConflictAsync_1 =

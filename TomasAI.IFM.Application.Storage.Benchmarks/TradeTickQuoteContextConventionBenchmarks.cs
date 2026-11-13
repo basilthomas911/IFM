@@ -14,9 +14,9 @@ namespace TomasAI.IFM.Application.Storage.Benchmarks;
 [MemoryDiagnoser, ThreadingDiagnoser]
 public class TradeTickQuoteContextConventionBenchmarks
 {
-    const string Keyspace = "ifm_dbcontext_benchmark";
-    const int Port = 59042;
-    const string Connection = "Contact Points=127.0.0.1;Port=59042;Default Keyspace=ifm_dbcontext_benchmark";
+    internal const string Keyspace = "ifm_dbcontext_benchmark";
+    internal const int Port = 59042;
+    internal const string Connection = "Contact Points=127.0.0.1;Port=59042;Default Keyspace=ifm_dbcontext_benchmark";
     static readonly DateOnly Date = new(2026, 11, 10);
     static readonly DateTime At = new(2026, 11, 10, 14, 0, 0, DateTimeKind.Utc);
     TradeTickQuoteDbContext database = null!;

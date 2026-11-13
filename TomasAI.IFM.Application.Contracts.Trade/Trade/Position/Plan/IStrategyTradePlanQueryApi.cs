@@ -10,7 +10,8 @@ public interface IStrategyTradePlanQueryApi
 {
     Task<ServiceResult<StrategyTradePlanChartSeries>> GetIronCondorChartAsync(StrategyPositionId positionId, DateOnly valueDate, CancellationToken cancellationToken = default);
     /// <summary>Reads only the requested offset window, anchored to a revision for stable scrolling.</summary>
-    Task<ServiceResult<StrategyTradePlanHistoryPage>> GetIronCondorHistoryPageAsync(StrategyPositionId positionId, DateOnly valueDate, int offset, int pageSize, long? maximumRevision = null, CancellationToken cancellationToken = default);
+    Task<ServiceResult<StrategyTradePlanHistoryPage>> GetIronCondorHistoryPageAsync(StrategyPositionId positionId, DateOnly valueDate,
+        int offset, int pageSize, long? maximumRevision = null, CancellationToken cancellationToken = default, byte[]? pagingState = null);
 
     Task<ServiceResult<StrategyTradePlanSnapshot?>> GetCurrentIronCondorAsync(
         StrategyPositionId positionId, DateOnly valueDate, CancellationToken cancellationToken = default);

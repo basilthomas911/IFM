@@ -33,6 +33,12 @@ public sealed class TradePlanDbContext(
         DateOnly valueDate, int offset, int pageSize, long? maximumRevision = null, CancellationToken cancellationToken = default)
         => this.OpenOffsetHistoryCoreAsync(positionId, strategy, valueDate, offset, pageSize, maximumRevision, cancellationToken);
 
+    /// <inheritdoc />
+    public Task<ITradePlanOffsetReadSession> OpenHistoryPageAsync(StrategyPositionId positionId, TradeStrategyKind strategy, DateOnly valueDate,
+        int offset, int pageSize, long? maximumRevision, byte[]? pagingState, CancellationToken cancellationToken = default)
+        => this.OpenOffsetHistoryCoreAsync(positionId, strategy, valueDate, offset, pageSize, maximumRevision,
+            cancellationToken, returnContinuation: true, pagingState: pagingState);
+
     /// <summary>Reads chart range from the committed projection.</summary>
     /// <param name="positionId">The position id supplied by the caller.</param>
     /// <param name="firstValueDate">The first value date supplied by the caller.</param>

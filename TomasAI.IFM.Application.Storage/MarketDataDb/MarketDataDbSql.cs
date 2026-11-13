@@ -1051,22 +1051,21 @@ public static class MarketDataDbSql
     /// <summary>SQL for get option chain statistics.</summary>
     internal const string GetOptionChainStatistics =
         """
-        WITH scope AS (
-            SELECT contractid, valuedate, volume, volumevaluedate, openinterest, openinterestvaluedate
+        WITH volumes AS (
+            SELECT DISTINCT ON (contractid) contractid, volume, volumevaluedate
             FROM market_data.futures_option_chain_quote_data
             WHERE underlyingcontractid = $1 AND expirydate = $2 AND valuedate <= $3
-        ), volumes AS (
-            SELECT DISTINCT ON (contractid) contractid, volume, volumevaluedate FROM scope
-            WHERE volume IS NOT NULL AND volume >= 0 AND volumevaluedate IS NOT NULL AND volumevaluedate <= $3
+                AND volume >= 0 AND volumevaluedate IS NOT NULL AND volumevaluedate <= $3
             ORDER BY contractid, volumevaluedate DESC, valuedate DESC
         ), interest AS (
-            SELECT DISTINCT ON (contractid) contractid, openinterest, openinterestvaluedate FROM scope
-            WHERE openinterest IS NOT NULL AND openinterest >= 0 AND openinterestvaluedate IS NOT NULL
-            AND openinterestvaluedate <= $3
+            SELECT DISTINCT ON (contractid) contractid, openinterest, openinterestvaluedate
+            FROM market_data.futures_option_chain_quote_data
+            WHERE underlyingcontractid = $1 AND expirydate = $2 AND valuedate <= $3
+                AND openinterest >= 0 AND openinterestvaluedate IS NOT NULL AND openinterestvaluedate <= $3
             ORDER BY contractid, openinterestvaluedate DESC, valuedate DESC
         )
         SELECT COALESCE(v.contractid, i.contractid), v.volume, v.volumevaluedate, i.openinterest, i.openinterestvaluedate
-        FROM volumes v full OUTER JOIN interest i ON v.contractid = i.contractid;
+        FROM volumes v FULL OUTER JOIN interest i ON v.contractid = i.contractid;
         """;
 
     /// <summary>GetOptionIvMetricHistory database statement.</summary>

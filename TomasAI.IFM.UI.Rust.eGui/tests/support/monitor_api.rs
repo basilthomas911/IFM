@@ -85,7 +85,7 @@ async fn monitor_queries_and_feed_intent_use_exact_identity_api_dates_and_existi
             .plan_revision,
         Some(7)
     );
-    let page = api::plan_page(&b, &r, scope, context.value_date, 0, 100, None, deadline())
+    let page = api::plan_page(&b, &r, scope, context.value_date, 0, 100, None, None, deadline())
         .await
         .unwrap();
     assert_eq!(page.maximum_revision, Some(7));
@@ -98,6 +98,7 @@ async fn monitor_queries_and_feed_intent_use_exact_identity_api_dates_and_existi
             0,
             100,
             Some(7),
+            None,
             deadline()
         )
         .await
@@ -184,6 +185,7 @@ async fn monitor_queries_and_feed_intent_use_exact_identity_api_dates_and_existi
             0,
             100,
             Some(7),
+            None,
             deadline()
         )
         .await

@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Npgsql;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Domain.Trade.Shared;
@@ -34,6 +35,9 @@ internal static class TradePlanDbContextExtensions
         /// <summary>Substitutes the allowlisted table in a trade-plan query template.</summary>
         internal string BuildTradePlanStatement(string template) =>
             string.Format(CultureInfo.InvariantCulture, template, table);
+
+        internal string PageScope(object?[] scope) =>
+            Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(table + "|" + JsonSerializer.Serialize(scope))));
     }
 
     extension(TradePlanDbContext context)
@@ -127,10 +131,12 @@ internal static class TradePlanDbContextExtensions
     }
 
     internal Task<ITradePlanOffsetReadSession> OpenOffsetHistoryCoreAsync(StrategyPositionId position, TradeStrategyKind strategy,
-        DateOnly date, int offset, int size, long? maximumRevision, CancellationToken token)
+        DateOnly date, int offset, int size, long? maximumRevision, CancellationToken token,
+        bool returnContinuation = false, byte[]? pagingState = null)
     {
         var table = "trade_plan." + strategy.ToTradePlanTable();
-        return PostgresTradePlanOffsetReadSession.OpenAsync(context.ConnectionString, table, position, date, offset, size, maximumRevision, token);
+        return PostgresTradePlanOffsetReadSession.OpenAsync(context.ConnectionString, table, position, date, offset, size,
+            maximumRevision, token, returnContinuation, pagingState);
     }
 
     internal Task<QueryPage<StrategyTradePlanSnapshot>> GetHistoryAsyncCore(StrategyPositionId position, TradeStrategyKind strategy, DateOnly date, int size, byte[]? cursor = null, CancellationToken token = default)
@@ -158,7 +164,7 @@ internal static class TradePlanDbContextExtensions
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2100", Justification = "This storage executor accepts application SQL from reviewed schema/query contracts; runtime values are sent as bound parameters rather than interpolated into SQL.")]
     async Task<QueryPage<T>> ReadPageAsync<T>(string table, string filter, object?[] scope, (string Name, string Type)[] order, int size, byte[]? cursor, CancellationToken token)
     {
-        var scopeId = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(table + "|" + JsonSerializer.Serialize(scope))));
+        var scopeId = table.PageScope(scope);
         var values = scope.ToList();
         var columns = string.Join(',', order.Select(column => column.Name));
         if (cursor is not null)
@@ -267,11 +273,24 @@ internal sealed class PostgresTradePlanOffsetReadSession(
     NpgsqlConnection connection, NpgsqlTransaction transaction, string table, object?[] scope, StrategyTradePlanHistoryPage page)
     : ITradePlanOffsetReadSession
 {
+    sealed record HistoryCursor(
+        [property: JsonRequired] string Scope,
+        [property: JsonRequired] long MaximumRevision,
+        [property: JsonRequired] long LastRevision,
+        [property: JsonRequired] int Offset);
+
     public StrategyTradePlanHistoryPage Page => page;
 
     internal static async Task<ITradePlanOffsetReadSession> OpenAsync(string connectionString, string table, StrategyPositionId position,
-        DateOnly date, int offset, int size, long? maximumRevision, CancellationToken token)
+        DateOnly date, int offset, int size, long? maximumRevision, CancellationToken token,
+        bool returnContinuation = false, byte[]? pagingState = null)
     {
+        var scope = (object?[])new GetTradePlan(position.Trade.PortfolioId, position.Trade.FundId,
+            position.Trade.OrderId, position.Trade.TradeId, position.PositionId, date).Bind();
+        var scopeId = returnContinuation ? table.PageScope(scope) : null;
+        var cursor = pagingState is null ? null : ReadCursor(pagingState, scopeId, offset, maximumRevision);
+        maximumRevision ??= cursor?.MaximumRevision;
+
         var connection = new PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(connectionString);
         NpgsqlTransaction? transaction = null;
         try
@@ -280,10 +299,13 @@ internal sealed class PostgresTradePlanOffsetReadSession(
             .ConfigureAwait(false);
             transaction = await connection.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead, token)
             .ConfigureAwait(false);
-            var scope = (object?[])new GetTradePlan(position.Trade.PortfolioId, position.Trade.FundId,
-                position.Trade.OrderId, position.Trade.TradeId, position.PositionId, date).Bind();
-            await using var count = new NpgsqlCommand(table.BuildTradePlanStatement(TradePlanDbSql.OffsetHistoryMetadataTemplate), connection, transaction);
-            PostgresValueBinding.AddParameters(count, [.. scope, Bigint(maximumRevision)]);
+            // The split uses the Iron Condor observation-time index.
+            var metadataTemplate = table == "trade_plan.iron_condor_trade_plan"
+                ? maximumRevision.HasValue ? TradePlanDbSql.AnchoredHistoryMetadataTemplate : TradePlanDbSql.LatestHistoryMetadataTemplate
+                : TradePlanDbSql.OffsetHistoryMetadataTemplate;
+            await using var count = new NpgsqlCommand(table.BuildTradePlanStatement(metadataTemplate), connection, transaction);
+            PostgresValueBinding.AddParameters(count, metadataTemplate == TradePlanDbSql.LatestHistoryMetadataTemplate
+                ? scope : [.. scope, Bigint(maximumRevision)]);
             long total, anchor;
             DateTime? chartEnd;
             await using (var reader = await count.ExecuteReaderAsync(token)
@@ -295,15 +317,26 @@ internal sealed class PostgresTradePlanOffsetReadSession(
                 anchor = maximumRevision ?? reader.GetInt64(1);
                 chartEnd = reader.IsDBNull(2) ? null : reader.GetDateTime(2);
             }
-            await using var command = new NpgsqlCommand(table.BuildTradePlanStatement(TradePlanDbSql.OffsetHistoryRowsTemplate), connection, transaction);
-            PostgresValueBinding.AddParameters(command, [.. scope, anchor, offset, size]);
+            var (template, values) = HistoryRows(scope, anchor, offset, size, returnContinuation, cursor);
+            await using var command = new NpgsqlCommand(table.BuildTradePlanStatement(template), connection, transaction);
+            PostgresValueBinding.AddParameters(command, values);
             var items = new List<StrategyTradePlanSnapshot>(size);
+            long lastRevision = 0;
             await using (var reader = await command.ExecuteReaderAsync(token)
-            .ConfigureAwait(false))
+                .ConfigureAwait(false))
+            {
                 while (await reader.ReadAsync(token)
-            .ConfigureAwait(false))
+                    .ConfigureAwait(false))
+                {
                     items.Add(MessagePackBinarySerializer.Shared.Deserialize<StrategyTradePlanSnapshot>(reader.GetFieldValue<byte[]>(0)));
-            var page = new StrategyTradePlanHistoryPage(items.ToArray(), null)
+                    lastRevision = reader.GetInt64(1);
+                }
+            }
+            var nextOffset = (long)offset + items.Count;
+            var next = scopeId is not null && items.Count > 0 && nextOffset < total && nextOffset <= int.MaxValue
+                ? JsonSerializer.SerializeToUtf8Bytes(new HistoryCursor(scopeId, anchor, lastRevision, (int)nextOffset))
+                : null;
+            var page = new StrategyTradePlanHistoryPage(items.ToArray(), next)
             {
                 Offset = offset, TotalCount = total, MaximumRevision = anchor, ChartEndUtc = chartEnd
             };
@@ -317,6 +350,36 @@ internal sealed class PostgresTradePlanOffsetReadSession(
             .ConfigureAwait(false); }
             throw;
         }
+    }
+
+    static (string Template, object?[] Values) HistoryRows(object?[] scope, long anchor, int offset, int size,
+        bool returnContinuation, HistoryCursor? cursor)
+    {
+        if (cursor is not null)
+            return (TradePlanDbSql.ContinueHistoryRowsTemplate, [.. scope, anchor, cursor.LastRevision, size]);
+        if (returnContinuation && offset == 0)
+            return (TradePlanDbSql.FirstHistoryRowsTemplate, [.. scope, anchor, size]);
+        return (TradePlanDbSql.OffsetHistoryRowsTemplate, [.. scope, anchor, offset, size]);
+    }
+
+    static HistoryCursor ReadCursor(byte[] pagingState, string? scope, int offset, long? maximumRevision)
+    {
+        HistoryCursor? cursor;
+        try
+        {
+            cursor = JsonSerializer.Deserialize<HistoryCursor>(pagingState);
+        }
+        catch (JsonException ex)
+        {
+            throw new ArgumentException("Invalid trade plan history continuation.", nameof(pagingState), ex);
+        }
+
+        if (cursor is null || !string.Equals(cursor.Scope, scope, StringComparison.Ordinal)
+            || offset <= 0 || cursor.Offset != offset || cursor.MaximumRevision < 0
+            || cursor.LastRevision > cursor.MaximumRevision
+            || (maximumRevision is { } anchor && cursor.MaximumRevision != anchor))
+            throw new ArgumentException("Trade plan history continuation does not match the requested scope, anchor or offset.", nameof(pagingState));
+        return cursor;
     }
 
     public async Task<StrategyTradePlanChartPoint[]> ReadChartAsync(DateTime startUtc, DateTime endUtc, CancellationToken token)

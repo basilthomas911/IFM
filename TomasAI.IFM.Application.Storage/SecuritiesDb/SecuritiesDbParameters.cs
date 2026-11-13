@@ -369,8 +369,14 @@ internal readonly record struct InvalidateSecuritiesProjectionStateV3(Guid gener
 }
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
-internal readonly record struct NativeOptionPageParameters(string Symbol, DateOnly? Month, string? OptionType,
-    double? Strike, string? ContractId, int Limit) : IBindValue
+internal readonly record struct NativeOptionFirstPageParameters(string Symbol, int Limit) : IBindValue
+{
+    public object Bind() => new object?[] { Text(Symbol), Integer(Limit) };
+}
+
+[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
+internal readonly record struct NativeOptionContinuationParameters(string Symbol, DateOnly Month, string OptionType,
+    double Strike, string ContractId, int Limit) : IBindValue
 {
     public object Bind() => new object?[] { Text(Symbol), Date(Month), Text(OptionType), Double(Strike), Text(ContractId), Integer(Limit) };
 }

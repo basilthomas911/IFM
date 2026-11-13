@@ -39,9 +39,13 @@ public sealed class MarketDataSchemaDb(IDbConnectionSettings connectionSettings,
     /// <summary>Gets the version and current option-chain policy schema for baseline migrations.</summary>
     public static string OptionChainPoliciesCreateStatement { get; } = OptionChainVersionCreate + "\n" + OptionChainCurrentCreate;
 
+    internal static string CreateBaseStatement { get; } =
+        OptionChainPoliciesCreateStatement + "\n" + IndicatorSeedCoverageCreate + "\n" + CreateMarketDataTables;
+
     /// <summary>Gets the derived market data schema and its prerequisite policy and coverage tables.</summary>
     public static string CreateStatement { get; } =
-        OptionChainPoliciesCreateStatement + "\n" + IndicatorSeedCoverageCreate + "\n" + CreateMarketDataTables;
+        CreateBaseStatement + "\n" + CreateIntradayIndicatorIndexes + "\n" +
+        CreateOptionChainStatisticsIndexes + "\n" + DropDuplicateIndexes;
 
     /// <summary>Returns every PostgreSQL schema object in dependency order.</summary>
     public static SchemaObjectDefinition[] GetDefinitions() =>

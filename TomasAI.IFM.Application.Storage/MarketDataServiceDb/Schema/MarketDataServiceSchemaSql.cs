@@ -154,6 +154,10 @@ public static class MarketDataServiceSchemaSql
         );
         CREATE INDEX IF NOT EXISTS ix_marketdata_recovery_date
           ON market_data_service.marketdata_recovery_log(value_date,role,dataset,occurred_at_utc);
+        CREATE INDEX IF NOT EXISTS ix_marketdata_recovery_date_order
+          ON market_data_service.marketdata_recovery_log(value_date,operation_id,sequence);
+        CREATE INDEX IF NOT EXISTS ix_marketdata_recovery_dataset_date_order
+          ON market_data_service.marketdata_recovery_log(dataset,value_date,operation_id,sequence);
         """;
 
     /// <summary>Creates the schema.</summary>

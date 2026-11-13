@@ -51,6 +51,8 @@ public static class EventSourceActorSchemaSql
             projected_at_utc timestamptz NOT NULL DEFAULT now()
         );
         ALTER TABLE business_subscription_projection_receipt ADD COLUMN IF NOT EXISTS handoff_completed boolean NOT NULL DEFAULT false;
+        CREATE INDEX IF NOT EXISTS business_subscription_receipt_pending_handoff
+            ON business_subscription_projection_receipt (event_id) WHERE NOT handoff_completed;
         CREATE TABLE IF NOT EXISTS business_subscription_projection_issue (
             event_id bigint PRIMARY KEY REFERENCES event_log(eventVersion) ON DELETE CASCADE,
             reason_code text NOT NULL,
@@ -149,6 +151,14 @@ public static class EventSourceActorSchemaSql
 
         CREATE INDEX IF NOT EXISTS ix_event_projector_outbox_dispatch_lease_v2
             ON event_projector_outbox (Status, DispatchLeaseExpiresAtUtc)
+            WHERE Status = 'Publishing';
+
+        CREATE INDEX IF NOT EXISTS ix_event_projector_outbox_projector_pending
+            ON event_projector_outbox (ProjectorName, NextAttemptAtUtc)
+            WHERE Status IN ('Pending', 'Retrying');
+
+        CREATE INDEX IF NOT EXISTS ix_event_projector_outbox_projector_lease
+            ON event_projector_outbox (ProjectorName, DispatchLeaseExpiresAtUtc)
             WHERE Status = 'Publishing';
         """;
 

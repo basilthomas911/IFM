@@ -91,8 +91,28 @@ internal readonly record struct ObservationDeleteParameter(long Id, long Version
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct ObservationListParameter(DateOnly? ValueDate, DatabentoMajorStatus? Status, int PageSize) : IBindValue
 {
+    bool HasFixedStatus => Status is DatabentoMajorStatus.Up or DatabentoMajorStatus.Resetting or DatabentoMajorStatus.Down;
+
+    internal (string Name, string Sql) Statement => (ValueDate, Status) switch
+    {
+        (null, null) => (nameof(MarketDataServiceDbSql.ListObservations), MarketDataServiceDbSql.ListObservations),
+        (not null, null) => (nameof(MarketDataServiceDbSql.ListObservationsByDate), MarketDataServiceDbSql.ListObservationsByDate),
+        (null, DatabentoMajorStatus.Up) => (nameof(MarketDataServiceDbSql.ListUpObservations), MarketDataServiceDbSql.ListUpObservations),
+        (null, DatabentoMajorStatus.Resetting) => (nameof(MarketDataServiceDbSql.ListResettingObservations), MarketDataServiceDbSql.ListResettingObservations),
+        (null, DatabentoMajorStatus.Down) => (nameof(MarketDataServiceDbSql.ListDownObservations), MarketDataServiceDbSql.ListDownObservations),
+        (null, not null) => (nameof(MarketDataServiceDbSql.ListObservationsByStatus), MarketDataServiceDbSql.ListObservationsByStatus),
+        _ => (nameof(MarketDataServiceDbSql.ListObservationsByDateAndStatus), MarketDataServiceDbSql.ListObservationsByDateAndStatus)
+    };
+
     /// <summary>Gets the ordered values for the SQL operation.</summary>
-    public object Bind() => Values(Date(ValueDate), Text(Status?.ToString()), Integer(PageSize));
+    public object Bind() => (ValueDate, Status) switch
+    {
+        (null, null) => Values(Integer(PageSize)),
+        ({ } date, null) => Values(Date(date), Integer(PageSize)),
+        (null, _) when HasFixedStatus => Values(Integer(PageSize)),
+        (null, { } status) => Values(Text(status.ToString()), Integer(PageSize)),
+        ({ } date, { } status) => Values(Date(date), Text(status.ToString()), Integer(PageSize))
+    };
 }
 
 /// <summary>Ordered PostgreSQL bindings for ObservationParameter.</summary>
@@ -193,5 +213,19 @@ internal readonly record struct RecoveryLogInsertParameter(TomasAI.IFM.Domain.Ma
 
 internal readonly record struct RecoveryLogReadParameter(DateOnly ValueDate, string? Dataset, Guid? OperationId, int Limit) : IBindValue
 {
-    public object Bind() => Values(ValueDate, Text(Dataset), Uuid(OperationId), Limit);
+    internal string Statement => (Dataset, OperationId) switch
+    {
+        (null, null) => MarketDataServiceDbSql.ReadRecoveryLogByDate,
+        (not null, null) => MarketDataServiceDbSql.ReadRecoveryLogByDataset,
+        (null, not null) => MarketDataServiceDbSql.ReadRecoveryLogByOperation,
+        _ => MarketDataServiceDbSql.ReadRecoveryLogByDatasetAndOperation
+    };
+
+    public object Bind() => (Dataset, OperationId) switch
+    {
+        (null, null) => Values(ValueDate, Limit),
+        (not null, null) => Values(ValueDate, Text(Dataset), Limit),
+        (null, not null) => Values(ValueDate, Uuid(OperationId), Limit),
+        _ => Values(ValueDate, Text(Dataset), Uuid(OperationId), Limit)
+    };
 }

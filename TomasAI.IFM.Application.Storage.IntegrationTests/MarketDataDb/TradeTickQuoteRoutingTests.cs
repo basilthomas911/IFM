@@ -63,6 +63,7 @@ public sealed class TradeTickQuoteRoutingTests
         Assert.Throws<ArgumentException>(() => RawTickRequestQualification.RequireDistinctFuturesRows(new[] { ticks[0], ticks[0] }));
         await market.DeleteFuturesTickDataAsync(contract, date);
         Assert.Null(await market.GetLastFuturesTickDataAsync(contract, date));
+        Assert.Null(await market.GetLastFuturesTickDataIdAsync(contract, date));
         Assert.Null(await market.GetFuturesTickAtOrBeforeAsync(contract, date, new TimeOnly(13, 0)));
 
         var option = SampleData.FuturesOptionTickData with
@@ -80,6 +81,7 @@ public sealed class TradeTickQuoteRoutingTests
         Assert.Equal(42, (await market.GetLastFuturesOptionTickDataIdAsync(option.ContractId, date))!.TickId);
         await market.DeleteFuturesOptionTickDataAsync(option.ContractId, date);
         Assert.Null(await market.GetLastFuturesOptionTickDataAsync(option.ContractId, date));
+        Assert.Null(await market.GetLastFuturesOptionTickDataIdAsync(option.ContractId, date));
 
         // Verify direct ingestion through the new owner using this same disposable fixture.
         var timestamp = new DateTime(2026, 10, 7, 16, 1, 2, DateTimeKind.Utc).AddTicks(5_671_234);

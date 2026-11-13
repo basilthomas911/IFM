@@ -166,24 +166,31 @@ impl Hub {
         deadline: tokio::time::Instant,
     ) -> Result<(), String> {
         let owner = self.owner(key)?;
-        let (scope, date, maximum, incarnation) = {
+        let (scope, date, maximum, paging_state, incarnation) = {
             let state = owner.lock().map_err(|_| "Monitor lock failed")?;
             if state.live {
                 return Ok(());
             }
+            let previous = if refresh { None } else { state.page.as_ref() };
+            let maximum = previous.and_then(|page| page.maximum_revision);
+            let paging_state = previous
+                .filter(|page| {
+                    maximum.is_some()
+                        && page.offset.zip(page.items.as_ref()).is_some_and(|(start, rows)| {
+                            i64::from(start) + rows.len() as i64 == i64::from(offset)
+                        })
+                })
+                .and_then(|page| page.paging_state.as_ref().map(|token| token.0.clone()));
             (
                 state.scope,
                 state.plan_date,
-                if refresh {
-                    None
-                } else {
-                    state.page.as_ref().and_then(|page| page.maximum_revision)
-                },
+                maximum,
+                paging_state,
                 state.incarnation,
             )
         };
         let result = api::plan_page(
-            backend, registry, scope, date, offset, size, maximum, deadline,
+            backend, registry, scope, date, offset, size, maximum, paging_state, deadline,
         )
         .await;
         {

@@ -42,13 +42,22 @@ public static class TradePlanDbSql
     /// <summary>SQL for offset history chart template.</summary>
     internal const string OffsetHistoryChartTemplate =
         """
-        SELECT DISTINCT ON (date_bin(INTERVAL '1 minute',calculatedatutc,timestamptz '2000-01-01')) calculatedatutc,
-            combinedspreadprice,CASE WHEN calculationversion = 'IronCondor/EntryCreditForwardPnl/v2' THEN -combinedforwardprice ELSE combinedforwardprice END
-        FROM {0}
-        WHERE portfolioid=$1 AND fundid=$2 AND orderid=$3 AND tradeid=$4 AND positionid=$5 AND valuedate=$6
-            AND ($7::bigint IS NULL OR planrevision <= $7) AND calculatedatutc >= $8 AND calculatedatutc <= $9
-            AND combinedspreadprice IS NOT NULL
-        ORDER BY date_bin(INTERVAL '1 minute',calculatedatutc,timestamptz '2000-01-01'),calculatedatutc DESC,planrevision DESC;
+        SELECT winner.calculatedatutc,winner.combinedspreadprice,
+            CASE WHEN winner.calculationversion='IronCondor/EntryCreditForwardPnl/v2'
+                 THEN -winner.combinedforwardprice ELSE winner.combinedforwardprice END
+        FROM generate_series(date_bin(interval '1 minute',$8,timestamptz '2000-01-01'),
+            date_bin(interval '1 minute',$9,timestamptz '2000-01-01'),interval '1 minute') AS buckets(bucket)
+        CROSS JOIN LATERAL (
+            SELECT p.calculatedatutc,p.combinedspreadprice,p.combinedforwardprice,p.calculationversion
+            FROM {0} p
+            WHERE p.portfolioid=$1 AND p.fundid=$2 AND p.orderid=$3 AND p.tradeid=$4 AND p.positionid=$5
+                AND p.valuedate=$6 AND ($7::bigint IS NULL OR p.planrevision <= $7)
+                AND p.calculatedatutc >= GREATEST(bucket,$8)
+                AND p.calculatedatutc < bucket+interval '1 minute'
+                AND p.calculatedatutc <= $9 AND p.combinedspreadprice IS NOT NULL
+            ORDER BY p.calculatedatutc DESC,p.planrevision DESC LIMIT 1
+        ) winner
+        ORDER BY bucket;
         """;
 
     /// <summary>SQL for offset history metadata template.</summary>
@@ -60,14 +69,65 @@ public static class TradePlanDbSql
             AND ($7::bigint IS NULL OR planrevision <= $7);
         """;
 
+    const string HistoryPositionScope =
+        "portfolioid=$1 AND fundid=$2 AND orderid=$3 AND tradeid=$4 AND positionid=$5 AND valuedate=$6";
+
+    internal const string LatestHistoryMetadataTemplate =
+        $$"""
+        SELECT (SELECT count(*) FROM {0} WHERE {{HistoryPositionScope}}),
+               COALESCE((SELECT planrevision FROM {0} WHERE {{HistoryPositionScope}}
+                         ORDER BY planrevision DESC LIMIT 1),0),
+               (SELECT calculatedatutc FROM {0} WHERE {{HistoryPositionScope}} AND calculatedatutc IS NOT NULL
+                ORDER BY calculatedatutc DESC LIMIT 1);
+        """;
+
+    // A qualifying timestamp in the newest 128 observations is the exact chart end.
+    // If none qualifies, the revision-scoped aggregate finds it and computes the count together.
+    internal const string AnchoredHistoryMetadataTemplate =
+        $$"""
+        WITH recent AS MATERIALIZED (
+            SELECT calculatedatutc, planrevision FROM {0} WHERE {{HistoryPositionScope}} AND calculatedatutc IS NOT NULL
+            ORDER BY calculatedatutc DESC LIMIT 128
+        ), endpoint AS (
+            SELECT MAX(calculatedatutc) AS chartend FROM recent WHERE planrevision <= $7
+        )
+        SELECT CASE WHEN endpoint.chartend IS NULL THEN fallback.total
+                    ELSE (SELECT count(*) FROM {0} WHERE {{HistoryPositionScope}} AND planrevision <= $7) END,
+               $7::bigint,
+               COALESCE(endpoint.chartend, fallback.chartend)
+        FROM endpoint
+        LEFT JOIN LATERAL (
+            SELECT count(*) AS total, MAX(calculatedatutc) AS chartend
+            FROM {0} WHERE endpoint.chartend IS NULL AND {{HistoryPositionScope}} AND planrevision <= $7
+        ) fallback ON TRUE;
+        """;
+
     /// <summary>SQL for offset history rows template.</summary>
     internal const string OffsetHistoryRowsTemplate =
         """
-        SELECT payload
+        SELECT payload, planrevision
         FROM {0}
         WHERE portfolioid=$1 AND fundid=$2 AND orderid=$3 AND tradeid=$4 AND positionid=$5 AND valuedate=$6
-            AND ($7::bigint IS NULL OR planrevision <= $7)
+            AND planrevision <= $7
         ORDER BY planrevision DESC OFFSET $8 LIMIT $9;
+        """;
+
+    internal const string FirstHistoryRowsTemplate =
+        """
+        SELECT payload, planrevision
+        FROM {0}
+        WHERE portfolioid=$1 AND fundid=$2 AND orderid=$3 AND tradeid=$4 AND positionid=$5 AND valuedate=$6
+            AND planrevision <= $7
+        ORDER BY planrevision DESC LIMIT $8;
+        """;
+
+    internal const string ContinueHistoryRowsTemplate =
+        """
+        SELECT payload, planrevision
+        FROM {0}
+        WHERE portfolioid=$1 AND fundid=$2 AND orderid=$3 AND tradeid=$4 AND positionid=$5 AND valuedate=$6
+            AND planrevision <= $7 AND planrevision < $8
+        ORDER BY planrevision DESC LIMIT $9;
         """;
 
     /// <summary>SQL for read committed exit workflow evidence.</summary>
@@ -111,14 +171,23 @@ public static class TradePlanDbSql
     /// <summary>Reads iron condor trade plan rows.</summary>
     internal const string TradePlanDbContextExtensions_ReadChartRangeAsync_1 =
         """
-        SELECT DISTINCT ON (date_bin(INTERVAL '15 minutes',calculatedatutc,timestamptz '2000-01-01'))
-            calculatedatutc,combinedspreadprice,
-            CASE WHEN calculationversion = 'IronCondor/EntryCreditForwardPnl/v2' THEN -combinedforwardprice ELSE combinedforwardprice END
-        FROM trade_plan.iron_condor_trade_plan
-        WHERE portfolioid=$1 AND fundid=$2 AND orderid=$3 AND tradeid=$4 AND positionid=$5
-            AND valuedate >= $6 AND valuedate <= $7 AND calculatedatutc >= $8 AND calculatedatutc <= $9
-            AND combinedspreadprice IS NOT NULL
-        ORDER BY date_bin(INTERVAL '15 minutes',calculatedatutc,timestamptz '2000-01-01'),calculatedatutc DESC,planrevision DESC;
+        SELECT DISTINCT ON (bucket) winner.calculatedatutc,winner.combinedspreadprice,
+            CASE WHEN winner.calculationversion='IronCondor/EntryCreditForwardPnl/v2'
+                 THEN -winner.combinedforwardprice ELSE winner.combinedforwardprice END
+        FROM generate_series(date_bin(interval '15 minutes',$8,timestamptz '2000-01-01'),
+            date_bin(interval '15 minutes',$9,timestamptz '2000-01-01'),interval '15 minutes') AS buckets(bucket)
+        CROSS JOIN generate_series(0,$7::date-$6::date) AS dates(day_offset)
+        CROSS JOIN LATERAL (
+            SELECT p.calculatedatutc,p.planrevision,p.combinedspreadprice,p.combinedforwardprice,p.calculationversion
+            FROM trade_plan.iron_condor_trade_plan p
+            WHERE p.portfolioid=$1 AND p.fundid=$2 AND p.orderid=$3 AND p.tradeid=$4 AND p.positionid=$5
+                AND p.valuedate=($6::date+dates.day_offset)
+                AND p.calculatedatutc >= GREATEST(bucket,$8)
+                AND p.calculatedatutc < bucket+interval '15 minutes'
+                AND p.calculatedatutc <= $9 AND p.combinedspreadprice IS NOT NULL
+            ORDER BY p.calculatedatutc DESC,p.planrevision DESC LIMIT 1
+        ) winner
+        ORDER BY bucket,winner.calculatedatutc DESC,winner.planrevision DESC;
         """;
 
     /// <summary>Reads unnest rows.</summary>

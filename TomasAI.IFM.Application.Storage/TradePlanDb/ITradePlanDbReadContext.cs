@@ -41,6 +41,10 @@ public interface ITradePlanDbReadContext
     /// <returns>The database result for the requested operation.</returns>
     Task<ITradePlanOffsetReadSession> OpenOffsetHistoryAsync(StrategyPositionId positionId, TradeStrategyKind strategy, DateOnly valueDate, int offset, int pageSize, long? maximumRevision = null, CancellationToken cancellationToken = default);
 
+    /// <summary>Opens anchored history, seeking from the preceding page when a continuation is supplied.</summary>
+    Task<ITradePlanOffsetReadSession> OpenHistoryPageAsync(StrategyPositionId positionId, TradeStrategyKind strategy, DateOnly valueDate,
+        int offset, int pageSize, long? maximumRevision, byte[]? pagingState, CancellationToken cancellationToken = default);
+
     /// <summary>Gets the current material Trade Plan for a strategy position.</summary>
     /// <param name="positionId">The strategy-position identity.</param>
     /// <param name="strategy">The trade strategy that selects the materialized-plan table.</param>

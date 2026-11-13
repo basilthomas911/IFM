@@ -329,6 +329,7 @@ pub async fn plan_page(
     offset: i32,
     size: i32,
     maximum: Option<i64>,
+    paging_state: Option<Vec<u8>>,
     deadline: tokio::time::Instant,
 ) -> Result<StrategyTradePlanHistoryPage, String> {
     if offset < 0 || !(1..=100).contains(&size) || maximum.is_some_and(|n| n < 0) {
@@ -344,6 +345,7 @@ pub async fn plan_page(
             ("PlanId".into(), plan),
             ("Offset".into(), offset.into()),
             ("PageSize".into(), size.into()),
+            ("PagingState".into(), paging_state.map(Value::Binary).unwrap_or(Value::Nil)),
             (
                 "MaximumRevision".into(),
                 maximum.map(Value::from).unwrap_or(Value::Nil),

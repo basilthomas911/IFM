@@ -292,14 +292,15 @@ public sealed class MarketDataServiceDbContext(
         DatabentoMajorStatus? status = null,
         int pageSize = 100,
         CancellationToken cancellationToken = default)
-        => [.. await Database
-            .Use("MarketDataService.ListObservations", MarketDataServiceDbSql.ListObservations)
-
-            .SetParameters(new ObservationListParameter(valueDate, status, pageSize))
-
+    {
+        var selection = new ObservationListParameter(valueDate, status, pageSize);
+        var (name, sql) = selection.Statement;
+        return [.. await Database
+            .Use("MarketDataService." + name, sql)
+            .SetParameters(selection)
             .ExecuteQueryAsync(MapToObservation, cancellationToken)
-
             .ConfigureAwait(false)];
+    }
 
     /// <summary>Persists a dataset incident transition idempotently.</summary>
     /// <param name="transition">The incident transition to persist.</param>

@@ -10,7 +10,8 @@ public sealed class TradeSchemaDb(IDbConnectionSettings connectionSettings, ILog
 {
     /// <summary>Gets the full trade schema batch, including the additive recovery and handoff tables.</summary>
     public static string CreateStatement { get; } = TradeSchemaSql.LiveFeedRecoveryCreate + "\n"
-        + TradeSchemaSql.StrategyExecutionHandoffCreate + "\n" + TradeSchemaSql.CreateTradeTables;
+        + TradeSchemaSql.StrategyExecutionHandoffCreate + "\n" + TradeSchemaSql.CreateTradeTables
+        + "\n" + TradeSchemaSql.DropDuplicateIndexes;
 
     /// <summary>Gets the live-feed recovery table schema for isolated qualification.</summary>
     public static string LiveFeedRecoveryCreateStatement => TradeSchemaSql.LiveFeedRecoveryCreate;

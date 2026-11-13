@@ -142,10 +142,11 @@ public static class TradeTickQuoteDbSql
         SELECT
                 contractid AS "ContractId",
                 valuedate AS "ValueDate",
-                MAX(tickid) AS "TickId"
+                tickid AS "TickId"
             FROM futures_option_tick_data
             WHERE contractid = :contractId AND valuedate = :valueDate
-            GROUP BY contractid, valuedate;
+            ORDER BY valuedate DESC, tickid DESC
+            LIMIT 1;
         """;
 
     /// <summary>CQL for get last futures tick data.</summary>
@@ -170,10 +171,11 @@ public static class TradeTickQuoteDbSql
         SELECT
                 contractid AS "ContractId",
                 valuedate AS "ValueDate",
-                MAX(tickid) AS "TickId"
+                tickid AS "TickId"
             FROM futures_tick_data
             WHERE contractid = :contractId AND valuedate = :valueDate
-            GROUP BY contractid, valuedate;
+            ORDER BY valuedate DESC, tickid DESC
+            LIMIT 1;
         """;
 
     /// <summary>CQL for get latest raw futures trades.</summary>

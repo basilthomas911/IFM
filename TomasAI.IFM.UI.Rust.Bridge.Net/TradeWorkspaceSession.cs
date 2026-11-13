@@ -248,9 +248,12 @@ sealed class TradeWorkspaceSession : IDisposable
         active.PlanError="";
         try {
             TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.StrategyTradePlanHistoryPage? page=null;
+            var previous = refresh ? null : active.PlanPage;
+            var pagingState = previous is { MaximumRevision: not null } && (long)previous.Offset + previous.Items.Length == offset
+                ? previous.PagingState : null;
             await scope.Services.StrategyTradePlanQueries.GetIronCondorHistoryPageAsync(
                 StrategyPositionId.Create(active.Trade.Id,TradeStrategyKind.IronCondor),active.PlanDate,
-                offset,size,refresh?null:active.PlanPage?.MaximumRevision,result=>page=result,stopping.Token);
+                offset,size,previous?.MaximumRevision,result=>page=result,stopping.Token,pagingState);
             if(active.Monitor?.IsLiveFeedEnabled==true)return;
             active.PlanPage=page??throw new InvalidOperationException("Trade plan page was not returned.");
 

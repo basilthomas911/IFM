@@ -2333,15 +2333,8 @@ public static class TradeDbSql
         ON CONFLICT (account_alias, revision) DO UPDATE SET account_definition = EXCLUDED.account_definition;
         """;
 
-    /// <summary>SQL for read fund order fills.</summary>
-    internal const string ReadFundOrderFills =
+    const string FundOrderFillsProjection =
         """
-        WITH latest AS (
-            SELECT DISTINCT ON (orderid) portfolioid, fundid, orderid, payload
-            FROM trade.trade_order
-            WHERE portfolioid=$1 AND fundid=$2 AND valuedate=$3 AND orderid >= $4
-            ORDER BY orderid, revision DESC
-        )
         SELECT o.payload, e.payload,
             (SELECT CASE WHEN COUNT(*) = 1 THEN MIN(t.tradeid) END
              FROM trade.established_trade t
@@ -2351,6 +2344,47 @@ public static class TradeDbSql
              ORDER BY first.revision LIMIT 1)
         FROM latest o
         LEFT JOIN trade.order_execution e USING (portfolioid, fundid, orderid)
+        """;
+
+    /// <summary>Reads the first page at the initial order and attempt cursor.</summary>
+    internal const string ReadFundOrderFillsFirstPage =
+        """
+        WITH latest AS (
+            SELECT DISTINCT ON (orderid) portfolioid, fundid, orderid, payload
+            FROM trade.trade_order
+            WHERE portfolioid=$1 AND fundid=$2 AND valuedate=$3 AND orderid >= 0
+            ORDER BY orderid, revision DESC
+        )
+        """ + "\n" + FundOrderFillsProjection + "\n" + """
+        WHERE (o.orderid, COALESCE(e.executionattemptid, '00000000-0000-0000-0000-000000000000'::uuid))
+            > (0, '00000000-0000-0000-0000-000000000000'::uuid)
+        ORDER BY o.orderid, e.executionattemptid
+        LIMIT $4;
+        """;
+
+    // Each later order contributes at least one result through the left join. The cursor
+    // order can contribute zero after attempt filtering, so read one extra order key.
+    /// <summary>Seeks to the continuation order and bounds the order keys before joining execution attempts.</summary>
+    internal const string ReadFundOrderFillsContinuationPage =
+        """
+        WITH order_keys AS MATERIALIZED (
+            SELECT DISTINCT orderid
+            FROM trade.trade_order
+            WHERE portfolioid=$1 AND fundid=$2 AND valuedate=$3 AND orderid >= $4
+            ORDER BY orderid
+            LIMIT ($6 + 1)
+        ), latest AS (
+            SELECT o.portfolioid, o.fundid, k.orderid, o.payload
+            FROM order_keys k
+            CROSS JOIN LATERAL (
+                SELECT portfolioid, fundid, payload
+                FROM trade.trade_order
+                WHERE portfolioid=$1 AND fundid=$2 AND valuedate=$3 AND orderid=k.orderid
+                ORDER BY revision DESC
+                LIMIT 1
+            ) o
+        )
+        """ + "\n" + FundOrderFillsProjection + "\n" + """
         WHERE (o.orderid, COALESCE(e.executionattemptid, '00000000-0000-0000-0000-000000000000'::uuid)) > ($4,$5)
         ORDER BY o.orderid, e.executionattemptid
         LIMIT $6;
@@ -2430,9 +2464,18 @@ public static class TradeDbSql
     internal const string ReadRiskHistoryAfter =
         """
         SELECT payload,evaluated_at_utc,invocation_id
-        FROM trade.risk_management_history
-        WHERE portfolio_id=$1 AND fund_id=$2 AND value_date=$3 AND (evaluated_at_utc<$4 OR (evaluated_at_utc=$4
-            AND invocation_id>$5))
+        FROM (
+            (SELECT payload,evaluated_at_utc,invocation_id
+             FROM trade.risk_management_history
+             WHERE portfolio_id=$1 AND fund_id=$2 AND value_date=$3
+                 AND evaluated_at_utc=$4 AND invocation_id>$5
+             ORDER BY evaluated_at_utc DESC,invocation_id ASC LIMIT $6)
+            UNION ALL
+            (SELECT payload,evaluated_at_utc,invocation_id
+             FROM trade.risk_management_history
+             WHERE portfolio_id=$1 AND fund_id=$2 AND value_date=$3 AND evaluated_at_utc<$4
+             ORDER BY evaluated_at_utc DESC,invocation_id ASC LIMIT $6)
+        ) page
         ORDER BY evaluated_at_utc DESC,invocation_id ASC LIMIT $6;
         """;
 

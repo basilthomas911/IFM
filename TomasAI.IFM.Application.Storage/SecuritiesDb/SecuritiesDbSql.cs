@@ -283,17 +283,27 @@ public static class SecuritiesDbSql
         WHERE symbol = $1 ORDER BY contractmonth, optiontype, strikeprice, contractid;
         """;
 
-    /// <summary>SQL for get native option contracts page.</summary>
-    internal const string GetNativeOptionContractsPage =
+    const string NativeOptionPageSelect =
         """
         SELECT contractid AS "ContractId", description AS "Description", symbol AS "Symbol",
             localsymbol AS "LocalSymbol", securitytype AS "SecurityType", currency AS "Currency", exchange AS "Exchange",
             multiplier AS "Multiplier", contractmonth AS "ContractMonth", strikeprice AS "StrikePrice",
             optiontype AS "OptionType", referencepayload AS "ReferencePayload"
         FROM securities.futures_option_contract_by_symbol WHERE symbol = $1
-          AND ($2::date IS NULL OR (contractmonth,optiontype COLLATE "C",strikeprice,contractid COLLATE "C") > ($2,$3,$4,$5))
-        ORDER BY contractmonth,optiontype COLLATE "C",strikeprice,contractid COLLATE "C" LIMIT $6;
         """;
+
+    const string NativeOptionPageOrder =
+        """ORDER BY contractmonth,optiontype COLLATE "C",strikeprice,contractid COLLATE "C" """;
+
+    /// <summary>Reads the first option catalog page in cursor order.</summary>
+    internal const string GetNativeOptionContractsFirstPage =
+        NativeOptionPageSelect + "\n" + NativeOptionPageOrder + "LIMIT $2;";
+
+    /// <summary>Reads a page strictly after the last key returned to the caller.</summary>
+    internal const string GetNativeOptionContractsContinuationPage =
+        NativeOptionPageSelect + "\n" +
+        """AND (contractmonth,optiontype COLLATE "C",strikeprice,contractid COLLATE "C") > ($2,$3,$4,$5)""" +
+        "\n" + NativeOptionPageOrder + "LIMIT $6;";
 
     /// <summary>Native PostgreSQL securities persistence.</summary>
     internal const string GetOnTheRunFuturesContract =

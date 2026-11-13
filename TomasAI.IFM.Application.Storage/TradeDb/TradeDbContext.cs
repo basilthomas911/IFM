@@ -1278,11 +1278,16 @@ public sealed class TradeDbContext(IDbConnectionSettings connectionSettings, IDb
     /// <inheritdoc/>
     public Task<FundOrderFillsRow[]> GetFundOrderFillsAsync(
         int portfolioId, int fundId, DateOnly valueDate, int afterOrderId, Guid afterAttemptId, CancellationToken token = default)
-        => this.NativeTransaction().ExecuteOnceAsync(async (db, ct) =>
-            (await db.QueryAsync(TradeDbSql.ReadFundOrderFills,
-                [portfolioId, fundId, valueDate, afterOrderId, afterAttemptId, FundOrderFillsRow.PageSize],
-                MapToFundOrderFillsRow, ct)
+    {
+        var firstPage = afterOrderId == 0 && afterAttemptId == Guid.Empty;
+        var sql = firstPage ? TradeDbSql.ReadFundOrderFillsFirstPage : TradeDbSql.ReadFundOrderFillsContinuationPage;
+        object?[] values = firstPage
+            ? [portfolioId, fundId, valueDate, FundOrderFillsRow.PageSize]
+            : [portfolioId, fundId, valueDate, afterOrderId, afterAttemptId, FundOrderFillsRow.PageSize];
+        return this.NativeTransaction().ExecuteOnceAsync(async (db, ct) =>
+            (await db.QueryAsync(sql, values, MapToFundOrderFillsRow, ct)
                 .ConfigureAwait(false)).ToArray(), token);
+    }
 
     static FundOrderFillsRow MapToFundOrderFillsRow(System.Data.Common.DbDataReader row)
     {

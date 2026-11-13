@@ -40,13 +40,18 @@ public static class SystemAdminDbSql
     /// <summary>SQL for get backup phases.</summary>
     internal const string GetBackupPhases =
         """
-        SELECT event_revision, observed_utc, phase, outcome, progress_percent
-        FROM (
-            SELECT event_revision, observed_utc, phase, outcome,
-                   MAX(progress_percent) OVER (ORDER BY event_revision) AS progress_percent
-            FROM system_admin.database_recovery_phase WHERE operation_id = $1
-        ) AS phases
-        WHERE event_revision > $2 ORDER BY event_revision LIMIT $3;
+        WITH page AS (
+            SELECT event_revision, observed_utc, phase, outcome, progress_percent
+            FROM system_admin.database_recovery_phase
+            WHERE operation_id=$1 AND event_revision>$2
+            ORDER BY event_revision FETCH FIRST $3 ROWS WITH TIES
+        )
+        SELECT event_revision, observed_utc, phase, outcome,
+            GREATEST(MAX(progress_percent) OVER (ORDER BY event_revision),
+                (SELECT MAX(progress_percent) FROM system_admin.database_recovery_phase
+                 WHERE operation_id=$1 AND event_revision<=$2)) AS progress_percent
+        FROM page
+        ORDER BY event_revision LIMIT $3;
         """;
 
     /// <summary>SQL for get backup set operations.</summary>
@@ -215,7 +220,7 @@ public static class SystemAdminDbSql
         """;
 
     /// <summary>SQL for list operations.</summary>
-    internal const string ListOperations =
+    const string ListOperationsProjection =
         """
         SELECT operation_id, backup_set_id, protection_set_id, source, operation_kind, phase, outcome,
         progress_percent, state_revision, created_utc, completed_utc, safe_diagnostic_reference,
@@ -224,15 +229,18 @@ public static class SystemAdminDbSql
         COALESCE((SELECT engine FROM system_admin.database_recovery_run_stats stats
                   WHERE stats.operation_id = database_recovery_operation.operation_id ORDER BY statistics_revision DESC LIMIT 1), 0) AS engine
         FROM system_admin.database_recovery_operation
-        WHERE ($1 = 0 OR source = $1)
-          AND ($2 IS NULL OR protection_set_id = $2)
-          AND ($3 IS NULL OR created_utc >= $3)
-          AND ($4 IS NULL OR created_utc <= $4)
-          AND ($5 IS NULL OR (created_utc, operation_id) <
-              (SELECT created_utc, operation_id FROM system_admin.database_recovery_operation WHERE operation_id = $5))
-        ORDER BY created_utc DESC, operation_id DESC
-        LIMIT $6;
         """;
+
+    internal static string ListOperations(bool bySource, bool byProtectionSet, bool after) =>
+        ListOperationsProjection
+        + (bySource ? " WHERE source = $1" : " WHERE TRUE")
+        + (byProtectionSet ? " AND protection_set_id = $2" : "")
+        + " AND ($3 IS NULL OR created_utc >= $3) AND ($4 IS NULL OR created_utc <= $4)"
+        + (after ? """
+             AND (created_utc, operation_id) <
+                (SELECT created_utc, operation_id FROM system_admin.database_recovery_operation WHERE operation_id = $5)
+            """ : "")
+        + " ORDER BY created_utc DESC, operation_id DESC LIMIT $6;";
 
     /// <summary>SQL for list restore drills.</summary>
     internal const string ListRestoreDrills =

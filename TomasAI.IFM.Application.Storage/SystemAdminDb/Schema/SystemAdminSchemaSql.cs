@@ -121,6 +121,10 @@ public static class SystemAdminSchemaSql
             ADD COLUMN IF NOT EXISTS backup_lineage_json text NOT NULL DEFAULT '';
         CREATE INDEX IF NOT EXISTS ix_database_recovery_operation_history
             ON system_admin.database_recovery_operation (source, protection_set_id, created_utc DESC, operation_id);
+        CREATE INDEX IF NOT EXISTS ix_database_recovery_operation_global_page
+            ON system_admin.database_recovery_operation (created_utc DESC, operation_id DESC);
+        CREATE INDEX IF NOT EXISTS ix_database_recovery_operation_scoped_page
+            ON system_admin.database_recovery_operation (source, protection_set_id, created_utc DESC, operation_id DESC);
         CREATE INDEX IF NOT EXISTS ix_database_recovery_operation_backup_set
             ON system_admin.database_recovery_operation (backup_set_id) WHERE backup_set_id IS NOT NULL;
         """;
@@ -140,6 +144,8 @@ public static class SystemAdminSchemaSql
             last_source_event_id uuid NOT NULL,
             PRIMARY KEY (operation_id, phase, event_revision)
         );
+        CREATE INDEX IF NOT EXISTS ix_database_recovery_phase_revision
+            ON system_admin.database_recovery_phase (operation_id, event_revision) INCLUDE (progress_percent);
         """;
 
     /// <summary>Creates the recovery run stats.</summary>

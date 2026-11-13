@@ -4,7 +4,14 @@ namespace TomasAI.IFM.Application.Storage.SecuritiesDb.Schema;
 public static class SecuritiesSchemaSql
 {
     /// <summary>Creates the securities schema and its database objects.</summary>
-    internal const string Create =
+    internal const string Create = CreateBase + "\n" + CreateOptionPagingIndex + "\n" + DropDuplicateIndexes;
+
+    internal const string DropDuplicateIndexes =
+        """
+        DROP INDEX IF EXISTS securities.option_contract_expiry_calendar_ordered RESTRICT;
+        """;
+
+    internal const string CreateBase =
         """
         CREATE SCHEMA IF NOT EXISTS securities;
 
@@ -25,7 +32,6 @@ public static class SecuritiesSchemaSql
             refreshedAtUtc timestamptz,
             PRIMARY KEY (symbol, generation, expiryDate, providerRoot, contractId)
         );
-        CREATE INDEX IF NOT EXISTS option_contract_expiry_calendar_ordered ON securities.option_contract_expiry_calendar (symbol, generation, expiryDate ASC, providerRoot ASC, contractId ASC);
 
         CREATE TABLE IF NOT EXISTS securities.option_contract_expiry_calendar_state (
             symbol text PRIMARY KEY,
@@ -133,6 +139,14 @@ public static class SecuritiesSchemaSql
         ALTER TABLE securities.futures_option_contract ADD COLUMN IF NOT EXISTS referencePayload bytea;
 
         ALTER TABLE securities.futures_option_contract_by_symbol ADD COLUMN IF NOT EXISTS referencePayload bytea;
+        """;
+
+    /// <summary>Matches the native option page's ascending order and cursor collations.</summary>
+    const string CreateOptionPagingIndex =
+        """
+        CREATE INDEX IF NOT EXISTS futures_option_contract_by_symbol_page_ordered
+            ON securities.futures_option_contract_by_symbol
+            (symbol, contractMonth ASC, optionType COLLATE "C" ASC, strikePrice ASC, contractId COLLATE "C" ASC);
         """;
 
     /// <summary>Drops the securities schema and its database objects.</summary>

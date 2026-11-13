@@ -325,7 +325,7 @@ impl Hub {
                     measure("selected_position_plan",api::current_plan(&backend,&registry,scope,date,deadline)).await
                 }else{Ok(None)}};
                 let legs=futures_util::future::join_all(contracts.iter().map(|contract|measure("saved_option_leg",api::saved_leg(&backend,&registry,contract,date,deadline))));
-                let(plan,reads,page)=tokio::join!(plan,legs,api::plan_page(&backend,&registry,scope,date,0,100,None,deadline));let plan=plan?;let mut selected=selected;
+                let(plan,reads,page)=tokio::join!(plan,legs,api::plan_page(&backend,&registry,scope,date,0,100,None,None,deadline));let plan=plan?;let mut selected=selected;
                 if let Some(plan)=&plan{if let Some(enriched)=plan.position.as_ref().and_then(|position|crate::services::saved_position::enrich(&selected,position)){selected=enriched;}}
                 let mut observations=BTreeMap::new();
                 let mut remember=|quote:crate::models::trade_contracts::FuturesOptionTickDataV2ReadModel|{

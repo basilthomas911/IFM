@@ -18,8 +18,8 @@ public static class GetIronCondorTradePlanHistory
             ArgumentNullException.ThrowIfNull(query);
             if (query.Offset is { } offset)
             {
-                var page = await TradePlanOffsetHistory.ReadAsync(context.DbFactory.TradePlanDb, query.PlanId.Position,
-                    TradeStrategyKind.IronCondor, query.PlanId.ValueDate, offset, query.PageSize, query.MaximumRevision, cancellationToken).ConfigureAwait(false);
+                var page = await TradePlanOffsetHistory.ReadPageAsync(context.DbFactory.TradePlanDb, query.PlanId.Position,
+                    TradeStrategyKind.IronCondor, query.PlanId.ValueDate, offset, query.PageSize, query.MaximumRevision, query.PagingState, cancellationToken).ConfigureAwait(false);
                 return new TomasAI.IFM.Shared.EventSourcing.ServiceResult<StrategyTradePlanHistoryPage>(page);
             }
             return await StrategyTradePlanQueryExecution.ReadHistoryAsync(context.DbFactory, query.PlanId.Position, TradeStrategyKind.IronCondor, query.PlanId.ValueDate, query.PageSize, query.PagingState, cancellationToken).ConfigureAwait(false);

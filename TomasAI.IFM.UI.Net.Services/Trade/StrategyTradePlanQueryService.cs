@@ -92,8 +92,9 @@ public sealed class StrategyTradePlanQueryService(IStrategyTradePlanQueryApi que
     }
 
     public Task GetIronCondorHistoryPageAsync(StrategyPositionId position, DateOnly date, int offset, int size,
-        long? maximumRevision, Action<StrategyTradePlanHistoryPage> completed, CancellationToken cancellationToken = default)
-        => ExecuteAsync(() => _queryApi.GetIronCondorHistoryPageAsync(position, date, offset, size, maximumRevision, cancellationToken), completed);
+        long? maximumRevision, Action<StrategyTradePlanHistoryPage> completed, CancellationToken cancellationToken = default,
+        byte[]? pagingState = null)
+        => ExecuteAsync(() => _queryApi.GetIronCondorHistoryPageAsync(position, date, offset, size, maximumRevision, cancellationToken, pagingState), completed);
 
     public Task GetHistoryAsync(StrategyTradePlanSnapshot selected, int pageSize,
         byte[]? pagingState, Action<StrategyTradePlanHistoryPage> onCompleted,

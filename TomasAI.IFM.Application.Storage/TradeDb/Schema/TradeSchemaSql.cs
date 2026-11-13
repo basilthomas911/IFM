@@ -3,6 +3,14 @@ namespace TomasAI.IFM.Application.Storage.TradeDb.Schema;
 /// <summary>Contains PostgreSQL schema statements for TradeDb.</summary>
 public static class TradeSchemaSql
 {
+    internal const string DropDuplicateIndexes =
+        """
+        DROP INDEX IF EXISTS trade.order_execution_fill_ordered RESTRICT;
+        DROP INDEX IF EXISTS trade.intrinsic_time_strategy_workflow_timeline_ordered RESTRICT;
+        DROP INDEX IF EXISTS trade.trade_limit_ordered RESTRICT;
+        DROP INDEX IF EXISTS trade.trade_type_limit_ordered RESTRICT;
+        """;
+
     /// <summary>Creates the trade, execution, position and strategy projection schema.</summary>
     internal const string CreateTradeTables =
         """
@@ -29,6 +37,7 @@ public static class TradeSchemaSql
         );
 
         CREATE INDEX IF NOT EXISTS trade_order_ordered ON trade.trade_order (portfolioId, fundId, orderId DESC, revision DESC);
+        CREATE INDEX IF NOT EXISTS trade_order_fills_page_ordered ON trade.trade_order (portfolioId, fundId, valueDate, orderId, revision DESC);
 
         CREATE TABLE IF NOT EXISTS trade.order_execution (
             portfolioId int,
@@ -53,7 +62,6 @@ public static class TradeSchemaSql
             PRIMARY KEY (executionAttemptId, filledAtUtc, executionFillId)
         );
 
-        CREATE INDEX IF NOT EXISTS order_execution_fill_ordered ON trade.order_execution_fill (executionAttemptId, filledAtUtc ASC, executionFillId ASC);
 
         CREATE TABLE IF NOT EXISTS trade.established_trade (
             portfolioId int,
@@ -536,7 +544,6 @@ public static class TradeSchemaSql
             PRIMARY KEY (workflowId, eventId)
         );
 
-        CREATE INDEX IF NOT EXISTS intrinsic_time_strategy_workflow_timeline_ordered ON trade.intrinsic_time_strategy_workflow_timeline (workflowId, eventId ASC);
 
         CREATE TABLE IF NOT EXISTS trade.intrinsic_time_strategy_workflow_by_entity (
             workflowEntityId text,
@@ -616,7 +623,6 @@ public static class TradeSchemaSql
             PRIMARY KEY (tradeId, tradeType)
         );
 
-        CREATE INDEX IF NOT EXISTS trade_limit_ordered ON trade.trade_limit (tradeId, tradeType ASC);
 
         CREATE TABLE IF NOT EXISTS trade.trade_live_feed (
             orderId int,
@@ -760,7 +766,6 @@ public static class TradeSchemaSql
             PRIMARY KEY (tradeId, tradeType)
         );
 
-        CREATE INDEX IF NOT EXISTS trade_type_limit_ordered ON trade.trade_type_limit (tradeId, tradeType ASC);
 
         ALTER TABLE trade.market_condition ADD COLUMN IF NOT EXISTS volatilityBehavior text;
 

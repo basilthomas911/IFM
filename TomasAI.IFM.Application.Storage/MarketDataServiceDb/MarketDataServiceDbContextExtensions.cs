@@ -37,7 +37,7 @@ internal static class MarketDataServiceDbContextExtensions
             await using var connection = new PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(context.ConnectionString);
             await connection.OpenAsync(token)
             .ConfigureAwait(false);
-            await using var command = new NpgsqlCommand(MarketDataServiceDbSql.ReadRecoveryLog, connection) { CommandTimeout = 120 };
+            await using var command = new NpgsqlCommand(selection.Statement, connection) { CommandTimeout = 120 };
             PostgresValueBinding.AddParameters(command, (object?[])selection.Bind());
             var rows = new List<string>();
             await using var reader = await command.ExecuteReaderAsync(token)

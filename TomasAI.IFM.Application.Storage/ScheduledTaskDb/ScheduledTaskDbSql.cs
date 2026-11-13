@@ -42,8 +42,17 @@ public static class ScheduledTaskDbSql
     internal const string HistoryAfter =
         """
         SELECT payload
-        FROM scheduled_task.scheduled_task_run
-        WHERE environment=$1 AND host_id=$2 AND schedule_id=$3 AND (intended_fire < $4 OR (intended_fire = $4 AND run_id > $5))
+        FROM (
+            (SELECT payload,intended_fire,run_id
+             FROM scheduled_task.scheduled_task_run
+             WHERE environment=$1 AND host_id=$2 AND schedule_id=$3 AND intended_fire=$4 AND run_id>$5
+             ORDER BY intended_fire DESC,run_id ASC LIMIT $6)
+            UNION ALL
+            (SELECT payload,intended_fire,run_id
+             FROM scheduled_task.scheduled_task_run
+             WHERE environment=$1 AND host_id=$2 AND schedule_id=$3 AND intended_fire<$4
+             ORDER BY intended_fire DESC,run_id ASC LIMIT $6)
+        ) page
         ORDER BY intended_fire DESC,run_id ASC LIMIT $6;
         """;
 

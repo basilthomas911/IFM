@@ -3,6 +3,14 @@ namespace TomasAI.IFM.Application.Storage.MarketDataDb.Schema;
 /// <summary>Contains PostgreSQL schema statements for MarketDataDb.</summary>
 public static class MarketDataSchemaSql
 {
+    internal const string DropDuplicateIndexes =
+        """
+        DROP INDEX IF EXISTS market_data.economic_calendar_country_code_ordered RESTRICT;
+        DROP INDEX IF EXISTS market_data.futures_option_tick_price_data_ordered RESTRICT;
+        DROP INDEX IF EXISTS market_data.vix_futures_contract_index_ordered RESTRICT;
+        DROP INDEX IF EXISTS market_data.market_holiday_ordered RESTRICT;
+        """;
+
     /// <summary>Creates the historical analytics attempt projection.</summary>
     internal const string CreateHistoricalAnalyticsAttemptProjection =
         """
@@ -393,7 +401,6 @@ public static class MarketDataSchemaSql
             countryCode text,
             PRIMARY KEY (lookupId, countryCode)
         );
-        CREATE INDEX IF NOT EXISTS economic_calendar_country_code_ordered ON market_data.economic_calendar_country_code (lookupId, countryCode ASC);
 
         CREATE TABLE IF NOT EXISTS market_data.trade_live_feed (
             orderId int,
@@ -589,7 +596,6 @@ public static class MarketDataSchemaSql
             rho double precision,
             PRIMARY KEY (contractId, valueDate, tickId)
         );
-        CREATE INDEX IF NOT EXISTS futures_option_tick_price_data_ordered ON market_data.futures_option_tick_price_data (contractId, valueDate ASC, tickId ASC);
 
         CREATE TABLE IF NOT EXISTS market_data.futures_bar_data (
             contractId text,
@@ -711,7 +717,6 @@ public static class MarketDataSchemaSql
             contractId text,
             PRIMARY KEY (bucket, contractId)
         );
-        CREATE INDEX IF NOT EXISTS vix_futures_contract_index_ordered ON market_data.vix_futures_contract_index (bucket, contractId ASC);
 
         CREATE TABLE IF NOT EXISTS market_data.market_data_projection_month (
             projectionName text,
@@ -1049,7 +1054,6 @@ public static class MarketDataSchemaSql
             description TEXT,
             PRIMARY KEY (currencyType, holidayDate)
         );
-        CREATE INDEX IF NOT EXISTS market_holiday_ordered ON market_data.market_holiday (currencyType, holidayDate ASC);
 
         CREATE TABLE IF NOT EXISTS market_data.normal_curve_data (
             stdDevIndex double precision PRIMARY KEY,
@@ -1065,6 +1069,8 @@ public static class MarketDataSchemaSql
         ALTER TABLE market_data.futures_option_chain_quote_data ADD COLUMN IF NOT EXISTS volumeValueDate date;
 
         ALTER TABLE market_data.futures_option_chain_quote_data ADD COLUMN IF NOT EXISTS openInterestValueDate date;
+
+        ALTER TABLE market_data.futures_option_chain_quote_data SET (fillfactor = 80);
 
         ALTER TABLE market_data.futures_eod_data ADD COLUMN IF NOT EXISTS fiftyDMA numeric;
 
@@ -1159,6 +1165,40 @@ public static class MarketDataSchemaSql
         ALTER TABLE market_data.futures_atr_signal ADD COLUMN IF NOT EXISTS isWarm BOOLEAN;
 
         CREATE INDEX IF NOT EXISTS futures_rsi_signal_signaltype ON market_data.futures_rsi_signal (signalType);
+        """;
+
+    /// <summary>Indexes the latest intraday reads after the indicator metadata columns are present.</summary>
+    internal const string CreateIntradayIndicatorIndexes =
+        """
+        CREATE INDEX IF NOT EXISTS futures_rsi_signal_latest_intraday
+            ON market_data.futures_rsi_signal
+            (contractId, timePeriod, periodLength, valueDate, marketDataAsOf DESC NULLS LAST, timestamp DESC);
+
+        CREATE INDEX IF NOT EXISTS futures_adx_signal_latest_intraday
+            ON market_data.futures_adx_signal
+            (contractId, timePeriod, periodLength, valueDate, marketDataAsOf DESC NULLS LAST, timestamp DESC);
+
+        CREATE INDEX IF NOT EXISTS futures_atr_signal_latest_intraday
+            ON market_data.futures_atr_signal
+            (contractId, timePeriod, periodLength, valueDate, marketDataAsOf DESC NULLS LAST, timestamp DESC);
+
+        CREATE INDEX IF NOT EXISTS futures_macd_signal_latest_intraday
+            ON market_data.futures_macd_signal
+            (contractId, timePeriod, signalEmaPeriod, fastEmaPeriod, slowEmaPeriod, valueDate,
+             marketDataAsOf DESC NULLS LAST, timestamp DESC);
+        """;
+
+    internal const string CreateOptionChainStatisticsIndexes =
+        """
+        CREATE INDEX IF NOT EXISTS futures_option_chain_quote_data_volume_latest
+            ON market_data.futures_option_chain_quote_data
+            (underlyingcontractid, expirydate, contractid, volumevaluedate DESC, valuedate DESC)
+            INCLUDE (volume) WHERE volume >= 0 AND volumevaluedate IS NOT NULL;
+
+        CREATE INDEX IF NOT EXISTS futures_option_chain_quote_data_openinterest_latest
+            ON market_data.futures_option_chain_quote_data
+            (underlyingcontractid, expirydate, contractid, openinterestvaluedate DESC, valuedate DESC)
+            INCLUDE (openinterest) WHERE openinterest >= 0 AND openinterestvaluedate IS NOT NULL;
         """;
 
     /// <summary>Drops the historical analytics attempt projection.</summary>

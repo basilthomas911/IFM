@@ -225,11 +225,18 @@ public static class ConfigurationDbSql
     internal const string GetParameterSets =
         """
         SELECT v.body::text, s.name, s.description, s.revision
-        FROM reference_configuration.parameter_set_version v
-        JOIN reference_configuration.parameter_set s USING (set_id)
+        FROM reference_configuration.parameter_set s
+        CROSS JOIN LATERAL (
+            SELECT version, body
+            FROM reference_configuration.parameter_set_version
+            WHERE set_id = s.set_id
+              AND version <= CASE WHEN s.name = $3 AND s.set_id = $4 THEN $5::bigint - 1 ELSE 2147483647 END
+            ORDER BY version DESC
+            LIMIT $6
+        ) v
         WHERE s.component_code = $1
           AND ($2::uuid IS NULL OR s.set_id = $2)
-          AND ($4::uuid IS NULL OR (s.name, s.set_id, -v.version) > ($3, $4, -$5::integer))
+          AND ($4::uuid IS NULL OR (s.name, s.set_id) >= ($3, $4))
         ORDER BY s.name, s.set_id, v.version DESC
         LIMIT $6;
         """;
@@ -870,13 +877,20 @@ public static class ConfigurationDbSql
     /// <summary>Reads a page of parameter catalog versions.</summary>
     internal const string VersionPage =
         """
-        SELECT m.owner_set_id, m.owner_version, s.name, s.description, s.revision
-        FROM reference_configuration.parameter_catalog_version m
-        JOIN reference_configuration.parameter_set s ON s.set_id = m.owner_set_id
+        SELECT s.set_id, v.owner_version, s.name, s.description, s.revision
+        FROM reference_configuration.parameter_set s
+        CROSS JOIN LATERAL (
+            SELECT owner_version
+            FROM reference_configuration.parameter_catalog_version
+            WHERE owner_set_id = s.set_id
+              AND owner_version <= CASE WHEN s.name = $3 AND s.set_id = $4 THEN $5::bigint - 1 ELSE 9223372036854775807 END
+            ORDER BY owner_version DESC
+            LIMIT $6
+        ) v
         WHERE s.component_code = $1
           AND ($2::uuid IS NULL OR s.set_id = $2)
-          AND ($4::uuid IS NULL OR (s.name, s.set_id, -m.owner_version) > ($3, $4, -$5::bigint))
-        ORDER BY s.name, s.set_id, m.owner_version DESC
+          AND ($4::uuid IS NULL OR (s.name, s.set_id) >= ($3, $4))
+        ORDER BY s.name, s.set_id, v.owner_version DESC
         LIMIT $6;
         """;
 

@@ -1,6 +1,7 @@
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.Trade.Persistence;
 using TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Query;
+using TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Query.Actor;
 using NSubstitute;
 using System;
 using System.Collections.Generic;
@@ -169,15 +170,14 @@ public sealed class PostgresTradePlanTests(PostgresTradePlanFixture fixture)
             await fixture.Transactions.ExecuteOnceAsync(async (transaction, token) =>
             { await fixture.Plans.ProjectMaterialAsync(transaction, plan, token); return true; });
         }
-        var first = await TradePlanOffsetHistory.ReadAsync(fixture.Plans, original.Position.Id, original.Position.StrategyKind, original.ValueDate, 0, 1);
+        var first = await TradePlanOffsetHistory.ReadPageAsync(fixture.Plans, original.Position.Id, original.Position.StrategyKind, original.ValueDate, 0, 1);
+        first.PagingState.Should().NotBeNullOrEmpty();
         first.Items.Should().HaveCount(1);
         first.Items[0].IronCondorTradePlanSnapshot!.CombinedForwardPrice.Should().Be(rawClosingCost ? 13.5m : -13.5m);
         first.Items[0].IronCondorTradePlanSnapshot!.ForwardSpreadForChart.Should().Be(-13.5m);
         first.ChartEndUtc.Should().BeCloseTo(at.AddHours(7).AddSeconds(40), TimeSpan.FromMicroseconds(1));
         first.ChartPoints.Select(point => point.NetSpread).Should().Equal(-11m,-13m);
         first.ChartPoints.Select(point => point.ForwardSpread).Should().Equal(-11.5m,-13.5m);
-        var older = await TradePlanOffsetHistory.ReadAsync(fixture.Plans, original.Position.Id, original.Position.StrategyKind, original.ValueDate, 1, 1, first.MaximumRevision);
-        older.ChartPoints.Should().BeEmpty();
         // A new live cycle must see newly persisted samples even within the chart cache's one-minute lifetime.
         var next = original with { PlanRevision = 5, CalculatedAtUtc = at.AddHours(7).AddMinutes(1),
             IronCondorTradePlanSnapshot = new() { Position = original.Position, CombinedSpreadPrice = -14m,
@@ -186,17 +186,26 @@ public sealed class PostgresTradePlanTests(PostgresTradePlanFixture fixture)
         next = next with { ContentHash = TradePlanContractIdentity.PlanHash(next) };
         await fixture.Transactions.ExecuteOnceAsync(async (transaction, token) =>
         { await fixture.Plans.ProjectMaterialAsync(transaction, next, token); return true; });
-        var refreshed = await TradePlanOffsetHistory.ReadAsync(fixture.Plans, original.Position.Id, original.Position.StrategyKind, original.ValueDate, 0, 1);
+        var older = await TradePlanOffsetHistory.ReadPageAsync(fixture.Plans, original.Position.Id, original.Position.StrategyKind,
+            original.ValueDate, 1, 1, first.MaximumRevision, first.PagingState);
+        older.Items.Select(plan => plan.PlanRevision).Should().Equal(3L);
+        older.MaximumRevision.Should().Be(4);
+        older.TotalCount.Should().Be(4);
+        older.ChartEndUtc.Should().Be(first.ChartEndUtc);
+        older.ChartPoints.Should().BeEmpty();
+        var refreshed = await TradePlanOffsetHistory.ReadPageAsync(fixture.Plans, original.Position.Id, original.Position.StrategyKind, original.ValueDate, 0, 1);
+        refreshed.MaximumRevision.Should().Be(5);
         refreshed.ChartEndUtc.Should().Be(next.CalculatedAtUtc);
         refreshed.ChartPoints.Select(point => point.NetSpread).Should().Equal(-11m, -13m, -14m);
         refreshed.ChartPoints.Select(point => point.ForwardSpread).Should().Equal(-11.5m, -13.5m, -14.5m);
         // Paging against an older revision still retains the original baseline.
-        var anchored = await TradePlanOffsetHistory.ReadAsync(fixture.Plans, original.Position.Id, original.Position.StrategyKind, original.ValueDate, 0, 1, first.MaximumRevision);
-        anchored.ChartPoints.Select(point => point.NetSpread).Should().Equal(-11m, -13m);
+        var anchored = await TradePlanOffsetHistory.ReadPageAsync(fixture.Plans, original.Position.Id, original.Position.StrategyKind, original.ValueDate, 0, 1, first.MaximumRevision);
+        anchored.ChartEndUtc.Should().Be(first.ChartEndUtc);
+        anchored.ChartPoints.Should().BeEquivalentTo(first.ChartPoints);
     }
 
     [Fact]
-    public async Task Offset_pages_read_only_the_requested_window_and_keep_a_stable_revision_boundary()
+    public async Task Sequential_and_offset_pages_return_the_same_rows_at_the_original_revision_anchor()
     {
         var original = Plan();
         async Task Insert(long revision)
@@ -206,21 +215,53 @@ public sealed class PostgresTradePlanTests(PostgresTradePlanFixture fixture)
             await fixture.Transactions.ExecuteOnceAsync(async (transaction, token) =>
             { await fixture.Plans.ProjectMaterialAsync(transaction, plan, token); return true; });
         }
-        for (var revision = 1; revision <= 125; revision++) await Insert(revision);
-        var first = await TradePlanOffsetHistory.ReadAsync(fixture.Plans, original.Position.Id, original.Position.StrategyKind, original.ValueDate, 0, 50);
+        for (var revision = 1; revision <= 125; revision++) await Insert(2L * revision);
+        var factory = Substitute.For<IDbContextFactory>();
+        factory.TradePlanDb.Returns(fixture.Plans);
+        var context = Substitute.For<IIronCondorTradePlanQueryContext>();
+        context.DbFactory.Returns(factory);
+        async Task<StrategyTradePlanHistoryPage> Read(int? offset, long? anchor = null, byte[]? cursor = null, DateOnly? date = null)
+        {
+            var query = new GetIronCondorTradePlanHistoryQuery
+            {
+                PlanId = new(original.Position.Id, date ?? original.ValueDate),
+                PageSize = 50, Offset = offset, MaximumRevision = anchor, PagingState = cursor
+            };
+            var result = await query.ExecuteAsync(context, default);
+            return result.Value!;
+        }
+        var first = await Read(0);
         first.TotalCount.Should().Be(125);
+        first.MaximumRevision.Should().Be(250);
+        first.PagingState.Should().NotBeNullOrEmpty();
         first.Items.Should().HaveCount(50);
-        first.Items.Select(plan => plan.PlanRevision).Should().Equal(Enumerable.Range(76, 50).Reverse().Select(i => (long)i));
-        await Insert(126);
-        var next = await TradePlanOffsetHistory.ReadAsync(fixture.Plans, original.Position.Id, original.Position.StrategyKind, original.ValueDate, 50, 50, first.MaximumRevision);
+        first.Items.Select(plan => plan.PlanRevision).Should().Equal(Enumerable.Range(76, 50).Reverse().Select(i => 2L * i));
+        var legacyFirst = await Read(null);
+        legacyFirst.PagingState.Should().NotBeNullOrEmpty();
+        await Insert(252);
+        var next = await Read(50, cursor: first.PagingState);
         next.Offset.Should().Be(50); next.TotalCount.Should().Be(125);
-        next.Items.Select(plan => plan.PlanRevision).Should().Equal(Enumerable.Range(26, 50).Reverse().Select(i => (long)i));
-        var tail = await TradePlanOffsetHistory.ReadAsync(fixture.Plans, original.Position.Id, original.Position.StrategyKind, original.ValueDate, 100, 50, first.MaximumRevision);
+        next.MaximumRevision.Should().Be(first.MaximumRevision);
+        next.ChartEndUtc.Should().Be(first.ChartEndUtc);
+        next.Items.Select(plan => plan.PlanRevision).Should().Equal(Enumerable.Range(26, 50).Reverse().Select(i => 2L * i));
+        (await Read(null, cursor: legacyFirst.PagingState)).Items.Should().BeEquivalentTo(next.Items, options => options.WithStrictOrdering());
+        var jump = await Read(50, first.MaximumRevision);
+        jump.Should().BeEquivalentTo(next, options => options.WithStrictOrdering());
+        jump.PagingState.Should().NotBeNullOrEmpty();
+        var tail = await Read(100, first.MaximumRevision, jump.PagingState);
         tail.Items.Should().HaveCount(25);
-        var empty = await TradePlanOffsetHistory.ReadAsync(fixture.Plans, original.Position.Id, original.Position.StrategyKind, original.ValueDate, 10000, 50, first.MaximumRevision);
+        tail.Items.Select(plan => plan.PlanRevision).Should().Equal(Enumerable.Range(1, 25).Reverse().Select(i => 2L * i));
+        tail.PagingState.Should().BeNull();
+        tail.Should().BeEquivalentTo(await Read(100, first.MaximumRevision), options => options.WithStrictOrdering());
+        var empty = await Read(10000, first.MaximumRevision);
         empty.Items.Should().BeEmpty(); empty.TotalCount.Should().Be(125);
-        var invalid = async () => await TradePlanOffsetHistory.ReadAsync(fixture.Plans, original.Position.Id, original.Position.StrategyKind, original.ValueDate, -1, 50);
-        await invalid.Should().ThrowAsync<ArgumentOutOfRangeException>();
+        empty.PagingState.Should().BeNull();
+        (await Read(0)).MaximumRevision.Should().Be(252);
+        await FluentActions.Awaiting(() => Read(-1)).Should().ThrowAsync<ArgumentOutOfRangeException>();
+        await FluentActions.Awaiting(() => Read(51, cursor: first.PagingState)).Should().ThrowAsync<ArgumentException>();
+        await FluentActions.Awaiting(() => Read(50, 252, first.PagingState)).Should().ThrowAsync<ArgumentException>();
+        await FluentActions.Awaiting(() => Read(50, cursor: first.PagingState, date: original.ValueDate.AddDays(1))).Should().ThrowAsync<ArgumentException>();
+        await FluentActions.Awaiting(() => Read(50, cursor: [0])).Should().ThrowAsync<ArgumentException>();
     }
 
     [Fact]

@@ -573,22 +573,33 @@ public static class PortfolioDbSql
         WHERE b.book_id=$1 AND b.fund_id=$2 AND EXISTS(SELECT 1 FROM portfolio_financial.ledger_account a
           WHERE a.book_id=b.book_id AND a.account_id=b.account_id AND a.category='Cash')) - (SELECT COALESCE(SUM(amount),
             0) FROM portfolio_financial.financial_encumbrance WHERE book_id=$1 AND fund_id=$2
-            AND status='Pending') - (WITH paid AS (
-          SELECT f.reservation_id,f.component,SUM(GREATEST(0,f.cash_paid-COALESCE((
-            SELECT SUM(e.debit-e.credit) FROM portfolio_financial.ledger_journal reversal
-              JOIN portfolio_financial.ledger_entry e ON e.journal_id=reversal.journal_id
-            WHERE reversal.reversal_journal_id=j.journal_id AND e.fund_id=$2 AND EXISTS(
-              SELECT 1 FROM portfolio_financial.ledger_account a WHERE a.book_id=e.book_id AND a.account_id=e.account_id
-              AND a.category='Cash')),0))) amount
-          FROM portfolio_financial.capacity_funding_receipt f JOIN portfolio_financial.ledger_journal j ON j.transaction_id=f.transaction_id
-          WHERE j.book_id=$1 AND j.fund_id=$2 GROUP BY f.reservation_id,f.component),
-        holds AS (
+            AND status='Pending') - (WITH holds AS (
           SELECT r.reservation_id,(r.remaining_units+r.filled_units-r.closed_units)::numeric/r.strategy_units fraction,
             COALESCE((r.requirements->>'SettlementCash')::numeric,0) settlement,
             COALESCE((r.requirements->>'MarginFunding')::numeric,0) margin,
             COALESCE((r.requirements->>'FeeReserve')::numeric,0) fee,
             COALESCE((r.requirements->>'VariationReserve')::numeric,0) variation
-          FROM portfolio_financial.capacity_reservation r WHERE r.book_id=$1 AND r.fund_id=$2 AND r.status NOT IN (8,9))
+          FROM portfolio_financial.capacity_reservation r WHERE r.book_id=$1 AND r.fund_id=$2 AND r.status NOT IN (8,9)
+        ), funding AS MATERIALIZED (
+          SELECT j.journal_id,f.reservation_id,f.component,f.cash_paid
+          FROM portfolio_financial.capacity_funding_receipt f
+          JOIN portfolio_financial.ledger_journal j ON j.transaction_id=f.transaction_id
+          JOIN holds h ON h.reservation_id=f.reservation_id
+          WHERE j.book_id=$1 AND j.fund_id=$2
+        ), reversed_cash AS (
+          SELECT reversal.reversal_journal_id AS journal_id,SUM(e.debit-e.credit) AS amount
+          FROM funding f
+          JOIN portfolio_financial.ledger_journal reversal ON reversal.reversal_journal_id=f.journal_id
+          JOIN portfolio_financial.ledger_entry e ON e.journal_id=reversal.journal_id
+          WHERE e.fund_id=$2 AND EXISTS (
+            SELECT 1 FROM portfolio_financial.ledger_account a
+            WHERE a.book_id=e.book_id AND a.account_id=e.account_id AND a.category='Cash')
+          GROUP BY reversal.reversal_journal_id
+        ), paid AS (
+          SELECT f.reservation_id,f.component,SUM(GREATEST(0,f.cash_paid-COALESCE(r.amount,0))) AS amount
+          FROM funding f LEFT JOIN reversed_cash r ON r.journal_id=f.journal_id
+          GROUP BY f.reservation_id,f.component
+        )
         SELECT COALESCE(SUM(ceil(100*(GREATEST(0,h.settlement*h.fraction-COALESCE(s.amount,0))+
           GREATEST(0,h.margin*h.fraction-COALESCE(m.amount,0))+GREATEST(0,h.fee*h.fraction-COALESCE(f.amount,
             0))+h.variation*h.fraction))/100),0)

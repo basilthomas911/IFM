@@ -67,7 +67,11 @@ public sealed class SystemAdminDbContext(IDbConnectionSettings connectionSetting
     {
         Guid? continuation = Guid.TryParse(query.ContinuationIdentity, out var parsed) ? parsed : null;
         var preparedParameters3 = new OperationListParameter(query.Source, query.ProtectionSetId?.Value, query.FromUtc?.UtcDateTime, query.ToUtc?.UtcDateTime, continuation, query.PageSize);
-        return[..await Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.ListOperations)}", SystemAdminDbSql.ListOperations)
+        var bySource = query.Source != BackupSource.None;
+        var byProtectionSet = preparedParameters3.ProtectionSetId is not null;
+        var after = continuation.HasValue;
+        var sql = SystemAdminDbSql.ListOperations(bySource, byProtectionSet, after);
+        return[..await Use($"SystemAdminDbSql.ListOperations.{bySource}.{byProtectionSet}.{after}", sql)
             .SetParameters(preparedParameters3)
             .ExecuteQueryAsync(MapToOperation, cancellationToken)
             .ConfigureAwait(false)];

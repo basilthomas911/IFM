@@ -94,7 +94,7 @@ public class TradePlanContextConventionBenchmarks
     [Benchmark] public Task<StrategyTradePlanHistoryPage> ReadAnchoredPage() =>
         read(fixture.Position.Id, fixture.Position.StrategyKind, fixture.ValueDate, 40, 20, 120, CancellationToken.None);
 
-    static StrategyTradePlanSnapshot Plan(int suffix, long revision, decimal pnl, bool material)
+    internal static StrategyTradePlanSnapshot Plan(int suffix, long revision, decimal pnl, bool material)
     {
         var now = new DateTime(2026, 11, 10, 14, 0, 0, DateTimeKind.Utc).AddMinutes(revision * 2);
         var position = new StrategyPositionSnapshot

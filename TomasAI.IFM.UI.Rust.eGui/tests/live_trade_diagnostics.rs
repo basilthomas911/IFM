@@ -70,6 +70,7 @@ async fn inspect_current_trade_plan_and_saved_option_observations() {
             0,
             2,
             None,
+            None,
             deadline,
         )
         .await

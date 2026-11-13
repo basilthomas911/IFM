@@ -170,15 +170,27 @@ public static class MarketDataServiceDbSql
         """;
 
     /// <summary>SQL for list observations.</summary>
-    internal const string ListObservations =
+    const string ObservationListProjection =
         """
         SELECT watchdog_status_log_id,observation_id,correlation_id,value_date,observed_on_utc,operation_reason,
             major_status,display_health,core_contracts_ready,recovery_attempt,native_backend,native_abi_version,
             native_generation,failure_stage,failure_detail,feed_status_details,row_version
         FROM market_data_service.watchdog_status_log
-        WHERE ($1::date IS NULL OR value_date=$1) AND ($2::text IS NULL OR major_status=$2)
-        ORDER BY observed_on_utc DESC LIMIT $3;
         """;
+    const string ObservationListOrder = " ORDER BY observed_on_utc DESC LIMIT ";
+    internal const string ListObservations = ObservationListProjection + ObservationListOrder + "$1";
+    internal const string ListObservationsByDate =
+        ObservationListProjection + " WHERE value_date=$1" + ObservationListOrder + "$2";
+    internal const string ListObservationsByStatus =
+        ObservationListProjection + " WHERE major_status=$1" + ObservationListOrder + "$2";
+    internal const string ListUpObservations =
+        ObservationListProjection + " WHERE major_status='Up'" + ObservationListOrder + "$1";
+    internal const string ListResettingObservations =
+        ObservationListProjection + " WHERE major_status='Resetting'" + ObservationListOrder + "$1";
+    internal const string ListDownObservations =
+        ObservationListProjection + " WHERE major_status='Down'" + ObservationListOrder + "$1";
+    internal const string ListObservationsByDateAndStatus =
+        ObservationListProjection + " WHERE value_date=$1 AND major_status=$2" + ObservationListOrder + "$3";
 
     /// <summary>SQL for list open dataset incidents.</summary>
     internal const string ListOpenDatasetIncidents =
@@ -238,14 +250,13 @@ public static class MarketDataServiceDbSql
         WHERE scope=$1 AND dataset=$2 AND delivered_at_utc IS NULL ORDER BY revision LIMIT $3;
         """;
 
-    /// <summary>SQL for read recovery log.</summary>
-    internal const string ReadRecoveryLog =
-        """
-        SELECT payload FROM market_data_service.marketdata_recovery_log
-        WHERE value_date=$1 AND ($2::text IS NULL OR dataset=$2)
-          AND ($3::uuid IS NULL OR operation_id=$3)
-        ORDER BY operation_id,sequence LIMIT $4;
-        """;
+    const string RecoveryLogDateFilter = "SELECT payload FROM market_data_service.marketdata_recovery_log WHERE value_date=$1";
+    const string RecoveryLogOrder = " ORDER BY operation_id,sequence LIMIT ";
+    internal const string ReadRecoveryLogByDate = RecoveryLogDateFilter + RecoveryLogOrder + "$2";
+    internal const string ReadRecoveryLogByDataset = RecoveryLogDateFilter + " AND dataset=$2" + RecoveryLogOrder + "$3";
+    internal const string ReadRecoveryLogByOperation = RecoveryLogDateFilter + " AND operation_id=$2" + RecoveryLogOrder + "$3";
+    internal const string ReadRecoveryLogByDatasetAndOperation =
+        RecoveryLogDateFilter + " AND dataset=$2 AND operation_id=$3" + RecoveryLogOrder + "$4";
 
     /// <summary>SQL for reserve durable lease identity.</summary>
     internal const string ReserveDurableLeaseIdentity =
