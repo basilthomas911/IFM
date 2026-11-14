@@ -84,16 +84,17 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandStateTests
         loaded.CurrentView.Status.Should().Be(WorkflowStrategyMachineStatus.Started);
     }
 
-    /// <summary>An unexpired Started snapshot remains Busy and appends nothing.</summary>
+    /// <summary>An unexpired workflow remains active and a different trigger is persisted in the queue.</summary>
     [Fact]
-    public void Unexpired_started_rejects_new_start_without_event()
+    public void Unexpired_started_queues_new_signal()
     {
         var state = StartedState(Now);
         var replacement = new StrategyWorkflowId(Guid.Parse("0198E212-3C00-7000-8000-000000000203"));
 
         CreateExecute(replacement, TriggerId(4)).Execute(Context(Now.AddSeconds(30)), state);
 
-        state.Events.Should().BeEmpty();
+        state.Events.Should().ContainSingle().Which.Should().BeOfType<IntrinsicTimeStrategySignalQueuedEvent>();
+        state.NextSignal!.TriggerEventId.Should().Be(TriggerId(4));
         state.CurrentView!.WorkflowId.Should().Be(WorkflowId);
     }
 

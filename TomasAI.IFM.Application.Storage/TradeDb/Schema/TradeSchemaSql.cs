@@ -3,6 +3,22 @@ namespace TomasAI.IFM.Application.Storage.TradeDb.Schema;
 /// <summary>Contains PostgreSQL schema statements for TradeDb.</summary>
 public static class TradeSchemaSql
 {
+    internal const string StrategySignalQueueCreate =
+        """
+        CREATE TABLE IF NOT EXISTS trade.intrinsic_time_strategy_signal_queue (
+            workflowEntityId text PRIMARY KEY
+        );
+
+        CREATE INDEX IF NOT EXISTS intrinsic_time_strategy_workflow_trigger
+            ON trade.intrinsic_time_strategy_workflow (workflowEntityId, triggerEventId);
+        """;
+
+    internal const string StrategySignalQueueDrop =
+        """
+        DROP INDEX IF EXISTS trade.intrinsic_time_strategy_workflow_trigger;
+        DROP TABLE IF EXISTS trade.intrinsic_time_strategy_signal_queue;
+        """;
+
     internal const string DropDuplicateIndexes =
         """
         DROP INDEX IF EXISTS trade.order_execution_fill_ordered RESTRICT;

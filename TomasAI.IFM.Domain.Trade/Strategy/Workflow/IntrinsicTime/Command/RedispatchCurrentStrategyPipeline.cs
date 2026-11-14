@@ -8,6 +8,7 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Model;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command;
 /// <summary>Republishes the durable current intent. Recovery never changes an execution identity, input revision or deadline.</summary>
@@ -50,6 +51,8 @@ public static class RedispatchCurrentStrategyPipeline
         /// <returns>The prepared business result or command acceptance.</returns>
         internal ServiceResult<GuidResult> PrepareWorkflow(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context, WorkflowSnapshotPreparation state)
         {
+            if (string.Equals(c.RequestedBy, IntrinsicTimeSignalQueueRecoveryService.RequestSource, StringComparison.Ordinal))
+                return new ServiceOk<GuidResult>(new(c.CommandId));
             var view = state.CurrentView;
             if (view is null || view.WorkflowId != c.WorkflowId || view.WorkflowRevision != c.ExpectedWorkflowRevision || view.CurrentStage != c.ExpectedStage)
                 return new ServiceOk<GuidResult>(new(c.CommandId));

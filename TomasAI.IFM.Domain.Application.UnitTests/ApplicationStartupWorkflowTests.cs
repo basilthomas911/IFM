@@ -113,11 +113,15 @@ public sealed class ApplicationStartupWorkflowTests
         var startup = Event().ExecuteAsync(context, context.Logger, CancellationToken.None).AsTask();
 
         await activities.BlockStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
-        await activities.WaitUntilExecutedAsync(
-            ApplicationStartupActivity.StartMarketData,
-            TimeSpan.FromSeconds(2));
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        var progress = context.StartupStatusStore.Current;
+        while (progress.Activities.Length == 0)
+            progress = await context.StartupStatusStore.WaitForChangeAsync(progress, deadline.Token);
 
         Assert.False(startup.IsCompleted);
+        Assert.Equal(ApplicationLifecycleState.Starting, progress.State);
+        Assert.Equal(ApplicationStartupPlan.Activities.Count(definition => definition.Required), progress.Activities.Length);
+        Assert.All(progress.Activities, result => Assert.True(result.Required && result.IsSatisfied));
         activities.BlockRelease.TrySetResult();
         await startup;
         Assert.Equal(ApplicationLifecycleState.Running, context.StartupStatusStore.Current.State);
@@ -239,21 +243,6 @@ public sealed class ApplicationStartupWorkflowTests
             if (Failure == activity)
                 throw new TestActivityException(activity.ToString());
             return ApplicationStartupActivityOutcome.AlreadySatisfied;
-        }
-
-        public async Task WaitUntilExecutedAsync(
-            ApplicationStartupActivity activity,
-            TimeSpan timeout)
-        {
-            var deadline = DateTime.UtcNow + timeout;
-            while (DateTime.UtcNow < deadline)
-            {
-                lock (gate)
-                    if (Executed.Contains(activity))
-                        return;
-                await Task.Delay(10);
-            }
-            throw new TimeoutException($"Activity {activity} did not execute within {timeout}.");
         }
 
         public ValueTask<ApplicationStartupActivityOutcome> ApplyParameterSetsAsync(ApplicationStartupContext context, CancellationToken cancellationToken) => Execute(ApplicationStartupActivity.ApplyParameterSets, cancellationToken);

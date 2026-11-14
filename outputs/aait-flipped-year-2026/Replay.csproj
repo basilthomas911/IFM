@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="TomasAI.IFM.Domain.MarketData.Analytics" HintPath="$(ReplayBuild)/TomasAI.IFM.Domain.MarketData.Analytics.dll" />
+    <Reference Include="TomasAI.IFM.Application.Contracts.MarketData.Analytics" HintPath="$(ReplayBuild)/TomasAI.IFM.Application.Contracts.MarketData.Analytics.dll" />
+    <Reference Include="TomasAI.IFM.Shared" HintPath="$(ReplayBuild)/TomasAI.IFM.Shared.dll" Condition="Exists('$(ReplayBuild)/TomasAI.IFM.Shared.dll')" />
+    <Reference Include="TomasAI.IFM.Shared.EventSourcing" HintPath="$(ReplayBuild)/TomasAI.IFM.Shared.EventSourcing.dll" Condition="Exists('$(ReplayBuild)/TomasAI.IFM.Shared.EventSourcing.dll')" />
+  </ItemGroup>
+</Project>

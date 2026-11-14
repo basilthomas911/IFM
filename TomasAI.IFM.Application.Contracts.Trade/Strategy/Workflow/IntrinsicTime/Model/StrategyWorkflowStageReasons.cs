@@ -23,6 +23,9 @@ public static partial class StrategyWorkflowStageReasons
     /// <summary>Derives a reason from historical evidence when a snapshot predates recorded sentences.</summary>
     public static string Describe(IntrinsicTimeStrategyWorkflowView view, StrategyWorkflowStage stage, StrategyWorkflowStageState state)
     {
+        if (stage == StrategyWorkflowStage.RegimeDiscovery && view.StopReasonCode == "RD.TRIGGER.STALE" &&
+            state.ReasonSentence is { } staleReason)
+            return staleReason;
         var identity = view.EntityId.ItiSignalEntityId;
         var market = string.IsNullOrWhiteSpace(identity.ContractId)
             ? "this market"

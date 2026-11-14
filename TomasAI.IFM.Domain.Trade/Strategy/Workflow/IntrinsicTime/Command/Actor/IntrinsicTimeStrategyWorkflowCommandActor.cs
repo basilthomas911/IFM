@@ -19,12 +19,13 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Application.CommandPipeline;
 using TomasAI.IFM.Shared.Validation;
 using System.Collections.Frozen;
+using TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Actor;
 /// <summary>Owns atomic snapshot transitions for one Intrinsic Time Strategy Workflow entity.</summary>
 /// <remarks>
-/// Every accepted transition appends only <see cref = "WorkflowStrategyStateUpdatedEvent"/>. Pipeline work is never
-/// dispatched here; the conventional projector may publish the committed snapshot after PostgreSQL succeeds.
+/// Appends durable queue admissions and workflow snapshots. The projector publishes committed workflow transitions.
 /// </remarks>
 public sealed class IntrinsicTimeStrategyWorkflowCommandActor(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> actorContext) : BaseEventSourceCommandActor<IntrinsicTimeStrategyWorkflowCommandActor>(actorContext, actorContext.Logger)
 {
@@ -33,6 +34,10 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandActor(ICommandActorConte
         && string.Equals(workflowContext.DbFactory.TradeDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal);
 
     protected override bool AuditIsCommittedWithState(ICommand command) => _atomicAudit;
+
+    protected override bool IsCommittedDuplicateException(ICommand command, Exception exception) =>
+        _atomicAudit && exception is CommandAuditDuplicateException { HasCommittedEvents: true } duplicate &&
+        duplicate.CommandId == command.CommandId;
 
     static readonly FrozenDictionary<Type, Func<ICommand, CancellationToken, ValueTask<bool>>> _duplicateRetryMap = new Dictionary<Type, Func<ICommand, CancellationToken, ValueTask<bool>>>
     {
@@ -251,6 +256,11 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandActor(ICommandActorConte
         var workflowState = (IntrinsicTimeStrategyWorkflowCommandState)state;
         var receive = ResolveMappedCommandHandler(command, _receiveMap);
         var result = await receive(command, context, workflowState).ConfigureAwait(false);
+        if (result.Success && workflowState.NextSignal is not null)
+            ExecuteIntrinsicTimeStrategyWorkflow.PromoteQueuedSignals(context, workflowState, command,
+                expireActive: command is ExecuteIntrinsicTimeStrategyWorkflowCommand ||
+                    command is RedispatchCurrentStrategyPipelineCommand
+                    { RequestedBy: IntrinsicTimeSignalQueueRecoveryService.RequestSource });
         if (ActorContext.Logger.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Debug))
         {
             var loggingArgument1 = Stopwatch.GetElapsedTime(started).TotalMilliseconds;

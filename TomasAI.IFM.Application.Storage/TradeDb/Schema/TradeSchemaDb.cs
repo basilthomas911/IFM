@@ -11,13 +11,14 @@ public sealed class TradeSchemaDb(IDbConnectionSettings connectionSettings, ILog
     /// <summary>Gets the full trade schema batch, including the additive recovery and handoff tables.</summary>
     public static string CreateStatement { get; } = TradeSchemaSql.LiveFeedRecoveryCreate + "\n"
         + TradeSchemaSql.StrategyExecutionHandoffCreate + "\n" + TradeSchemaSql.CreateTradeTables
-        + "\n" + TradeSchemaSql.DropDuplicateIndexes;
+        + "\n" + TradeSchemaSql.StrategySignalQueueCreate + "\n" + TradeSchemaSql.DropDuplicateIndexes;
 
     /// <summary>Gets the live-feed recovery table schema for isolated qualification.</summary>
     public static string LiveFeedRecoveryCreateStatement => TradeSchemaSql.LiveFeedRecoveryCreate;
 
     static readonly SchemaObjectDefinition[] Objects = [
         new("trade", CreateStatement, TradeSchemaSql.Drop),
-        new("live_feed_recovery", TradeSchemaSql.LiveFeedRecoveryCreate, TradeSchemaSql.DropLiveFeedRecovery)];
+        new("live_feed_recovery", TradeSchemaSql.LiveFeedRecoveryCreate, TradeSchemaSql.DropLiveFeedRecovery),
+        new("intrinsic_time_strategy_signal_queue", TradeSchemaSql.StrategySignalQueueCreate, TradeSchemaSql.StrategySignalQueueDrop)];
     protected override IReadOnlyList<SchemaObjectDefinition> Definitions => Objects;
 }

@@ -3,6 +3,7 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.T
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Commands;
 using System.Collections.Immutable;
 using MessagePack;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Snapshots;
@@ -18,8 +19,7 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.State
 /// </summary>
 /// <remarks>
 /// Every supported state-update event replaces the current workflow view with a newly constructed immutable record
-/// graph. Runtime recovery applies only the latest authoritative snapshot; legacy workflow events are deliberately
-/// rejected by the repository instead of being replayed into live state.
+/// graph. Runtime recovery restores the latest checkpoint and replays the remaining workflow snapshots and queue admissions.
 /// </remarks>
 public sealed class IntrinsicTimeStrategyWorkflowCommandState : BaseEventSourceActorState<IntrinsicTimeStrategyWorkflowCommandState>, IEventSourceActorState<IntrinsicTimeStrategyWorkflowCommandState>
 {
@@ -41,6 +41,12 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandState : BaseEventSourceA
     IntrinsicTimeStrategyWorkflowView? _workflowDefinition;
     IntrinsicTimeStrategyWorkflowState? _latestWorkflow;
     FuturesItiSignalGeneratedEvent? _activeTriggerEvent;
+    readonly Queue<ExecuteIntrinsicTimeStrategyWorkflowCommand> _pendingSignals = new();
+    readonly HashSet<Guid> _knownTriggerIds = [];
+    internal ExecuteIntrinsicTimeStrategyWorkflowCommand? NextSignal => _pendingSignals.TryPeek(out var next) ? next : null;
+    internal bool QueueChanged { get; private set; }
+    internal void RememberStartedTrigger(Guid triggerId) => _knownTriggerIds.Add(triggerId);
+    internal WorkflowStrategyStateUpdatedEvent? LatestSource { get; private set; }
     readonly ImmutableDictionary<StrategyWorkflowStage, Guid> _processedPipelineEventIds = ImmutableDictionary<StrategyWorkflowStage, Guid>.Empty;
     readonly ImmutableDictionary<StrategyWorkflowStage, StrategyPipelineResultIdentity> _processedPipelineResults = ImmutableDictionary<StrategyWorkflowStage, StrategyPipelineResultIdentity>.Empty;
     readonly ImmutableDictionary<StrategyWorkflowStage, Guid> _processedTimeoutIds = ImmutableDictionary<StrategyWorkflowStage, Guid>.Empty;
@@ -83,16 +89,17 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandState : BaseEventSourceA
     /// <summary>Gets the greatest persisted event-stream identity observed during application or replay.</summary>
     public long LastPersistedEventId { get; private set; }
 
-    /// <summary>Determines whether the supplied trigger is the latest persisted start request.</summary>
+    /// <summary>Determines whether the supplied trigger is already queued or has started a workflow.</summary>
     /// <param name = "triggerEventId">Trigger event identity to inspect.</param>
-    /// <returns><see langword="true"/> when the identity matches the latest start decision.</returns>
-    public bool IsDuplicateTrigger(Guid triggerEventId) => triggerEventId != Guid.Empty && LastTriggerEventId == triggerEventId;
+    /// <returns><see langword="true"/> when the trigger is known to the aggregate.</returns>
+    public bool IsDuplicateTrigger(Guid triggerEventId) => _knownTriggerIds.Contains(triggerEventId);
     /// <summary>Determines whether a trigger can create a workflow under the current reconstructed state.</summary>
     /// <param name = "triggerEventId">Trigger event identity to inspect.</param>
     /// <returns>
     /// <see langword="true"/> when no workflow is running and the trigger is not the latest persisted request.
     /// </returns>
-    public bool CanAcceptStart(Guid triggerEventId) => triggerEventId != Guid.Empty && !HasActiveWorkflow && !IsDuplicateTrigger(triggerEventId);
+    public bool CanAcceptStart(Guid triggerEventId) => triggerEventId != Guid.Empty && !HasActiveWorkflow &&
+        NextSignal is null && !IsDuplicateTrigger(triggerEventId);
     /// <summary>Determines whether a pipeline result or failure event has already been accepted for any stage.</summary>
     /// <param name = "sourceEventId">Pipeline event identity to inspect.</param>
     /// <returns><see langword="true"/> when the bounded stage metadata contains the identity.</returns>
@@ -146,7 +153,8 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandState : BaseEventSourceA
 
         Latest = latest,
         AppliedEventCount = AppliedEntityEventCount,
-        LastStartDecision = LastStartDecision
+        LastStartDecision = LastStartDecision,
+        PendingSignals = [.. _pendingSignals]
     };
 
     internal bool RestoreSnapshot(IntrinsicTimeStrategyWorkflowStateSnapshottedEvent snapshot)
@@ -156,6 +164,13 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandState : BaseEventSourceA
             return false;
         AppliedEntityEventCount = snapshot.AppliedEventCount;
         LastStartDecision = snapshot.LastStartDecision;
+        if (!snapshot.PendingSignals.IsDefault)
+            foreach (var request in snapshot.PendingSignals)
+            {
+                if (request.EntityId != EntityId || request.TriggerEventId == Guid.Empty || !_knownTriggerIds.Add(request.TriggerEventId))
+                    return false;
+                _pendingSignals.Enqueue(request);
+            }
         return true;
     }
 
@@ -164,6 +179,7 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandState : BaseEventSourceA
         var applied = domainEvent switch
         {
             WorkflowStrategyStateUpdatedEvent e => On(e),
+            IntrinsicTimeStrategySignalQueuedEvent e => OnQueued(e),
             _ => false
         };
         if (!applied)
@@ -189,6 +205,15 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandState : BaseEventSourceA
     {
         if (e.State.EntityId != e.EntityId || e.State.WorkflowId != e.WorkflowId || e.State.WorkflowRevision != e.WorkflowRevision)
             return false;
+        if (e.State.TriggerEventId != Guid.Empty)
+            _knownTriggerIds.Add(e.State.TriggerEventId);
+        if (e.State.Status == WorkflowStrategyMachineStatus.Started && e.WorkflowRevision == 1 &&
+            NextSignal?.TriggerEventId == e.State.TriggerEventId)
+        {
+            _pendingSignals.Dequeue();
+            QueueChanged = true;
+        }
+        LatestSource = e;
         using (WorkflowTrace.Start("workflow.state.clone_view", e.State))
             _workflowDefinition = CloneView(e.State);
         using (WorkflowTrace.Start("workflow.state.legacy_view", e.State))
@@ -200,6 +225,19 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandState : BaseEventSourceA
         LastStartDecision = e.State.Status == WorkflowStrategyMachineStatus.Started ? StrategyWorkflowStartDecision.Accepted : LastStartDecision;
         return true;
     }
+
+    bool OnQueued(IntrinsicTimeStrategySignalQueuedEvent source)
+    {
+        var request = source.Request;
+        if (!HasAuthoritativeSnapshot || source.EntityId != EntityId || request.EntityId != EntityId ||
+            request.TriggerEventId == Guid.Empty || !_knownTriggerIds.Add(request.TriggerEventId))
+            return false;
+        _pendingSignals.Enqueue(request);
+        QueueChanged = true;
+        return true;
+    }
+
+    internal void ResetQueueChangeTracking() => QueueChanged = false;
     static T? CopySelection<T>(T? value)
         where T : class => value is null ? null : MessagePackSerializer.Deserialize<T>(MessagePackSerializer.Serialize(value));
     static IntrinsicTimeStrategyWorkflowState CloneWorkflow(IntrinsicTimeStrategyWorkflowState source) => source with

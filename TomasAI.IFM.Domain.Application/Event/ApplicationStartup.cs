@@ -52,7 +52,7 @@ public static class ApplicationStartup
                 correlationId);
             var workflowStarted = context.TimeProvider.GetUtcNow().UtcDateTime;
             var results = new List<ApplicationStartupActivityResult>(ApplicationStartupPlan.Activities.Count);
-            context.StartupStatusStore.Set(new()
+            var starting = new ApplicationStartupStatus
             {
                 State = ApplicationLifecycleState.Starting,
                 ValueDate = workflow.ValueDate,
@@ -61,14 +61,15 @@ public static class ApplicationStartup
                 CorrelationId = workflow.CorrelationId,
                 StartedAtUtc = workflowStarted,
                 Summary = "Application startup activities are executing by dependency layer."
-            });
+            };
+            context.StartupStatusStore.Set(starting);
             await ReportAsync(
                 context.StatusConsoleWriter,
                 logger,
                 $"Application startup began. ValueDate={workflow.ValueDate:yyyy-MM-dd}; CommandId={workflow.CommandId}; CorrelationId={workflow.CorrelationId}.")
                 .ConfigureAwait(false);
 
-            results.AddRange(await ExecutePlanAsync(workflow, context, cancellationToken).ConfigureAwait(false));
+            results.AddRange(await ExecutePlanAsync(workflow, starting, context, cancellationToken).ConfigureAwait(false));
 
             await CompleteStartupAsync(@event, workflow, workflowStarted, results, context, logger).ConfigureAwait(false);
         }
@@ -98,7 +99,7 @@ public static class ApplicationStartup
         await SendTerminalAsync(@event, context, state, summary).ConfigureAwait(false);
     }
     /// <summary>Starts activities in dependency order and returns results in the plan's stable order.</summary>
-    static async Task<List<ApplicationStartupActivityResult>> ExecutePlanAsync(ApplicationStartupContext workflow,
+    static async Task<List<ApplicationStartupActivityResult>> ExecutePlanAsync(ApplicationStartupContext workflow, ApplicationStartupStatus starting,
         IApplicationEventContext context, CancellationToken cancellationToken)
     {
         var scheduled = new Dictionary<ApplicationStartupActivity, Task<ApplicationStartupActivityResult>>();
@@ -114,6 +115,12 @@ public static class ApplicationStartup
                 definition,
                 dependencyTasks));
         }
+
+        var required = await Task.WhenAll(ApplicationStartupPlan.Activities
+            .Where(definition => definition.Required)
+            .Select(definition => scheduled[definition.Activity])).ConfigureAwait(false);
+        if (scheduled.Values.Any(task => !task.IsCompleted))
+            context.StartupStatusStore.Set(starting with { Activities = required });
 
         await Task.WhenAll(scheduled.Values).ConfigureAwait(false);
         return ApplicationStartupPlan.Activities

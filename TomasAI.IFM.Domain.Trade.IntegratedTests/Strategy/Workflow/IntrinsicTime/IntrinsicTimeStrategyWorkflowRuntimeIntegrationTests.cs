@@ -344,10 +344,10 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests
     }
 
     /// <summary>
-    /// Confirms two back-to-back starts for one entity admit only the first workflow.
+    /// Confirms two back-to-back starts for one entity persist the second signal behind the active workflow.
     /// </summary>
     [Fact]
-    public async Task Back_to_back_same_entity_starts_admit_only_the_first_workflow()
+    public async Task Back_to_back_same_entity_starts_queue_the_second_signal()
     {
         await using var factory = sourceFactory.WithWebHostBuilder(builder => builder
             .UseSetting("IFM_TEST_ACTOR_DOMAIN", "TomasAI.IFM.Domain.Trade,TomasAI.IFM.Domain.MarketData.Analytics")
@@ -383,8 +383,9 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests
             replayed.ActiveWorkflow!.WorkflowId.Should().Be(first.ProposedWorkflowId);
             replayed.ActiveWorkflow.WorkflowId.Should().NotBe(second.ProposedWorkflowId);
             replayed.CurrentView!.WorkflowRevision.Should().Be(1);
-            replayed.PersistedStreamVersion.Should().Be(1);
-            replayed.AppliedEntityEventCount.Should().Be(1);
+            replayed.PersistedStreamVersion.Should().Be(2);
+            replayed.AppliedEntityEventCount.Should().Be(2);
+            replayed.IsDuplicateTrigger(second.TriggerEventId).Should().BeTrue();
             replayed.LastTriggerEventId.Should().Be(first.TriggerEventId);
             replayed.LastRequestedWorkflowId.Should().Be(first.ProposedWorkflowId);
             replayed.LastStartDecision.Should().Be(StrategyWorkflowStartDecision.Accepted);

@@ -1,5 +1,7 @@
 ﻿using TomasAI.IFM.Application.MarketData.Recovery;
 using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Application.Api.Nats.Client;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Recovery;
 using TomasAI.IFM.Shared.MarketData.Contracts.Ticker;
@@ -12,7 +14,16 @@ public sealed partial class MarketDataApiBackend
     public string[] EnabledTrades(DateOnly date) => tradeRecovery?.EnabledTrades(date) ?? [];
     IServiceProvider RecoveryServices => services;
     TradeFeedRecoveryService TradeRecovery => LazyInitializer.EnsureInitialized(ref tradeRecovery,
-        () => new(services.GetRequiredService<ITradeFeedRecoveryStore>(), new RecoveryRuntime(this), services.GetService<Microsoft.Extensions.Logging.ILogger<TradeFeedRecoveryService>>()))!;
+        CreateTradeRecovery)!;
+
+    TradeFeedRecoveryService CreateTradeRecovery()
+    {
+        var trades = services.GetRequiredService<IDbContextFactory>().TradeDb;
+        return new(services.GetRequiredService<ITradeFeedRecoveryStore>(), new RecoveryRuntime(this),
+            services.GetService<Microsoft.Extensions.Logging.ILogger<TradeFeedRecoveryService>>(),
+            new(trades.GetStrategyPositionAsync,
+                new StrategyPositionCommandApi(services.GetRequiredService<IActorProducer>())));
+    }
 
     sealed class RecoveryRuntime(MarketDataApiBackend backend) : ITradeFeedRecoveryRuntime
     {

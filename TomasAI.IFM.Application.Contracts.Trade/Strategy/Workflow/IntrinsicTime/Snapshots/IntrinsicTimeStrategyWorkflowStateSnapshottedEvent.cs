@@ -1,4 +1,6 @@
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Commands;
+using System.Collections.Immutable;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 using MessagePack;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -20,6 +22,7 @@ public sealed record IntrinsicTimeStrategyWorkflowStateSnapshottedEvent : IEvent
     [Key(7)] public WorkflowStrategyStateUpdatedEvent? Latest { get; init; }
     [Key(8)] public long AppliedEventCount { get; init; }
     [Key(9)] public StrategyWorkflowStartDecision LastStartDecision { get; init; }
+    [Key(10)] public ImmutableArray<ExecuteIntrinsicTimeStrategyWorkflowCommand> PendingSignals { get; init; } = [];
     [IgnoreMember] public string UserName => string.Empty;
     [IgnoreMember] public string EventName => nameof(IntrinsicTimeStrategyWorkflowStateSnapshottedEvent);
     [IgnoreMember] public EventType EventType => EventType.DomainEvent;

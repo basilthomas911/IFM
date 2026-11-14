@@ -33,7 +33,9 @@ public static class ChangeTradeLegData
             {
                 _ when !positionChange.Accepted => command.UpdateFailed(ref errorMsg, $"{positionChange.RejectionCode};{positionChange.RejectionReason}"),
                 _ when positionChange.PositionSnapshot is null => command.UpdateFailed(ref errorMsg, "FuturesPosition: the computed position snapshot is missing."),
-                _ => state.Update(command.CreateFuturesPositionChangedEvent(positionChange.PositionSnapshot), command)
+                _ => PositionMarketUpdate.Apply(positionChange, command.CreateFuturesPositionChangedEvent,
+                    source => state.Update(source, command),
+                    static (source, seal) => source with { Id = Guid.NewGuid(), PositionSnapshot = seal })
             };
             return updated ? new ServiceOk<GuidResult>(new GuidResult(command.CommandId)) : command.UpdateFailed(errorMsg);
         }
@@ -77,8 +79,7 @@ public static class ChangeTradeLegData
         internal bool Compute(FuturesPositionCommandState state, out PositionChange positionChange)
         {
             var stateMachine = CreateStateMachine(state);
-            var positionDecision = stateMachine.UpdateLeg(command.TradeLegId, command.ContractId, command.Price, command.SourceSequence, command.EffectiveAtUtc, command.RouteGeneration);
-            positionChange = new(positionDecision.Accepted, positionDecision.Value, positionDecision.Code, positionDecision.Detail);
+            positionChange = PositionMarketUpdate.Compute(stateMachine, command.EffectiveAtUtc, machine => machine.UpdateLeg(command.TradeLegId, command.ContractId, command.Price, command.SourceSequence, command.EffectiveAtUtc, command.RouteGeneration));
             return positionChange.Accepted;
         }
     }

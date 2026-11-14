@@ -1,0 +1,3009 @@
+{
+  "sessions": 258,
+  "es_ticks": 118631783,
+  "signals": 72948,
+  "early_end_dates": [
+    "2025-11-27",
+    "2025-11-28",
+    "2025-12-24",
+    "2026-01-19",
+    "2026-02-16",
+    "2026-04-03",
+    "2026-05-25",
+    "2026-06-19",
+    "2026-07-03",
+    "2026-09-07"
+  ],
+  "verified_october_baseline_trades": 79,
+  "full_year_no_filter": {
+    "Total": {
+      "trades": 1161,
+      "hits": 424,
+      "hit_rate": 0.3652024117140396,
+      "gross": 26787.5,
+      "gross_per_trade": 23.07278208440999
+    },
+    "Long": {
+      "trades": 560,
+      "hits": 176,
+      "hit_rate": 0.3142857142857143,
+      "gross": 16812.5,
+      "gross_per_trade": 30.022321428571427
+    },
+    "Short": {
+      "trades": 601,
+      "hits": 248,
+      "hit_rate": 0.41264559068219636,
+      "gross": 9975,
+      "gross_per_trade": 16.597337770382694
+    }
+  },
+  "training_warmup_months": [
+    "2025-11",
+    "2025-12",
+    "2026-01"
+  ],
+  "held_out_months": [
+    "2026-02",
+    "2026-03",
+    "2026-04",
+    "2026-05",
+    "2026-06",
+    "2026-07",
+    "2026-08",
+    "2026-09"
+  ],
+  "discovery_month": "2026-10",
+  "models": {
+    "2026-02": {
+      "long_range_5": {
+        "samples": 279,
+        "hits": 84,
+        "cutoff": -0.905240881406622
+      },
+      "long_range_15": {
+        "samples": 279,
+        "hits": 84,
+        "cutoff": -0.8218367644546785
+      },
+      "long_momentum_5": {
+        "samples": 279,
+        "hits": 84,
+        "cutoff": -0.7847412417204868
+      },
+      "long_momentum_15": {
+        "samples": 279,
+        "hits": 84,
+        "cutoff": -0.8296119963648592
+      },
+      "short_prior_duration": {
+        "samples": 276,
+        "hits": 102,
+        "cutoff": -0.5747832164486522
+      },
+      "short_prior_event": {
+        "samples": 276,
+        "hits": 102,
+        "cutoff": -0.2615049132045487
+      },
+      "long_combined": {
+        "samples": 279,
+        "hits": 84,
+        "cutoff": -0.8183589736634349
+      },
+      "short_combined": {
+        "samples": 276,
+        "hits": 102,
+        "cutoff": -0.4980825650374323
+      }
+    },
+    "2026-03": {
+      "long_range_5": {
+        "samples": 401,
+        "hits": 121,
+        "cutoff": -0.8355133274996414
+      },
+      "long_range_15": {
+        "samples": 401,
+        "hits": 121,
+        "cutoff": -0.8427211300620043
+      },
+      "long_momentum_5": {
+        "samples": 401,
+        "hits": 121,
+        "cutoff": -0.8622705195977004
+      },
+      "long_momentum_15": {
+        "samples": 401,
+        "hits": 121,
+        "cutoff": -0.9061701646793275
+      },
+      "short_prior_duration": {
+        "samples": 399,
+        "hits": 148,
+        "cutoff": -0.5747890027945043
+      },
+      "short_prior_event": {
+        "samples": 399,
+        "hits": 148,
+        "cutoff": -0.37116155962294445
+      },
+      "long_combined": {
+        "samples": 401,
+        "hits": 121,
+        "cutoff": -0.8620233176806761
+      },
+      "short_combined": {
+        "samples": 399,
+        "hits": 148,
+        "cutoff": -0.47846879742056125
+      }
+    },
+    "2026-04": {
+      "long_range_5": {
+        "samples": 556,
+        "hits": 165,
+        "cutoff": -0.8590290852862311
+      },
+      "long_range_15": {
+        "samples": 556,
+        "hits": 165,
+        "cutoff": -0.8677700499750396
+      },
+      "long_momentum_5": {
+        "samples": 556,
+        "hits": 165,
+        "cutoff": -0.8755489727773543
+      },
+      "long_momentum_15": {
+        "samples": 556,
+        "hits": 165,
+        "cutoff": -0.839051036793976
+      },
+      "short_prior_duration": {
+        "samples": 553,
+        "hits": 213,
+        "cutoff": -0.4802216984506247
+      },
+      "short_prior_event": {
+        "samples": 553,
+        "hits": 213,
+        "cutoff": -0.2974658987835362
+      },
+      "long_combined": {
+        "samples": 556,
+        "hits": 165,
+        "cutoff": -0.9197412975276841
+      },
+      "short_combined": {
+        "samples": 553,
+        "hits": 213,
+        "cutoff": -0.5379602386452865
+      }
+    },
+    "2026-05": {
+      "long_range_5": {
+        "samples": 642,
+        "hits": 198,
+        "cutoff": -0.8537799051959806
+      },
+      "long_range_15": {
+        "samples": 642,
+        "hits": 198,
+        "cutoff": -0.8138565538659139
+      },
+      "long_momentum_5": {
+        "samples": 642,
+        "hits": 198,
+        "cutoff": -0.8171891440590922
+      },
+      "long_momentum_15": {
+        "samples": 642,
+        "hits": 198,
+        "cutoff": -0.8192029751900287
+      },
+      "short_prior_duration": {
+        "samples": 642,
+        "hits": 246,
+        "cutoff": -0.47664305777456817
+      },
+      "short_prior_event": {
+        "samples": 642,
+        "hits": 246,
+        "cutoff": -0.31930057719228444
+      },
+      "long_combined": {
+        "samples": 642,
+        "hits": 198,
+        "cutoff": -0.8897391743860392
+      },
+      "short_combined": {
+        "samples": 642,
+        "hits": 246,
+        "cutoff": -0.559205960653589
+      }
+    },
+    "2026-06": {
+      "long_range_5": {
+        "samples": 718,
+        "hits": 225,
+        "cutoff": -0.8385303513490064
+      },
+      "long_range_15": {
+        "samples": 718,
+        "hits": 225,
+        "cutoff": -0.8546376070839583
+      },
+      "long_momentum_5": {
+        "samples": 718,
+        "hits": 225,
+        "cutoff": -0.7948246579570408
+      },
+      "long_momentum_15": {
+        "samples": 718,
+        "hits": 225,
+        "cutoff": -0.8549492770886707
+      },
+      "short_prior_duration": {
+        "samples": 718,
+        "hits": 281,
+        "cutoff": -0.448296966716005
+      },
+      "short_prior_event": {
+        "samples": 718,
+        "hits": 281,
+        "cutoff": -0.28040557547178707
+      },
+      "long_combined": {
+        "samples": 718,
+        "hits": 225,
+        "cutoff": -0.8651214269752026
+      },
+      "short_combined": {
+        "samples": 718,
+        "hits": 281,
+        "cutoff": -0.5168412879680326
+      }
+    },
+    "2026-07": {
+      "long_range_5": {
+        "samples": 885,
+        "hits": 279,
+        "cutoff": -0.7989041895834744
+      },
+      "long_range_15": {
+        "samples": 885,
+        "hits": 279,
+        "cutoff": -0.85653560556089
+      },
+      "long_momentum_5": {
+        "samples": 885,
+        "hits": 279,
+        "cutoff": -0.7902690370559473
+      },
+      "long_momentum_15": {
+        "samples": 885,
+        "hits": 279,
+        "cutoff": -0.779757044459409
+      },
+      "short_prior_duration": {
+        "samples": 885,
+        "hits": 353,
+        "cutoff": -0.41018882855559574
+      },
+      "short_prior_event": {
+        "samples": 885,
+        "hits": 353,
+        "cutoff": -0.31091540320071254
+      },
+      "long_combined": {
+        "samples": 885,
+        "hits": 279,
+        "cutoff": -0.8714343091476157
+      },
+      "short_combined": {
+        "samples": 885,
+        "hits": 353,
+        "cutoff": -0.31676685387451614
+      }
+    },
+    "2026-08": {
+      "long_range_5": {
+        "samples": 984,
+        "hits": 317,
+        "cutoff": -0.801767155171095
+      },
+      "long_range_15": {
+        "samples": 984,
+        "hits": 317,
+        "cutoff": -0.8102760066906399
+      },
+      "long_momentum_5": {
+        "samples": 984,
+        "hits": 317,
+        "cutoff": -0.7544780700170095
+      },
+      "long_momentum_15": {
+        "samples": 984,
+        "hits": 317,
+        "cutoff": -0.7474873733840909
+      },
+      "short_prior_duration": {
+        "samples": 985,
+        "hits": 388,
+        "cutoff": -0.4311346427889642
+      },
+      "short_prior_event": {
+        "samples": 985,
+        "hits": 388,
+        "cutoff": -0.3202559252464122
+      },
+      "long_combined": {
+        "samples": 984,
+        "hits": 317,
+        "cutoff": -0.8177957900822089
+      },
+      "short_combined": {
+        "samples": 985,
+        "hits": 388,
+        "cutoff": -0.4588823804797652
+      }
+    },
+    "2026-09": {
+      "long_range_5": {
+        "samples": 1026,
+        "hits": 331,
+        "cutoff": -0.8002484777726904
+      },
+      "long_range_15": {
+        "samples": 1026,
+        "hits": 331,
+        "cutoff": -0.8139506457926764
+      },
+      "long_momentum_5": {
+        "samples": 1026,
+        "hits": 331,
+        "cutoff": -0.7528584114310196
+      },
+      "long_momentum_15": {
+        "samples": 1026,
+        "hits": 331,
+        "cutoff": -0.745922267503566
+      },
+      "short_prior_duration": {
+        "samples": 1029,
+        "hits": 402,
+        "cutoff": -0.44469604128845197
+      },
+      "short_prior_event": {
+        "samples": 1029,
+        "hits": 402,
+        "cutoff": -0.3538271425604381
+      },
+      "long_combined": {
+        "samples": 1026,
+        "hits": 331,
+        "cutoff": -0.818698477593903
+      },
+      "short_combined": {
+        "samples": 1029,
+        "hits": 402,
+        "cutoff": -0.4455172961746848
+      }
+    },
+    "2026-10": {
+      "long_range_5": {
+        "samples": 1077,
+        "hits": 340,
+        "cutoff": -0.8366668995857627
+      },
+      "long_range_15": {
+        "samples": 1077,
+        "hits": 340,
+        "cutoff": -0.8488494242666991
+      },
+      "long_momentum_5": {
+        "samples": 1077,
+        "hits": 340,
+        "cutoff": -0.7859170679185193
+      },
+      "long_momentum_15": {
+        "samples": 1077,
+        "hits": 340,
+        "cutoff": -0.7983622849911862
+      },
+      "short_prior_duration": {
+        "samples": 1082,
+        "hits": 423,
+        "cutoff": -0.4436860036006873
+      },
+      "short_prior_event": {
+        "samples": 1082,
+        "hits": 423,
+        "cutoff": -0.3623585609465234
+      },
+      "long_combined": {
+        "samples": 1077,
+        "hits": 340,
+        "cutoff": -0.8538853448542716
+      },
+      "short_combined": {
+        "samples": 1082,
+        "hits": 423,
+        "cutoff": -0.38904130426175354
+      }
+    }
+  },
+  "results": {
+    "no_filter": {
+      "out_of_sample": {
+        "Total": {
+          "trades": 800,
+          "hits": 292,
+          "hit_rate": 0.365,
+          "gross": 15950,
+          "gross_per_trade": 19.9375
+        },
+        "Long": {
+          "trades": 387,
+          "hits": 117,
+          "hit_rate": 0.3023255813953488,
+          "gross": 4912.5,
+          "gross_per_trade": 12.693798449612403
+        },
+        "Short": {
+          "trades": 413,
+          "hits": 175,
+          "hit_rate": 0.423728813559322,
+          "gross": 11037.5,
+          "gross_per_trade": 26.725181598062953
+        }
+      },
+      "october": {
+        "Total": {
+          "trades": 79,
+          "hits": 22,
+          "hit_rate": 0.27848101265822783,
+          "gross": 1137.5,
+          "gross_per_trade": 14.39873417721519
+        },
+        "Long": {
+          "trades": 37,
+          "hits": 10,
+          "hit_rate": 0.2702702702702703,
+          "gross": 3087.5,
+          "gross_per_trade": 83.44594594594595
+        },
+        "Short": {
+          "trades": 42,
+          "hits": 12,
+          "hit_rate": 0.2857142857142857,
+          "gross": -1950,
+          "gross_per_trade": -46.42857142857143
+        }
+      },
+      "monthly": {
+        "2026-02": {
+          "Total": {
+            "trades": 126,
+            "hits": 45,
+            "hit_rate": 0.35714285714285715,
+            "gross": -3512.5,
+            "gross_per_trade": -27.876984126984127
+          },
+          "Long": {
+            "trades": 63,
+            "hits": 19,
+            "hit_rate": 0.30158730158730157,
+            "gross": -4175,
+            "gross_per_trade": -66.26984126984127
+          },
+          "Short": {
+            "trades": 63,
+            "hits": 26,
+            "hit_rate": 0.4126984126984127,
+            "gross": 662.5,
+            "gross_per_trade": 10.515873015873016
+          }
+        },
+        "2026-03": {
+          "Total": {
+            "trades": 163,
+            "hits": 54,
+            "hit_rate": 0.3312883435582822,
+            "gross": -13087.5,
+            "gross_per_trade": -80.29141104294479
+          },
+          "Long": {
+            "trades": 81,
+            "hits": 20,
+            "hit_rate": 0.24691358024691357,
+            "gross": -13462.5,
+            "gross_per_trade": -166.2037037037037
+          },
+          "Short": {
+            "trades": 82,
+            "hits": 34,
+            "hit_rate": 0.4146341463414634,
+            "gross": 375,
+            "gross_per_trade": 4.573170731707317
+          }
+        },
+        "2026-04": {
+          "Total": {
+            "trades": 80,
+            "hits": 30,
+            "hit_rate": 0.375,
+            "gross": 17125,
+            "gross_per_trade": 214.0625
+          },
+          "Long": {
+            "trades": 37,
+            "hits": 14,
+            "hit_rate": 0.3783783783783784,
+            "gross": 15062.5,
+            "gross_per_trade": 407.0945945945946
+          },
+          "Short": {
+            "trades": 43,
+            "hits": 16,
+            "hit_rate": 0.37209302325581395,
+            "gross": 2062.5,
+            "gross_per_trade": 47.96511627906977
+          }
+        },
+        "2026-05": {
+          "Total": {
+            "trades": 77,
+            "hits": 29,
+            "hit_rate": 0.37662337662337664,
+            "gross": 2600,
+            "gross_per_trade": 33.76623376623377
+          },
+          "Long": {
+            "trades": 37,
+            "hits": 12,
+            "hit_rate": 0.32432432432432434,
+            "gross": 2325,
+            "gross_per_trade": 62.83783783783784
+          },
+          "Short": {
+            "trades": 40,
+            "hits": 17,
+            "hit_rate": 0.425,
+            "gross": 275,
+            "gross_per_trade": 6.875
+          }
+        },
+        "2026-06": {
+          "Total": {
+            "trades": 158,
+            "hits": 62,
+            "hit_rate": 0.3924050632911392,
+            "gross": 2637.5,
+            "gross_per_trade": 16.693037974683545
+          },
+          "Long": {
+            "trades": 77,
+            "hits": 26,
+            "hit_rate": 0.33766233766233766,
+            "gross": -100,
+            "gross_per_trade": -1.2987012987012987
+          },
+          "Short": {
+            "trades": 81,
+            "hits": 36,
+            "hit_rate": 0.4444444444444444,
+            "gross": 2737.5,
+            "gross_per_trade": 33.7962962962963
+          }
+        },
+        "2026-07": {
+          "Total": {
+            "trades": 87,
+            "hits": 38,
+            "hit_rate": 0.4367816091954023,
+            "gross": 11587.5,
+            "gross_per_trade": 133.18965517241378
+          },
+          "Long": {
+            "trades": 42,
+            "hits": 16,
+            "hit_rate": 0.38095238095238093,
+            "gross": 8962.5,
+            "gross_per_trade": 213.39285714285714
+          },
+          "Short": {
+            "trades": 45,
+            "hits": 22,
+            "hit_rate": 0.4888888888888889,
+            "gross": 2625,
+            "gross_per_trade": 58.333333333333336
+          }
+        },
+        "2026-08": {
+          "Total": {
+            "trades": 45,
+            "hits": 15,
+            "hit_rate": 0.3333333333333333,
+            "gross": 3200,
+            "gross_per_trade": 71.11111111111111
+          },
+          "Long": {
+            "trades": 20,
+            "hits": 5,
+            "hit_rate": 0.25,
+            "gross": 3150,
+            "gross_per_trade": 157.5
+          },
+          "Short": {
+            "trades": 25,
+            "hits": 10,
+            "hit_rate": 0.4,
+            "gross": 50,
+            "gross_per_trade": 2
+          }
+        },
+        "2026-09": {
+          "Total": {
+            "trades": 64,
+            "hits": 19,
+            "hit_rate": 0.296875,
+            "gross": -4600,
+            "gross_per_trade": -71.875
+          },
+          "Long": {
+            "trades": 30,
+            "hits": 5,
+            "hit_rate": 0.16666666666666666,
+            "gross": -6850,
+            "gross_per_trade": -228.33333333333334
+          },
+          "Short": {
+            "trades": 34,
+            "hits": 14,
+            "hit_rate": 0.4117647058823529,
+            "gross": 2250,
+            "gross_per_trade": 66.17647058823529
+          }
+        },
+        "2026-10": {
+          "Total": {
+            "trades": 79,
+            "hits": 22,
+            "hit_rate": 0.27848101265822783,
+            "gross": 1137.5,
+            "gross_per_trade": 14.39873417721519
+          },
+          "Long": {
+            "trades": 37,
+            "hits": 10,
+            "hit_rate": 0.2702702702702703,
+            "gross": 3087.5,
+            "gross_per_trade": 83.44594594594595
+          },
+          "Short": {
+            "trades": 42,
+            "hits": 12,
+            "hit_rate": 0.2857142857142857,
+            "gross": -1950,
+            "gross_per_trade": -46.42857142857143
+          }
+        }
+      }
+    },
+    "long_range_5": {
+      "out_of_sample": {
+        "Total": {
+          "trades": 649,
+          "hits": 246,
+          "hit_rate": 0.3790446841294299,
+          "gross": 8887.5,
+          "gross_per_trade": 13.694144838212635
+        },
+        "Long": {
+          "trades": 284,
+          "hits": 89,
+          "hit_rate": 0.31338028169014087,
+          "gross": -1762.5,
+          "gross_per_trade": -6.205985915492958
+        },
+        "Short": {
+          "trades": 365,
+          "hits": 157,
+          "hit_rate": 0.4301369863013699,
+          "gross": 10650,
+          "gross_per_trade": 29.17808219178082
+        }
+      },
+      "october": {
+        "Total": {
+          "trades": 62,
+          "hits": 18,
+          "hit_rate": 0.2903225806451613,
+          "gross": 1762.5,
+          "gross_per_trade": 28.427419354838708
+        },
+        "Long": {
+          "trades": 25,
+          "hits": 8,
+          "hit_rate": 0.32,
+          "gross": 3387.5,
+          "gross_per_trade": 135.5
+        },
+        "Short": {
+          "trades": 37,
+          "hits": 10,
+          "hit_rate": 0.2702702702702703,
+          "gross": -1625,
+          "gross_per_trade": -43.91891891891892
+        }
+      },
+      "monthly": {
+        "2026-02": {
+          "Total": {
+            "trades": 115,
+            "hits": 44,
+            "hit_rate": 0.3826086956521739,
+            "gross": -362.5,
+            "gross_per_trade": -3.152173913043478
+          },
+          "Long": {
+            "trades": 54,
+            "hits": 18,
+            "hit_rate": 0.3333333333333333,
+            "gross": -1325,
+            "gross_per_trade": -24.537037037037038
+          },
+          "Short": {
+            "trades": 61,
+            "hits": 26,
+            "hit_rate": 0.4262295081967213,
+            "gross": 962.5,
+            "gross_per_trade": 15.778688524590164
+          }
+        },
+        "2026-03": {
+          "Total": {
+            "trades": 116,
+            "hits": 38,
+            "hit_rate": 0.3275862068965517,
+            "gross": -10625,
+            "gross_per_trade": -91.59482758620689
+          },
+          "Long": {
+            "trades": 53,
+            "hits": 13,
+            "hit_rate": 0.24528301886792453,
+            "gross": -9862.5,
+            "gross_per_trade": -186.08490566037736
+          },
+          "Short": {
+            "trades": 63,
+            "hits": 25,
+            "hit_rate": 0.3968253968253968,
+            "gross": -762.5,
+            "gross_per_trade": -12.103174603174603
+          }
+        },
+        "2026-04": {
+          "Total": {
+            "trades": 54,
+            "hits": 22,
+            "hit_rate": 0.4074074074074074,
+            "gross": 8337.5,
+            "gross_per_trade": 154.39814814814815
+          },
+          "Long": {
+            "trades": 19,
+            "hits": 8,
+            "hit_rate": 0.42105263157894735,
+            "gross": 5750,
+            "gross_per_trade": 302.63157894736844
+          },
+          "Short": {
+            "trades": 35,
+            "hits": 14,
+            "hit_rate": 0.4,
+            "gross": 2587.5,
+            "gross_per_trade": 73.92857142857143
+          }
+        },
+        "2026-05": {
+          "Total": {
+            "trades": 67,
+            "hits": 28,
+            "hit_rate": 0.417910447761194,
+            "gross": 1625,
+            "gross_per_trade": 24.253731343283583
+          },
+          "Long": {
+            "trades": 30,
+            "hits": 11,
+            "hit_rate": 0.36666666666666664,
+            "gross": 900,
+            "gross_per_trade": 30
+          },
+          "Short": {
+            "trades": 37,
+            "hits": 17,
+            "hit_rate": 0.4594594594594595,
+            "gross": 725,
+            "gross_per_trade": 19.594594594594593
+          }
+        },
+        "2026-06": {
+          "Total": {
+            "trades": 151,
+            "hits": 60,
+            "hit_rate": 0.3973509933774834,
+            "gross": 3862.5,
+            "gross_per_trade": 25.579470198675498
+          },
+          "Long": {
+            "trades": 72,
+            "hits": 25,
+            "hit_rate": 0.3472222222222222,
+            "gross": 1275,
+            "gross_per_trade": 17.708333333333332
+          },
+          "Short": {
+            "trades": 79,
+            "hits": 35,
+            "hit_rate": 0.4430379746835443,
+            "gross": 2587.5,
+            "gross_per_trade": 32.75316455696203
+          }
+        },
+        "2026-07": {
+          "Total": {
+            "trades": 54,
+            "hits": 23,
+            "hit_rate": 0.42592592592592593,
+            "gross": 4937.5,
+            "gross_per_trade": 91.43518518518519
+          },
+          "Long": {
+            "trades": 20,
+            "hits": 7,
+            "hit_rate": 0.35,
+            "gross": 3300,
+            "gross_per_trade": 165
+          },
+          "Short": {
+            "trades": 34,
+            "hits": 16,
+            "hit_rate": 0.47058823529411764,
+            "gross": 1637.5,
+            "gross_per_trade": 48.161764705882355
+          }
+        },
+        "2026-08": {
+          "Total": {
+            "trades": 38,
+            "hits": 14,
+            "hit_rate": 0.3684210526315789,
+            "gross": 5175,
+            "gross_per_trade": 136.18421052631578
+          },
+          "Long": {
+            "trades": 14,
+            "hits": 4,
+            "hit_rate": 0.2857142857142857,
+            "gross": 4875,
+            "gross_per_trade": 348.2142857142857
+          },
+          "Short": {
+            "trades": 24,
+            "hits": 10,
+            "hit_rate": 0.4166666666666667,
+            "gross": 300,
+            "gross_per_trade": 12.5
+          }
+        },
+        "2026-09": {
+          "Total": {
+            "trades": 54,
+            "hits": 17,
+            "hit_rate": 0.3148148148148148,
+            "gross": -4062.5,
+            "gross_per_trade": -75.23148148148148
+          },
+          "Long": {
+            "trades": 22,
+            "hits": 3,
+            "hit_rate": 0.13636363636363635,
+            "gross": -6675,
+            "gross_per_trade": -303.40909090909093
+          },
+          "Short": {
+            "trades": 32,
+            "hits": 14,
+            "hit_rate": 0.4375,
+            "gross": 2612.5,
+            "gross_per_trade": 81.640625
+          }
+        },
+        "2026-10": {
+          "Total": {
+            "trades": 62,
+            "hits": 18,
+            "hit_rate": 0.2903225806451613,
+            "gross": 1762.5,
+            "gross_per_trade": 28.427419354838708
+          },
+          "Long": {
+            "trades": 25,
+            "hits": 8,
+            "hit_rate": 0.32,
+            "gross": 3387.5,
+            "gross_per_trade": 135.5
+          },
+          "Short": {
+            "trades": 37,
+            "hits": 10,
+            "hit_rate": 0.2702702702702703,
+            "gross": -1625,
+            "gross_per_trade": -43.91891891891892
+          }
+        }
+      }
+    },
+    "long_range_15": {
+      "out_of_sample": {
+        "Total": {
+          "trades": 669,
+          "hits": 261,
+          "hit_rate": 0.3901345291479821,
+          "gross": 13300,
+          "gross_per_trade": 19.880418535127056
+        },
+        "Long": {
+          "trades": 292,
+          "hits": 97,
+          "hit_rate": 0.3321917808219178,
+          "gross": 2450,
+          "gross_per_trade": 8.39041095890411
+        },
+        "Short": {
+          "trades": 377,
+          "hits": 164,
+          "hit_rate": 0.4350132625994695,
+          "gross": 10850,
+          "gross_per_trade": 28.779840848806366
+        }
+      },
+      "october": {
+        "Total": {
+          "trades": 70,
+          "hits": 21,
+          "hit_rate": 0.3,
+          "gross": 1675,
+          "gross_per_trade": 23.928571428571427
+        },
+        "Long": {
+          "trades": 29,
+          "hits": 9,
+          "hit_rate": 0.3103448275862069,
+          "gross": 3462.5,
+          "gross_per_trade": 119.39655172413794
+        },
+        "Short": {
+          "trades": 41,
+          "hits": 12,
+          "hit_rate": 0.2926829268292683,
+          "gross": -1787.5,
+          "gross_per_trade": -43.59756097560975
+        }
+      },
+      "monthly": {
+        "2026-02": {
+          "Total": {
+            "trades": 99,
+            "hits": 39,
+            "hit_rate": 0.3939393939393939,
+            "gross": 1075,
+            "gross_per_trade": 10.858585858585858
+          },
+          "Long": {
+            "trades": 44,
+            "hits": 15,
+            "hit_rate": 0.3409090909090909,
+            "gross": 75,
+            "gross_per_trade": 1.7045454545454546
+          },
+          "Short": {
+            "trades": 55,
+            "hits": 24,
+            "hit_rate": 0.43636363636363634,
+            "gross": 1000,
+            "gross_per_trade": 18.181818181818183
+          }
+        },
+        "2026-03": {
+          "Total": {
+            "trades": 140,
+            "hits": 49,
+            "hit_rate": 0.35,
+            "gross": -9162.5,
+            "gross_per_trade": -65.44642857142857
+          },
+          "Long": {
+            "trades": 66,
+            "hits": 17,
+            "hit_rate": 0.25757575757575757,
+            "gross": -9800,
+            "gross_per_trade": -148.4848484848485
+          },
+          "Short": {
+            "trades": 74,
+            "hits": 32,
+            "hit_rate": 0.43243243243243246,
+            "gross": 637.5,
+            "gross_per_trade": 8.614864864864865
+          }
+        },
+        "2026-04": {
+          "Total": {
+            "trades": 58,
+            "hits": 24,
+            "hit_rate": 0.41379310344827586,
+            "gross": 9250,
+            "gross_per_trade": 159.48275862068965
+          },
+          "Long": {
+            "trades": 21,
+            "hits": 9,
+            "hit_rate": 0.42857142857142855,
+            "gross": 6937.5,
+            "gross_per_trade": 330.35714285714283
+          },
+          "Short": {
+            "trades": 37,
+            "hits": 15,
+            "hit_rate": 0.40540540540540543,
+            "gross": 2312.5,
+            "gross_per_trade": 62.5
+          }
+        },
+        "2026-05": {
+          "Total": {
+            "trades": 44,
+            "hits": 19,
+            "hit_rate": 0.4318181818181818,
+            "gross": -3175,
+            "gross_per_trade": -72.1590909090909
+          },
+          "Long": {
+            "trades": 14,
+            "hits": 5,
+            "hit_rate": 0.35714285714285715,
+            "gross": -3275,
+            "gross_per_trade": -233.92857142857142
+          },
+          "Short": {
+            "trades": 30,
+            "hits": 14,
+            "hit_rate": 0.4666666666666667,
+            "gross": 100,
+            "gross_per_trade": 3.3333333333333335
+          }
+        },
+        "2026-06": {
+          "Total": {
+            "trades": 151,
+            "hits": 60,
+            "hit_rate": 0.3973509933774834,
+            "gross": 3162.5,
+            "gross_per_trade": 20.943708609271525
+          },
+          "Long": {
+            "trades": 72,
+            "hits": 25,
+            "hit_rate": 0.3472222222222222,
+            "gross": 412.5,
+            "gross_per_trade": 5.729166666666667
+          },
+          "Short": {
+            "trades": 79,
+            "hits": 35,
+            "hit_rate": 0.4430379746835443,
+            "gross": 2750,
+            "gross_per_trade": 34.81012658227848
+          }
+        },
+        "2026-07": {
+          "Total": {
+            "trades": 82,
+            "hits": 38,
+            "hit_rate": 0.4634146341463415,
+            "gross": 13225,
+            "gross_per_trade": 161.28048780487805
+          },
+          "Long": {
+            "trades": 38,
+            "hits": 17,
+            "hit_rate": 0.4473684210526316,
+            "gross": 11000,
+            "gross_per_trade": 289.4736842105263
+          },
+          "Short": {
+            "trades": 44,
+            "hits": 21,
+            "hit_rate": 0.4772727272727273,
+            "gross": 2225,
+            "gross_per_trade": 50.56818181818182
+          }
+        },
+        "2026-08": {
+          "Total": {
+            "trades": 38,
+            "hits": 14,
+            "hit_rate": 0.3684210526315789,
+            "gross": 3462.5,
+            "gross_per_trade": 91.11842105263158
+          },
+          "Long": {
+            "trades": 14,
+            "hits": 5,
+            "hit_rate": 0.35714285714285715,
+            "gross": 3887.5,
+            "gross_per_trade": 277.67857142857144
+          },
+          "Short": {
+            "trades": 24,
+            "hits": 9,
+            "hit_rate": 0.375,
+            "gross": -425,
+            "gross_per_trade": -17.708333333333332
+          }
+        },
+        "2026-09": {
+          "Total": {
+            "trades": 57,
+            "hits": 18,
+            "hit_rate": 0.3157894736842105,
+            "gross": -4537.5,
+            "gross_per_trade": -79.60526315789474
+          },
+          "Long": {
+            "trades": 23,
+            "hits": 4,
+            "hit_rate": 0.17391304347826086,
+            "gross": -6787.5,
+            "gross_per_trade": -295.10869565217394
+          },
+          "Short": {
+            "trades": 34,
+            "hits": 14,
+            "hit_rate": 0.4117647058823529,
+            "gross": 2250,
+            "gross_per_trade": 66.17647058823529
+          }
+        },
+        "2026-10": {
+          "Total": {
+            "trades": 70,
+            "hits": 21,
+            "hit_rate": 0.3,
+            "gross": 1675,
+            "gross_per_trade": 23.928571428571427
+          },
+          "Long": {
+            "trades": 29,
+            "hits": 9,
+            "hit_rate": 0.3103448275862069,
+            "gross": 3462.5,
+            "gross_per_trade": 119.39655172413794
+          },
+          "Short": {
+            "trades": 41,
+            "hits": 12,
+            "hit_rate": 0.2926829268292683,
+            "gross": -1787.5,
+            "gross_per_trade": -43.59756097560975
+          }
+        }
+      }
+    },
+    "long_momentum_5": {
+      "out_of_sample": {
+        "Total": {
+          "trades": 570,
+          "hits": 231,
+          "hit_rate": 0.4052631578947368,
+          "gross": 12012.5,
+          "gross_per_trade": 21.07456140350877
+        },
+        "Long": {
+          "trades": 231,
+          "hits": 81,
+          "hit_rate": 0.35064935064935066,
+          "gross": 862.5,
+          "gross_per_trade": 3.7337662337662336
+        },
+        "Short": {
+          "trades": 339,
+          "hits": 150,
+          "hit_rate": 0.4424778761061947,
+          "gross": 11150,
+          "gross_per_trade": 32.89085545722714
+        }
+      },
+      "october": {
+        "Total": {
+          "trades": 39,
+          "hits": 13,
+          "hit_rate": 0.3333333333333333,
+          "gross": 2287.5,
+          "gross_per_trade": 58.65384615384615
+        },
+        "Long": {
+          "trades": 12,
+          "hits": 6,
+          "hit_rate": 0.5,
+          "gross": 4237.5,
+          "gross_per_trade": 353.125
+        },
+        "Short": {
+          "trades": 27,
+          "hits": 7,
+          "hit_rate": 0.25925925925925924,
+          "gross": -1950,
+          "gross_per_trade": -72.22222222222223
+        }
+      },
+      "monthly": {
+        "2026-02": {
+          "Total": {
+            "trades": 79,
+            "hits": 32,
+            "hit_rate": 0.4050632911392405,
+            "gross": 3300,
+            "gross_per_trade": 41.77215189873418
+          },
+          "Long": {
+            "trades": 33,
+            "hits": 12,
+            "hit_rate": 0.36363636363636365,
+            "gross": 2462.5,
+            "gross_per_trade": 74.62121212121212
+          },
+          "Short": {
+            "trades": 46,
+            "hits": 20,
+            "hit_rate": 0.43478260869565216,
+            "gross": 837.5,
+            "gross_per_trade": 18.206521739130434
+          }
+        },
+        "2026-03": {
+          "Total": {
+            "trades": 139,
+            "hits": 46,
+            "hit_rate": 0.33093525179856115,
+            "gross": -11550,
+            "gross_per_trade": -83.09352517985612
+          },
+          "Long": {
+            "trades": 65,
+            "hits": 15,
+            "hit_rate": 0.23076923076923078,
+            "gross": -11912.5,
+            "gross_per_trade": -183.26923076923077
+          },
+          "Short": {
+            "trades": 74,
+            "hits": 31,
+            "hit_rate": 0.4189189189189189,
+            "gross": 362.5,
+            "gross_per_trade": 4.898648648648648
+          }
+        },
+        "2026-04": {
+          "Total": {
+            "trades": 62,
+            "hits": 29,
+            "hit_rate": 0.46774193548387094,
+            "gross": 12862.5,
+            "gross_per_trade": 207.45967741935485
+          },
+          "Long": {
+            "trades": 24,
+            "hits": 13,
+            "hit_rate": 0.5416666666666666,
+            "gross": 10237.5,
+            "gross_per_trade": 426.5625
+          },
+          "Short": {
+            "trades": 38,
+            "hits": 16,
+            "hit_rate": 0.42105263157894735,
+            "gross": 2625,
+            "gross_per_trade": 69.07894736842105
+          }
+        },
+        "2026-05": {
+          "Total": {
+            "trades": 45,
+            "hits": 22,
+            "hit_rate": 0.4888888888888889,
+            "gross": 112.5,
+            "gross_per_trade": 2.5
+          },
+          "Long": {
+            "trades": 15,
+            "hits": 7,
+            "hit_rate": 0.4666666666666667,
+            "gross": -712.5,
+            "gross_per_trade": -47.5
+          },
+          "Short": {
+            "trades": 30,
+            "hits": 15,
+            "hit_rate": 0.5,
+            "gross": 825,
+            "gross_per_trade": 27.5
+          }
+        },
+        "2026-06": {
+          "Total": {
+            "trades": 122,
+            "hits": 51,
+            "hit_rate": 0.4180327868852459,
+            "gross": 3637.5,
+            "gross_per_trade": 29.815573770491802
+          },
+          "Long": {
+            "trades": 55,
+            "hits": 21,
+            "hit_rate": 0.38181818181818183,
+            "gross": 1662.5,
+            "gross_per_trade": 30.227272727272727
+          },
+          "Short": {
+            "trades": 67,
+            "hits": 30,
+            "hit_rate": 0.44776119402985076,
+            "gross": 1975,
+            "gross_per_trade": 29.47761194029851
+          }
+        },
+        "2026-07": {
+          "Total": {
+            "trades": 58,
+            "hits": 25,
+            "hit_rate": 0.43103448275862066,
+            "gross": 4025,
+            "gross_per_trade": 69.39655172413794
+          },
+          "Long": {
+            "trades": 22,
+            "hits": 8,
+            "hit_rate": 0.36363636363636365,
+            "gross": 2437.5,
+            "gross_per_trade": 110.79545454545455
+          },
+          "Short": {
+            "trades": 36,
+            "hits": 17,
+            "hit_rate": 0.4722222222222222,
+            "gross": 1587.5,
+            "gross_per_trade": 44.09722222222222
+          }
+        },
+        "2026-08": {
+          "Total": {
+            "trades": 21,
+            "hits": 10,
+            "hit_rate": 0.47619047619047616,
+            "gross": 1350,
+            "gross_per_trade": 64.28571428571429
+          },
+          "Long": {
+            "trades": 3,
+            "hits": 2,
+            "hit_rate": 0.6666666666666666,
+            "gross": 1050,
+            "gross_per_trade": 350
+          },
+          "Short": {
+            "trades": 18,
+            "hits": 8,
+            "hit_rate": 0.4444444444444444,
+            "gross": 300,
+            "gross_per_trade": 16.666666666666668
+          }
+        },
+        "2026-09": {
+          "Total": {
+            "trades": 44,
+            "hits": 16,
+            "hit_rate": 0.36363636363636365,
+            "gross": -1725,
+            "gross_per_trade": -39.20454545454545
+          },
+          "Long": {
+            "trades": 14,
+            "hits": 3,
+            "hit_rate": 0.21428571428571427,
+            "gross": -4362.5,
+            "gross_per_trade": -311.60714285714283
+          },
+          "Short": {
+            "trades": 30,
+            "hits": 13,
+            "hit_rate": 0.43333333333333335,
+            "gross": 2637.5,
+            "gross_per_trade": 87.91666666666667
+          }
+        },
+        "2026-10": {
+          "Total": {
+            "trades": 39,
+            "hits": 13,
+            "hit_rate": 0.3333333333333333,
+            "gross": 2287.5,
+            "gross_per_trade": 58.65384615384615
+          },
+          "Long": {
+            "trades": 12,
+            "hits": 6,
+            "hit_rate": 0.5,
+            "gross": 4237.5,
+            "gross_per_trade": 353.125
+          },
+          "Short": {
+            "trades": 27,
+            "hits": 7,
+            "hit_rate": 0.25925925925925924,
+            "gross": -1950,
+            "gross_per_trade": -72.22222222222223
+          }
+        }
+      }
+    },
+    "long_momentum_15": {
+      "out_of_sample": {
+        "Total": {
+          "trades": 638,
+          "hits": 241,
+          "hit_rate": 0.3777429467084639,
+          "gross": 11062.5,
+          "gross_per_trade": 17.33934169278997
+        },
+        "Long": {
+          "trades": 279,
+          "hits": 89,
+          "hit_rate": 0.31899641577060933,
+          "gross": 837.5,
+          "gross_per_trade": 3.0017921146953404
+        },
+        "Short": {
+          "trades": 359,
+          "hits": 152,
+          "hit_rate": 0.4233983286908078,
+          "gross": 10225,
+          "gross_per_trade": 28.481894150417826
+        }
+      },
+      "october": {
+        "Total": {
+          "trades": 73,
+          "hits": 21,
+          "hit_rate": 0.2876712328767123,
+          "gross": 2212.5,
+          "gross_per_trade": 30.30821917808219
+        },
+        "Long": {
+          "trades": 32,
+          "hits": 9,
+          "hit_rate": 0.28125,
+          "gross": 4000,
+          "gross_per_trade": 125
+        },
+        "Short": {
+          "trades": 41,
+          "hits": 12,
+          "hit_rate": 0.2926829268292683,
+          "gross": -1787.5,
+          "gross_per_trade": -43.59756097560975
+        }
+      },
+      "monthly": {
+        "2026-02": {
+          "Total": {
+            "trades": 92,
+            "hits": 31,
+            "hit_rate": 0.33695652173913043,
+            "gross": -2650,
+            "gross_per_trade": -28.804347826086957
+          },
+          "Long": {
+            "trades": 42,
+            "hits": 12,
+            "hit_rate": 0.2857142857142857,
+            "gross": -1750,
+            "gross_per_trade": -41.666666666666664
+          },
+          "Short": {
+            "trades": 50,
+            "hits": 19,
+            "hit_rate": 0.38,
+            "gross": -900,
+            "gross_per_trade": -18
+          }
+        },
+        "2026-03": {
+          "Total": {
+            "trades": 156,
+            "hits": 53,
+            "hit_rate": 0.33974358974358976,
+            "gross": -11325,
+            "gross_per_trade": -72.59615384615384
+          },
+          "Long": {
+            "trades": 76,
+            "hits": 20,
+            "hit_rate": 0.2631578947368421,
+            "gross": -11737.5,
+            "gross_per_trade": -154.44078947368422
+          },
+          "Short": {
+            "trades": 80,
+            "hits": 33,
+            "hit_rate": 0.4125,
+            "gross": 412.5,
+            "gross_per_trade": 5.15625
+          }
+        },
+        "2026-04": {
+          "Total": {
+            "trades": 44,
+            "hits": 19,
+            "hit_rate": 0.4318181818181818,
+            "gross": 10487.5,
+            "gross_per_trade": 238.35227272727272
+          },
+          "Long": {
+            "trades": 13,
+            "hits": 6,
+            "hit_rate": 0.46153846153846156,
+            "gross": 7500,
+            "gross_per_trade": 576.9230769230769
+          },
+          "Short": {
+            "trades": 31,
+            "hits": 13,
+            "hit_rate": 0.41935483870967744,
+            "gross": 2987.5,
+            "gross_per_trade": 96.37096774193549
+          }
+        },
+        "2026-05": {
+          "Total": {
+            "trades": 55,
+            "hits": 21,
+            "hit_rate": 0.38181818181818183,
+            "gross": -400,
+            "gross_per_trade": -7.2727272727272725
+          },
+          "Long": {
+            "trades": 21,
+            "hits": 6,
+            "hit_rate": 0.2857142857142857,
+            "gross": -750,
+            "gross_per_trade": -35.714285714285715
+          },
+          "Short": {
+            "trades": 34,
+            "hits": 15,
+            "hit_rate": 0.4411764705882353,
+            "gross": 350,
+            "gross_per_trade": 10.294117647058824
+          }
+        },
+        "2026-06": {
+          "Total": {
+            "trades": 145,
+            "hits": 54,
+            "hit_rate": 0.3724137931034483,
+            "gross": -1275,
+            "gross_per_trade": -8.793103448275861
+          },
+          "Long": {
+            "trades": 70,
+            "hits": 23,
+            "hit_rate": 0.32857142857142857,
+            "gross": -3550,
+            "gross_per_trade": -50.714285714285715
+          },
+          "Short": {
+            "trades": 75,
+            "hits": 31,
+            "hit_rate": 0.41333333333333333,
+            "gross": 2275,
+            "gross_per_trade": 30.333333333333332
+          }
+        },
+        "2026-07": {
+          "Total": {
+            "trades": 66,
+            "hits": 34,
+            "hit_rate": 0.5151515151515151,
+            "gross": 14150,
+            "gross_per_trade": 214.3939393939394
+          },
+          "Long": {
+            "trades": 29,
+            "hits": 15,
+            "hit_rate": 0.5172413793103449,
+            "gross": 11400,
+            "gross_per_trade": 393.1034482758621
+          },
+          "Short": {
+            "trades": 37,
+            "hits": 19,
+            "hit_rate": 0.5135135135135135,
+            "gross": 2750,
+            "gross_per_trade": 74.32432432432432
+          }
+        },
+        "2026-08": {
+          "Total": {
+            "trades": 30,
+            "hits": 13,
+            "hit_rate": 0.43333333333333335,
+            "gross": 5737.5,
+            "gross_per_trade": 191.25
+          },
+          "Long": {
+            "trades": 9,
+            "hits": 5,
+            "hit_rate": 0.5555555555555556,
+            "gross": 6075,
+            "gross_per_trade": 675
+          },
+          "Short": {
+            "trades": 21,
+            "hits": 8,
+            "hit_rate": 0.38095238095238093,
+            "gross": -337.5,
+            "gross_per_trade": -16.071428571428573
+          }
+        },
+        "2026-09": {
+          "Total": {
+            "trades": 50,
+            "hits": 16,
+            "hit_rate": 0.32,
+            "gross": -3662.5,
+            "gross_per_trade": -73.25
+          },
+          "Long": {
+            "trades": 19,
+            "hits": 2,
+            "hit_rate": 0.10526315789473684,
+            "gross": -6350,
+            "gross_per_trade": -334.2105263157895
+          },
+          "Short": {
+            "trades": 31,
+            "hits": 14,
+            "hit_rate": 0.45161290322580644,
+            "gross": 2687.5,
+            "gross_per_trade": 86.69354838709677
+          }
+        },
+        "2026-10": {
+          "Total": {
+            "trades": 73,
+            "hits": 21,
+            "hit_rate": 0.2876712328767123,
+            "gross": 2212.5,
+            "gross_per_trade": 30.30821917808219
+          },
+          "Long": {
+            "trades": 32,
+            "hits": 9,
+            "hit_rate": 0.28125,
+            "gross": 4000,
+            "gross_per_trade": 125
+          },
+          "Short": {
+            "trades": 41,
+            "hits": 12,
+            "hit_rate": 0.2926829268292683,
+            "gross": -1787.5,
+            "gross_per_trade": -43.59756097560975
+          }
+        }
+      }
+    },
+    "short_prior_duration": {
+      "out_of_sample": {
+        "Total": {
+          "trades": 699,
+          "hits": 248,
+          "hit_rate": 0.3547925608011445,
+          "gross": 10587.5,
+          "gross_per_trade": 15.146638054363375
+        },
+        "Long": {
+          "trades": 348,
+          "hits": 103,
+          "hit_rate": 0.2959770114942529,
+          "gross": 1387.5,
+          "gross_per_trade": 3.9870689655172415
+        },
+        "Short": {
+          "trades": 351,
+          "hits": 145,
+          "hit_rate": 0.4131054131054131,
+          "gross": 9200,
+          "gross_per_trade": 26.210826210826212
+        }
+      },
+      "october": {
+        "Total": {
+          "trades": 73,
+          "hits": 21,
+          "hit_rate": 0.2876712328767123,
+          "gross": 3387.5,
+          "gross_per_trade": 46.4041095890411
+        },
+        "Long": {
+          "trades": 34,
+          "hits": 10,
+          "hit_rate": 0.29411764705882354,
+          "gross": 5025,
+          "gross_per_trade": 147.7941176470588
+        },
+        "Short": {
+          "trades": 39,
+          "hits": 11,
+          "hit_rate": 0.28205128205128205,
+          "gross": -1637.5,
+          "gross_per_trade": -41.98717948717949
+        }
+      },
+      "monthly": {
+        "2026-02": {
+          "Total": {
+            "trades": 94,
+            "hits": 32,
+            "hit_rate": 0.3404255319148936,
+            "gross": -5475,
+            "gross_per_trade": -58.244680851063826
+          },
+          "Long": {
+            "trades": 47,
+            "hits": 14,
+            "hit_rate": 0.2978723404255319,
+            "gross": -4750,
+            "gross_per_trade": -101.06382978723404
+          },
+          "Short": {
+            "trades": 47,
+            "hits": 18,
+            "hit_rate": 0.3829787234042553,
+            "gross": -725,
+            "gross_per_trade": -15.425531914893616
+          }
+        },
+        "2026-03": {
+          "Total": {
+            "trades": 146,
+            "hits": 49,
+            "hit_rate": 0.3356164383561644,
+            "gross": -12550,
+            "gross_per_trade": -85.95890410958904
+          },
+          "Long": {
+            "trades": 73,
+            "hits": 16,
+            "hit_rate": 0.2191780821917808,
+            "gross": -14112.5,
+            "gross_per_trade": -193.32191780821918
+          },
+          "Short": {
+            "trades": 73,
+            "hits": 33,
+            "hit_rate": 0.4520547945205479,
+            "gross": 1562.5,
+            "gross_per_trade": 21.404109589041095
+          }
+        },
+        "2026-04": {
+          "Total": {
+            "trades": 69,
+            "hits": 25,
+            "hit_rate": 0.36231884057971014,
+            "gross": 12912.5,
+            "gross_per_trade": 187.13768115942028
+          },
+          "Long": {
+            "trades": 32,
+            "hits": 12,
+            "hit_rate": 0.375,
+            "gross": 11187.5,
+            "gross_per_trade": 349.609375
+          },
+          "Short": {
+            "trades": 37,
+            "hits": 13,
+            "hit_rate": 0.35135135135135137,
+            "gross": 1725,
+            "gross_per_trade": 46.62162162162162
+          }
+        },
+        "2026-05": {
+          "Total": {
+            "trades": 69,
+            "hits": 24,
+            "hit_rate": 0.34782608695652173,
+            "gross": 2575,
+            "gross_per_trade": 37.31884057971015
+          },
+          "Long": {
+            "trades": 33,
+            "hits": 10,
+            "hit_rate": 0.30303030303030304,
+            "gross": 2362.5,
+            "gross_per_trade": 71.5909090909091
+          },
+          "Short": {
+            "trades": 36,
+            "hits": 14,
+            "hit_rate": 0.3888888888888889,
+            "gross": 212.5,
+            "gross_per_trade": 5.902777777777778
+          }
+        },
+        "2026-06": {
+          "Total": {
+            "trades": 139,
+            "hits": 52,
+            "hit_rate": 0.37410071942446044,
+            "gross": 2812.5,
+            "gross_per_trade": 20.23381294964029
+          },
+          "Long": {
+            "trades": 76,
+            "hits": 27,
+            "hit_rate": 0.35526315789473684,
+            "gross": 1537.5,
+            "gross_per_trade": 20.230263157894736
+          },
+          "Short": {
+            "trades": 63,
+            "hits": 25,
+            "hit_rate": 0.3968253968253968,
+            "gross": 1275,
+            "gross_per_trade": 20.238095238095237
+          }
+        },
+        "2026-07": {
+          "Total": {
+            "trades": 79,
+            "hits": 33,
+            "hit_rate": 0.4177215189873418,
+            "gross": 9937.5,
+            "gross_per_trade": 125.79113924050633
+          },
+          "Long": {
+            "trades": 39,
+            "hits": 14,
+            "hit_rate": 0.358974358974359,
+            "gross": 7362.5,
+            "gross_per_trade": 188.78205128205127
+          },
+          "Short": {
+            "trades": 40,
+            "hits": 19,
+            "hit_rate": 0.475,
+            "gross": 2575,
+            "gross_per_trade": 64.375
+          }
+        },
+        "2026-08": {
+          "Total": {
+            "trades": 43,
+            "hits": 15,
+            "hit_rate": 0.3488372093023256,
+            "gross": 3600,
+            "gross_per_trade": 83.72093023255815
+          },
+          "Long": {
+            "trades": 20,
+            "hits": 5,
+            "hit_rate": 0.25,
+            "gross": 3150,
+            "gross_per_trade": 157.5
+          },
+          "Short": {
+            "trades": 23,
+            "hits": 10,
+            "hit_rate": 0.43478260869565216,
+            "gross": 450,
+            "gross_per_trade": 19.565217391304348
+          }
+        },
+        "2026-09": {
+          "Total": {
+            "trades": 60,
+            "hits": 18,
+            "hit_rate": 0.3,
+            "gross": -3225,
+            "gross_per_trade": -53.75
+          },
+          "Long": {
+            "trades": 28,
+            "hits": 5,
+            "hit_rate": 0.17857142857142858,
+            "gross": -5350,
+            "gross_per_trade": -191.07142857142858
+          },
+          "Short": {
+            "trades": 32,
+            "hits": 13,
+            "hit_rate": 0.40625,
+            "gross": 2125,
+            "gross_per_trade": 66.40625
+          }
+        },
+        "2026-10": {
+          "Total": {
+            "trades": 73,
+            "hits": 21,
+            "hit_rate": 0.2876712328767123,
+            "gross": 3387.5,
+            "gross_per_trade": 46.4041095890411
+          },
+          "Long": {
+            "trades": 34,
+            "hits": 10,
+            "hit_rate": 0.29411764705882354,
+            "gross": 5025,
+            "gross_per_trade": 147.7941176470588
+          },
+          "Short": {
+            "trades": 39,
+            "hits": 11,
+            "hit_rate": 0.28205128205128205,
+            "gross": -1637.5,
+            "gross_per_trade": -41.98717948717949
+          }
+        }
+      }
+    },
+    "short_prior_event": {
+      "out_of_sample": {
+        "Total": {
+          "trades": 503,
+          "hits": 190,
+          "hit_rate": 0.37773359840954274,
+          "gross": 13837.5,
+          "gross_per_trade": 27.509940357852884
+        },
+        "Long": {
+          "trades": 287,
+          "hits": 95,
+          "hit_rate": 0.3310104529616725,
+          "gross": 5150,
+          "gross_per_trade": 17.94425087108014
+        },
+        "Short": {
+          "trades": 216,
+          "hits": 95,
+          "hit_rate": 0.4398148148148148,
+          "gross": 8687.5,
+          "gross_per_trade": 40.219907407407405
+        }
+      },
+      "october": {
+        "Total": {
+          "trades": 46,
+          "hits": 12,
+          "hit_rate": 0.2608695652173913,
+          "gross": 750,
+          "gross_per_trade": 16.304347826086957
+        },
+        "Long": {
+          "trades": 28,
+          "hits": 9,
+          "hit_rate": 0.32142857142857145,
+          "gross": 2612.5,
+          "gross_per_trade": 93.30357142857143
+        },
+        "Short": {
+          "trades": 18,
+          "hits": 3,
+          "hit_rate": 0.16666666666666666,
+          "gross": -1862.5,
+          "gross_per_trade": -103.47222222222223
+        }
+      },
+      "monthly": {
+        "2026-02": {
+          "Total": {
+            "trades": 79,
+            "hits": 31,
+            "hit_rate": 0.3924050632911392,
+            "gross": -1562.5,
+            "gross_per_trade": -19.77848101265823
+          },
+          "Long": {
+            "trades": 43,
+            "hits": 16,
+            "hit_rate": 0.37209302325581395,
+            "gross": -1975,
+            "gross_per_trade": -45.93023255813954
+          },
+          "Short": {
+            "trades": 36,
+            "hits": 15,
+            "hit_rate": 0.4166666666666667,
+            "gross": 412.5,
+            "gross_per_trade": 11.458333333333334
+          }
+        },
+        "2026-03": {
+          "Total": {
+            "trades": 99,
+            "hits": 40,
+            "hit_rate": 0.40404040404040403,
+            "gross": -1187.5,
+            "gross_per_trade": -11.994949494949495
+          },
+          "Long": {
+            "trades": 53,
+            "hits": 16,
+            "hit_rate": 0.3018867924528302,
+            "gross": -5275,
+            "gross_per_trade": -99.52830188679245
+          },
+          "Short": {
+            "trades": 46,
+            "hits": 24,
+            "hit_rate": 0.5217391304347826,
+            "gross": 4087.5,
+            "gross_per_trade": 88.8586956521739
+          }
+        },
+        "2026-04": {
+          "Total": {
+            "trades": 49,
+            "hits": 19,
+            "hit_rate": 0.3877551020408163,
+            "gross": 10775,
+            "gross_per_trade": 219.89795918367346
+          },
+          "Long": {
+            "trades": 30,
+            "hits": 12,
+            "hit_rate": 0.4,
+            "gross": 10687.5,
+            "gross_per_trade": 356.25
+          },
+          "Short": {
+            "trades": 19,
+            "hits": 7,
+            "hit_rate": 0.3684210526315789,
+            "gross": 87.5,
+            "gross_per_trade": 4.605263157894737
+          }
+        },
+        "2026-05": {
+          "Total": {
+            "trades": 51,
+            "hits": 20,
+            "hit_rate": 0.39215686274509803,
+            "gross": 1712.5,
+            "gross_per_trade": 33.57843137254902
+          },
+          "Long": {
+            "trades": 30,
+            "hits": 10,
+            "hit_rate": 0.3333333333333333,
+            "gross": 187.5,
+            "gross_per_trade": 6.25
+          },
+          "Short": {
+            "trades": 21,
+            "hits": 10,
+            "hit_rate": 0.47619047619047616,
+            "gross": 1525,
+            "gross_per_trade": 72.61904761904762
+          }
+        },
+        "2026-06": {
+          "Total": {
+            "trades": 90,
+            "hits": 34,
+            "hit_rate": 0.37777777777777777,
+            "gross": 550,
+            "gross_per_trade": 6.111111111111111
+          },
+          "Long": {
+            "trades": 49,
+            "hits": 18,
+            "hit_rate": 0.3673469387755102,
+            "gross": -125,
+            "gross_per_trade": -2.5510204081632653
+          },
+          "Short": {
+            "trades": 41,
+            "hits": 16,
+            "hit_rate": 0.3902439024390244,
+            "gross": 675,
+            "gross_per_trade": 16.463414634146343
+          }
+        },
+        "2026-07": {
+          "Total": {
+            "trades": 63,
+            "hits": 28,
+            "hit_rate": 0.4444444444444444,
+            "gross": 5225,
+            "gross_per_trade": 82.93650793650794
+          },
+          "Long": {
+            "trades": 36,
+            "hits": 14,
+            "hit_rate": 0.3888888888888889,
+            "gross": 3500,
+            "gross_per_trade": 97.22222222222223
+          },
+          "Short": {
+            "trades": 27,
+            "hits": 14,
+            "hit_rate": 0.5185185185185185,
+            "gross": 1725,
+            "gross_per_trade": 63.888888888888886
+          }
+        },
+        "2026-08": {
+          "Total": {
+            "trades": 30,
+            "hits": 9,
+            "hit_rate": 0.3,
+            "gross": 4425,
+            "gross_per_trade": 147.5
+          },
+          "Long": {
+            "trades": 20,
+            "hits": 6,
+            "hit_rate": 0.3,
+            "gross": 4750,
+            "gross_per_trade": 237.5
+          },
+          "Short": {
+            "trades": 10,
+            "hits": 3,
+            "hit_rate": 0.3,
+            "gross": -325,
+            "gross_per_trade": -32.5
+          }
+        },
+        "2026-09": {
+          "Total": {
+            "trades": 42,
+            "hits": 9,
+            "hit_rate": 0.21428571428571427,
+            "gross": -6100,
+            "gross_per_trade": -145.23809523809524
+          },
+          "Long": {
+            "trades": 26,
+            "hits": 3,
+            "hit_rate": 0.11538461538461539,
+            "gross": -6600,
+            "gross_per_trade": -253.84615384615384
+          },
+          "Short": {
+            "trades": 16,
+            "hits": 6,
+            "hit_rate": 0.375,
+            "gross": 500,
+            "gross_per_trade": 31.25
+          }
+        },
+        "2026-10": {
+          "Total": {
+            "trades": 46,
+            "hits": 12,
+            "hit_rate": 0.2608695652173913,
+            "gross": 750,
+            "gross_per_trade": 16.304347826086957
+          },
+          "Long": {
+            "trades": 28,
+            "hits": 9,
+            "hit_rate": 0.32142857142857145,
+            "gross": 2612.5,
+            "gross_per_trade": 93.30357142857143
+          },
+          "Short": {
+            "trades": 18,
+            "hits": 3,
+            "hit_rate": 0.16666666666666666,
+            "gross": -1862.5,
+            "gross_per_trade": -103.47222222222223
+          }
+        }
+      }
+    },
+    "long_combined": {
+      "out_of_sample": {
+        "Total": {
+          "trades": 683,
+          "hits": 266,
+          "hit_rate": 0.38945827232796487,
+          "gross": 28300,
+          "gross_per_trade": 41.434846266471446
+        },
+        "Long": {
+          "trades": 303,
+          "hits": 104,
+          "hit_rate": 0.3432343234323432,
+          "gross": 17837.5,
+          "gross_per_trade": 58.86963696369637
+        },
+        "Short": {
+          "trades": 380,
+          "hits": 162,
+          "hit_rate": 0.4263157894736842,
+          "gross": 10462.5,
+          "gross_per_trade": 27.532894736842106
+        }
+      },
+      "october": {
+        "Total": {
+          "trades": 69,
+          "hits": 21,
+          "hit_rate": 0.30434782608695654,
+          "gross": 3287.5,
+          "gross_per_trade": 47.64492753623188
+        },
+        "Long": {
+          "trades": 29,
+          "hits": 10,
+          "hit_rate": 0.3448275862068966,
+          "gross": 5337.5,
+          "gross_per_trade": 184.05172413793105
+        },
+        "Short": {
+          "trades": 40,
+          "hits": 11,
+          "hit_rate": 0.275,
+          "gross": -2050,
+          "gross_per_trade": -51.25
+        }
+      },
+      "monthly": {
+        "2026-02": {
+          "Total": {
+            "trades": 86,
+            "hits": 33,
+            "hit_rate": 0.38372093023255816,
+            "gross": 3425,
+            "gross_per_trade": 39.825581395348834
+          },
+          "Long": {
+            "trades": 38,
+            "hits": 13,
+            "hit_rate": 0.34210526315789475,
+            "gross": 3037.5,
+            "gross_per_trade": 79.9342105263158
+          },
+          "Short": {
+            "trades": 48,
+            "hits": 20,
+            "hit_rate": 0.4166666666666667,
+            "gross": 387.5,
+            "gross_per_trade": 8.072916666666666
+          }
+        },
+        "2026-03": {
+          "Total": {
+            "trades": 141,
+            "hits": 48,
+            "hit_rate": 0.3404255319148936,
+            "gross": -9512.5,
+            "gross_per_trade": -67.4645390070922
+          },
+          "Long": {
+            "trades": 66,
+            "hits": 17,
+            "hit_rate": 0.25757575757575757,
+            "gross": -9575,
+            "gross_per_trade": -145.07575757575756
+          },
+          "Short": {
+            "trades": 75,
+            "hits": 31,
+            "hit_rate": 0.41333333333333333,
+            "gross": 62.5,
+            "gross_per_trade": 0.8333333333333334
+          }
+        },
+        "2026-04": {
+          "Total": {
+            "trades": 67,
+            "hits": 29,
+            "hit_rate": 0.43283582089552236,
+            "gross": 17650,
+            "gross_per_trade": 263.43283582089555
+          },
+          "Long": {
+            "trades": 27,
+            "hits": 14,
+            "hit_rate": 0.5185185185185185,
+            "gross": 15687.5,
+            "gross_per_trade": 581.0185185185185
+          },
+          "Short": {
+            "trades": 40,
+            "hits": 15,
+            "hit_rate": 0.375,
+            "gross": 1962.5,
+            "gross_per_trade": 49.0625
+          }
+        },
+        "2026-05": {
+          "Total": {
+            "trades": 63,
+            "hits": 26,
+            "hit_rate": 0.4126984126984127,
+            "gross": 2100,
+            "gross_per_trade": 33.333333333333336
+          },
+          "Long": {
+            "trades": 26,
+            "hits": 10,
+            "hit_rate": 0.38461538461538464,
+            "gross": 1500,
+            "gross_per_trade": 57.69230769230769
+          },
+          "Short": {
+            "trades": 37,
+            "hits": 16,
+            "hit_rate": 0.43243243243243246,
+            "gross": 600,
+            "gross_per_trade": 16.216216216216218
+          }
+        },
+        "2026-06": {
+          "Total": {
+            "trades": 149,
+            "hits": 60,
+            "hit_rate": 0.40268456375838924,
+            "gross": 3787.5,
+            "gross_per_trade": 25.41946308724832
+          },
+          "Long": {
+            "trades": 71,
+            "hits": 25,
+            "hit_rate": 0.352112676056338,
+            "gross": 837.5,
+            "gross_per_trade": 11.795774647887324
+          },
+          "Short": {
+            "trades": 78,
+            "hits": 35,
+            "hit_rate": 0.44871794871794873,
+            "gross": 2950,
+            "gross_per_trade": 37.82051282051282
+          }
+        },
+        "2026-07": {
+          "Total": {
+            "trades": 80,
+            "hits": 38,
+            "hit_rate": 0.475,
+            "gross": 12550,
+            "gross_per_trade": 156.875
+          },
+          "Long": {
+            "trades": 36,
+            "hits": 16,
+            "hit_rate": 0.4444444444444444,
+            "gross": 9875,
+            "gross_per_trade": 274.30555555555554
+          },
+          "Short": {
+            "trades": 44,
+            "hits": 22,
+            "hit_rate": 0.5,
+            "gross": 2675,
+            "gross_per_trade": 60.79545454545455
+          }
+        },
+        "2026-08": {
+          "Total": {
+            "trades": 39,
+            "hits": 14,
+            "hit_rate": 0.358974358974359,
+            "gross": 3537.5,
+            "gross_per_trade": 90.7051282051282
+          },
+          "Long": {
+            "trades": 15,
+            "hits": 5,
+            "hit_rate": 0.3333333333333333,
+            "gross": 3962.5,
+            "gross_per_trade": 264.1666666666667
+          },
+          "Short": {
+            "trades": 24,
+            "hits": 9,
+            "hit_rate": 0.375,
+            "gross": -425,
+            "gross_per_trade": -17.708333333333332
+          }
+        },
+        "2026-09": {
+          "Total": {
+            "trades": 58,
+            "hits": 18,
+            "hit_rate": 0.3103448275862069,
+            "gross": -5237.5,
+            "gross_per_trade": -90.30172413793103
+          },
+          "Long": {
+            "trades": 24,
+            "hits": 4,
+            "hit_rate": 0.16666666666666666,
+            "gross": -7487.5,
+            "gross_per_trade": -311.9791666666667
+          },
+          "Short": {
+            "trades": 34,
+            "hits": 14,
+            "hit_rate": 0.4117647058823529,
+            "gross": 2250,
+            "gross_per_trade": 66.17647058823529
+          }
+        },
+        "2026-10": {
+          "Total": {
+            "trades": 69,
+            "hits": 21,
+            "hit_rate": 0.30434782608695654,
+            "gross": 3287.5,
+            "gross_per_trade": 47.64492753623188
+          },
+          "Long": {
+            "trades": 29,
+            "hits": 10,
+            "hit_rate": 0.3448275862068966,
+            "gross": 5337.5,
+            "gross_per_trade": 184.05172413793105
+          },
+          "Short": {
+            "trades": 40,
+            "hits": 11,
+            "hit_rate": 0.275,
+            "gross": -2050,
+            "gross_per_trade": -51.25
+          }
+        }
+      }
+    },
+    "short_combined": {
+      "out_of_sample": {
+        "Total": {
+          "trades": 540,
+          "hits": 206,
+          "hit_rate": 0.3814814814814815,
+          "gross": 17550,
+          "gross_per_trade": 32.5
+        },
+        "Long": {
+          "trades": 295,
+          "hits": 98,
+          "hit_rate": 0.33220338983050846,
+          "gross": 5687.5,
+          "gross_per_trade": 19.279661016949152
+        },
+        "Short": {
+          "trades": 245,
+          "hits": 108,
+          "hit_rate": 0.44081632653061226,
+          "gross": 11862.5,
+          "gross_per_trade": 48.41836734693877
+        }
+      },
+      "october": {
+        "Total": {
+          "trades": 46,
+          "hits": 12,
+          "hit_rate": 0.2608695652173913,
+          "gross": 0,
+          "gross_per_trade": 0
+        },
+        "Long": {
+          "trades": 28,
+          "hits": 9,
+          "hit_rate": 0.32142857142857145,
+          "gross": 1937.5,
+          "gross_per_trade": 69.19642857142857
+        },
+        "Short": {
+          "trades": 18,
+          "hits": 3,
+          "hit_rate": 0.16666666666666666,
+          "gross": -1937.5,
+          "gross_per_trade": -107.63888888888889
+        }
+      },
+      "monthly": {
+        "2026-02": {
+          "Total": {
+            "trades": 82,
+            "hits": 31,
+            "hit_rate": 0.3780487804878049,
+            "gross": -1837.5,
+            "gross_per_trade": -22.408536585365855
+          },
+          "Long": {
+            "trades": 43,
+            "hits": 14,
+            "hit_rate": 0.32558139534883723,
+            "gross": -2787.5,
+            "gross_per_trade": -64.82558139534883
+          },
+          "Short": {
+            "trades": 39,
+            "hits": 17,
+            "hit_rate": 0.4358974358974359,
+            "gross": 950,
+            "gross_per_trade": 24.358974358974358
+          }
+        },
+        "2026-03": {
+          "Total": {
+            "trades": 99,
+            "hits": 40,
+            "hit_rate": 0.40404040404040403,
+            "gross": -1187.5,
+            "gross_per_trade": -11.994949494949495
+          },
+          "Long": {
+            "trades": 53,
+            "hits": 16,
+            "hit_rate": 0.3018867924528302,
+            "gross": -5275,
+            "gross_per_trade": -99.52830188679245
+          },
+          "Short": {
+            "trades": 46,
+            "hits": 24,
+            "hit_rate": 0.5217391304347826,
+            "gross": 4087.5,
+            "gross_per_trade": 88.8586956521739
+          }
+        },
+        "2026-04": {
+          "Total": {
+            "trades": 62,
+            "hits": 23,
+            "hit_rate": 0.3709677419354839,
+            "gross": 12762.5,
+            "gross_per_trade": 205.84677419354838
+          },
+          "Long": {
+            "trades": 33,
+            "hits": 14,
+            "hit_rate": 0.42424242424242425,
+            "gross": 12212.5,
+            "gross_per_trade": 370.07575757575756
+          },
+          "Short": {
+            "trades": 29,
+            "hits": 9,
+            "hit_rate": 0.3103448275862069,
+            "gross": 550,
+            "gross_per_trade": 18.96551724137931
+          }
+        },
+        "2026-05": {
+          "Total": {
+            "trades": 55,
+            "hits": 22,
+            "hit_rate": 0.4,
+            "gross": 2475,
+            "gross_per_trade": 45
+          },
+          "Long": {
+            "trades": 32,
+            "hits": 11,
+            "hit_rate": 0.34375,
+            "gross": 312.5,
+            "gross_per_trade": 9.765625
+          },
+          "Short": {
+            "trades": 23,
+            "hits": 11,
+            "hit_rate": 0.4782608695652174,
+            "gross": 2162.5,
+            "gross_per_trade": 94.02173913043478
+          }
+        },
+        "2026-06": {
+          "Total": {
+            "trades": 106,
+            "hits": 41,
+            "hit_rate": 0.3867924528301887,
+            "gross": 1237.5,
+            "gross_per_trade": 11.674528301886792
+          },
+          "Long": {
+            "trades": 57,
+            "hits": 21,
+            "hit_rate": 0.3684210526315789,
+            "gross": -25,
+            "gross_per_trade": -0.43859649122807015
+          },
+          "Short": {
+            "trades": 49,
+            "hits": 20,
+            "hit_rate": 0.40816326530612246,
+            "gross": 1262.5,
+            "gross_per_trade": 25.76530612244898
+          }
+        },
+        "2026-07": {
+          "Total": {
+            "trades": 59,
+            "hits": 26,
+            "hit_rate": 0.4406779661016949,
+            "gross": 5162.5,
+            "gross_per_trade": 87.5
+          },
+          "Long": {
+            "trades": 34,
+            "hits": 13,
+            "hit_rate": 0.38235294117647056,
+            "gross": 3537.5,
+            "gross_per_trade": 104.04411764705883
+          },
+          "Short": {
+            "trades": 25,
+            "hits": 13,
+            "hit_rate": 0.52,
+            "gross": 1625,
+            "gross_per_trade": 65
+          }
+        },
+        "2026-08": {
+          "Total": {
+            "trades": 33,
+            "hits": 12,
+            "hit_rate": 0.36363636363636365,
+            "gross": 3037.5,
+            "gross_per_trade": 92.04545454545455
+          },
+          "Long": {
+            "trades": 19,
+            "hits": 6,
+            "hit_rate": 0.3157894736842105,
+            "gross": 3300,
+            "gross_per_trade": 173.68421052631578
+          },
+          "Short": {
+            "trades": 14,
+            "hits": 6,
+            "hit_rate": 0.42857142857142855,
+            "gross": -262.5,
+            "gross_per_trade": -18.75
+          }
+        },
+        "2026-09": {
+          "Total": {
+            "trades": 44,
+            "hits": 11,
+            "hit_rate": 0.25,
+            "gross": -4100,
+            "gross_per_trade": -93.18181818181819
+          },
+          "Long": {
+            "trades": 24,
+            "hits": 3,
+            "hit_rate": 0.125,
+            "gross": -5587.5,
+            "gross_per_trade": -232.8125
+          },
+          "Short": {
+            "trades": 20,
+            "hits": 8,
+            "hit_rate": 0.4,
+            "gross": 1487.5,
+            "gross_per_trade": 74.375
+          }
+        },
+        "2026-10": {
+          "Total": {
+            "trades": 46,
+            "hits": 12,
+            "hit_rate": 0.2608695652173913,
+            "gross": 0,
+            "gross_per_trade": 0
+          },
+          "Long": {
+            "trades": 28,
+            "hits": 9,
+            "hit_rate": 0.32142857142857145,
+            "gross": 1937.5,
+            "gross_per_trade": 69.19642857142857
+          },
+          "Short": {
+            "trades": 18,
+            "hits": 3,
+            "hit_rate": 0.16666666666666666,
+            "gross": -1937.5,
+            "gross_per_trade": -107.63888888888889
+          }
+        }
+      }
+    },
+    "both_combined": {
+      "out_of_sample": {
+        "Total": {
+          "trades": 470,
+          "hits": 187,
+          "hit_rate": 0.39787234042553193,
+          "gross": 24650,
+          "gross_per_trade": 52.4468085106383
+        },
+        "Long": {
+          "trades": 236,
+          "hits": 85,
+          "hit_rate": 0.3601694915254237,
+          "gross": 13437.5,
+          "gross_per_trade": 56.938559322033896
+        },
+        "Short": {
+          "trades": 234,
+          "hits": 102,
+          "hit_rate": 0.4358974358974359,
+          "gross": 11212.5,
+          "gross_per_trade": 47.916666666666664
+        }
+      },
+      "october": {
+        "Total": {
+          "trades": 41,
+          "hits": 12,
+          "hit_rate": 0.2926829268292683,
+          "gross": 1187.5,
+          "gross_per_trade": 28.963414634146343
+        },
+        "Long": {
+          "trades": 23,
+          "hits": 9,
+          "hit_rate": 0.391304347826087,
+          "gross": 3125,
+          "gross_per_trade": 135.8695652173913
+        },
+        "Short": {
+          "trades": 18,
+          "hits": 3,
+          "hit_rate": 0.16666666666666666,
+          "gross": -1937.5,
+          "gross_per_trade": -107.63888888888889
+        }
+      },
+      "monthly": {
+        "2026-02": {
+          "Total": {
+            "trades": 58,
+            "hits": 24,
+            "hit_rate": 0.41379310344827586,
+            "gross": 3762.5,
+            "gross_per_trade": 64.87068965517241
+          },
+          "Long": {
+            "trades": 26,
+            "hits": 10,
+            "hit_rate": 0.38461538461538464,
+            "gross": 2925,
+            "gross_per_trade": 112.5
+          },
+          "Short": {
+            "trades": 32,
+            "hits": 14,
+            "hit_rate": 0.4375,
+            "gross": 837.5,
+            "gross_per_trade": 26.171875
+          }
+        },
+        "2026-03": {
+          "Total": {
+            "trades": 92,
+            "hits": 34,
+            "hit_rate": 0.3695652173913043,
+            "gross": -2662.5,
+            "gross_per_trade": -28.940217391304348
+          },
+          "Long": {
+            "trades": 47,
+            "hits": 11,
+            "hit_rate": 0.23404255319148937,
+            "gross": -6725,
+            "gross_per_trade": -143.08510638297872
+          },
+          "Short": {
+            "trades": 45,
+            "hits": 23,
+            "hit_rate": 0.5111111111111111,
+            "gross": 4062.5,
+            "gross_per_trade": 90.27777777777777
+          }
+        },
+        "2026-04": {
+          "Total": {
+            "trades": 51,
+            "hits": 22,
+            "hit_rate": 0.43137254901960786,
+            "gross": 14400,
+            "gross_per_trade": 282.3529411764706
+          },
+          "Long": {
+            "trades": 23,
+            "hits": 14,
+            "hit_rate": 0.6086956521739131,
+            "gross": 14262.5,
+            "gross_per_trade": 620.1086956521739
+          },
+          "Short": {
+            "trades": 28,
+            "hits": 8,
+            "hit_rate": 0.2857142857142857,
+            "gross": 137.5,
+            "gross_per_trade": 4.910714285714286
+          }
+        },
+        "2026-05": {
+          "Total": {
+            "trades": 48,
+            "hits": 22,
+            "hit_rate": 0.4583333333333333,
+            "gross": 3950,
+            "gross_per_trade": 82.29166666666667
+          },
+          "Long": {
+            "trades": 26,
+            "hits": 11,
+            "hit_rate": 0.4230769230769231,
+            "gross": 1675,
+            "gross_per_trade": 64.42307692307692
+          },
+          "Short": {
+            "trades": 22,
+            "hits": 11,
+            "hit_rate": 0.5,
+            "gross": 2275,
+            "gross_per_trade": 103.4090909090909
+          }
+        },
+        "2026-06": {
+          "Total": {
+            "trades": 99,
+            "hits": 40,
+            "hit_rate": 0.40404040404040403,
+            "gross": 4175,
+            "gross_per_trade": 42.17171717171717
+          },
+          "Long": {
+            "trades": 51,
+            "hits": 21,
+            "hit_rate": 0.4117647058823529,
+            "gross": 3125,
+            "gross_per_trade": 61.27450980392157
+          },
+          "Short": {
+            "trades": 48,
+            "hits": 19,
+            "hit_rate": 0.3958333333333333,
+            "gross": 1050,
+            "gross_per_trade": 21.875
+          }
+        },
+        "2026-07": {
+          "Total": {
+            "trades": 54,
+            "hits": 23,
+            "hit_rate": 0.42592592592592593,
+            "gross": 3562.5,
+            "gross_per_trade": 65.97222222222223
+          },
+          "Long": {
+            "trades": 29,
+            "hits": 10,
+            "hit_rate": 0.3448275862068966,
+            "gross": 1937.5,
+            "gross_per_trade": 66.8103448275862
+          },
+          "Short": {
+            "trades": 25,
+            "hits": 13,
+            "hit_rate": 0.52,
+            "gross": 1625,
+            "gross_per_trade": 65
+          }
+        },
+        "2026-08": {
+          "Total": {
+            "trades": 29,
+            "hits": 12,
+            "hit_rate": 0.41379310344827586,
+            "gross": 3537.5,
+            "gross_per_trade": 121.98275862068965
+          },
+          "Long": {
+            "trades": 15,
+            "hits": 6,
+            "hit_rate": 0.4,
+            "gross": 3800,
+            "gross_per_trade": 253.33333333333334
+          },
+          "Short": {
+            "trades": 14,
+            "hits": 6,
+            "hit_rate": 0.42857142857142855,
+            "gross": -262.5,
+            "gross_per_trade": -18.75
+          }
+        },
+        "2026-09": {
+          "Total": {
+            "trades": 39,
+            "hits": 10,
+            "hit_rate": 0.2564102564102564,
+            "gross": -6075,
+            "gross_per_trade": -155.76923076923077
+          },
+          "Long": {
+            "trades": 19,
+            "hits": 2,
+            "hit_rate": 0.10526315789473684,
+            "gross": -7562.5,
+            "gross_per_trade": -398.0263157894737
+          },
+          "Short": {
+            "trades": 20,
+            "hits": 8,
+            "hit_rate": 0.4,
+            "gross": 1487.5,
+            "gross_per_trade": 74.375
+          }
+        },
+        "2026-10": {
+          "Total": {
+            "trades": 41,
+            "hits": 12,
+            "hit_rate": 0.2926829268292683,
+            "gross": 1187.5,
+            "gross_per_trade": 28.963414634146343
+          },
+          "Long": {
+            "trades": 23,
+            "hits": 9,
+            "hit_rate": 0.391304347826087,
+            "gross": 3125,
+            "gross_per_trade": 135.8695652173913
+          },
+          "Short": {
+            "trades": 18,
+            "hits": 3,
+            "hit_rate": 0.16666666666666666,
+            "gross": -1937.5,
+            "gross_per_trade": -107.63888888888889
+          }
+        }
+      }
+    }
+  }
+}

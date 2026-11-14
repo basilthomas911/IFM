@@ -9,6 +9,30 @@ namespace TomasAI.IFM.Domain.Application.Actor.UnitTests;
 public sealed class ApplicationLifecycleHealthCheckTests
 {
     [Fact]
+    public async Task Launch_allows_pending_optional_work_only_after_all_required_checks_pass()
+    {
+        var lifecycle = new ApplicationStartupStatusStore();
+        var handoff = new ApplicationStartupHandoffStatusStore();
+        handoff.Set(new() { State = ApplicationStartupHandoffState.LifecycleObserved });
+        var launch = new ApplicationLifecycleHealthCheck(lifecycle, handoff, allowPendingOptionalActivities: true);
+        var full = new ApplicationLifecycleHealthCheck(lifecycle, handoff);
+        var context = new HealthCheckContext();
+        var required = ApplicationStartupPlan.Activities.Where(definition => definition.Required)
+            .Select(definition => new ApplicationStartupActivityResult
+            {
+                Activity = definition.Activity, Required = true, Outcome = ApplicationStartupActivityOutcome.AlreadySatisfied
+            }).ToArray();
+        lifecycle.Set(new() { State = ApplicationLifecycleState.Starting, Activities = required[..^1] });
+        Assert.Equal(HealthStatus.Unhealthy, (await launch.CheckHealthAsync(context)).Status);
+        lifecycle.Set(lifecycle.Current with { Activities = required });
+        Assert.Equal(HealthStatus.Healthy, (await launch.CheckHealthAsync(context)).Status);
+        Assert.Equal(HealthStatus.Unhealthy, (await full.CheckHealthAsync(context)).Status);
+        required[^1] = required[^1] with { Outcome = ApplicationStartupActivityOutcome.Failed };
+        lifecycle.Set(lifecycle.Current with { Activities = [.. required] });
+        Assert.Equal(HealthStatus.Unhealthy, (await launch.CheckHealthAsync(context)).Status);
+    }
+
+    [Fact]
     public async Task Cached_health_invalidates_on_either_lifecycle_or_handoff_transition()
     {
         var lifecycle = new ApplicationStartupStatusStore();

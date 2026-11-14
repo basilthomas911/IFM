@@ -1,6 +1,15 @@
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Application.EventSourcing.Persistence.Command;
 using TomasAI.IFM.Domain.Trade.Shared.Futures.Position;
+using TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position;
+using TomasAI.IFM.Domain.Trade.Shared.Trade.Position;
+using TomasAI.IFM.Domain.Trade.Shared.ServiceApi;
+using TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Command;
+using TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Command.State;
+using TomasAI.IFM.Domain.Trade.Persistence;
+using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Application.MarketData.Recovery;
+using TomasAI.IFM.Domain.Trade.Shared.Recovery;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -27,6 +36,135 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.TradeDb;
 [Collection("PostgreSQL plan atomicity")]
 public sealed class PostgresTradeFlowTests(PostgresTradePlanFixture fixture)
 {
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task Prior_session_eod_commits_before_the_first_quote_and_retries_safely(
+        bool feedRecovery, bool noTick)
+    {
+        await fixture.Transactions.ExecuteOnceAsync((db, ct) => db.ExecuteAsync(TradeSchemaDb.CreateStatement, [], ct));
+        var settings = new DbConnectionSettings().Add(TradeDbContext.TradeDbConnection, fixture.Connection, "System.Data.Postgres");
+        var context = new TradeDbContext(settings, Mock.Of<IDbContextFactory>(), Mock.Of<ISequenceIdGenerator>(), NullLogger<DbProvider>.Instance);
+        var source = Mock.Of<IEventSourceActorDbContext>(
+            value => value.ProviderName == "System.Data.Postgres" && value.ConnectionString == fixture.Connection);
+        var id = StrategyPositionId.Create(new(Random.Shared.Next(60000000, 70000000), 1, 1, 1), TradeStrategyKind.IronCondor);
+        var previous = new DateOnly(2026, 11, 12);
+        var today = previous.AddDays(1);
+        var originalDate = noTick ? previous.AddDays(-1) : previous;
+        var observed = FuturesTradingValueDate.GetSessionEndUtc(originalDate).UtcDateTime.AddHours(-2);
+        var boundary = FuturesTradingValueDate.GetSessionEndUtc(previous).UtcDateTime;
+        var leg = new StrategyPositionLeg
+        {
+            TradeLegId = Guid.NewGuid(), ContractId = "catch-up-ES", SignedQuantity = 1,
+            OpeningPrice = 10, CurrentPrice = 12, LastPriceAtUtc = observed, LastSourceSequence = 1
+        };
+        var original = new StrategyPositionSnapshot
+        {
+            Id = id, StrategyKind = TradeStrategyKind.IronCondor, IsOpen = true,
+            Phase = noTick ? StrategyPositionPhase.EndOfDay : StrategyPositionPhase.MarkToMarket,
+            ValueDate = originalDate, LatestSealedValueDate = noTick ? originalDate : default,
+            AsOfUtc = noTick ? FuturesTradingValueDate.GetSessionEndUtc(originalDate).UtcDateTime : observed,
+            CloseBoundaryUtc = noTick ? FuturesTradingValueDate.GetSessionEndUtc(originalDate).UtcDateTime : null,
+            LastMarketObservationUtc = observed, PositionSequence = 1, RouteGeneration = 1,
+            HistoryAsOfUtc = observed, HistoryPositionSequence = 1, UnrealizedPnl = 2, Legs = [leg]
+        };
+        var actor = "FuturesIronCondorTradePositionCommand";
+        var tick = new ChangeTradeLegDataCommand
+        {
+            CommandId = Guid.NewGuid(), EntityId = id, Subject = new(ActorType.Command, actor, ChangeTradeLegDataCommand.Verb, id.Format()),
+            TradeLegId = leg.TradeLegId, ContractId = leg.ContractId, Price = 15, SourceSequence = 2,
+            RouteGeneration = 1, EffectiveAtUtc = boundary.AddHours(2), TradeType = TradeStrategyKind.IronCondor
+        };
+        var opened = new IronCondorPositionChangedEvent
+        {
+            Id = Guid.NewGuid(), CommandId = Guid.NewGuid(), EntityId = id, PositionSnapshot = original
+        };
+        await fixture.Transactions.ExecuteOnceAsync(async (db, ct) =>
+        {
+            await db.AppendAsync(new EnlistedEventAppend(tick.StreamId, opened.CommandId, opened, 0), ct);
+            await context.ProjectPositionAsync(db, original, ct);
+            return true;
+        });
+        var commands = new Mock<IStrategyPositionCommandApi>(MockBehavior.Strict);
+        var sealCalls = 0;
+        if (feedRecovery)
+        {
+            commands.Setup(api => api.EndOfDayAsync(id, original.StrategyKind, previous, boundary, default))
+                .Returns(async () =>
+                {
+                    sealCalls++;
+                    var command = new EndOfDayIronCondorPositionCommand
+                    {
+                        CommandId = Guid.NewGuid(), EntityId = id, ValueDate = previous, EffectiveAtUtc = boundary,
+                        Subject = new(ActorType.Command, actor, EndOfDayIronCondorPositionCommand.Verb, id.Format())
+                    };
+                    var owner = new IronCondorPositionCommandState();
+                    owner.Update(opened, addEvent: false);
+                    Assert.True(command.Execute(owner).Success);
+                    await TradeAtomicPersistence.CommitAsync(command, new DomainEventCollection(owner.Events), 1, source, context, fixture.Transactions);
+                    return new ServiceOk<Guid>(command.CommandId);
+                });
+            var trade = new EstablishedTradeDefinition
+            {
+                Id = id.Trade, Status = EstablishedTradeStatus.Open, StrategyKind = original.StrategyKind,
+                Legs = [new() { TradeLegId = leg.TradeLegId, ContractId = leg.ContractId }]
+            };
+            var catchUp = new TradeFeedEndOfDayCatchUp(context.GetStrategyPositionAsync, commands.Object);
+            var store = new Mock<ITradeFeedRecoveryStore>();
+            var runtime = new Mock<ITradeFeedRecoveryRuntime>();
+            runtime.SetupGet(value => value.ActiveDate).Returns(today);
+            runtime.Setup(value => value.LoadAsync(id.Trade, default)).ReturnsAsync(trade);
+            store.Setup(value => value.ReadAsync(today, default)).ReturnsAsync([]);
+            var recovery = new TradeFeedRecoveryService(store.Object, runtime.Object, endOfDay: catchUp);
+            // A Rust UI load with no saved intent still repairs the seal without subscribing.
+            Assert.False(await recovery.LoadAsync(id.Trade.Format(), today, false, default));
+            runtime.Verify(value => value.StartAsync(It.IsAny<string>(), It.IsAny<string>(), today, default), Times.Never);
+            // Startup restores a saved intent only after it sees the durable seal.
+            store.Setup(value => value.ReadAsync(today, default)).ReturnsAsync(
+                [new(id.Trade.Format(), today, [leg.ContractId], DateTimeOffset.UtcNow)]);
+            runtime.Setup(value => value.StartAsync(It.IsAny<string>(), leg.ContractId, today, default))
+                .Returns(async () => Assert.Equal(previous, (await context.GetStrategyPositionAsync(id))!.LatestSealedValueDate));
+            Assert.True(await recovery.LoadAsync(id.Trade.Format(), today, false, default));
+            runtime.Verify(value => value.StartAsync(It.IsAny<string>(), leg.ContractId, today, default), Times.Once);
+            Assert.Equal(1, sealCalls);
+            Assert.Equal(previous, (await context.GetStrategyPositionAsync(id))!.LatestSealedValueDate);
+        }
+        var state = new IronCondorPositionCommandState();
+        state.Update(opened with { PositionSnapshot = (await context.GetStrategyPositionAsync(id))! }, addEvent: false);
+        Assert.True(tick.Execute(state).Success);
+        var events = new DomainEventCollection(state.Events);
+        Assert.Equal(feedRecovery ? 1 : 2, events.Count);
+        // Two copies of the same delivery can compete at the command reservation.
+        async Task<bool> TryCommit()
+        {
+            try
+            {
+                var copy = new DomainEventCollection(events.Select(fact => ((IronCondorPositionChangedEvent)fact) with { }));
+                await TradeAtomicPersistence.CommitAsync(tick, copy, feedRecovery ? 2 : 1, source, context, fixture.Transactions);
+                return true;
+            }
+            catch (CommandAuditDuplicateException duplicate) when (duplicate.HasCommittedEvents)
+            {
+                return false;
+            }
+        }
+        Assert.Single(await Task.WhenAll(TryCommit(), TryCommit()), committed => committed);
+        Assert.Equal(3, await fixture.EventCountAsync(tick.StreamId));
+
+        var history = await context.GetStrategyPositionHistoryAsync(id.PositionId, observed.AddMinutes(-1), tick.EffectiveAtUtc.AddMinutes(1), 100);
+        var seal = Assert.Single(history.Items, row => row.ValueDate == previous);
+        Assert.Equal(StrategyPositionPhase.EndOfDay, seal.Phase);
+        Assert.Equal(boundary, seal.CloseBoundaryUtc);
+        Assert.Equal(observed, seal.LastMarketObservationUtc);
+        Assert.Equal(12m, Assert.Single(seal.Legs).CurrentPrice);
+        var current = (await context.GetStrategyPositionAsync(id))!;
+        Assert.Equal(today, current.ValueDate);
+        Assert.Equal(previous, current.LatestSealedValueDate);
+        Assert.Equal(2m, current.DailyOpeningPnl);
+        Assert.Equal(tick.EffectiveAtUtc, current.LastMarketObservationUtc);
+    }
+
     [Fact]
     public async Task Historical_eod_requires_committed_mark_and_preserves_closed_current_and_routes()
     {

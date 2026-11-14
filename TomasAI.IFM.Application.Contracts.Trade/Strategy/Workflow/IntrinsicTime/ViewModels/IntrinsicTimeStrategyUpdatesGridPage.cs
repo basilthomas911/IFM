@@ -27,7 +27,8 @@ public sealed record IntrinsicTimeStrategyUpdatesGridRow(
     /// <summary>Extracts only grid information from the persisted workflow projection.</summary>
     public static IntrinsicTimeStrategyUpdatesGridRow FromView(IntrinsicTimeStrategyWorkflowView view) => new(
         view.WorkflowId, view.WorkflowRevision,
-        view.TriggerEvent.CreatedOn == default ? view.StartedAtUtc : view.TriggerEvent.CreatedOn,
+        view.TriggerEvent.CreatedOn != default ? view.TriggerEvent.CreatedOn :
+            view.TriggerEvent.ReceivedOn != default ? view.TriggerEvent.ReceivedOn : view.StartedAtUtc,
         view.Status.ToString(), view.Outcome.ToString(), view.TriggerEvent.FuturesItiSignal,
         [ProjectStage(view, StrategyWorkflowStage.RegimeDiscovery, view.RegimeDiscovery),
          ProjectStage(view, StrategyWorkflowStage.MarketCondition, view.MarketCondition),

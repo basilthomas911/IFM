@@ -202,7 +202,13 @@ public static partial class CoreServiceRegistration
         .AddCheck<FmpConfigurationHealthCheck>("fmp_configuration", tags: ["application", "ready"])
         .AddCheck<LivePipelineHealthCheck>("live_pipeline", tags: ["application", "ready"])
         .AddCheck<MarketDataRuntimeHealthCheck>("market_data_runtime", tags: ["application", "ready"])
-        .AddCheck<ApplicationLifecycleHealthCheck>("application_lifecycle", tags: ["application", "launch", "ready"]);
+        .AddCheck<ApplicationLifecycleHealthCheck>("application_lifecycle_full", tags: ["application", "ready"])
+        .Add(new HealthCheckRegistration("application_lifecycle",
+            provider => new ApplicationLifecycleHealthCheck(
+                provider.GetRequiredService<IApplicationStartupStatusStore>(),
+                provider.GetRequiredService<IApplicationStartupHandoffStatusStore>(),
+                allowPendingOptionalActivities: true),
+            failureStatus: null, tags: ["launch"]));
         var fmpEnabled = config.GetValue("AppSettings:Fmp:Enabled", true);
         services.AddFinancialModelingPrepMarketData(options =>
         {

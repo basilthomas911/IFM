@@ -117,7 +117,7 @@ public sealed class IntrinsicTimeStrategyWorkflowEventProjector : ConventionalEv
             var tradeDb = _actorContext.DbFactory.TradeDb;
             if (string.Equals(tradeDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
             {
-                var active = TradeDbContextExtensions.WorkflowActive(snapshot);
+                var active = await tradeDb.GetActiveIntrinsicTimeStrategyWorkflowAsync(entityKey, cancellationToken).ConfigureAwait(false);
                 if (active is not null) _cache.Set(active);
                 else _cache.Remove(entityKey);
             }
@@ -128,7 +128,8 @@ public sealed class IntrinsicTimeStrategyWorkflowEventProjector : ConventionalEv
             }
 
             using var timing_workflow_project_notify = WorkflowTrace.Start("workflow.project.notify", snapshot.State);
-            await _actorContext.SendAsync<WorkflowStrategyStateUpdatedEvent, IntrinsicTimeStrategyWorkflowEntityId>(global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(snapshot, snapshot with { Subject = new ActorSubject(ActorType.Realtime, RealtimeActorName, WorkflowStrategyStateUpdatedEvent.Verb, entityKey) }), cancellationToken).ConfigureAwait(false);
+            if (!snapshot.SkipPipelineDispatch)
+                await _actorContext.SendAsync<WorkflowStrategyStateUpdatedEvent, IntrinsicTimeStrategyWorkflowEntityId>(global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(snapshot, snapshot with { Subject = new ActorSubject(ActorType.Realtime, RealtimeActorName, WorkflowStrategyStateUpdatedEvent.Verb, entityKey) }), cancellationToken).ConfigureAwait(false);
             timing_workflow_project_notify?.Stop();
             // UI observation is deliberately isolated from workflow dispatch. A desktop listener outage must never
             // prevent an already committed workflow from continuing or reaching its terminal state.
@@ -145,7 +146,7 @@ public sealed class IntrinsicTimeStrategyWorkflowEventProjector : ConventionalEv
             // These handlers receive the already committed event on the projector worker. They do not scan or
             // deserialize event_log and therefore add no database polling to the workflow command path.
             await _riskProjection.ProjectCommittedAsync(snapshot, cancellationToken).ConfigureAwait(false);
-            if (snapshot.RequiresDurableProjection)
+            if (snapshot.RequiresDurableProjection && !snapshot.DispatchRegimeDiscovery)
             foreach (var opening in TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Execution.Model.StrategyOpeningIntentFactory.Create(snapshot, _actorContext.TimeProvider.GetUtcNow().UtcDateTime))
             {
                 var accepted = await _actorContext.ActorService.RequestAsync<TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Execution.BeginStrategyExecutionHandoffCommand, OrderExecutionId>(opening, cancellationToken).ConfigureAwait(false);

@@ -93,7 +93,8 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor(IRealtime
         var view = snapshot.State;
         if (view.Status != WorkflowStrategyMachineStatus.Started)
             return;
-        if (view.CurrentStage is StrategyWorkflowStage.TradeSelection or StrategyWorkflowStage.OrderComposition)
+        if (snapshot.DispatchRegimeDiscovery ||
+            view.CurrentStage is StrategyWorkflowStage.TradeSelection or StrategyWorkflowStage.OrderComposition)
         {
             var current = await RequireEventContext(context).ReadActiveWorkflowAsync(view.EntityId).ConfigureAwait(false);
             if (!IsCurrentSelectionNotification(view, current))
@@ -145,7 +146,23 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor(IRealtime
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "A failed or timed-out Function request is converted to the recorded terminal pipeline failure for this workflow.")]
     static async ValueTask ExecuteRegimeDiscoveryAsync(IEventActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> context, WorkflowStrategyStateUpdatedEvent snapshot)
     {
-        var timeProvider = RequireEventContext(context).TimeProvider;
+        var services = RequireEventContext(context);
+        var timeProvider = services.TimeProvider;
+        var view = snapshot.State;
+        if (snapshot.DispatchRegimeDiscovery &&
+            RegimeDiscoveryTriggerFreshness.StopIfStale(view, services.RegimeDiscoveryExecutionOptions, timeProvider.GetUtcNow().UtcDateTime) is not null)
+        {
+            var stop = new FailRegimeDiscoveryCommand
+            {
+                CommandId = DeterministicTerminalCommandId(view.EntityId, view.WorkflowId, view.WorkflowRevision, snapshot.Id, RegimeDiscoveryTriggerFreshness.StaleReason),
+                Subject = WorkflowSubject(FailRegimeDiscoveryCommand.Verb, view.EntityId),
+                EntityId = view.EntityId, WorkflowId = view.WorkflowId, InputWorkflowRevision = view.WorkflowRevision,
+                SourceEventId = snapshot.Id, CorrelationId = view.CorrelationId, CausationId = snapshot.Id,
+                CheckTriggerFreshness = true
+            };
+            await context.SendAsync<FailRegimeDiscoveryCommand, IntrinsicTimeStrategyWorkflowEntityId>(stop, stop.EntityId).ConfigureAwait(false);
+            return;
+        }
         var execute = CreateRegimeExecute(snapshot) ?? throw new InvalidOperationException("Only a committed Started/Regime snapshot can dispatch Execute.");
         FunctionResult<RegimeDiscoveryPipelineCompletedEvent, RegimeDiscoveryPipelineFailedEvent>? terminal;
         try

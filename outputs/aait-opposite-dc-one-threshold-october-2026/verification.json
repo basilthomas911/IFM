@@ -1,0 +1,12 @@
+{
+  "verified_trades": 79,
+  "confirmed_daily_dcs": 256,
+  "checks": [
+    "C# DC identity, opposite side and frozen threshold",
+    "next tick entry",
+    "first threshold crossing",
+    "cutoff mark",
+    "one position and one trade per DC",
+    "gross P&L"
+  ]
+}

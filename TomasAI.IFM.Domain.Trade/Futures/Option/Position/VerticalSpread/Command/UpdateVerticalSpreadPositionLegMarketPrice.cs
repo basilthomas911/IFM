@@ -32,7 +32,9 @@ public static class UpdateVerticalSpreadPositionLegMarketPrice
             {
                 _ when !positionChange.Accepted => command.UpdateFailed(ref errorMsg, $"{positionChange.RejectionCode};{positionChange.RejectionReason}"),
                 _ when positionChange.PositionSnapshot is null => command.UpdateFailed(ref errorMsg, "VerticalSpreadPosition: the computed position snapshot is missing."),
-                _ => state.Update(command.CreateVerticalSpreadPositionChangedEvent(positionChange.PositionSnapshot), command)
+                _ => PositionMarketUpdate.Apply(positionChange, command.CreateVerticalSpreadPositionChangedEvent,
+                    source => state.Update(source, command),
+                    static (source, seal) => source with { Id = Guid.NewGuid(), PositionSnapshot = seal })
             };
             return updated ? new ServiceOk<GuidResult>(new GuidResult(command.CommandId)) : command.UpdateFailed(errorMsg);
         }
@@ -44,8 +46,7 @@ public static class UpdateVerticalSpreadPositionLegMarketPrice
         /// <returns>True when the transition is accepted.</returns>
         internal bool Compute(VerticalSpreadPositionCommandState state, out PositionChange positionChange)
         {
-            var positionDecision = VerticalSpreadPositionTransition.Compute(state.PositionSnapshot, machine => machine.UpdateLeg(command.TradeLegId, command.Price, command.SourceSequence, command.EffectiveAtUtc, command.RouteGeneration));
-            positionChange = new(positionDecision.Accepted, positionDecision.Value, positionDecision.Code, positionDecision.Detail);
+            positionChange = PositionMarketUpdate.Compute(state.PositionSnapshot, command.EffectiveAtUtc, machine => machine.UpdateLeg(command.TradeLegId, command.Price, command.SourceSequence, command.EffectiveAtUtc, command.RouteGeneration));
             return positionChange.Accepted;
         }
 

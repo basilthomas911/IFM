@@ -150,6 +150,7 @@ public static partial class CoreServiceRegistration
         services.AddSingleton<TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.IIntrinsicTimeWorkflowStartPolicy>(
         provider => provider.GetRequiredService<IntrinsicTimeStrategyWorkflowOptions>());
         services.AddHostedService<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Execution.StrategyExecutionHandoffRecoveryService>();
+        services.AddHostedService<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.IntrinsicTimeSignalQueueRecoveryService>();
         services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Execution.Projection.StrategyExecutionHandoffReadStore>();
         services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Execution.StrategyExecutionHandoffProcessor>();
         services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Execution.StrategyOpeningEvidenceVerifier>();
@@ -168,12 +169,8 @@ public static partial class CoreServiceRegistration
         config.GetValue<Guid?>("StrategyRisk:IronCondor:ParameterSetId"),
         config.GetValue<int>("StrategyRisk:IronCondor:Version", 1)));
 
-        var regimeDiscoveryExecutionOptions = new RegimeDiscoveryExecutionOptions
-        {
-            MaximumExecutionDuration = config.GetValue(
-            $"{RegimeDiscoveryExecutionOptions.SectionName}:MaximumExecutionDuration",
-            RegimeDiscoveryExecutionOptions.DefaultMaximumExecutionDuration)
-        };
+        var regimeDiscoveryExecutionOptions = config.GetSection(RegimeDiscoveryExecutionOptions.SectionName)
+            .Get<RegimeDiscoveryExecutionOptions>() ?? new RegimeDiscoveryExecutionOptions();
         regimeDiscoveryExecutionOptions.Validate();
         services.AddSingleton(regimeDiscoveryExecutionOptions);
         services.AddSingleton<IBoundedContextFactoryResolver, BoundedContextFactoryResolver>(_ => new BoundedContextFactoryResolver(e => GetContainerInstance(siContainer, e)!));

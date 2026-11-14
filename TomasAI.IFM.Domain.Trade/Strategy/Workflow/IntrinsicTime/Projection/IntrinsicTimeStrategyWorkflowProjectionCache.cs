@@ -22,7 +22,8 @@ public sealed class IntrinsicTimeStrategyWorkflowProjectionCache : IIntrinsicTim
     {
         ArgumentNullException.ThrowIfNull(workflow);
         IsArgumentNull.Check(workflow);
-        _workflows.AddOrUpdate(workflow.WorkflowEntityId, workflow, (_, current) => workflow.WorkflowRevision >= current.WorkflowRevision ? workflow : current);
+        _workflows.AddOrUpdate(workflow.WorkflowEntityId, workflow, (_, current) =>
+            workflow.LastEventId >= current.LastEventId ? workflow : current);
     }
 
     /// <inheritdoc/>

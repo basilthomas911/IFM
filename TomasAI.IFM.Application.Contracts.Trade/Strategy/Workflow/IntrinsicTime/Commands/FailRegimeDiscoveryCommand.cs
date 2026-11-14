@@ -51,6 +51,7 @@ public sealed record FailRegimeDiscoveryCommand : ICommand<IntrinsicTimeStrategy
     [Key(14)] public int ParameterSetVersion { get; init; }
     /// <summary>Gets the resolved parameter payload hash.</summary>
     [Key(15)] public string ParameterPayloadSha256 { get; init; } = string.Empty;
+    [Key(16)] public bool CheckTriggerFreshness { get; init; }
 
     /// <summary>Gets the concrete command contract name.</summary>
     [IgnoreMember] public string CommandName => nameof(FailRegimeDiscoveryCommand);
@@ -107,7 +108,8 @@ public sealed record FailRegimeDiscoveryCommand : ICommand<IntrinsicTimeStrategy
         DateTime failedAtUtc,
         Guid parameterSetId,
         int parameterSetVersion,
-        string parameterPayloadSha256)
+        string parameterPayloadSha256,
+        bool checkTriggerFreshness = false)
     {
         CommandId = commandId;
         Subject = subject;
@@ -125,5 +127,6 @@ public sealed record FailRegimeDiscoveryCommand : ICommand<IntrinsicTimeStrategy
         ParameterSetId = parameterSetId;
         ParameterSetVersion = parameterSetVersion;
         ParameterPayloadSha256 = parameterPayloadSha256 ?? string.Empty;
+        CheckTriggerFreshness = checkTriggerFreshness;
     }
 }

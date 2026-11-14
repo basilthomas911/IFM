@@ -3,6 +3,28 @@ namespace TomasAI.IFM.Application.Storage.TradeDb;
 /// <summary>SQL statements and query templates for Trade storage.</summary>
 public static class TradeDbSql
 {
+    public const string FindStartedIntrinsicTimeTrigger = """
+        SELECT EXISTS (SELECT 1 FROM trade.intrinsic_time_strategy_workflow
+            WHERE workflowentityid=$1 AND triggereventid=$2);
+        """;
+
+    public const string MarkIntrinsicTimeSignalQueuePending = """
+        INSERT INTO trade.intrinsic_time_strategy_signal_queue(workflowentityid)
+        VALUES ($1) ON CONFLICT DO NOTHING;
+        """;
+
+    public const string ClearIntrinsicTimeSignalQueuePending = """
+        DELETE FROM trade.intrinsic_time_strategy_signal_queue WHERE workflowentityid=$1;
+        """;
+
+    public const string ReadPendingIntrinsicTimeSignalQueues = """
+        SELECT q.workflowentityid, a.statepayload
+        FROM trade.intrinsic_time_strategy_signal_queue q
+        JOIN trade.intrinsic_time_strategy_workflow_active a USING (workflowentityid)
+        WHERE q.workflowentityid > $1
+        ORDER BY q.workflowentityid LIMIT 64;
+        """;
+
     /// <summary>SQL for context statement1.</summary>
     internal const string ContextStatement1 =
         """

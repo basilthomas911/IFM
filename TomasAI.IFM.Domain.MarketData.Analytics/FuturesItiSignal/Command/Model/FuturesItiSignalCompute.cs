@@ -85,7 +85,9 @@ public sealed class FuturesItiSignalCompute
             else if (price >= current.TrendReversal + bandSize)
                 signal = Enrich(CreateReversalChangedSignal());
             else if (HasMovedOneBand(current, price, bandSize))
-                signal = Enrich(CreateTrendingSignal());
+                signal = Enrich(price < current.TrendExtreme
+                    ? CreateExtremeChangedSignal()
+                    : CreateTrendingSignal());
             else
             {
                 signal = default!;

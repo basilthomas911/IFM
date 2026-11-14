@@ -9,6 +9,7 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Model;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Model;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command;
 /// <summary>Handles failed Regime Discovery completion.</summary>
@@ -60,6 +61,13 @@ public static class FailRegimeDiscovery
             }
 
             var now = context.TimeProvider.GetUtcNow().UtcDateTime;
+            if (command.CheckTriggerFreshness && now < current.ExpiresAtUtc)
+            {
+                var stale = RegimeDiscoveryTriggerFreshness.StopIfStale(current, context.ExecutionOptions, now);
+                if (stale is not null)
+                    AppendSnapshot(state, command, current.Status, stale, now);
+                return Ok(command);
+            }
             var timedOut = now >= current.ExpiresAtUtc || IsTimeout(command.Failure);
             var updated = current with
             {

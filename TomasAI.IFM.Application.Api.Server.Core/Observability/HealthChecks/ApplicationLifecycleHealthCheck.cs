@@ -7,7 +7,8 @@ namespace TomasAI.IFM.Application.Api.Server.Core.Observability.HealthChecks;
 
 public sealed class ApplicationLifecycleHealthCheck(
     IApplicationStartupStatusStore statusStore,
-    IApplicationStartupHandoffStatusStore handoffStatusStore) : IHealthCheck
+    IApplicationStartupHandoffStatusStore handoffStatusStore,
+    bool allowPendingOptionalActivities = false) : IHealthCheck
 {
     sealed record PublishedResult(ApplicationStartupStatus Status, ApplicationStartupHandoffStatus Handoff, Task<HealthCheckResult> Result);
     PublishedResult? published;
@@ -19,7 +20,13 @@ public sealed class ApplicationLifecycleHealthCheck(
         var handoff = handoffStatusStore.Current;
         var cached = Volatile.Read(ref published);
         if (cached is not null && ReferenceEquals(cached.Status, status) && ReferenceEquals(cached.Handoff, handoff)) return cached.Result;
-        var description = status.State == ApplicationLifecycleState.Bootstrapped
+        var requiredActivitiesSatisfied = allowPendingOptionalActivities
+            && status.State == ApplicationLifecycleState.Starting
+            && ApplicationStartupPlan.Activities.Where(activity => activity.Required)
+                .All(activity => status.Activities.Any(result => result.Activity == activity.Activity && result.IsSatisfied));
+        var description = requiredActivitiesSatisfied
+            ? "Required startup activities passed. Optional startup activities are still running."
+            : status.State == ApplicationLifecycleState.Bootstrapped
             && handoff.State != ApplicationStartupHandoffState.NotAttempted
                 ? handoff.Summary
                 : status.Summary;
@@ -47,6 +54,8 @@ public sealed class ApplicationLifecycleHealthCheck(
             ApplicationLifecycleState.Running or ApplicationLifecycleState.ScheduledStopped =>
                 HealthCheckResult.Healthy(description, data),
             ApplicationLifecycleState.Degraded => HealthCheckResult.Healthy(description, data),
+            ApplicationLifecycleState.Starting when requiredActivitiesSatisfied =>
+                HealthCheckResult.Healthy(description, data),
             ApplicationLifecycleState.Failed => HealthCheckResult.Unhealthy(description, data: data),
             _ => HealthCheckResult.Unhealthy(description, data: data)
         });

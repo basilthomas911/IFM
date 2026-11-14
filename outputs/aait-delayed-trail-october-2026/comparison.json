@@ -1,0 +1,134 @@
+[
+  {
+    "entry": "original",
+    "side": "Long",
+    "immediate": {
+      "trades": 61,
+      "wins": 21,
+      "flats": 5,
+      "points": -20.5,
+      "gross_pnl_usd": -1025.0,
+      "win_rate_pct": 34.42622950819672
+    },
+    "delayed": {
+      "trades": 40,
+      "wins": 17,
+      "flats": 4,
+      "points": -23.5,
+      "gross_pnl_usd": -1175.0,
+      "win_rate_pct": 42.5
+    },
+    "pnl_change_usd": -150.0,
+    "win_rate_change_pp": 8.07377049180328
+  },
+  {
+    "entry": "original",
+    "side": "Short",
+    "immediate": {
+      "trades": 59,
+      "wins": 15,
+      "flats": 0,
+      "points": -219.25,
+      "gross_pnl_usd": -10962.5,
+      "win_rate_pct": 25.423728813559322
+    },
+    "delayed": {
+      "trades": 35,
+      "wins": 15,
+      "flats": 0,
+      "points": -37.0,
+      "gross_pnl_usd": -1850.0,
+      "win_rate_pct": 42.857142857142854
+    },
+    "pnl_change_usd": 9112.5,
+    "win_rate_change_pp": 17.433414043583532
+  },
+  {
+    "entry": "original",
+    "side": "Total",
+    "immediate": {
+      "trades": 120,
+      "wins": 36,
+      "flats": 5,
+      "points": -239.75,
+      "gross_pnl_usd": -11987.5,
+      "win_rate_pct": 30.0
+    },
+    "delayed": {
+      "trades": 75,
+      "wins": 32,
+      "flats": 4,
+      "points": -60.5,
+      "gross_pnl_usd": -3025.0,
+      "win_rate_pct": 42.666666666666664
+    },
+    "pnl_change_usd": 8962.5,
+    "win_rate_change_pp": 12.666666666666664
+  },
+  {
+    "entry": "flipped",
+    "side": "Long",
+    "immediate": {
+      "trades": 37,
+      "wins": 17,
+      "flats": 0,
+      "points": 61.75,
+      "gross_pnl_usd": 3087.5,
+      "win_rate_pct": 45.945945945945944
+    },
+    "delayed": {
+      "trades": 30,
+      "wins": 16,
+      "flats": 0,
+      "points": 7.75,
+      "gross_pnl_usd": 387.5,
+      "win_rate_pct": 53.333333333333336
+    },
+    "pnl_change_usd": -2700.0,
+    "win_rate_change_pp": 7.387387387387392
+  },
+  {
+    "entry": "flipped",
+    "side": "Short",
+    "immediate": {
+      "trades": 42,
+      "wins": 12,
+      "flats": 0,
+      "points": -39.0,
+      "gross_pnl_usd": -1950.0,
+      "win_rate_pct": 28.571428571428573
+    },
+    "delayed": {
+      "trades": 37,
+      "wins": 18,
+      "flats": 0,
+      "points": -18.0,
+      "gross_pnl_usd": -900.0,
+      "win_rate_pct": 48.648648648648646
+    },
+    "pnl_change_usd": 1050.0,
+    "win_rate_change_pp": 20.077220077220073
+  },
+  {
+    "entry": "flipped",
+    "side": "Total",
+    "immediate": {
+      "trades": 79,
+      "wins": 29,
+      "flats": 0,
+      "points": 22.75,
+      "gross_pnl_usd": 1137.5,
+      "win_rate_pct": 36.70886075949367
+    },
+    "delayed": {
+      "trades": 67,
+      "wins": 34,
+      "flats": 0,
+      "points": -10.25,
+      "gross_pnl_usd": -512.5,
+      "win_rate_pct": 50.74626865671642
+    },
+    "pnl_change_usd": -1650.0,
+    "win_rate_change_pp": 14.03740789722275
+  }
+]

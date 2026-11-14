@@ -10,6 +10,7 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using System;
+using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
 using FluentAssertions;
@@ -22,6 +23,11 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Queries;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Query;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Query.Actor;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Options;
 using TomasAI.IFM.Shared.EventSourcing.ViewModels;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.TradeDb;
@@ -29,6 +35,166 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.TradeDb;
 [Collection("PostgreSQL plan atomicity")]
 public sealed class PostgresWorkflowSnapshotTests(PostgresTradePlanFixture fixture)
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Queued_signals_survive_checkpoint_and_each_get_one_strategy_update(bool recoverAfterDeadline)
+    {
+        await fixture.Transactions.ExecuteOnceAsync((db, token) => db.ExecuteAsync(TradeSchemaDb.CreateStatement, [], token));
+        var now = new DateTime(2026, 11, 13, 14, 30, 0, DateTimeKind.Utc);
+        var symbol = recoverAfterDeadline ? "ZB" : "ZN";
+        var entity = IntrinsicTimeStrategyWorkflowEntityId.Create(new(symbol + "Z26", DateOnly.FromDateTime(now), TimeFrameType.Daily));
+        var clock = new QueueTestClock(now);
+        var context = Substitute.For<IIntrinsicTimeStrategyWorkflowCommandContext>();
+        context.Logger.Returns(NullLogger<IntrinsicTimeStrategyWorkflowCommandActor>.Instance);
+        context.TimeProvider.Returns(clock);
+        var options = new RegimeDiscoveryExecutionOptions { TriggerMaximumAgeSecondsByTimeFrame = { [TimeFrameType.Daily] = 20 } };
+        context.ExecutionOptions.Returns(options);
+        var settings = new DbConnectionSettings()
+            .Add(EventSourceActorDbContext.EventSourceActorDbConnection, fixture.Connection, "System.Data.Postgres")
+            .Add("TradeDbConnection", fixture.Connection, "System.Data.Postgres");
+        var databases = Substitute.For<IDbContextFactory>();
+        var trade = new TradeDbContext(settings, databases, Substitute.For<TomasAI.IFM.Framework.SequenceId.ISequenceIdGenerator>(),
+            NullLogger<TomasAI.IFM.Framework.Storage.DbProvider>.Instance);
+        databases.TradeDb.Returns(trade);
+        var source = new EventSourceActorDbContext(settings, databases, NullLogger<TomasAI.IFM.Framework.Storage.DbProvider>.Instance);
+        databases.ActorEventSourceDb.Returns(source);
+        var stateFactory = Substitute.For<IEventSourceActorStateFactory>();
+        stateFactory.CreateState<IntrinsicTimeStrategyWorkflowCommandState>().Returns(_ => new IntrinsicTimeStrategyWorkflowCommandState());
+        var projector = Substitute.For<IEventProjector<IntrinsicTimeStrategyWorkflowCommandActor>>();
+        var actors = Substitute.For<IActorService>();
+        var repository = new IntrinsicTimeStrategyWorkflowStateRepository(stateFactory, source, actors, projector,
+            NullLogger<IntrinsicTimeStrategyWorkflowStateRepository>.Instance, databases, fixture.Transactions);
+        context.StateRepository.Returns(repository);
+        ICommandActor<IntrinsicTimeStrategyWorkflowCommandActor> actor = new IntrinsicTimeStrategyWorkflowCommandActor(context);
+        var queryContext = Substitute.For<IIntrinsicTimeStrategyWorkflowQueryContext>();
+        queryContext.DbFactory.Returns(databases);
+        var first = Signal(now.AddSeconds(-2));
+        var second = Signal(now.AddSeconds(-1));
+        var third = Signal(now.AddSeconds(1));
+        await Start(first);
+        var firstStart = (await repository.LoadStateAsync(first)).LatestSource!;
+        var marker = await fixture.Transactions.ExecuteOnceAsync((db, token) => db.ScalarAsync(
+            "SELECT count(*) FROM event_projector_state WHERE eventid=$1 AND projectorname=$2;",
+            [firstStart.EventId, firstStart.RequiredProjection.ProjectorName], token));
+        Assert.Equal(1L, marker);
+        clock.Now = now.AddSeconds(1);
+        await Start(second);
+        // Reach the production checkpoint boundary while the second signal is still waiting.
+        var fillerId = Guid.NewGuid();
+        var filler = new DomainEventCollection(Enumerable.Range(0, 125).Select(_ => firstStart with
+        {
+            Id = Guid.NewGuid(), CommandId = fillerId, EventId = 0, DispatchRegimeDiscovery = false
+        }));
+        await source.SaveEventsAsync(first.StreamId, fillerId, filler, 2, CancellationToken.None);
+        await Start(third);
+        await Start(Retry(second));
+        var queued = await repository.LoadStateAsync(first);
+        Assert.Equal(second.TriggerEventId, queued.NextSignal!.TriggerEventId);
+        Assert.Equal(first.ProposedWorkflowId, queued.CurrentView!.WorkflowId);
+        Assert.Single((await ReadGrid()).Items);
+        Assert.Equal(129, queued.PersistedStreamVersion);
+        Assert.Equal(129, await fixture.EventCountAsync(first.StreamId));
+
+        if (recoverAfterDeadline)
+        {
+            clock.Now = now.AddMinutes(3);
+            actors.RequestAsync<RedispatchCurrentStrategyPipelineCommand, IntrinsicTimeStrategyWorkflowEntityId>(
+                Arg.Any<RedispatchCurrentStrategyPipelineCommand>(), Arg.Any<CancellationToken>())
+                .Returns(call => Wake(call.ArgAt<RedispatchCurrentStrategyPipelineCommand>(0)));
+            using var recovery = new IntrinsicTimeSignalQueueRecoveryService(fixture.Transactions, actors, clock,
+                NullLogger<IntrinsicTimeSignalQueueRecoveryService>.Instance);
+            await recovery.RunOnceAsync(CancellationToken.None);
+            await recovery.RunOnceAsync(CancellationToken.None);
+            await actors.Received(1).RequestAsync<RedispatchCurrentStrategyPipelineCommand, IntrinsicTimeStrategyWorkflowEntityId>(
+                Arg.Any<RedispatchCurrentStrategyPipelineCommand>(), Arg.Any<CancellationToken>());
+        }
+        else
+        {
+            clock.Now = now.AddSeconds(20);
+            var failure = new FailRegimeDiscoveryCommand
+            {
+                CommandId = Guid.NewGuid(), EntityId = entity, WorkflowId = first.ProposedWorkflowId,
+                InputWorkflowRevision = 1, SourceEventId = Guid.NewGuid(),
+                Subject = new(ActorType.Command, FailRegimeDiscoveryCommand.Actor, FailRegimeDiscoveryCommand.Verb, entity.Format())
+            };
+            await Handle(failure);
+        }
+
+        var beforeRetries = await fixture.EventCountAsync(first.StreamId);
+        foreach (var signal in new[] { first, second, third })
+        {
+            await Start(signal);
+            await Start(Retry(signal));
+        }
+        Assert.Equal(beforeRetries, await fixture.EventCountAsync(first.StreamId));
+        Assert.Null((await repository.LoadStateAsync(first)).NextSignal);
+
+        var grid = await ReadGrid();
+        Assert.Equal(3, grid.TotalCount);
+        Assert.Equal(new[] { first.ProposedWorkflowId, second.ProposedWorkflowId, third.ProposedWorkflowId }.OrderBy(id => id.Value),
+            grid.Items.Select(item => item.WorkflowId).OrderBy(id => id.Value));
+        var stale = Assert.Single(grid.Items, item => item.WorkflowId == second.ProposedWorkflowId);
+        Assert.Equal(second.TriggerEvent.CreatedOn, stale.OccurredAtUtc);
+        Assert.Equal("Completed", stale.Status);
+        Assert.Equal("NoTrade", stale.Outcome);
+        Assert.Equal("Stop", stale.Stages[0].Continuation);
+        Assert.Contains("RD.TRIGGER.STALE", stale.Stages[0].DecisionReasons!);
+        Assert.Contains("limit 20 seconds", stale.Stages[0].ReasonSentence);
+        Assert.Equal("NotStarted", stale.Stages[1].Processing);
+        Assert.Equal(recoverAfterDeadline ? "NoTrade" : "None",
+            Assert.Single(grid.Items, item => item.WorkflowId == third.ProposedWorkflowId).Outcome);
+        var started = await trade.GetIntrinsicTimeStrategyWorkflowTimelineAsync(second.ProposedWorkflowId, 0, 10);
+        var revisions = started.OrderBy(row => row.WorkflowRevision).ToArray();
+        Assert.Equal(new long[] { 1, 2 }, revisions.Select(row => row.WorkflowRevision));
+        Assert.True(MessagePack.MessagePackSerializer.Deserialize<WorkflowStrategyStateUpdatedEvent>(revisions[0].EventPayload).SkipPipelineDispatch);
+        var thirdTimeline = await trade.GetIntrinsicTimeStrategyWorkflowTimelineAsync(third.ProposedWorkflowId, 0, 10);
+        Assert.True(revisions[1].EventId < thirdTimeline.Min(row => row.EventId));
+
+        ExecuteIntrinsicTimeStrategyWorkflowCommand Signal(DateTime signalAt)
+        {
+            var id = Guid.NewGuid();
+            return new()
+            {
+                CommandId = Guid.NewGuid(), EntityId = entity, ProposedWorkflowId = new(Guid.NewGuid()),
+                Subject = new(ActorType.Command, ExecuteIntrinsicTimeStrategyWorkflowCommand.Actor, ExecuteIntrinsicTimeStrategyWorkflowCommand.Verb, entity.Format()),
+                TriggerEventId = id, TriggerEvent = new() { Id = id, EntityId = entity.ItiSignalEntityId, CreatedOn = signalAt, ReceivedOn = signalAt },
+                RequestedAtUtc = clock.Now, CorrelationId = id, CausationId = id, WorkflowDefinitionVersion = 1
+            };
+        }
+        static ExecuteIntrinsicTimeStrategyWorkflowCommand Retry(ExecuteIntrinsicTimeStrategyWorkflowCommand signal) =>
+            signal with { CommandId = Guid.NewGuid(), ProposedWorkflowId = new(Guid.NewGuid()) };
+        ValueTask Start(ExecuteIntrinsicTimeStrategyWorkflowCommand signal) => Handle(signal);
+        async ValueTask<ServiceResult<Guid>> Wake(RedispatchCurrentStrategyPipelineCommand wake)
+        {
+            await Handle(wake);
+            return new ServiceResult<Guid>(wake.CommandId);
+        }
+        async ValueTask Handle(ICommand command)
+        {
+            var loaded = await actor.OnLoadStateAsync(context, command.Subject.ThreadId, command);
+            var result = await actor.ReceiveAsync(context, loaded, command);
+            Assert.True(result.Success, result.ErrorMessage);
+            await actor.OnSaveStateAsync(context, command.Subject.ThreadId, loaded, command);
+        }
+        async Task<TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.ViewModels.IntrinsicTimeStrategyUpdatesGridPage> ReadGrid()
+        {
+            var query = new GetIntrinsicTimeStrategyUpdatesGridQuery
+            {
+                Symbol = symbol, TimePeriod = TimeFrameType.Daily, FromUtc = now.AddMinutes(-1), ToUtc = now.AddMinutes(5)
+            };
+            var result = await query.ExecuteAsync(queryContext, CancellationToken.None);
+            Assert.True(result.Success);
+            return result.Value!;
+        }
+    }
+
+    sealed class QueueTestClock(DateTime now) : TimeProvider
+    {
+        public DateTime Now { get; set; } = now;
+        public override DateTimeOffset GetUtcNow() => new(Now);
+    }
+
     [Theory]
     [InlineData("System.Data.Postgres", true)]
     [InlineData("System.Data.ScyllaDb", false)]

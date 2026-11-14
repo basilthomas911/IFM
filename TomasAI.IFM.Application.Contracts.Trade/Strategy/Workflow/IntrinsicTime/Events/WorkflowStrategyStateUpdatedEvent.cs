@@ -11,8 +11,9 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events
 [MessagePackObject(AllowPrivate = true)]
 public sealed record WorkflowStrategyStateUpdatedEvent : IEvent<IntrinsicTimeStrategyWorkflowEntityId>, TomasAI.IFM.Domain.Portfolio.Shared.Financial.ICapacityExecutionAcceptedEvent, TomasAI.IFM.Domain.Portfolio.Shared.Financial.IRiskWorkflowTerminalEvent, IRequireDurableProjection
 {
-    /// <summary>New emulator-authorized terminal decisions must retain their opening delivery through restart.</summary>
-    [IgnoreMember] public bool RequiresDurableProjection => State.OpeningExecutionRoute is not null && State.Status == WorkflowStrategyMachineStatus.Completed && State.Outcome == StrategyWorkflowOutcome.Completed && State.CurrentStage == StrategyWorkflowStage.RiskManagement;
+    /// <summary>Preserves pending Regime Discovery dispatch and emulator opening delivery through restart.</summary>
+    [IgnoreMember] public bool RequiresDurableProjection => DispatchRegimeDiscovery ||
+        (State.OpeningExecutionRoute is not null && State.Status == WorkflowStrategyMachineStatus.Completed && State.Outcome == StrategyWorkflowOutcome.Completed && State.CurrentStage == StrategyWorkflowStage.RiskManagement);
     [IgnoreMember] public DurableProjectionRequirement RequiredProjection => new("IntrinsicTimeStrategyWorkflowCommandActor", "IntrinsicTimeStrategyWorkflowEventProjector", TomasAI.IFM.Shared.EventProjector.EventProjectorStageType.ApplyProjection);
     /// <summary>Logical Strategy Workflow event source.</summary>
     [IgnoreMember] public const string Actor = "IntrinsicTimeStrategyWorkflow";
@@ -40,6 +41,8 @@ public sealed record WorkflowStrategyStateUpdatedEvent : IEvent<IntrinsicTimeStr
     [IgnoreMember, Newtonsoft.Json.JsonIgnore, System.Text.Json.Serialization.JsonIgnore]
     public IntrinsicTimeStrategyWorkflowView State { get => WorkflowDefinition; init => WorkflowDefinition = value; }
     [Key(14)] public DateTime UpdatedAtUtc { get; init; }
+    [Key(15)] public bool DispatchRegimeDiscovery { get; init; }
+    [Key(16)] public bool SkipPipelineDispatch { get; init; }
 
     [IgnoreMember]
     TomasAI.IFM.Domain.Portfolio.Shared.Financial.CapacityExecutionAcceptance TomasAI.IFM.Domain.Portfolio.Shared.Financial.ICapacityExecutionAcceptedEvent.CapacityAcceptance
@@ -89,7 +92,9 @@ public sealed record WorkflowStrategyStateUpdatedEvent : IEvent<IntrinsicTimeStr
         Guid causationId,
         WorkflowStrategyMachineStatus previousStatus,
         IntrinsicTimeStrategyWorkflowView workflowDefinition,
-        DateTime updatedAtUtc)
+        DateTime updatedAtUtc,
+        bool dispatchRegimeDiscovery = false,
+        bool skipPipelineDispatch = false)
     {
         Subject = subject;
         Id = id;
@@ -106,5 +111,7 @@ public sealed record WorkflowStrategyStateUpdatedEvent : IEvent<IntrinsicTimeStr
         PreviousStatus = previousStatus;
         WorkflowDefinition = workflowDefinition ?? new IntrinsicTimeStrategyWorkflowView();
         UpdatedAtUtc = updatedAtUtc;
+        DispatchRegimeDiscovery = dispatchRegimeDiscovery;
+        SkipPipelineDispatch = skipPipelineDispatch;
     }
 }

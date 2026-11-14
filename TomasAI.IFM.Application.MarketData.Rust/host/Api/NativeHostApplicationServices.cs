@@ -1,5 +1,7 @@
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Application.MarketData.Contracts;
+using TomasAI.IFM.Application.Api.Nats.Client;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Application.MarketData.Contracts.Historical;
 using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Application.MarketData.Historical;
@@ -31,7 +33,21 @@ public sealed class NativeHostApplicationServices(IServiceProvider services,Nati
     readonly object recoveryGate=new();
     TradeFeedRecoveryService? recovery;
     TradeFeedRecoveryService Recovery
-    {get{lock(recoveryGate)return recovery??=new(Get<ITradeFeedRecoveryStore>(),new RecoveryRuntime(this),services.GetService<ILogger<TradeFeedRecoveryService>>());}}
+    {
+        get
+        {
+            lock (recoveryGate)
+                return recovery ??= CreateTradeRecovery();
+        }
+    }
+    TradeFeedRecoveryService CreateTradeRecovery()
+    {
+        var trades = Get<IDbContextFactory>().TradeDb;
+        return new(Get<ITradeFeedRecoveryStore>(), new RecoveryRuntime(this),
+            services.GetService<ILogger<TradeFeedRecoveryService>>(),
+            new(trades.GetStrategyPositionAsync,
+                new StrategyPositionCommandApi(Get<IActorProducer>())));
+    }
     /// <summary>Prepared snapshots backed exclusively by native market composition.</summary>
     public IOptionChainCache OptionChainCache=>Get<IOptionChainCache>();
     /// <summary>Requalifies every preserved option against the current reference

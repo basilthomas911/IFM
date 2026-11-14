@@ -8,6 +8,7 @@ using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Actor;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Commands;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Snapshots;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -82,7 +83,8 @@ public sealed class IntrinsicTimeStrategyWorkflowStateRepository(IEventSourceAct
             throw new LegacyWorkflowStreamException(command.StreamId, events.Count);
         }
 
-        if (converted.Skip(checkpointIndex >= 0 ? 1 : 0).Any(value => value.Event is not WorkflowStrategyStateUpdatedEvent))
+        if (converted.Skip(checkpointIndex >= 0 ? 1 : 0).Any(value =>
+            value.Event is not (WorkflowStrategyStateUpdatedEvent or IntrinsicTimeStrategySignalQueuedEvent)))
         {
             if (_logger.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Error))
                 global::TomasAI.IFM.Domain.Trade.TradeBoundaryDiagnosticLog.Write30(_logger, nameof(IntrinsicTimeStrategyWorkflowStateRepository), nameof(LoadStateAsync), command.StreamId, events.Count);
@@ -94,6 +96,9 @@ public sealed class IntrinsicTimeStrategyWorkflowStateRepository(IEventSourceAct
             var restored = entry.Event switch
             {
                 WorkflowStrategyStateUpdatedEvent source => IsOwned(source) && state.Apply(source, addEvent: false),
+                IntrinsicTimeStrategySignalQueuedEvent queued =>
+                    string.Equals(queued.EntityId.Format(), command.Subject.EntityId, StringComparison.Ordinal) &&
+                    state.Apply(queued, addEvent: false),
                 IntrinsicTimeStrategyWorkflowStateSnapshottedEvent snapshot =>
                     snapshot.Latest is { } latest && IsOwned(latest) && latest.EventId < entry.Stream.EventVersion &&
                     snapshot.AppliedEventCount < entry.Stream.StreamVersion && Enum.IsDefined(snapshot.LastStartDecision) &&
@@ -107,6 +112,17 @@ public sealed class IntrinsicTimeStrategyWorkflowStateRepository(IEventSourceAct
         state.AcceptChanges();
         state.RestoreCommittedStreamVersion(head);
         state.SetPersistedStreamVersion(head);
+        state.ResetQueueChangeTracking();
+        if (command is ExecuteIntrinsicTimeStrategyWorkflowCommand execute && execute.TriggerEventId != Guid.Empty &&
+            !state.IsDuplicateTrigger(execute.TriggerEventId) &&
+            transactions is not null && string.Equals(dbFactory?.TradeDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
+        {
+            var started = await transactions.ExecuteOnceAsync((db, token) => db.ScalarAsync(
+                TradeDbSql.FindStartedIntrinsicTimeTrigger, [command.Subject.EntityId, execute.TriggerEventId], token),
+                cancellationToken).ConfigureAwait(false);
+            if (started is true)
+                state.RememberStartedTrigger(execute.TriggerEventId);
+        }
         return state;
 
         bool IsOwned(WorkflowStrategyStateUpdatedEvent source) => source.WorkflowId.Value != Guid.Empty && source.WorkflowRevision > 0 &&
@@ -149,14 +165,18 @@ public sealed class IntrinsicTimeStrategyWorkflowStateRepository(IEventSourceAct
                 var version = state.PersistedStreamVersion;
                 foreach (var domainEvent in pending)
                 {
-                    if (domainEvent is not WorkflowStrategyStateUpdatedEvent snapshot)
-                        throw new InvalidOperationException("A strategy workflow transaction requires complete state snapshots.");
-                    await transaction.AppendAsync(new EnlistedEventAppend(command.StreamId, command.CommandId, snapshot, version++), token).ConfigureAwait(false);
-                    await writer.ProjectWorkflowAsync(transaction, snapshot, token).ConfigureAwait(false);
+                    if (domainEvent is not (WorkflowStrategyStateUpdatedEvent or IntrinsicTimeStrategySignalQueuedEvent))
+                        throw new InvalidOperationException("A strategy workflow transaction requires a snapshot or a queued ITI signal.");
+                    await transaction.AppendAsync(new EnlistedEventAppend(command.StreamId, command.CommandId, domainEvent, version++), token).ConfigureAwait(false);
+                    if (domainEvent is WorkflowStrategyStateUpdatedEvent snapshot)
+                        await writer.ProjectWorkflowAsync(transaction, snapshot, token).ConfigureAwait(false);
                 }
+                if (state.QueueChanged)
+                    await transaction.ExecuteAsync(state.NextSignal is null ? TradeDbSql.ClearIntrinsicTimeSignalQueuePending :
+                        TradeDbSql.MarkIntrinsicTimeSignalQueuePending, [command.Subject.EntityId], token).ConfigureAwait(false);
                 if (capture)
                 {
-                    var latest = (WorkflowStrategyStateUpdatedEvent)pending[^1];
+                    var latest = state.LatestSource!;
                     await transaction.AppendAsync(new EnlistedEventAppend(command.StreamId, command.CommandId, state.CaptureSnapshot(command, latest),
                         version), token).ConfigureAwait(false);
                 }
@@ -164,13 +184,20 @@ public sealed class IntrinsicTimeStrategyWorkflowStateRepository(IEventSourceAct
             }, cancellationToken).ConfigureAwait(false);
             state.SetPersistedStreamVersion(checked(state.PersistedStreamVersion + pending.Count + (capture ? 1 : 0)));
             state.AcceptChanges();
+            state.ResetQueueChangeTracking();
             if (capture)
                 state.RestoreCommittedStreamVersion(state.PersistedStreamVersion);
-            await _eventProjector.DomainEventsProjectionAsync(pending).ConfigureAwait(false);
+            await ProjectWorkflowEventsAsync(pending).ConfigureAwait(false);
             return;
         }
         var committed = await _eventSource.SaveEventsAsync(command.StreamId, command.CommandId, state.Events, state.PersistedStreamVersion, cancellationToken).ConfigureAwait(false);
-        await _eventProjector.DomainEventsProjectionAsync(committed).ConfigureAwait(false);
+        await ProjectWorkflowEventsAsync(committed).ConfigureAwait(false);
+    }
+
+    ValueTask ProjectWorkflowEventsAsync(DomainEventCollection events)
+    {
+        var snapshots = new DomainEventCollection(events.OfType<WorkflowStrategyStateUpdatedEvent>());
+        return snapshots.Count == 0 ? ValueTask.CompletedTask : _eventProjector.DomainEventsProjectionAsync(snapshots);
     }
 
     /// <summary>

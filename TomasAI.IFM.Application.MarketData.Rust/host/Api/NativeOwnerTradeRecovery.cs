@@ -1,5 +1,7 @@
 using TomasAI.IFM.Application.MarketData.Recovery;
 using TomasAI.IFM.Application.MarketData.Rust.Api;
+using TomasAI.IFM.Application.Api.Nats.Client;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Recovery;
@@ -16,8 +18,14 @@ public sealed class NativeOwnerTradeRecovery
     readonly IDbContextFactory databases;
     /// <summary>Composes existing business persistence around native commands.</summary>
     public NativeOwnerTradeRecovery(NativeDatasetBackend backend,ITradeFeedRecoveryStore store,
-        IDbContextFactory databases,ILogger<TradeFeedRecoveryService> logger)
-    {this.backend=backend;this.databases=databases;recovery=new(store,new Runtime(this),logger);}
+        IDbContextFactory databases,ILogger<TradeFeedRecoveryService> logger,IActorProducer? producer = null)
+    {
+        this.backend = backend;
+        this.databases = databases;
+        recovery = new(store, new Runtime(this), logger, producer is null ? null :
+            new(databases.TradeDb.GetStrategyPositionAsync,
+                new StrategyPositionCommandApi(producer)));
+    }
     NativeOwnedOptionFeeds Feeds=>new(backend.Runtime,backend.OptionGateway,backend.Broker,backend.Policy,backend.Scope);
     /// <summary>Loads saved intent or explicitly enables it for the API date.</summary>
     public async Task<bool> LoadAsync(string trade,DateOnly date,bool enable,CancellationToken token)

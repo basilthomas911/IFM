@@ -9,6 +9,8 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Model;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Model;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RiskManagement;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command;
 /// <summary>Handles workflow execution admission.</summary>
@@ -29,8 +31,28 @@ public static class ExecuteIntrinsicTimeStrategyWorkflow
         public ServiceResult<GuidResult> Execute(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context, IntrinsicTimeStrategyWorkflowCommandState state)
         {
             ArgumentNullException.ThrowIfNull(state);
+            if (state.IsDuplicateTrigger(command.TriggerEventId))
+                return Ok(command);
+            var now = context.TimeProvider.GetUtcNow().UtcDateTime;
+            if (context is not IntrinsicTimeStrategyWorkflowCommandContext { WorkflowStartsEnabled: false } &&
+                (state.NextSignal is not null || state.CurrentView is { Status: WorkflowStrategyMachineStatus.Started } active &&
+                    !CanExpire(active, now)))
+            {
+                var queued = new IntrinsicTimeStrategySignalQueuedEvent
+                {
+                    Id = Guid.NewGuid(),
+                    CommandId = command.CommandId,
+                    Subject = new(ActorType.Event, WorkflowStrategyStateUpdatedEvent.Actor, "SignalQueued", command.EntityId.Format()),
+                    EntityId = command.EntityId,
+                    AggregateId = command.EntityId.Format(),
+                    EventSource = command.EventSource,
+                    ReceivedOn = now,
+                    Request = command
+                };
+                return state.Update(queued, command) ? Ok(command) : command.UpdateFailed("Unable to queue the ITI signal.");
+            }
             var preparation = new WorkflowSnapshotPreparation(state.WorkflowDefinition);
-            var preparationResult = PrepareWorkflow(command, context, preparation);
+            var preparationResult = command.PrepareWorkflow(context, preparation, now);
             if (!preparationResult.Success)
                 return preparationResult;
             var errorMsg = "IntrinsicTimeStrategyWorkflow.STATE.APPLY_FAILED: unable to apply ExecuteIntrinsicTimeStrategyWorkflow event";
@@ -47,7 +69,8 @@ public static class ExecuteIntrinsicTimeStrategyWorkflow
         /// <param name = "context">The authorized actor services and logging context.</param>
         /// <param name = "state">The authoritative state or local preparation snapshot, as declared by the method.</param>
         /// <returns>The prepared business result or command acceptance.</returns>
-        internal ServiceResult<GuidResult> PrepareWorkflow(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context, WorkflowSnapshotPreparation state)
+        internal ServiceResult<GuidResult> PrepareWorkflow(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context,
+            WorkflowSnapshotPreparation state, DateTime? observedAtUtc = null)
         {
             ArgumentNullException.ThrowIfNull(command);
             ArgumentNullException.ThrowIfNull(context);
@@ -55,7 +78,7 @@ public static class ExecuteIntrinsicTimeStrategyWorkflow
             var maximumExecutionDuration = context.ExecutionOptions.MaximumExecutionDuration;
             if (maximumExecutionDuration <= TimeSpan.Zero)
                 throw new ArgumentOutOfRangeException(nameof(context), maximumExecutionDuration, "Maximum execution duration must be positive.");
-            var now = context.TimeProvider.GetUtcNow().UtcDateTime;
+            var now = observedAtUtc ?? context.TimeProvider.GetUtcNow().UtcDateTime;
             var current = state.CurrentView;
             if (current?.TriggerEventId == command.TriggerEventId)
                 return Ok(command);
@@ -70,7 +93,7 @@ public static class ExecuteIntrinsicTimeStrategyWorkflow
                     command.TriggerEventId, command.CommandId, command.ProposedWorkflowId);
                 return Ok(command);
             }
-            if (current is { Status: WorkflowStrategyMachineStatus.Started } && now < current.ExpiresAtUtc)
+            if (current is { Status: WorkflowStrategyMachineStatus.Started } && !CanExpire(current, now))
             {
                 if (context.Logger.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Warning))
                     global::TomasAI.IFM.Domain.Trade.TradeBoundaryDiagnosticLog.Write16(context.Logger, nameof(ExecuteIntrinsicTimeStrategyWorkflow), nameof(Execute), command.EntityId.Format(), current.WorkflowId, current.WorkflowRevision);
@@ -86,21 +109,62 @@ public static class ExecuteIntrinsicTimeStrategyWorkflow
                 current = expired;
             }
 
-            var expiresAtUtc = now.Add(maximumExecutionDuration);
-            var started = CreateStartedView(command, now, expiresAtUtc);
-            if (context is IntrinsicTimeStrategyWorkflowCommandContext { OpeningExecutionsEnabled: true } openingContext)
-            {
-                var broker = openingContext.Container.Resolve<TomasAI.IFM.Application.TradeBroker.Contracts.ITradeBroker>();
-                if (broker.Environment != TomasAI.IFM.Application.TradeBroker.Contracts.BrokerEnvironment.Emulator || string.IsNullOrWhiteSpace(broker.AccountAlias))
-                    return new ServiceFailed<GuidResult>(command.ErrorCode, "EXECUTION.ROUTE.DEVELOPMENT_EMULATOR_REQUIRED");
-                var route = new TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Execution.StrategyOpeningExecutionRoute
-                { AccountAlias = broker.AccountAlias, Environment = TomasAI.IFM.Domain.Trade.Shared.BrokerEnvironment.Emulator };
-                started = started with { OpeningExecutionRoute = route with { PolicyHash = TomasAI.IFM.Domain.Portfolio.Shared.Financial.FinancialCanonicalHash.Compute(route) } };
-            }
-            AppendSnapshot(state, command, current?.Status ?? WorkflowStrategyMachineStatus.Empty, started, now);
-            return Ok(command);
+            return PrepareStart(command, context, state, current?.Status ?? WorkflowStrategyMachineStatus.Empty, now);
         }
     }
+
+    static ServiceResult<GuidResult> PrepareStart(ExecuteIntrinsicTimeStrategyWorkflowCommand command,
+        ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context, WorkflowSnapshotPreparation state,
+        WorkflowStrategyMachineStatus previousStatus, DateTime now)
+    {
+        var started = CreateStartedView(command, now, now.Add(context.ExecutionOptions.MaximumExecutionDuration));
+        var stale = RegimeDiscoveryTriggerFreshness.StopIfStale(started, context.ExecutionOptions, now);
+        if (stale is null && context is IntrinsicTimeStrategyWorkflowCommandContext
+            { WorkflowStartsEnabled: true, OpeningExecutionsEnabled: true } openingContext)
+        {
+            var broker = openingContext.Container.Resolve<TomasAI.IFM.Application.TradeBroker.Contracts.ITradeBroker>();
+            if (broker.Environment != TomasAI.IFM.Application.TradeBroker.Contracts.BrokerEnvironment.Emulator || string.IsNullOrWhiteSpace(broker.AccountAlias))
+                return new ServiceFailed<GuidResult>(command.ErrorCode, "EXECUTION.ROUTE.DEVELOPMENT_EMULATOR_REQUIRED");
+            var route = new TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Execution.StrategyOpeningExecutionRoute
+            { AccountAlias = broker.AccountAlias, Environment = TomasAI.IFM.Domain.Trade.Shared.BrokerEnvironment.Emulator };
+            started = started with { OpeningExecutionRoute = route with { PolicyHash = TomasAI.IFM.Domain.Portfolio.Shared.Financial.FinancialCanonicalHash.Compute(route) } };
+        }
+        AppendSnapshot(state, command, previousStatus, started, now);
+        if (stale is not null)
+            AppendSnapshot(state, command, started.Status, stale, now);
+        return Ok(command);
+    }
+
+    internal static void PromoteQueuedSignals(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context,
+        IntrinsicTimeStrategyWorkflowCommandState state, ICommand causation, bool expireActive = false)
+    {
+        var now = context.TimeProvider.GetUtcNow().UtcDateTime;
+        while (state.NextSignal is { } next && state.CurrentView is { } current)
+        {
+            var preparation = new WorkflowSnapshotPreparation(current);
+            if (current.Status == WorkflowStrategyMachineStatus.Started)
+            {
+                if (!expireActive || !CanExpire(current, now))
+                    return;
+                current = CreateExpiredView(current, causation.CommandId, now);
+                AppendSnapshot(preparation, next, WorkflowStrategyMachineStatus.Started, current, now);
+            }
+
+            var result = PrepareStart(next, context, preparation, current.Status, now);
+            if (!result.Success)
+                throw new InvalidOperationException(result.ErrorMessage ?? "Could not start the next queued ITI signal.");
+            var events = next.CreateWorkflowLifecycleEvents(new(preparation.Freeze()));
+            foreach (var source in events)
+                if (!state.Update(source with { CommandId = causation.CommandId }, causation))
+                    throw new InvalidOperationException("Could not apply the next queued ITI signal.");
+            expireActive = false;
+        }
+    }
+
+    internal static bool CanExpire(IntrinsicTimeStrategyWorkflowView view, DateTime now) =>
+        now >= view.ExpiresAtUtc && view.FinancialHandoff?.Phase is not
+            (RiskFinancialHandoffPhase.ConsumePending or RiskFinancialHandoffPhase.Consumed or
+             RiskFinancialHandoffPhase.Submitted or RiskFinancialHandoffPhase.Authorized);
 
     /// <summary>Creates the initial workflow snapshot with the fixed deadline and pinned selection authority.</summary>
     static IntrinsicTimeStrategyWorkflowView CreateStartedView(ExecuteIntrinsicTimeStrategyWorkflowCommand command,
@@ -158,6 +222,7 @@ public static class ExecuteIntrinsicTimeStrategyWorkflow
         var expired = current with
         {
             Status = WorkflowStrategyMachineStatus.TimedOut,
+            Outcome = StrategyWorkflowOutcome.TimedOut,
             WorkflowRevision = current.WorkflowRevision + 1,
             CausationId = causationId,
             UpdatedAtUtc = now,
@@ -240,6 +305,17 @@ public static class ExecuteIntrinsicTimeStrategyWorkflow
         ///
         /// <param name = "workflowTransition">The accepted workflow snapshots.</param>
         /// <returns>The source events ready for state application.</returns>
-        internal IReadOnlyList<WorkflowStrategyStateUpdatedEvent> CreateWorkflowLifecycleEvents(WorkflowSnapshotTransition workflowTransition) => workflowTransition.WorkflowChanges.Select(change => new WorkflowStrategyStateUpdatedEvent { CommandId = command.CommandId, Subject = new(ActorType.Event, WorkflowStrategyStateUpdatedEvent.Actor, WorkflowStrategyStateUpdatedEvent.Verb, command.EntityId.Format()), Id = change.SnapshotEventId, EntityId = command.EntityId, AggregateId = command.EntityId.Format(), EventSource = command.EventSource, ReceivedOn = change.UpdatedAtUtc, WorkflowId = change.WorkflowId, WorkflowRevision = change.WorkflowRevision, CorrelationId = change.CorrelationId, CausationId = change.CausationId, PreviousStatus = change.PreviousStatus, WorkflowDefinition = change.WorkflowDefinition, UpdatedAtUtc = change.UpdatedAtUtc }).ToArray();
+        internal IReadOnlyList<WorkflowStrategyStateUpdatedEvent> CreateWorkflowLifecycleEvents(WorkflowSnapshotTransition workflowTransition) =>
+            workflowTransition.WorkflowChanges.Select(change =>
+            {
+                var started = change.WorkflowRevision == 1 && change.WorkflowDefinition.Status == WorkflowStrategyMachineStatus.Started;
+                var stale = started && workflowTransition.WorkflowChanges.Any(candidate => candidate.WorkflowId == change.WorkflowId &&
+                    candidate.WorkflowDefinition.StopReasonCode == RegimeDiscoveryTriggerFreshness.StaleReason);
+                return new WorkflowStrategyStateUpdatedEvent
+                {
+                    CommandId = command.CommandId, Subject = new(ActorType.Event, WorkflowStrategyStateUpdatedEvent.Actor, WorkflowStrategyStateUpdatedEvent.Verb, command.EntityId.Format()), Id = change.SnapshotEventId, EntityId = command.EntityId, AggregateId = command.EntityId.Format(), EventSource = command.EventSource, ReceivedOn = change.UpdatedAtUtc, WorkflowId = change.WorkflowId, WorkflowRevision = change.WorkflowRevision, CorrelationId = change.CorrelationId, CausationId = change.CausationId, PreviousStatus = change.PreviousStatus, WorkflowDefinition = change.WorkflowDefinition, UpdatedAtUtc = change.UpdatedAtUtc,
+                    DispatchRegimeDiscovery = started && !stale, SkipPipelineDispatch = stale
+                };
+            }).ToArray();
     }
 }

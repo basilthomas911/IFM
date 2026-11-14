@@ -16,7 +16,8 @@ public interface ITradeFeedRecoveryRuntime
 }
 
 /// <summary>One restoration path for startup and trade loading. Serializes enable/off against restoration.</summary>
-public sealed class TradeFeedRecoveryService(ITradeFeedRecoveryStore store, ITradeFeedRecoveryRuntime runtime, ILogger<TradeFeedRecoveryService>? logger = null)
+public sealed class TradeFeedRecoveryService(ITradeFeedRecoveryStore store, ITradeFeedRecoveryRuntime runtime,
+    ILogger<TradeFeedRecoveryService>? logger = null, TradeFeedEndOfDayCatchUp? endOfDay = null)
 {
     readonly SemaphoreSlim serial = new(1, 1);
     readonly System.Collections.Concurrent.ConcurrentDictionary<(string Trade, DateOnly Date), byte> enabledTrades = new();
@@ -49,12 +50,15 @@ public sealed class TradeFeedRecoveryService(ITradeFeedRecoveryStore store, ITra
             var previous = (await store.ReadAsync(date, token)).SingleOrDefault(row => row.TradeId == trade);
             read.Complete();
             read.Dispose();
-            if (!enable && previous is null) { operation.Complete(); return false; }
+            if (endOfDay is null && !enable && previous is null) { operation.Complete(); return false; }
             // Always load the established trade before recreating subscriptions; never replay market or execution events.
             using var load = new OptionFeedTrace("option.trade.load_definition", logger, trade);
             var definition = await runtime.LoadAsync(TradeEntityId.Parse(trade), token);
             load.Complete();
             load.Dispose();
+            if (endOfDay is not null && definition is { Status: EstablishedTradeStatus.Open })
+                await endOfDay.EnsureAsync(definition, date, token).ConfigureAwait(false);
+            if (runtime.ActiveDate != date || (!enable && previous is null)) { operation.Complete(); return false; }
             if (definition?.Status != EstablishedTradeStatus.Open)
             {
                 await store.RemoveAsync(trade, date, token);

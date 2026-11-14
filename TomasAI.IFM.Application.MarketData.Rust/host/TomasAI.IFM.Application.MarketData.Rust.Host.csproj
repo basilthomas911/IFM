@@ -2,4 +2,7 @@
     <!-- Only this opt-in Host package excludes obsolete provider libraries. -->
     <ItemGroup><ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="'%(ResolvedFileToPublish.Filename)%(ResolvedFileToPublish.Extension)' == 'databento_feed_native.dll' Or '%(ResolvedFileToPublish.Filename)%(ResolvedFileToPublish.Extension)' == 'ifm_treasury_native.dll'" /></ItemGroup>
   </Target>  <ItemGroup><ProjectReference Include="..\..\TomasAI.IFM.Domain.Reference\TomasAI.IFM.Domain.Reference.csproj" /></ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../TomasAI.IFM.Application.Api.Nats.Client/TomasAI.IFM.Application.Api.Nats.Client.csproj" />
+  </ItemGroup>
 </Project>

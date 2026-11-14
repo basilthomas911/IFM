@@ -33,7 +33,9 @@ public static class UpdateIronCondorPositionLegMarketPrice
             {
                 _ when !positionChange.Accepted => command.UpdateFailed(ref errorMsg, $"{positionChange.RejectionCode};{positionChange.RejectionReason}"),
                 _ when positionChange.PositionSnapshot is null => command.UpdateFailed(ref errorMsg, "IronCondorPosition: the computed position snapshot is missing."),
-                _ => state.Update(command.CreateIronCondorPositionChangedEvent(positionChange.PositionSnapshot), command)
+                _ => PositionMarketUpdate.Apply(positionChange, command.CreateIronCondorPositionChangedEvent,
+                    source => state.Update(source, command),
+                    static (source, seal) => source with { Id = Guid.NewGuid(), PositionSnapshot = seal, IsRealtimeMarketObservation = false })
             };
             return updated ? new ServiceOk<GuidResult>(new GuidResult(command.CommandId)) : command.UpdateFailed(errorMsg);
         }
@@ -45,8 +47,7 @@ public static class UpdateIronCondorPositionLegMarketPrice
         /// <returns>True when the transition is accepted.</returns>
         internal bool Compute(IronCondorPositionCommandState state, out PositionChange positionChange)
         {
-            var positionDecision = IronCondorPositionTransition.Compute(state.PositionSnapshot, machine => machine.UpdateLeg(command.TradeLegId, command.Price, command.SourceSequence, command.EffectiveAtUtc, command.RouteGeneration));
-            positionChange = new(positionDecision.Accepted, positionDecision.Value, positionDecision.Code, positionDecision.Detail);
+            positionChange = PositionMarketUpdate.Compute(state.PositionSnapshot, command.EffectiveAtUtc, machine => machine.UpdateLeg(command.TradeLegId, command.Price, command.SourceSequence, command.EffectiveAtUtc, command.RouteGeneration));
             return positionChange.Accepted;
         }
 

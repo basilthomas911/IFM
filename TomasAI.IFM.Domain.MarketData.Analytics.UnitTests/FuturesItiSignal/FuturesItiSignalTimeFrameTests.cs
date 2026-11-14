@@ -96,6 +96,80 @@ public sealed class FuturesItiSignalTimeFrameTests
     }
 
     [Theory]
+    [InlineData(5000, 4990, IntrinsicTimeModeType.TrendExtremeChanged, 1.0)]
+    [InlineData(5000, 4989.75, IntrinsicTimeModeType.TrendOvershootExtended, 1.025)]
+    [InlineData(5004, 4990.25, IntrinsicTimeModeType.Trending, 1.375)]
+    public void Evaluator_ClassifiesBandQualifiedDowntrendMovesAtTheExtreme(
+        double trendPrice, double price, IntrinsicTimeModeType expectedMode, double expectedBandLevel)
+    {
+        var current = Signal(TimeFrameType.Daily, Tuesday, Tuesday, groupId: 2) with
+        {
+            IntrinsicTimeTrend = IntrinsicTimeTrendType.DownTrend,
+            TrendPrice = trendPrice,
+            TrendExtreme = 4990.25,
+            TrendReversal = 4995,
+            BandAnchorPrice = 4992.25,
+            UpTrendTrigger = 5000.25,
+            DownTrendTrigger = 4990.25
+        };
+
+        // A sub-band move to a new low still does not emit a signal.
+        FuturesItiSignalCompute.TryCompute(Command(TimeFrameType.Daily, 4990.25), current with
+        {
+            TrendExtreme = 4990.50,
+            BandAnchorPrice = 4992
+        }, out _).Should().BeFalse();
+
+        FuturesItiSignalCompute.TryCompute(Command(TimeFrameType.Daily, price), current, out var signal)
+            .Should().BeTrue();
+        signal.IntrinsicTimeMode.Should().Be(expectedMode);
+        signal.BandLevel.Should().BeApproximately(expectedBandLevel, 1e-10);
+        signal.BandSize.Should().Be(current.BandSize);
+        signal.IntrinsicTimeTrend.Should().Be(IntrinsicTimeTrendType.DownTrend);
+        signal.IntrinsicTimeGroupId.Should().Be(current.IntrinsicTimeGroupId);
+        signal.TrendExtreme.Should().Be(price);
+        if (expectedMode != IntrinsicTimeModeType.Trending)
+        {
+            signal.TrendReversal.Should().Be(price);
+            signal.UpTrendTrigger.Should().Be(price + current.Threshold);
+            signal.DownTrendTrigger.Should().Be(price);
+        }
+    }
+
+    [Fact]
+    public void Evaluator_ReplaysNov13EsDailyTrendingSignalAsOvershootExtended()
+    {
+        const string contract = "ES20261218";
+        var date = new DateOnly(2026, 11, 13);
+        var current = Signal(TimeFrameType.Daily, date, date, groupId: 3) with
+        {
+            ContractId = contract,
+            IntrinsicTime = new DateTime(2026, 11, 13, 14, 49, 15, DateTimeKind.Utc).AddTicks(2_087_930),
+            IntrinsicTimeTrend = IntrinsicTimeTrendType.DownTrend,
+            IntrinsicPrice = 7604.75,
+            TrendPrice = 7651.0,
+            TrendExtreme = 7603.25,
+            TrendReversal = 7615.25,
+            Threshold = 19.28610689060873,
+            UpTrendTrigger = 7622.536106890609,
+            DownTrendTrigger = 7603.25,
+            BandAnchorPrice = 7604.75,
+            BandSize = 3.857221378121746
+        };
+        var tickTime = new DateTime(2026, 11, 13, 14, 49, 28, DateTimeKind.Utc).AddTicks(9_571_480);
+        var command = new GenerateFuturesItiSignalCommand(contract, date, TimeFrameType.Daily,
+            tickTime, 7600.75, 18.98, date);
+
+        FuturesItiSignalCompute.TryCompute(command, current, out var signal).Should().BeTrue();
+        signal.IntrinsicTimeMode.Should().Be(IntrinsicTimeModeType.TrendOvershootExtended);
+        signal.IntrinsicTimeTrend.Should().Be(IntrinsicTimeTrendType.DownTrend);
+        signal.BandLevel.Should().BeApproximately(2.6055025145831263, 1e-10);
+        signal.TrendExtreme.Should().Be(7600.75);
+        signal.TrendReversal.Should().Be(7600.75);
+        signal.UpTrendTrigger.Should().BeApproximately(7620.036106890609, 1e-10);
+    }
+
+    [Theory]
     [InlineData(TimeFrameType.Daily, 1)]
     [InlineData(TimeFrameType.Weekly, 20)]
     [InlineData(TimeFrameType.Monthly, 60)]

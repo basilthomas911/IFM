@@ -1,0 +1,14 @@
+{
+  "verified_trades": 75,
+  "activated_trails": 33,
+  "confirmed_daily_dcs": 256,
+  "checks": [
+    "C# DC identity and frozen threshold",
+    "next tick entry",
+    "fixed stop before +1 threshold, then trailing stop",
+    "first stop crossing",
+    "cutoff mark",
+    "one position and one trade per DC",
+    "gross P&L"
+  ]
+}
