@@ -33,7 +33,7 @@ public static class EndOfDayIronCondorPosition
             {
                 _ when !positionChange.Accepted => command.UpdateFailed(ref errorMsg, $"{positionChange.RejectionCode};{positionChange.RejectionReason}"),
                 _ when positionChange.PositionSnapshot is null => command.UpdateFailed(ref errorMsg, "IronCondorPosition: the computed position snapshot is missing."),
-                _ => state.Update(command.CreateIronCondorPositionChangedEvent(positionChange.PositionSnapshot), command)
+                _ => state.Update(command.CreateIronCondorPositionChangedEvent(positionChange.PositionSnapshot, positionChange.RecoveredEndOfDay), command)
             };
             return updated ? new ServiceOk<GuidResult>(new GuidResult(command.CommandId)) : command.UpdateFailed(errorMsg);
         }
@@ -45,6 +45,22 @@ public static class EndOfDayIronCondorPosition
         /// <returns>True when the transition is accepted.</returns>
         internal bool Compute(IronCondorPositionCommandState state, out PositionChange positionChange)
         {
+            if (command.HistoricalClosingQuotes is { Length: > 0 })
+            {
+                try
+                {
+                    if (command.HistoricalSourceEventId <= 0 || command.HistoricalSnapshot is not { } source || state.PositionSnapshot is not { } current)
+                        throw new InvalidOperationException("POSITION.EOD_RECOVERY.INVALID_SOURCE");
+                    var recovered = StoredQuotePositionEndOfDayRecovery.Recover(source, current, command.ValueDate, command.EffectiveAtUtc, command.HistoricalClosingQuotes, command.PreviousEndOfDay);
+                    positionChange = new(true, recovered.Current, null, null) { RecoveredEndOfDay = recovered.Seal };
+                    return true;
+                }
+                catch (InvalidOperationException error)
+                {
+                    positionChange = new(false, null, "POSITION.EOD_RECOVERY.REJECTED", error.Message);
+                    return false;
+                }
+            }
             if (command.HistoricalSnapshot is { } historical) {
                 try {
                     if (command.HistoricalSourceEventId <= 0 || state.PositionSnapshot is not { } current)
@@ -66,15 +82,15 @@ public static class EndOfDayIronCondorPosition
         ///
         /// <param name = "positionSnapshot">The accepted position snapshot.</param>
         /// <returns>The event ready for state application.</returns>
-        internal IronCondorPositionChangedEvent CreateIronCondorPositionChangedEvent(StrategyPositionSnapshot positionSnapshot) => new()
+        internal IronCondorPositionChangedEvent CreateIronCondorPositionChangedEvent(StrategyPositionSnapshot positionSnapshot, StrategyPositionSnapshot? recovered = null) => new()
         {
             CommandId = command.CommandId,
             Subject = new(ActorType.Event, "FuturesIronCondorTradePositionEvent", IronCondorPositionChangedEvent.Verb, command.EntityId.Format()),
 
             EntityId = command.EntityId,
             PositionSnapshot = positionSnapshot,
-            HistoricalEndOfDay = command.HistoricalSnapshot is { } mark
-                ? HistoricalPositionEndOfDay.Seal(mark,positionSnapshot,command.ValueDate,command.EffectiveAtUtc) : null,
+            HistoricalEndOfDay = recovered ?? (command.HistoricalSnapshot is { } mark
+                ? HistoricalPositionEndOfDay.Seal(mark,positionSnapshot,command.ValueDate,command.EffectiveAtUtc) : null),
             HistoricalSourceEventId = command.HistoricalSourceEventId
         };
     }

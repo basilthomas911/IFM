@@ -29,7 +29,7 @@ public static class CompleteRegimeDiscovery
         public ServiceResult<GuidResult> Execute(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context, IntrinsicTimeStrategyWorkflowCommandState state)
         {
             ArgumentNullException.ThrowIfNull(state);
-            var preparation = new WorkflowSnapshotPreparation(state.WorkflowDefinition);
+            var preparation = new WorkflowSnapshotPreparation(state.DecisionView);
             var preparationResult = PrepareWorkflow(command, context, preparation);
             if (!preparationResult.Success)
                 return preparationResult;
@@ -60,7 +60,7 @@ public static class CompleteRegimeDiscovery
             }
 
             var now = context.TimeProvider.GetUtcNow().UtcDateTime;
-            if (now >= current.ExpiresAtUtc)
+            if (now >= Runtime.WorkflowCalculationRuntime.EffectiveDeadline(current))
             {
                 return PrepareTimedOut(command, context, state, current, now);
             }

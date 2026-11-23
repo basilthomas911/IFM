@@ -454,7 +454,7 @@ public static class MarketDataDbSql
             trendprice AS "TrendPrice", trendextreme AS "TrendExtreme", trendreversal AS "TrendReversal",
             trenddelta AS "TrendDelta", targetdelta AS "TargetDelta", lambda AS "Lambda", tradingdays AS "TradingDays",
             threshold AS "Threshold", uptrendtrigger AS "UpTrendTrigger", downtrendtrigger AS "DownTrendTrigger",
-            tradestate AS "TradeState", bandlevel AS "BandLevel", reversallevel AS "ReversalLevel"
+            tradestate AS "TradeState", bandlevel AS "BandLevel", reversallevel AS "ReversalLevel", trendvelocity AS "TrendVelocity"
         FROM market_data.futures_iti_signal
         WHERE contractid = $1 AND valuedate = $2 AND timeperiod = $3
         ORDER BY valuedate DESC, sequenceid DESC, timeperiod, intrinsictimemode, intrinsictimetrend, intrinsictimegroupid;
@@ -470,7 +470,7 @@ public static class MarketDataDbSql
             trendprice AS "TrendPrice", trendextreme AS "TrendExtreme", trendreversal AS "TrendReversal",
             trenddelta AS "TrendDelta", targetdelta AS "TargetDelta", lambda AS "Lambda", tradingdays AS "TradingDays",
             threshold AS "Threshold", uptrendtrigger AS "UpTrendTrigger", downtrendtrigger AS "DownTrendTrigger",
-            tradestate AS "TradeState", bandlevel AS "BandLevel", reversallevel AS "ReversalLevel"
+            tradestate AS "TradeState", bandlevel AS "BandLevel", reversallevel AS "ReversalLevel", trendvelocity AS "TrendVelocity"
         FROM market_data.futures_iti_signal
         WHERE contractid = $1
         ORDER BY valuedate DESC, sequenceid DESC, timeperiod, intrinsictimemode, intrinsictimetrend, intrinsictimegroupid;
@@ -486,7 +486,7 @@ public static class MarketDataDbSql
             trendprice AS "TrendPrice", trendextreme AS "TrendExtreme", trendreversal AS "TrendReversal",
             trenddelta AS "TrendDelta", targetdelta AS "TargetDelta", lambda AS "Lambda", tradingdays AS "TradingDays",
             threshold AS "Threshold", uptrendtrigger AS "UpTrendTrigger", downtrendtrigger AS "DownTrendTrigger",
-            tradestate AS "TradeState", bandlevel AS "BandLevel", reversallevel AS "ReversalLevel"
+            tradestate AS "TradeState", bandlevel AS "BandLevel", reversallevel AS "ReversalLevel", trendvelocity AS "TrendVelocity"
         FROM market_data.futures_iti_signal
         WHERE contractid = $1 AND valuedate = $2
         ORDER BY valuedate DESC, sequenceid DESC, timeperiod, intrinsictimemode, intrinsictimetrend, intrinsictimegroupid;
@@ -504,7 +504,7 @@ public static class MarketDataDbSql
             threshold AS "Threshold", uptrendtrigger AS "UpTrendTrigger", downtrendtrigger AS "DownTrendTrigger",
             tradestate AS "TradeState", timeframestartvaluedate AS "TimeFrameStartValueDate",
             bandanchorprice AS "BandAnchorPrice", bandpercentage AS "BandPercentage", bandsize AS "BandSize",
-            bandlevel AS "BandLevel", reversallevel AS "ReversalLevel"
+            bandlevel AS "BandLevel", reversallevel AS "ReversalLevel", trendvelocity AS "TrendVelocity"
         FROM market_data.futures_iti_timeframe_state
         WHERE contractid = $1 AND timeperiod = $2 AND calendarbucketstart = $3;
         """;
@@ -707,7 +707,7 @@ public static class MarketDataDbSql
             trendprice AS "TrendPrice", trendextreme AS "TrendExtreme", trendreversal AS "TrendReversal",
             trenddelta AS "TrendDelta", targetdelta AS "TargetDelta", lambda AS "Lambda", tradingdays AS "TradingDays",
             threshold AS "Threshold", uptrendtrigger AS "UpTrendTrigger", downtrendtrigger AS "DownTrendTrigger",
-            tradestate AS "TradeState", bandlevel AS "BandLevel", reversallevel AS "ReversalLevel"
+            tradestate AS "TradeState", bandlevel AS "BandLevel", reversallevel AS "ReversalLevel", trendvelocity AS "TrendVelocity"
         FROM market_data.futures_iti_signal
         WHERE contractid = $1 AND valuedate = $2 AND timeperiod = $3 ORDER BY sequenceid DESC LIMIT 1;
         """;
@@ -997,7 +997,7 @@ public static class MarketDataDbSql
             trendprice AS "TrendPrice", trendextreme AS "TrendExtreme", trendreversal AS "TrendReversal",
             trenddelta AS "TrendDelta", targetdelta AS "TargetDelta", lambda AS "Lambda", tradingdays AS "TradingDays",
             threshold AS "Threshold", uptrendtrigger AS "UpTrendTrigger", downtrendtrigger AS "DownTrendTrigger",
-            tradestate AS "TradeState", bandlevel AS "BandLevel", reversallevel AS "ReversalLevel"
+            tradestate AS "TradeState", bandlevel AS "BandLevel", reversallevel AS "ReversalLevel", trendvelocity AS "TrendVelocity"
         FROM market_data.futures_iti_signal
         WHERE contractid = $1 AND valuedate = $2 AND intrinsictimemode = $3 AND sequenceid > $4
         ORDER BY sequenceid DESC, timeperiod, intrinsictimetrend, intrinsictimegroupid;
@@ -1013,7 +1013,7 @@ public static class MarketDataDbSql
             trendprice AS "TrendPrice", trendextreme AS "TrendExtreme", trendreversal AS "TrendReversal",
             trenddelta AS "TrendDelta", targetdelta AS "TargetDelta", lambda AS "Lambda", tradingdays AS "TradingDays",
             threshold AS "Threshold", uptrendtrigger AS "UpTrendTrigger", downtrendtrigger AS "DownTrendTrigger",
-            tradestate AS "TradeState", bandlevel AS "BandLevel", reversallevel AS "ReversalLevel"
+            tradestate AS "TradeState", bandlevel AS "BandLevel", reversallevel AS "ReversalLevel", trendvelocity AS "TrendVelocity"
         FROM market_data.futures_iti_signal
         WHERE contractid = $1 AND valuedate <= $2 AND intrinsictimetrend = $3 AND intrinsictimemode = $4
         ORDER BY valuedate DESC, sequenceid DESC, timeperiod, intrinsictimegroupid LIMIT 1;
@@ -1029,7 +1029,7 @@ public static class MarketDataDbSql
             trendprice AS "TrendPrice", trendextreme AS "TrendExtreme", trendreversal AS "TrendReversal",
             trenddelta AS "TrendDelta", targetdelta AS "TargetDelta", lambda AS "Lambda", tradingdays AS "TradingDays",
             threshold AS "Threshold", uptrendtrigger AS "UpTrendTrigger", downtrendtrigger AS "DownTrendTrigger",
-            tradestate AS "TradeState", bandlevel AS "BandLevel", reversallevel AS "ReversalLevel"
+            tradestate AS "TradeState", bandlevel AS "BandLevel", reversallevel AS "ReversalLevel", trendvelocity AS "TrendVelocity"
         FROM market_data.futures_iti_signal
         WHERE contractid = ANY($1) AND valuedate >= $2 AND valuedate <= $3
         ORDER BY valuedate, sequenceid, contractid, timeperiod, intrinsictimemode, intrinsictimetrend, intrinsictimegroupid;
@@ -1132,17 +1132,21 @@ public static class MarketDataDbSql
                 AND calculationversion NOT IN ('databento-historical-minute-seed-v1','databento-historical-trade-seed-v1',
                 'databento-four-hour-trade-replay-v1')
             ORDER BY marketdataasof,calculatedat DESC,observationid
+        ), coverage AS (
+            SELECT seed.interval_end,seed.payload
+            FROM market_data.indicator_seed_coverage seed
+            WHERE seed.contract_id=$5 AND seed.time_frame=$2 AND seed.value_date=$6
+                AND seed.source_version=$7 AND seed.interval_end=ANY($4)
         )
         SELECT observationid,intervalstart,intervalend,openprice,highprice,lowprice,closeprice,
                volume,tradecount,pricevolumesum,firstsourcesequence,lastsourcesequence,
                firstmarketevent,lastmarketevent,calculatedat,schemaversion,calculationversion,NULL::bytea
         FROM canonical
+        WHERE NOT $8 OR NOT EXISTS (SELECT 1 FROM coverage WHERE interval_end=canonical.marketdataasof)
         UNION ALL
         SELECT NULL,NULL,seed.interval_end,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,seed.payload
-        FROM market_data.indicator_seed_coverage seed
-        WHERE seed.contract_id=$5 AND seed.time_frame=$2 AND seed.value_date=$6
-            AND seed.source_version=$7 AND seed.interval_end=ANY($4)
-            AND NOT EXISTS (SELECT 1 FROM canonical WHERE marketdataasof=seed.interval_end);
+        FROM coverage seed
+        WHERE $8 OR NOT EXISTS (SELECT 1 FROM canonical WHERE marketdataasof=seed.interval_end);
         """;
 
     /// <summary>SQL for get raw eod.</summary>
@@ -1339,7 +1343,11 @@ public static class MarketDataDbSql
             calculationversion = EXCLUDED.calculationversion, calculationmethod = EXCLUDED.calculationmethod,
             schemaversion = EXCLUDED.schemaversion, isvalid = EXCLUDED.isvalid,
             previousatrvalue = EXCLUDED.previousatrvalue, atrbaseline = EXCLUDED.atrbaseline,
-            atrratio = EXCLUDED.atrratio, iswarm = EXCLUDED.iswarm;
+            atrratio = EXCLUDED.atrratio, iswarm = EXCLUDED.iswarm
+        WHERE NOT (futures_atr_signal.iswarm IS TRUE AND futures_atr_signal.isvalid IS TRUE
+            AND futures_atr_signal.atrvalue > 0
+            AND (EXCLUDED.iswarm IS NOT TRUE OR EXCLUDED.isvalid IS NOT TRUE OR EXCLUDED.atrvalue <= 0
+                OR (futures_atr_signal.atrratio IS NOT NULL AND EXCLUDED.atrratio IS NULL)));
         """;
 
     /// <summary>Native PostgreSQL market observation persistence.</summary>
@@ -1471,8 +1479,8 @@ public static class MarketDataDbSql
         INSERT INTO market_data.futures_iti_signal ( contractid, valuedate, timeperiod, sequenceid, intrinsictime,
             intrinsictimegroupid, intrinsictimelength, intrinsicprice, intrinsictimetrend, intrinsictimemode, trendprice,
             trendextreme, trendreversal, trenddelta, targetdelta, lambda, tradingdays, threshold, uptrendtrigger,
-            downtrendtrigger, tradestate, bandlevel, reversallevel )
-        VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23 )
+            downtrendtrigger, tradestate, bandlevel, reversallevel, trendvelocity )
+        VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24 )
         ON CONFLICT (contractid, valuedate, timeperiod, intrinsictimemode, intrinsictimetrend, intrinsictimegroupid,
             sequenceid) DO UPDATE SET intrinsictime = EXCLUDED.intrinsictime,
             intrinsictimelength = EXCLUDED.intrinsictimelength, intrinsicprice = EXCLUDED.intrinsicprice,
@@ -1480,7 +1488,7 @@ public static class MarketDataDbSql
             trendreversal = EXCLUDED.trendreversal, trenddelta = EXCLUDED.trenddelta, targetdelta = EXCLUDED.targetdelta,
             lambda = EXCLUDED.lambda, tradingdays = EXCLUDED.tradingdays, threshold = EXCLUDED.threshold,
             uptrendtrigger = EXCLUDED.uptrendtrigger, downtrendtrigger = EXCLUDED.downtrendtrigger,
-            tradestate = EXCLUDED.tradestate, bandlevel = EXCLUDED.bandlevel, reversallevel = EXCLUDED.reversallevel;
+            tradestate = EXCLUDED.tradestate, bandlevel = EXCLUDED.bandlevel, reversallevel = EXCLUDED.reversallevel, trendvelocity = EXCLUDED.trendvelocity;
         """;
 
     /// <summary>Native PostgreSQL idempotent observation write.</summary>
@@ -2046,10 +2054,10 @@ public static class MarketDataDbSql
             timeframestartvaluedate, valuedate, sequenceid, intrinsictime, intrinsictimegroupid, intrinsictimelength,
             intrinsicprice, intrinsictimetrend, intrinsictimemode, trendprice, trendextreme, trendreversal, trenddelta,
             targetdelta, lambda, tradingdays, threshold, uptrendtrigger, downtrendtrigger, tradestate, bandanchorprice,
-            bandpercentage, bandsize, bandlevel, reversallevel )
+            bandpercentage, bandsize, bandlevel, reversallevel, trendvelocity )
         VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22,
-            $23, $24, $25, $26, $27, $28 )
-        ON CONFLICT (contractid, timeperiod, calendarbucketstart) DO UPDATE SET timeframestartvaluedate = EXCLUDED.timeframestartvaluedate, valuedate = EXCLUDED.valuedate, sequenceid = EXCLUDED.sequenceid, intrinsictime = EXCLUDED.intrinsictime, intrinsictimegroupid = EXCLUDED.intrinsictimegroupid, intrinsictimelength = EXCLUDED.intrinsictimelength, intrinsicprice = EXCLUDED.intrinsicprice, intrinsictimetrend = EXCLUDED.intrinsictimetrend, intrinsictimemode = EXCLUDED.intrinsictimemode, trendprice = EXCLUDED.trendprice, trendextreme = EXCLUDED.trendextreme, trendreversal = EXCLUDED.trendreversal, trenddelta = EXCLUDED.trenddelta, targetdelta = EXCLUDED.targetdelta, lambda = EXCLUDED.lambda, tradingdays = EXCLUDED.tradingdays, threshold = EXCLUDED.threshold, uptrendtrigger = EXCLUDED.uptrendtrigger, downtrendtrigger = EXCLUDED.downtrendtrigger, tradestate = EXCLUDED.tradestate, bandanchorprice = EXCLUDED.bandanchorprice, bandpercentage = EXCLUDED.bandpercentage, bandsize = EXCLUDED.bandsize, bandlevel = EXCLUDED.bandlevel, reversallevel = EXCLUDED.reversallevel
+            $23, $24, $25, $26, $27, $28, $29 )
+        ON CONFLICT (contractid, timeperiod, calendarbucketstart) DO UPDATE SET timeframestartvaluedate = EXCLUDED.timeframestartvaluedate, valuedate = EXCLUDED.valuedate, sequenceid = EXCLUDED.sequenceid, intrinsictime = EXCLUDED.intrinsictime, intrinsictimegroupid = EXCLUDED.intrinsictimegroupid, intrinsictimelength = EXCLUDED.intrinsictimelength, intrinsicprice = EXCLUDED.intrinsicprice, intrinsictimetrend = EXCLUDED.intrinsictimetrend, intrinsictimemode = EXCLUDED.intrinsictimemode, trendprice = EXCLUDED.trendprice, trendextreme = EXCLUDED.trendextreme, trendreversal = EXCLUDED.trendreversal, trenddelta = EXCLUDED.trenddelta, targetdelta = EXCLUDED.targetdelta, lambda = EXCLUDED.lambda, tradingdays = EXCLUDED.tradingdays, threshold = EXCLUDED.threshold, uptrendtrigger = EXCLUDED.uptrendtrigger, downtrendtrigger = EXCLUDED.downtrendtrigger, tradestate = EXCLUDED.tradestate, bandanchorprice = EXCLUDED.bandanchorprice, bandpercentage = EXCLUDED.bandpercentage, bandsize = EXCLUDED.bandsize, bandlevel = EXCLUDED.bandlevel, reversallevel = EXCLUDED.reversallevel, trendvelocity = EXCLUDED.trendvelocity
         WHERE market_data.futures_iti_timeframe_state.sequenceid <= EXCLUDED.sequenceid;
         """;
 

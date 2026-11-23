@@ -305,12 +305,15 @@ public sealed class ApiApplicationStartupActivities(
             valueDate);
         cancellationToken.ThrowIfCancellationRequested();
         FuturesTradeSessionBarReadModel[] liveSeedBars = [];
-        if (liveSeedReplay is not null)
+        if (storedIndicatorWarmup is not null || liveSeedReplay is not null)
         {
             try
             {
-                liveSeedBars = await liveSeedReplay.ReadAsync(es.ContractId, cancellationToken)
-                    .ConfigureAwait(false);
+                if (storedIndicatorWarmup is not null)
+                    liveSeedBars = await storedIndicatorWarmup.ReadFiveMinuteSeedAsync(es.ContractId, cancellationToken)
+                        .ConfigureAwait(false);
+                else if (liveSeedReplay is not null)
+                    liveSeedBars = await liveSeedReplay.ReadAsync(es.ContractId, cancellationToken).ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -318,9 +321,12 @@ public sealed class ApiApplicationStartupActivities(
             }
             catch (Exception exception)
             {
-                logger.LogWarning(exception,                    "{Component}.{Method} "+"Four-hour Databento Historical/Live seed acquisition failed for {ContractId}; indicators will use retained or live observations. Ingestion startup does not wait for indicator readiness.",nameof(ApiApplicationStartupActivities),nameof(StartRealtimeAnalyticsAsync),                    es.ContractId);
+                logger.LogWarning(exception, "{Component}.{Method} Five-minute seed acquisition failed for {ContractId}; indicator state remains retryable.",
+                    nameof(ApiApplicationStartupActivities), nameof(StartRealtimeAnalyticsAsync), es.ContractId);
             }
         }
+        if ((storedIndicatorWarmup is not null || liveSeedReplay is not null) && liveSeedBars.Length != 48)
+            throw new InvalidOperationException("ATR.FIVE_MINUTE.SEED_INCOMPLETE: 48 qualified completed overnight bars are required before attaching session analytics; initialization will retry.");
         await Task.WhenAll(activations.Select(InitializeActivationAsync)).WaitAsync(options.ParticipantTimeout, cancellationToken).ConfigureAwait(false);
 
         async Task InitializeActivationAsync(FuturesIntradaySignalActivation activation)
@@ -522,20 +528,25 @@ public sealed class ApiApplicationStartupActivities(
         FuturesTradeSessionBarReadModel[] bars,
         CancellationToken cancellationToken)
     {
-        var command = new StartFuturesRsiSignalCommand(entityId)
+        var command = CreateSeededFiveMinuteRsiCommand(entityId,bars);
+        return await actorService!.RequestAsync<StartFuturesRsiSignalCommand,
+            FuturesRsiSignalEntityId>(command, cancellationToken).ConfigureAwait(false);
+    }
+
+    internal static StartFuturesRsiSignalCommand CreateSeededFiveMinuteRsiCommand(
+        FuturesRsiSignalEntityId entityId, FuturesTradeSessionBarReadModel[] bars) => new(entityId)
         {
             CommandId = Guid.CreateVersion7(),
             PostEvents = true,
             Subject = new ActorSubject(ActorType.Command,
                 StartFuturesRsiSignalCommand.Actor,
                 StartFuturesRsiSignalCommand.Verb, entityId.Format()),
+            // Calculation time may precede or follow the completed interval.
+            // Seed windows must be anchored to the actual final interval boundary.
             HistoricalSeed = new FuturesRsiHistoricalSeed(
-                bars.Length, bars[^1].CalculatedAtUtc, bars, "RSI.DATABENTO_FOUR_HOUR_REPLAY"),
+                bars.Length, bars[^1].IntervalEndUtc, bars, "RSI.DATABENTO_FOUR_HOUR_REPLAY"),
             ForceHistoricalInitialization = true
         };
-        return await actorService!.RequestAsync<StartFuturesRsiSignalCommand,
-            FuturesRsiSignalEntityId>(command, cancellationToken).ConfigureAwait(false);
-    }
 
     async Task<FuturesTradeSessionBarReadModel[]> ReadFiveMinuteSeedBarsAsync(
         string contractId,

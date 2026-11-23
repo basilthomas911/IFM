@@ -30,6 +30,33 @@ public sealed class RegimeDiscoveryCalculationModelTests
         new VolatilityRegimeCalculationModel().Calculate(input).NoNewTrade.Should().Be(blocked);
     }
 
+    [Fact]
+    public void Daily_futures_keep_vx_term_structure_as_context_only()
+    {
+        var input = CreateInput();
+        var at = input.ProducedAtUtc;
+        var route = new IntrinsicTimeFundAssignment(1, 10, "Futures", "Future", "ES", TimeFrameType.Daily,
+            new(TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogKind.Deployment, Guid.NewGuid(), 1),
+            1, at.AddDays(-1), null);
+        input = input with { EntityId = input.EntityId with { Assignment = route } };
+        var backwardation = Replace(input, RegimeDiscoverySignalMetric.VxFrontSecondRatio, TimeFrameType.Daily, 1.08m);
+        var missing = backwardation with { Snapshot = backwardation.Snapshot with
+        {
+            Observations = backwardation.Snapshot.Observations.Where(row => row.Metric != RegimeDiscoverySignalMetric.VxFrontSecondRatio).ToArray()
+        }};
+        var model = new VolatilityRegimeCalculationModel();
+        var actual = model.Calculate(backwardation);
+        var withoutRatio = model.Calculate(missing);
+        actual.IsComplete.Should().BeTrue();
+        actual.TermStructure.Should().Be(VxTermStructureRegime.Backwardation);
+        actual.NoNewTrade.Should().BeFalse();
+        actual.Score.Should().Be(withoutRatio.Score);
+        actual.Confidence.Should().Be(withoutRatio.Confidence);
+        withoutRatio.IsComplete.Should().BeTrue();
+        var options = backwardation with { EntityId = input.EntityId with { Assignment = route with { Family = "Vertical" } } };
+        model.Calculate(options).NoNewTrade.Should().BeTrue();
+    }
+
     /// <summary>Inactive volatility inputs do not lower coverage or force degraded quality.</summary>
     [Fact]
     public void Inactive_realized_volatility_does_not_reduce_confidence_coverage()

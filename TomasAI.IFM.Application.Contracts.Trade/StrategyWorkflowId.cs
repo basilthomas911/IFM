@@ -26,6 +26,21 @@ public readonly record struct StrategyWorkflowId
         return new(Guid.CreateVersion7(timeProvider.GetUtcNow()));
     }
 
+    /// <summary>Builds the same UUIDv7 when a persisted ITI trigger is dispatched again.</summary>
+    public static StrategyWorkflowId ForTrigger(Guid triggerId, IntrinsicTimeStrategyWorkflowEntityId entity, DateTime occurredAt)
+    {
+        var bytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes($"{triggerId:N}/{entity.Format()}"));
+        var milliseconds = Math.Max(0, new DateTimeOffset(DateTime.SpecifyKind(occurredAt, DateTimeKind.Utc)).ToUnixTimeMilliseconds());
+        for (var index = 5; index >= 0; index--)
+        {
+            bytes[index] = (byte)(milliseconds & 0xff);
+            milliseconds >>= 8;
+        }
+        bytes[6] = (byte)(0x70 | (bytes[6] & 0x0f));
+        bytes[8] = (byte)(0x80 | (bytes[8] & 0x3f));
+        return new(new Guid(bytes.AsSpan(0, 16), bigEndian: true));
+    }
+
     /// <summary>Parses a workflow execution identity.</summary>
     /// <param name="value">Text containing a GUID in any supported format.</param>
     /// <returns>The parsed workflow execution identity.</returns>

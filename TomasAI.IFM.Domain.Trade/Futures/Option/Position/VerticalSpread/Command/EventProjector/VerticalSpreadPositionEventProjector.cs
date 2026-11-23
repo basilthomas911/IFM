@@ -26,7 +26,7 @@ public sealed class VerticalSpreadPositionEventProjector : ConventionalEventProj
     public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors => descriptors;
     public override IReadOnlyCollection<Type> ProjectedEventTypes => [typeof(VerticalSpreadPositionChangedEvent), typeof(VerticalSpreadTradePlanUpdatedEvent)];
 
-    Task ProjectAsync(VerticalSpreadPositionChangedEvent changed) => PositionProjectionActions.ProjectAsync(context, context.DbFactory, changed, FuturesVerticalSpreadTradePositionCommandActor.ActorName, FuturesOptionRealtimeActor.ActorName, VerticalSpreadTradePositionRealtimeActor.ActorName);
+    Task ProjectAsync(VerticalSpreadPositionChangedEvent changed) => changed.HistoricalEndOfDay is not null ? Task.CompletedTask : PositionProjectionActions.ProjectAsync(context, context.DbFactory, changed, FuturesVerticalSpreadTradePositionCommandActor.ActorName, FuturesOptionRealtimeActor.ActorName, VerticalSpreadTradePositionRealtimeActor.ActorName);
     Task ProjectTradePlanAsync(VerticalSpreadTradePlanUpdatedEvent updated, CancellationToken cancellationToken) =>
         string.Equals(context.DbFactory.TradePlanDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal)
             ? Task.CompletedTask // Required rows already committed with the source event.

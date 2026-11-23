@@ -35,6 +35,10 @@ public sealed partial class MarketDataReadMirror(IOptionChainCache optionChainCa
     public MarketDataFeedRuntimeStatusReadModel GetRuntimeStatus() => RuntimeStatus();
     public bool TryGetOnTheRunFuturesContract(string symbol,
         out FuturesContractV3ReadModel contract) => registry.TryGetOnTheRunFuturesContract(symbol, out contract);
+    /// <summary>Returns the seed coverage identity from the Host's active contract registration.</summary>
+    public string? GetIndicatorSeedSourceVersion(string contractId)
+        => registry.Snapshot().SingleOrDefault(registration => registration.DomainContractId == contractId) is { Dataset: { } dataset } match
+            ? DatabentoIndicatorSeedSourceVersion.Create(match, dataset) : null;
     public bool TryGetFuturesTermStructureContracts(string symbol,
         out FuturesTermStructureContracts contracts) => registry.TryGetFuturesTermStructureContracts(symbol, out contracts);
     public Task<bool> UpdateFuturesTermStructureContractsAsync(string symbol,

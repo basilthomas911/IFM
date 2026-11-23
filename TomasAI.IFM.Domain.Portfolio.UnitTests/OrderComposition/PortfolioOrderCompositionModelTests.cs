@@ -12,6 +12,25 @@ namespace TomasAI.IFM.Domain.Portfolio.UnitTests.OrderComposition;
 public sealed class PortfolioOrderCompositionModelTests
 {
     [Fact]
+    public void Pure_assessment_keeps_shared_capacity_accounting_without_owning_orders_or_mutating_financial_inputs()
+    {
+        var request = Request();
+        var book = Book(true, false, true);
+        var financial = Financial(book);
+        var originalCash = financial.Select(value => value.AvailableCash).ToArray();
+        var result = PortfolioOrderCompositionModel.Assess(request, book, financial);
+        result.Select(value => value.FundId).Should().Equal(10, 11, 12);
+        result.Where(value => value.Accepted).Select(value => value.FundId).Should().Equal(10, 12);
+        result.Where(value => value.Accepted).Should().OnlyContain(value => value.CapacityEffect != null && value.CapacityEffect.OrderId == 0);
+        result.Where(value => !value.Accepted).Should().OnlyContain(value => value.CapacityEffect == null);
+        financial.Select(value => value.AvailableCash).Should().Equal(originalCash);
+        financial.Should().OnlyContain(value => value.Usage.Length == 0);
+        using var cancelled = new CancellationTokenSource(); cancelled.Cancel();
+        FluentActions.Invoking(() => PortfolioOrderCompositionModel.Assess(request, book, financial, cancelled.Token))
+            .Should().Throw<OperationCanceledException>();
+    }
+
+    [Fact]
     public async Task Trusted_development_manual_order_does_not_require_deployment_or_capacity_admission()
     {
         var original=Request();

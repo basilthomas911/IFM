@@ -51,7 +51,7 @@ public static class ExecuteIntrinsicTimeStrategyWorkflow
                 };
                 return state.Update(queued, command) ? Ok(command) : command.UpdateFailed("Unable to queue the ITI signal.");
             }
-            var preparation = new WorkflowSnapshotPreparation(state.WorkflowDefinition);
+            var preparation = new WorkflowSnapshotPreparation(state.DecisionView);
             var preparationResult = command.PrepareWorkflow(context, preparation, now);
             if (!preparationResult.Success)
                 return preparationResult;
@@ -118,7 +118,12 @@ public static class ExecuteIntrinsicTimeStrategyWorkflow
         WorkflowStrategyMachineStatus previousStatus, DateTime now)
     {
         var started = CreateStartedView(command, now, now.Add(context.ExecutionOptions.MaximumExecutionDuration));
+        if (context is IntrinsicTimeStrategyWorkflowCommandContext { WorkflowOptions.LocalDecisionRuntimeEnabled: true } local)
+            started = started with { DecisionRuntimeVersion = 1, DecisionRuntimeSessionId = local.DecisionRuntime.SessionId,
+                ExpiresAtUtc = new[] { started.ExpiresAtUtc, now.AddSeconds(10) }.Min() };
         var stale = RegimeDiscoveryTriggerFreshness.StopIfStale(started, context.ExecutionOptions, now);
+        started = started with { DailyFuturesEntry = TradeSelection.Model.DailyFuturesEntryRules.Advance(state.CurrentView?.DailyFuturesEntry, started, stale is not null) };
+        if (stale is not null) stale = stale with { DailyFuturesEntry = started.DailyFuturesEntry };
         if (stale is null && context is IntrinsicTimeStrategyWorkflowCommandContext
             { WorkflowStartsEnabled: true, OpeningExecutionsEnabled: true } openingContext)
         {
@@ -162,7 +167,8 @@ public static class ExecuteIntrinsicTimeStrategyWorkflow
     }
 
     internal static bool CanExpire(IntrinsicTimeStrategyWorkflowView view, DateTime now) =>
-        now >= view.ExpiresAtUtc && view.FinancialHandoff?.Phase is not
+        view.EntryCommit?.Phase is not (WorkflowEntryCommitPhase.Approved or WorkflowEntryCommitPhase.OutcomeUnknown) &&
+        now >= Runtime.WorkflowCalculationRuntime.EffectiveDeadline(view) && view.FinancialHandoff?.Phase is not
             (RiskFinancialHandoffPhase.ConsumePending or RiskFinancialHandoffPhase.Consumed or
              RiskFinancialHandoffPhase.Submitted or RiskFinancialHandoffPhase.Authorized);
 
@@ -195,7 +201,8 @@ public static class ExecuteIntrinsicTimeStrategyWorkflow
             TriggerEvent = command.TriggerEvent,
             // Explicitly pinned starts retain their frozen selection authority. The
             // Trade Selection boundary validates it before any Function dispatch.
-            SelectionBinding = command.SelectionBinding
+            SelectionBinding = command.SelectionBinding,
+            SelectionInitializationFailure = command.SelectionInitializationFailure
         };
     }
 
@@ -204,7 +211,7 @@ public static class ExecuteIntrinsicTimeStrategyWorkflow
     /// <param name = "causationId">The causation id business information.</param>
     /// <param name = "now">The observed UTC time used for deadline and lifecycle decisions.</param>
     /// <returns>The prepared business result or command acceptance.</returns>
-    static IntrinsicTimeStrategyWorkflowView CreateExpiredView(IntrinsicTimeStrategyWorkflowView current, Guid causationId, DateTime now)
+    internal static IntrinsicTimeStrategyWorkflowView CreateExpiredView(IntrinsicTimeStrategyWorkflowView current, Guid causationId, DateTime now)
     {
         var failure = new StrategyPipelineFailure
         {

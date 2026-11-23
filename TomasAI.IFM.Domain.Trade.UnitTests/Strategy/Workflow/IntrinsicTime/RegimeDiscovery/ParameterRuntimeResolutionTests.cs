@@ -19,6 +19,30 @@ public sealed class ParameterRuntimeResolutionTests
     }
     static ExecuteRegimeDiscoveryPipelineCommand Command() => new() { ExpiresAtUtc = DateTime.UtcNow.AddMinutes(1), RequestedAtUtc = DateTime.UtcNow, TargetHorizon = TimeFrameType.Daily };
     [Fact]
+    public async Task Unassigned_scope_uses_only_the_published_legacy_cache_and_never_queries_configuration()
+    {
+        var runtime = Substitute.For<IParameterRuntimeSnapshot>(); runtime.Enabled.Returns(true); runtime.RunId.Returns(Guid.NewGuid());
+        runtime.Resolve(Arg.Any<string>(), Arg.Any<TimeFrameType>()).Returns(new ParameterRuntimeResolution(false, false, null));
+        var context = Context(runtime);
+        var cache = new TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Runtime.WorkflowPreparedConfigurationCache();
+        context.PreparedConfiguration.Returns(cache);
+        var at = DateTime.UtcNow;
+        var p = RegimeDiscoveryParameterSet.CreateDefault(Guid.NewGuid(), Guid.NewGuid(), TimeFrameType.Daily);
+        var resolved = new ResolvedRegimeDiscoveryParameterSet(p, RegimeDiscoveryParameterPayload.Serialize(p), RegimeDiscoveryParameterPayload.ComputeSha256(p), at.AddDays(-1));
+        cache.PublishRegime(TimeFrameType.Daily, resolved, TomasAI.IFM.Application.Storage.ReadCacheInvalidation.Configuration, at);
+        cache.TryAcquireRegime(TimeFrameType.Daily, at, out var actual).Should().BeTrue(); actual.Should().BeSameAs(resolved);
+        cache.TryAcquireRegime(TimeFrameType.Weekly, at, out _).Should().BeFalse();
+        cache.TryAcquireRegime(TimeFrameType.Daily, at.AddMinutes(1), out _).Should().BeFalse();
+        // Missing market dependencies may fail later, but parameter acquisition must already have succeeded without I/O.
+        var result = await Command().StartPipelineAsync(context);
+        result.Error?.ErrorCode.Should().NotBe("RD.INIT.PARAMETER_CACHE_NOT_READY");
+        context.ConfigurationDb.ReceivedCalls().Should().BeEmpty();
+        runtime.Resolve(Arg.Any<string>(), Arg.Any<TimeFrameType>()).Returns(new ParameterRuntimeResolution(true, true, null));
+        var disabled = await Command().StartPipelineAsync(context);
+        disabled.Error!.ErrorCode.Should().Be("RD.INIT.ASSIGNMENT_DISABLED");
+        context.ConfigurationDb.ReceivedCalls().Should().BeEmpty();
+    }
+    [Fact]
     public async Task Missing_startup_is_a_visible_terminal_initialization_outcome()
     {
         var runtime = Substitute.For<IParameterRuntimeSnapshot>(); runtime.Enabled.Returns(true);

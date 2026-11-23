@@ -4,6 +4,22 @@ use ifm_ui_egui::{
 };
 use serde_json::Value;
 
+#[test]
+fn pre_runtime_workflows_still_decode_and_open_with_the_current_contracts() {
+    let registry = Registry::compiled().unwrap();
+    let legacy = codec::decode(&read("strategy-view-legacy.msgpack")).unwrap();
+    let current = codec::decode(&read("strategy-view.msgpack")).unwrap();
+    let before = serde_json::to_value(strategy_display::row(&registry, &legacy, 1000).unwrap()).unwrap();
+    let after = serde_json::to_value(strategy_display::row(&registry, &current, 1000).unwrap()).unwrap();
+    assert_eq!(before["workflowId"], after["workflowId"]);
+    assert_eq!(before["actors"].as_array().unwrap().len(), 2);
+    assert!(!strategy_display::details(&registry, &legacy).unwrap().roots.is_empty());
+    let members = registry.describe(strategy_display::VIEW).unwrap().members;
+    for (name, key) in [("DecisionRuntimeVersion", 42), ("EntryCommit", 43), ("DecisionRuntimeSessionId", 44)] {
+        assert!(members.iter().any(|member| member.0 == name && member.1 == key));
+    }
+}
+
 
 /// Reads strategy display for strategy display.
 fn read(name: &str) -> Vec<u8> {
@@ -107,6 +123,42 @@ fn strategy_grid_data_and_complete_details_tree_preserve_backend_evidence() {
         );
     }
     assert!(!result.to_string().contains("No native display getter"));
+}
+
+/// The Details property grid includes the published velocity and retains null for older signals.
+#[test]
+fn futures_iti_inspector_shows_trend_velocity_from_the_original_signal() {
+    let registry = Registry::compiled().unwrap();
+    assert!(strategy_display::field_names(strategy_display::SIGNAL).unwrap().iter().any(|name| name == "TrendVelocity"));
+    let original = codec::decode(&read("strategy-view.msgpack")).unwrap();
+    let trigger_index = registry.describe(strategy_display::VIEW).unwrap().members.into_iter().find(|m| m.0 == "TriggerEvent").unwrap().1;
+    let trigger_kind = registry.field_kind(strategy_display::VIEW, "TriggerEvent").unwrap();
+    let signal_index = registry.describe(trigger_kind).unwrap().members.into_iter().find(|m| m.0 == "FuturesItiSignal").unwrap().1;
+    fn signal_mut(wire: &mut rmpv::Value, trigger_index: usize, signal_index: usize) -> &mut Vec<rmpv::Value> {
+        let rmpv::Value::Array(fields) = wire else { panic!("Expected workflow array") };
+        let rmpv::Value::Array(trigger) = &mut fields[trigger_index] else { panic!("Expected trigger array") };
+        let rmpv::Value::Array(signal) = &mut trigger[signal_index] else { panic!("Expected signal array") };
+        signal
+    }
+    fn velocity(nodes: &[ifm_ui_egui::Node]) -> Option<&str> {
+        for node in nodes {
+            if let Some(property) = node.properties.iter().find(|p| p.name == "TrendVelocity") { return Some(&property.value); }
+            if let Some(value) = velocity(&node.children) { return Some(value); }
+        }
+        None
+    }
+    for (published, expected) in [(Some(262681.0081), "262681.0081"), (Some(0.0), "0"), (None, "null")] {
+        let mut wire = original.clone();
+        let signal = signal_mut(&mut wire, trigger_index, signal_index);
+        signal.resize(28, rmpv::Value::Nil);
+        signal[27] = published.map(rmpv::Value::from).unwrap_or(rmpv::Value::Nil);
+        assert_eq!(velocity(&strategy_display::details(&registry, &wire).unwrap().roots), Some(expected));
+        if published.is_none() {
+            let signal = signal_mut(&mut wire, trigger_index, signal_index);
+            signal.truncate(27);
+            assert_eq!(velocity(&strategy_display::details(&registry, &wire).unwrap().roots), Some("null"));
+        }
+    }
 }
 
 /// Every indicator displays the original C# sentence byte for byte.

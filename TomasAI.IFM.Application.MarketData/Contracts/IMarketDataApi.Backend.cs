@@ -71,6 +71,11 @@ public partial interface IMarketDataApi
     [MarketDataHostOperation]
     Task<MarketDataReadSnapshot> GetBackendReadSnapshotAsync(CancellationToken cancellationToken = default)
         => Task.FromException<MarketDataReadSnapshot>(new NotSupportedException("Backend cache synchronization is not configured."));
+    /// <summary>Acquires a bounded, complete EMA bootstrap independently of ordinary indicator warmup.</summary>
+    [MarketDataHostOperation]
+    Task<TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal.FuturesTradeSessionBarReadModel[]> ReadEmaSeedBarsAsync(
+        string contractId, TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType timeFrame, int count, CancellationToken cancellationToken = default)
+        => Task.FromException<TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal.FuturesTradeSessionBarReadModel[]>(new NotSupportedException("EMA historical acquisition is not configured."));
     [MarketDataHostOperation]
     Task<TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesContractV3ReadModel[]> PrepareSessionAsync(DateOnly valueDate, CancellationToken cancellationToken = default)
         => Task.FromException<TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesContractV3ReadModel[]>(new NotSupportedException("Backend session preparation is not configured."));

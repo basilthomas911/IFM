@@ -387,14 +387,16 @@ public static class MarketDataDbContextExtensions
         /// <summary>Validates and executes the bounded seed or evidence persistence operation.</summary>
         internal async Task<IReadOnlyList<FuturesTradeSessionBarReadModel>> ReadQualifiedIndicatorSeedsCoreAsync(string contractId,
             TimeFrameType frame, DateOnly valueDate, DateTimeOffset[] intervalEndsUtc, string sourceVersion,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken, MarketSeriesIdentity? seriesIdentity)
         {
             if (intervalEndsUtc.Length == 0) return [];
-        var preparedParameters10 = new IndicatorSeedCoverageKey(contractId, frame, valueDate, intervalEndsUtc, sourceVersion);
+        var preparedParameters10 = new IndicatorSeedCoverageKey(contractId, frame, valueDate, intervalEndsUtc, sourceVersion, seriesIdentity);
 
             return (await context.Database.Use(nameof(MarketDataDbSql.GetQualifiedIndicatorSeedBars), MarketDataDbSql.GetQualifiedIndicatorSeedBars)
             .SetParameters(preparedParameters10)
-            .ExecuteQueryAsync((row) => MarketDataDbContext.MapToReadQualifiedIndicatorSeedsCoreRow3(row, contractId, frame, valueDate), cancellationToken)
+            .ExecuteQueryAsync(row => row.IsNull(17) && seriesIdentity is { } series
+                ? MarketDataDbContext.MapToStoredTradeSessionBar(row, contractId, frame, valueDate) with { MarketSeriesIdentity = series }
+                : MarketDataDbContext.MapToReadQualifiedIndicatorSeedsCoreRow3(row, contractId, frame, valueDate), cancellationToken)
             .ConfigureAwait(false)).ToArray();
         }
 
@@ -1033,14 +1035,14 @@ public static class MarketDataDbContextExtensions
         /// <param name="sequenceId">The sequence id used by this operation.</param>
         /// <returns>The typed result of the market-data query or mutation.</returns>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal InsertFuturesItiSignal CreateFuturesItiSignalParameters(long sequenceId) => new(e.ContractId, e.ValueDate, e.TimePeriod.ToStringFast(), sequenceId, e.IntrinsicTime, e.IntrinsicTimeGroupId, e.IntrinsicTimeLength, e.IntrinsicPrice, e.IntrinsicTimeTrend.ToStringFast(), e.IntrinsicTimeMode.ToStringFast(), e.TrendPrice, e.TrendExtreme, e.TrendReversal, e.TrendDelta, e.TargetDelta, e.Lambda, e.TradingDays, e.Threshold, e.UpTrendTrigger, e.DownTrendTrigger, e.TradeState.ToStringFast(), e.BandLevel, e.ReversalLevel);
+        internal InsertFuturesItiSignal CreateFuturesItiSignalParameters(long sequenceId) => new(e.ContractId, e.ValueDate, e.TimePeriod.ToStringFast(), sequenceId, e.IntrinsicTime, e.IntrinsicTimeGroupId, e.IntrinsicTimeLength, e.IntrinsicPrice, e.IntrinsicTimeTrend.ToStringFast(), e.IntrinsicTimeMode.ToStringFast(), e.TrendPrice, e.TrendExtreme, e.TrendReversal, e.TrendDelta, e.TargetDelta, e.Lambda, e.TradingDays, e.Threshold, e.UpTrendTrigger, e.DownTrendTrigger, e.TradeState.ToStringFast(), e.BandLevel, e.ReversalLevel, e.TrendVelocity);
         /// <summary>
         /// Performs the <c>CreateFuturesItiSignalMonthParameters</c> operation for MarketDataDb persistence.
         /// </summary>
         /// <param name="sequenceId">The sequence id used by this operation.</param>
         /// <returns>The typed result of the market-data query or mutation.</returns>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal InsertFuturesItiSignalByContractMonth CreateFuturesItiSignalMonthParameters(long sequenceId) => new(MarketDataDbContextExtensions.ToYearMonth(e.ValueDate), e.ContractId, e.ValueDate, e.TimePeriod.ToStringFast(), sequenceId, e.IntrinsicTime, e.IntrinsicTimeGroupId, e.IntrinsicTimeLength, e.IntrinsicPrice, e.IntrinsicTimeTrend.ToStringFast(), e.IntrinsicTimeMode.ToStringFast(), e.TrendPrice, e.TrendExtreme, e.TrendReversal, e.TrendDelta, e.TargetDelta, e.Lambda, e.TradingDays, e.Threshold, e.UpTrendTrigger, e.DownTrendTrigger, e.TradeState.ToStringFast(), e.BandLevel, e.ReversalLevel);
+        internal InsertFuturesItiSignalByContractMonth CreateFuturesItiSignalMonthParameters(long sequenceId) => new(MarketDataDbContextExtensions.ToYearMonth(e.ValueDate), e.ContractId, e.ValueDate, e.TimePeriod.ToStringFast(), sequenceId, e.IntrinsicTime, e.IntrinsicTimeGroupId, e.IntrinsicTimeLength, e.IntrinsicPrice, e.IntrinsicTimeTrend.ToStringFast(), e.IntrinsicTimeMode.ToStringFast(), e.TrendPrice, e.TrendExtreme, e.TrendReversal, e.TrendDelta, e.TargetDelta, e.Lambda, e.TradingDays, e.Threshold, e.UpTrendTrigger, e.DownTrendTrigger, e.TradeState.ToStringFast(), e.BandLevel, e.ReversalLevel, e.TrendVelocity);
         /// <summary>
         /// Performs the <c>CreateFuturesItiTimeFrameStateParameters</c> operation for MarketDataDb persistence.
         /// </summary>
@@ -1048,7 +1050,7 @@ public static class MarketDataDbContextExtensions
         /// <returns>The typed result of the market-data query or mutation.</returns>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1244", Justification = "Zero is the explicit missing-value sentinel in the persisted pricing contract; approximate comparison would classify valid nonzero values as missing.")]
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal UpsertFuturesItiTimeFrameState CreateFuturesItiTimeFrameStateParameters(long sequenceId) => new(e.ContractId, e.TimePeriod.ToStringFast(), MarketDataDbContextExtensions.GetFuturesItiCalendarBucketStart(e.ValueDate, e.TimePeriod), e.TimeFrameStartValueDate == default ? e.ValueDate : e.TimeFrameStartValueDate, e.ValueDate, sequenceId, e.IntrinsicTime, e.IntrinsicTimeGroupId, e.IntrinsicTimeLength, e.IntrinsicPrice, e.IntrinsicTimeTrend.ToStringFast(), e.IntrinsicTimeMode.ToStringFast(), e.TrendPrice, e.TrendExtreme, e.TrendReversal, e.TrendDelta, e.TargetDelta, e.Lambda, e.TradingDays, e.Threshold, e.UpTrendTrigger, e.DownTrendTrigger, e.TradeState.ToStringFast(), e.BandAnchorPrice == 0 ? e.IntrinsicPrice : e.BandAnchorPrice, e.BandPercentage == 0 ? 0.20 : e.BandPercentage, e.BandSize == 0 ? e.Threshold * 0.20 : e.BandSize, e.BandLevel, e.ReversalLevel);
+        internal UpsertFuturesItiTimeFrameState CreateFuturesItiTimeFrameStateParameters(long sequenceId) => new(e.ContractId, e.TimePeriod.ToStringFast(), MarketDataDbContextExtensions.GetFuturesItiCalendarBucketStart(e.ValueDate, e.TimePeriod), e.TimeFrameStartValueDate == default ? e.ValueDate : e.TimeFrameStartValueDate, e.ValueDate, sequenceId, e.IntrinsicTime, e.IntrinsicTimeGroupId, e.IntrinsicTimeLength, e.IntrinsicPrice, e.IntrinsicTimeTrend.ToStringFast(), e.IntrinsicTimeMode.ToStringFast(), e.TrendPrice, e.TrendExtreme, e.TrendReversal, e.TrendDelta, e.TargetDelta, e.Lambda, e.TradingDays, e.Threshold, e.UpTrendTrigger, e.DownTrendTrigger, e.TradeState.ToStringFast(), e.BandAnchorPrice == 0 ? e.IntrinsicPrice : e.BandAnchorPrice, e.BandPercentage == 0 ? 0.20 : e.BandPercentage, e.BandSize == 0 ? e.Threshold * 0.20 : e.BandSize, e.BandLevel, e.ReversalLevel, e.TrendVelocity);
     }
 
     extension(IObjectDataRecord value)

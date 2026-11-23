@@ -18,10 +18,37 @@ fn appended_strategy_workflow_identity_preserves_trade_order_decoding() {
     fields[6] = "StrategyWorkflow".into();
     let previous = TradeOrderDefinition::from_backend(&rmpv::Value::Array(fields.clone())).unwrap();
     fields.push("01a1c348-260f-728e-9d02-d2c5061908ef".into());
-    let current = TradeOrderDefinition::from_backend(&rmpv::Value::Array(fields)).unwrap();
+    let mut current = TradeOrderDefinition::from_backend(&rmpv::Value::Array(fields)).unwrap();
+    assert_eq!(
+        current.strategy_workflow_id.as_deref(),
+        Some("01a1c348-260f-728e-9d02-d2c5061908ef")
+    );
+    current.strategy_workflow_id = None;
     assert_eq!(current, previous);
     assert_eq!(current.revision, Some(7));
     assert_eq!(current.origin.as_deref(), Some("StrategyWorkflow"));
+}
+
+/// The appended futures watermark preserves older saved plans and their existing fields.
+#[test]
+fn futures_trailing_watermark_decodes_with_and_without_the_appended_slot() {
+    let mut fields = vec![rmpv::Value::Nil; 20];
+    fields[0] = 1i32.into();
+    let previous = StrategyTradePlanSnapshot::from_backend(&rmpv::Value::Array(fields.clone())).unwrap();
+    assert!(previous.futures_trailing_extreme_price.is_none());
+    let registry = Registry::compiled().unwrap();
+    let legacy = ifm_ui_egui::services::parameters::document(
+        &registry, StrategyTradePlanSnapshot::KIND, &rmpv::Value::Array(fields.clone()), true,
+    ).unwrap();
+    assert!(legacy["FuturesTrailingExtremePrice"].is_null());
+    assert!(ifm_ui_egui::services::parameters::document(
+        &registry, StrategyTradePlanSnapshot::KIND, &rmpv::Value::Array(fields[..19].to_vec()), true,
+    ).is_err());
+    fields.push("5012.25".into());
+    let mut current = StrategyTradePlanSnapshot::from_backend(&rmpv::Value::Array(fields)).unwrap();
+    assert!(current.futures_trailing_extreme_price.is_some());
+    current.futures_trailing_extreme_price = None;
+    assert_eq!(current, previous);
 }
 
 /// Overshoot modes preserve the numeric backend contract and expose their names in typed and schema views.

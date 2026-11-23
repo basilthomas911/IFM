@@ -56,7 +56,10 @@ public sealed class IronCondorTradePlanFunctionStateRepository(IEventSourceActor
                     {
                         await transaction.AppendAsync(new EnlistedEventAppend(request.StreamId, request.CommandId, source, version++), token).ConfigureAwait(false);
                         if (source is IronCondorTradePlanUpdatedEvent snapshot)
+                        {
                             await TradePlanProjectionWriter.WriteAcceptedAsync(dbFactory.TradePlanDb.DbWriter, transaction, snapshot.Plan, token).ConfigureAwait(false);
+                            await IronCondorAutomaticExitDispatcher.EnqueueAsync(transaction,snapshot,token).ConfigureAwait(false);
+                        }
                     }
 
                     return true;

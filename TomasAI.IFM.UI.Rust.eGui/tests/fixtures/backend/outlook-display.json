@@ -6,9 +6,9 @@
     "expected": {
       "cells": {
         "marketDirection": {
-          "value": "Down",
-          "foreground": "DarkText",
-          "background": "Negative"
+          "value": "Unavailable",
+          "foreground": "LightText",
+          "background": "DarkSurface"
         },
         "marketVolatility": {
           "value": "Low",
@@ -216,9 +216,9 @@
     "expected": {
       "cells": {
         "marketDirection": {
-          "value": "Down",
-          "foreground": "DarkText",
-          "background": "Negative"
+          "value": "Unavailable",
+          "foreground": "LightText",
+          "background": "DarkSurface"
         },
         "marketVolatility": {
           "value": "Low",
@@ -426,9 +426,9 @@
     "expected": {
       "cells": {
         "marketDirection": {
-          "value": "Up",
+          "value": "StronglyBullish",
           "foreground": "DarkText",
-          "background": "Caution"
+          "background": "Positive"
         },
         "marketVolatility": {
           "value": "Low",
@@ -636,9 +636,9 @@
     "expected": {
       "cells": {
         "marketDirection": {
-          "value": "Up",
+          "value": "StronglyBullish",
           "foreground": "DarkText",
-          "background": "Caution"
+          "background": "Positive"
         },
         "marketVolatility": {
           "value": "Low",
@@ -846,9 +846,9 @@
     "expected": {
       "cells": {
         "marketDirection": {
-          "value": "Up",
+          "value": "StronglyBullish",
           "foreground": "DarkText",
-          "background": "Caution"
+          "background": "Positive"
         },
         "marketVolatility": {
           "value": "Low",
@@ -1056,9 +1056,9 @@
     "expected": {
       "cells": {
         "marketDirection": {
-          "value": "Up",
+          "value": "StronglyBullish",
           "foreground": "DarkText",
-          "background": "Caution"
+          "background": "Positive"
         },
         "marketVolatility": {
           "value": "Low",
@@ -1266,9 +1266,9 @@
     "expected": {
       "cells": {
         "marketDirection": {
-          "value": "Up",
+          "value": "StronglyBullish",
           "foreground": "DarkText",
-          "background": "Caution"
+          "background": "Positive"
         },
         "marketVolatility": {
           "value": "Low",
@@ -1476,9 +1476,9 @@
     "expected": {
       "cells": {
         "marketDirection": {
-          "value": "Up",
+          "value": "StronglyBullish",
           "foreground": "DarkText",
-          "background": "Caution"
+          "background": "Positive"
         },
         "marketVolatility": {
           "value": "Low",

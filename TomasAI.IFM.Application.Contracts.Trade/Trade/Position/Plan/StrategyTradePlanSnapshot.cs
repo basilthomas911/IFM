@@ -33,4 +33,10 @@ public sealed record StrategyTradePlanSnapshot
     [Key(18)] public DateTime CalculatedAtUtc { get; init; }
     /// <summary>Gets strategy-specific legacy monitoring values while retaining old generic snapshots.</summary>
     [Key(19)] public IronCondorTradePlanSnapshot? IronCondorTradePlanSnapshot { get; init; }
+    /// <summary>Best observed outright-futures price since entry; null identifies plans created before point-based trailing stops.</summary>
+    [Key(20)] public decimal? FuturesTrailingExtremePrice { get; init; }
+    [Key(21)] [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public decimal? FuturesStopPrice { get; init; }
+    [Key(22)] [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public bool FuturesTrailTightened { get; init; }
 }

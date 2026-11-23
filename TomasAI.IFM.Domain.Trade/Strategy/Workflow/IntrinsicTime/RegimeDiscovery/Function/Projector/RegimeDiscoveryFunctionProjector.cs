@@ -18,7 +18,9 @@ public sealed class RegimeDiscoveryFunctionProjector(IDbContextFactory dbFactory
         ArgumentNullException.ThrowIfNull(completed);
         var result = completed.Result.ReadRegimeResult();
         // The projection stores the recorded typed result as a binary payload.
-        var payload = string.Equals(completed.Result.ContentType, Shared.Strategy.Workflow.IntrinsicTime.Model.StrategyStageResultEnvelope.TypedRegimeContentType, StringComparison.Ordinal) ? MessagePackSerializer.Serialize(result, cancellationToken: cancellationToken) : completed.Result.Payload.ToArray();
+        var payload = completed.Result.ContentType is Shared.Strategy.Workflow.IntrinsicTime.Model.StrategyStageResultEnvelope.TypedRegimeContentType
+            or Shared.Strategy.Workflow.IntrinsicTime.Model.StrategyStageResultEnvelope.TypedRegimeContentTypeV2
+            ? MessagePackSerializer.Serialize(result, cancellationToken: cancellationToken) : completed.Result.Payload.ToArray();
         await _dbFactory.TradeDb.UpsertRegimeDiscoveryAsync(new RegimeDiscoveryReadModel { WorkflowId = completed.WorkflowId, WorkflowEntityId = completed.EntityId.Format(), InputWorkflowRevision = completed.InputWorkflowRevision, CommandId = completed.CommandId, SourceEventId = completed.Id, // Projection intentionally precedes the PostgreSQL commit, so no event sequence exists yet.
         SourceEventSequence = 0, Status = "Completed", ParameterPayloadSha256 = completed.ParameterPayloadSha256, SignalSnapshotId = completed.SignalSnapshotId, ResultPayload = payload, ResultPayloadSha256 = Shared.Strategy.Workflow.IntrinsicTime.Model.StrategyStageResultEnvelope.ComputePayloadSha256(payload), ReasonsPayload = MessagePackSerializer.Serialize(result.Reasons, cancellationToken: cancellationToken), SchemaVersion = completed.Result.SchemaVersion, TerminalAtUtc = completed.CompletedAtUtc, UpdatedAtUtc = completed.CompletedAtUtc }, cancellationToken).ConfigureAwait(false);
     }

@@ -30,6 +30,8 @@ public sealed record EstablishedTradeDefinition
     /// <summary>Query-enriched execution-backed opening snapshot, never synthesized in the frontend.</summary>
     [Key(16)] public StrategyPositionSnapshot? OpeningPositionSnapshot { get; init; }
     [Key(17)] public StrategyPositionHistoryValuation? OpeningHistoryValuation { get; init; }
+    [Key(18)] [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public DailyFuturesEntryState? DailyFuturesEntry { get; init; }
     /// <summary>The execution-derived futures session date; no date is assigned before accepted fills establish the trade.</summary>
     [IgnoreMember] public DateOnly? TradeDate => EstablishedAtUtc == default ? null
         : TomasAI.IFM.Domain.MarketData.Shared.FuturesTradingValueDate.GetOperational(new DateTimeOffset(EstablishedAtUtc));

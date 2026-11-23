@@ -20,6 +20,7 @@ public sealed class NativeDatasetBackend : IAsyncDisposable
     readonly NativeColdBackend cold;
     readonly Lazy<bool> history;
     readonly object disposalGate=new();
+    readonly NativeSessionStartRequests starts=new();
     readonly ILogger<NativeDatasetBackend> logger;
     Task? disposal;
     /// <summary>Command/query handle; it exposes no physical provider resource.</summary>
@@ -92,14 +93,18 @@ public sealed class NativeDatasetBackend : IAsyncDisposable
     /// <summary>Accepts background and futures intent without managed preparation.
     /// Only the native futures readiness observer gates session start; optional
     /// background discovery owns its independent native deadline and error path.</summary>
-    public async Task StartAsync(DateOnly date,NativeOwnedFuturesDemand[] demands,CancellationToken token)
+    public Task StartAsync(DateOnly date,NativeOwnedFuturesDemand[] demands,CancellationToken token)
+        => starts.StartAsync(date,()=>StartCoreAsync(date,demands,CancellationToken.None),token);
+
+    async Task StartCoreAsync(DateOnly date,NativeOwnedFuturesDemand[] demands,CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
         var previous=Runtime.ReadDatasetOwnerBackendStatus(true).HostInstanceId;
         var elapsed=System.Diagnostics.Stopwatch.StartNew();
         logger.LogInformation("Market opening retiring native owner {PreviousOwner} for API ValueDate {ValueDate}; Host PID {ProcessId} remains running",previous,date,Environment.ProcessId);
         // Rust owns cancellation, joined retirement and fresh session creation.
-        // This is an explicit opening command even when the old feeds still run.
+        // Duplicate starts for this session join the original operation. A new
+        // date or an explicit completed stop permits another opening.
         await Runtime.ReinitializeDatasetOwnerAsync(date,token).ConfigureAwait(false);
         logger.LogInformation("Market opening joined native owner {PreviousOwner}; fresh owner {Owner} admitted for API ValueDate {ValueDate} after {ElapsedMilliseconds} ms",previous,Runtime.ReadDatasetOwnerBackendStatus(true).HostInstanceId,date,elapsed.Elapsed.TotalMilliseconds);
         _=history.Value;
@@ -109,11 +114,14 @@ public sealed class NativeDatasetBackend : IAsyncDisposable
         logger.LogInformation("Market opening native futures ready for API ValueDate {ValueDate} after {ElapsedMilliseconds} ms",date,elapsed.Elapsed.TotalMilliseconds);
     }
     /// <summary>Native cancellation and join, independent of every C# consumer.</summary>
-    public Task StopAsync(CancellationToken token=default)
+    public async Task StopAsync(CancellationToken token=default)
     {
         // DI may dispose the API alias after the Host lifetime has already joined
         // the root. Observe that same join instead of calling a freed FFI handle.
-        lock(disposalGate)return disposal is{} retired?retired.WaitAsync(token):session.StopAsync(token);
+        Task stopped;
+        lock(disposalGate)stopped=disposal is{} retired?retired.WaitAsync(token):session.StopAsync(token);
+        await stopped.ConfigureAwait(false);
+        starts.Stopped();
     }
     /// <summary>Joins the native root once. Repeated Host/DI disposal observes the
     /// same result and cannot submit commands to an already freed runtime.</summary>

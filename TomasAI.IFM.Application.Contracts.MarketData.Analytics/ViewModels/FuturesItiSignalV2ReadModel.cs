@@ -101,6 +101,20 @@ public record FuturesItiSignalV2ReadModel
     /// </summary>
     [Key(26)] public double ReversalLevel { get; init; }
 
+    /// <summary>Elapsed market-time milliseconds since the preceding ITI event for this contract and timeframe.</summary>
+    [Key(27)]
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    public double? TrendVelocity { get; init; }
+    [Key(28)] [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public DailyItiAtrThreshold? DailyAtr { get; init; }
+
+    /// <summary>Measures the elapsed milliseconds from this event to the supplied market timestamp.</summary>
+    public double? ElapsedMillisecondsTo(DateTime timestamp) =>
+        IntrinsicTime != default && timestamp >= IntrinsicTime
+            ? (timestamp - IntrinsicTime).TotalMilliseconds
+            : null;
+
     /// <summary>Entity identifier (contract + value date). Not serialized.</summary>
     [JsonIgnore]
     [IgnoreMember]
@@ -147,7 +161,8 @@ public record FuturesItiSignalV2ReadModel
         double bandPercentage = 0,
         double bandSize = 0,
         double bandLevel = 0,
-        double reversalLevel = 0)
+        double reversalLevel = 0,
+        double? trendVelocity = null)
     {
         ContractId = contractId;
         ValueDate = valueDate;
@@ -176,6 +191,7 @@ public record FuturesItiSignalV2ReadModel
         BandSize = bandSize;
         BandLevel = bandLevel;
         ReversalLevel = reversalLevel;
+        TrendVelocity = trendVelocity;
     }
 
     /// <summary>

@@ -1685,7 +1685,7 @@ internal readonly record struct InsertFuturesIntraDayData(string contractId, Dat
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
-internal readonly record struct InsertFuturesItiSignal(string contractId, DateOnly valueDate, string timePeriod, long sequenceId, DateTime intrinsicTime, int intrinsicTimeGroupId, double intrinsicTimeLength, double intrinsicPrice, string intrinsicTimeTrend, string intrinsicTimeMode, double trendPrice, double trendExtreme, double trendReversal, double trendDelta, double targetDelta, double lambda, int tradingDays, double threshold, double upTrendTrigger, double downTrendTrigger, string tradeState, double bandLevel, double reversalLevel) : IBindValue
+internal readonly record struct InsertFuturesItiSignal(string contractId, DateOnly valueDate, string timePeriod, long sequenceId, DateTime intrinsicTime, int intrinsicTimeGroupId, double intrinsicTimeLength, double intrinsicPrice, string intrinsicTimeTrend, string intrinsicTimeMode, double trendPrice, double trendExtreme, double trendReversal, double trendDelta, double targetDelta, double lambda, int tradingDays, double threshold, double upTrendTrigger, double downTrendTrigger, string tradeState, double bandLevel, double reversalLevel, double? trendVelocity) : IBindValue
 {
     public object Bind() => new object?[]
     {
@@ -1711,15 +1711,16 @@ internal readonly record struct InsertFuturesItiSignal(string contractId, DateOn
         Double(downTrendTrigger),
         Text(tradeState),
         Double(bandLevel),
-        Double(reversalLevel)
+        Double(reversalLevel),
+        Double(trendVelocity)
     };
 }
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
-internal readonly record struct InsertFuturesItiSignalByContractMonth(int yearMonth, string contractId, DateOnly valueDate, string timePeriod, long sequenceId, DateTime intrinsicTime, int intrinsicTimeGroupId, double intrinsicTimeLength, double intrinsicPrice, string intrinsicTimeTrend, string intrinsicTimeMode, double trendPrice, double trendExtreme, double trendReversal, double trendDelta, double targetDelta, double lambda, int tradingDays, double threshold, double upTrendTrigger, double downTrendTrigger, string tradeState, double bandLevel, double reversalLevel) : IBindValue
+internal readonly record struct InsertFuturesItiSignalByContractMonth(int yearMonth, string contractId, DateOnly valueDate, string timePeriod, long sequenceId, DateTime intrinsicTime, int intrinsicTimeGroupId, double intrinsicTimeLength, double intrinsicPrice, string intrinsicTimeTrend, string intrinsicTimeMode, double trendPrice, double trendExtreme, double trendReversal, double trendDelta, double targetDelta, double lambda, int tradingDays, double threshold, double upTrendTrigger, double downTrendTrigger, string tradeState, double bandLevel, double reversalLevel, double? trendVelocity) : IBindValue
 {
-    public object Bind() => new object?[] { contractId, yearMonth, valueDate, timePeriod, sequenceId, intrinsicTime, intrinsicTimeGroupId, intrinsicTimeLength, intrinsicPrice, intrinsicTimeTrend, intrinsicTimeMode, trendPrice, trendExtreme, trendReversal, trendDelta, targetDelta, lambda, tradingDays, threshold, upTrendTrigger, downTrendTrigger, tradeState, bandLevel, reversalLevel };
+    public object Bind() => new object?[] { contractId, yearMonth, valueDate, timePeriod, sequenceId, intrinsicTime, intrinsicTimeGroupId, intrinsicTimeLength, intrinsicPrice, intrinsicTimeTrend, intrinsicTimeMode, trendPrice, trendExtreme, trendReversal, trendDelta, targetDelta, lambda, tradingDays, threshold, upTrendTrigger, downTrendTrigger, tradeState, bandLevel, reversalLevel, trendVelocity };
 }
 
 
@@ -2363,7 +2364,7 @@ internal readonly record struct UpdateVixFuturesEodData(string contractId, DateO
 
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
-internal readonly record struct UpsertFuturesItiTimeFrameState(string contractId, string timePeriod, DateOnly calendarBucketStart, DateOnly timeFrameStartValueDate, DateOnly valueDate, long sequenceId, DateTime intrinsicTime, int intrinsicTimeGroupId, double intrinsicTimeLength, double intrinsicPrice, string intrinsicTimeTrend, string intrinsicTimeMode, double trendPrice, double trendExtreme, double trendReversal, double trendDelta, double targetDelta, double lambda, int tradingDays, double threshold, double upTrendTrigger, double downTrendTrigger, string tradeState, double bandAnchorPrice, double bandPercentage, double bandSize, double bandLevel, double reversalLevel) : IBindValue
+internal readonly record struct UpsertFuturesItiTimeFrameState(string contractId, string timePeriod, DateOnly calendarBucketStart, DateOnly timeFrameStartValueDate, DateOnly valueDate, long sequenceId, DateTime intrinsicTime, int intrinsicTimeGroupId, double intrinsicTimeLength, double intrinsicPrice, string intrinsicTimeTrend, string intrinsicTimeMode, double trendPrice, double trendExtreme, double trendReversal, double trendDelta, double targetDelta, double lambda, int tradingDays, double threshold, double upTrendTrigger, double downTrendTrigger, string tradeState, double bandAnchorPrice, double bandPercentage, double bandSize, double bandLevel, double reversalLevel, double? trendVelocity) : IBindValue
 {
     public object Bind() => new object?[]
     {
@@ -2394,7 +2395,8 @@ internal readonly record struct UpsertFuturesItiTimeFrameState(string contractId
         Double(bandPercentage),
         Double(bandSize),
         Double(bandLevel),
-        Double(reversalLevel)
+        Double(reversalLevel),
+        Double(trendVelocity)
     };
 }
 
@@ -2608,10 +2610,11 @@ internal readonly record struct HistoricalAnalyticsAttemptProjectionParameter(Gu
 }
 
 internal readonly record struct IndicatorSeedCoverageKey(string ContractId, TimeFrameType Frame, DateOnly Date,
-        DateTimeOffset[] Ends, string SourceVersion) : IBindValue
+        DateTimeOffset[] Ends, string SourceVersion, MarketSeriesIdentity? SeriesIdentity) : IBindValue
     {
-        public object Bind() => new object?[] { MarketSeriesIdentity.ForContract(ContractId).Format(), Frame.ToString(),
-            checked(Date.Year * 100 + Date.Month), Ends.Select(end => end.UtcDateTime).ToArray(), ContractId, Date, SourceVersion };
+        public object Bind() => new object?[] { (SeriesIdentity ?? MarketSeriesIdentity.ForContract(ContractId)).Format(), Frame.ToString(),
+            checked(Date.Year * 100 + Date.Month), Ends.Select(end => end.UtcDateTime).ToArray(), ContractId, Date, SourceVersion,
+            SeriesIdentity is { Kind: MarketSeriesIdentityKind.FuturesContinuation } };
     }
 
 internal readonly record struct IndicatorSeedCoverageBatch(string SourceVersion, FuturesTradeSessionBarReadModel[] Bars) : IBindValue

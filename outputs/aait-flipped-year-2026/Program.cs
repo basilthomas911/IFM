@@ -9,6 +9,11 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 
 var input = Path.GetFullPath(args[0]);
 var output = args[1];
+var delayed = args.Contains("--delayed");
+var shortTrailOption = Array.IndexOf(args, "--short-trail");
+var shortTrail = shortTrailOption < 0 ? 5.0
+    : double.Parse(args[shortTrailOption + 1], CultureInfo.InvariantCulture);
+Require(shortTrail > 0 && shortTrail <= 5 && shortTrail * 4 == Math.Truncate(shortTrail * 4));
 var source = Path.GetDirectoryName(input)!;
 var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true, PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower };
 var manifest = JsonSerializer.Deserialize<Manifest>(File.ReadAllText(input), options)!;
@@ -103,7 +108,8 @@ Parallel.For(0, days.Length, new ParallelOptions { MaxDegreeOfParallelism = 8 },
         if (entryRow >= row || ticks[entryRow] >= end) continue;
         var entry = prices[entryRow];
         var best = entry;
-        var distance = (int)Math.Ceiling(c.Threshold * 4);
+        var thresholdTicks = (int)Math.Ceiling(c.Threshold * 4);
+        var distance = c.Sign < 0 ? (int)(shortTrail * 4) : thresholdTicks;
         var exitRow = entryRow + 1;
         bool stopped;
         while (true)
@@ -116,7 +122,8 @@ Parallel.For(0, days.Length, new ParallelOptions { MaxDegreeOfParallelism = 8 },
             }
             var price = prices[exitRow];
             if (c.Sign * (price - best) > 0) best = price;
-            if (c.Sign * (best - price) >= distance)
+            var stopAnchor = delayed && c.Sign * (best - entry) < thresholdTicks ? entry : best;
+            if (c.Sign * (stopAnchor - price) >= distance)
             {
                 stopped = true;
                 break;
@@ -125,7 +132,7 @@ Parallel.For(0, days.Length, new ParallelOptions { MaxDegreeOfParallelism = 8 },
         }
         var exit = prices[exitRow];
         resolved.Add(new Trade(c, entryRow + 1, exitRow + 1, entry / 4.0, exit / 4.0,
-            best / 4.0, stopped, c.Sign * (best - entry) >= distance, c.Sign * (exit - entry) * 12.5));
+            best / 4.0, stopped, c.Sign * (best - entry) >= thresholdTicks, c.Sign * (exit - entry) * 12.5));
     }
     days[index] = new Day(file.ValueDate, file.ContractId, row, signalCount, dcCount, ticks[row - 1] >= end, resolved);
     if ((index + 1) % 20 == 0) Console.WriteLine($"{date}: {index + 1}/{days.Length}");

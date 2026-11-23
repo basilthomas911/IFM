@@ -36,6 +36,7 @@ public sealed class StrategyPositionActorStateMachine
 
         _orderedLegIds = _legs.Keys.Order().ToArray();
         Current = StrategyPositionCurrencyPnl.Apply(Build(new StrategyPositionId(trade.Id, positionId), trade.StrategyKind, StrategyPositionPhase.Open, 1, 1, openedAtUtc, true, 0), trade);
+        Current = Current with { DailyFuturesEntry = trade.DailyFuturesEntry };
         return TradeDecision<StrategyPositionSnapshot>.Accept(Current);
     }
 
@@ -266,7 +267,8 @@ public sealed class StrategyPositionActorStateMachine
             HistoryAsOfUtc = reuseDailyRow ? Current!.HistoryAsOfUtc : asOfUtc,
             HistoryPositionSequence = reuseDailyRow ? Current!.HistoryPositionSequence : sequence,
             OpeningCommission = Current?.OpeningCommission, OpeningValueDate = Current?.OpeningValueDate,
-            ContractCashMultiplier = Current?.ContractCashMultiplier
+            ContractCashMultiplier = Current?.ContractCashMultiplier,
+            DailyFuturesEntry = Current?.DailyFuturesEntry
         });
     }
 

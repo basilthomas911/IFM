@@ -11,7 +11,7 @@ namespace TomasAI.IFM.Domain.Trade.Futures.Position.Realtime;
 public static class FuturesPositionChanged
 {
 
-    extension(FuturesPositionChangedEvent changed)
+    extension(TomasAI.IFM.Domain.Trade.Shared.Trade.Position.PositionChangedEvent changed)
     {
         public async ValueTask ExecuteAsync(IFuturesTradePositionRealtimeContext context)
         {
@@ -37,7 +37,9 @@ public static class FuturesPositionChanged
             var completed = terminal.Completed!;
             if (!completed.Plan.RequiresExit || completed.Plan.State != TradePlanState.ExitRequired)
                 return;
-            var workflowId = new ExitPositionWorkflowId(changed.State.Id, valueDate, TradePlanContractIdentity.DeterministicId($"{completed.Id:N}|{completed.Plan.ReasonCode}|FuturesExit"));
+            var workflowId = new ExitPositionWorkflowId(changed.State.Id, valueDate, TradePlanContractIdentity.DeterministicId(
+                changed.State.DailyFuturesEntry is null ? $"{completed.Id:N}|{completed.Plan.ReasonCode}|FuturesExit"
+                    : $"{changed.State.Id.Format()}|{changed.State.RouteGeneration}|DailyFuturesExit"));
             var start = new StartFuturesExitPositionWorkflowCommand
             {
                 CommandId = TradePlanContractIdentity.DeterministicId($"{workflowId.Format()}|{StartFuturesExitPositionWorkflowCommand.Verb}"),

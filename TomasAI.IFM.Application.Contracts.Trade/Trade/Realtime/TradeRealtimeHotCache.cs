@@ -41,6 +41,19 @@ public sealed class TradeRealtimeHotCache
 
     public TradeRealtimeSnapshot Read() => Volatile.Read(ref current);
 
+    /// <summary>Publishes an execution lifecycle transition with an authoritative new revision.</summary>
+    public TradeRealtimeSnapshot PublishLifecycleStatus(string status)
+    {
+        using var mutation = TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.EnterMutation();
+        lock (gate)
+        {
+            if (retired) throw new InvalidOperationException("A retired trade cache cannot publish close progress.");
+            Publish(current);
+            Volatile.Write(ref current, current with { Status = status });
+            return ReadForPublication();
+        }
+    }
+
     /// <summary>UTC deadline for the registry scheduler; reading it never acquires the quote mutation lock.</summary>
     public long NextQualityCheckTicks => Interlocked.Read(ref nextQualityTicks);
 

@@ -29,6 +29,11 @@ pub struct StrategyController {
     symbol: String,
     /// Contract associated with this strategy controller.
     contract: String,
+    current_contract: String,
+    contracts: Vec<String>,
+    assignments: Option<Vec<api::QueueAssignment>>,
+    cursor: Option<api::GridWorkflow>,
+    queue_has_more: bool,
     /// Context required to interpret the current operation or publication.
     context: Option<BusinessContext>,
     /// Frame associated with this strategy controller.
@@ -66,6 +71,11 @@ impl Default for StrategyController {
         Self {
             symbol: std::env::var("IFM_RUST_SYMBOL").unwrap_or("ES".into()),
             contract: String::new(),
+            current_contract: String::new(),
+            contracts: Vec::new(),
+            assignments: None,
+            cursor: None,
+            queue_has_more: false,
             context: None,
             frame: 0,
             views: BTreeMap::new(),
@@ -97,7 +107,9 @@ impl StrategyController {
             return Ok(false);
         };
         if !FRAMES.contains(&frame)
-            || if historical {
+            || if self.assignments.is_some() {
+                contract != self.contract
+            } else if historical {
                 !contract.starts_with(&self.symbol)
             } else {
                 contract != self.contract
@@ -159,7 +171,13 @@ impl StrategyController {
         let header = &row.header;
         if self.context.is_none()
             || !FRAMES.contains(&header.frame.as_str())
-            || !header.entity_contract.starts_with(&self.symbol)
+            || if self.assignments.is_some() {
+                header.entity_contract != self.contract
+                    || header.frame != FRAMES[self.frame]
+                    || self.selected_assignment().is_none_or(|route| header.assignment_key.as_deref() != Some(&route.key))
+            } else {
+                !header.entity_contract.starts_with(&self.symbol)
+            }
         {
             return Ok(false);
         }
@@ -182,7 +200,10 @@ impl StrategyController {
             api::GridWorkflow {
                 row: header.row(0)?,
                 revision,
-                occurred: header.occurred(),
+                occurred: chrono::DateTime::from_timestamp_micros(header.occurred().timestamp_micros())
+                    .ok_or("Invalid workflow signal timestamp")?,
+                signal_sequence: header.signal_sequence,
+                history_order_at: None,
             },
         )?;
         if changed
@@ -230,6 +251,12 @@ impl StrategyController {
         page_only: bool,
     ) -> Result<(), String> {
         let deadline = tokio::time::Instant::now() + backend.default_timeout();
+        let grid_type = api::kind("Queries", "GetIntrinsicTimeStrategyUpdatesGridQuery");
+        if registry.describe(&grid_type).is_ok_and(|shape| shape.members.iter().any(|(name, _, _)| name == "QueueCatalog"))
+            && self.refresh_queue(backend, registry, page_only).await?
+        {
+            return Ok(());
+        }
         let context = tokio::time::timeout_at(deadline, BusinessContext::load(backend))
             .await
             .map_err(|_| "Strategy API clock deadline expired")??;
@@ -350,12 +377,114 @@ impl StrategyController {
         Ok(())
     }
 
+    fn selected_assignment(&self) -> Option<&api::QueueAssignment> {
+        self.assignments.as_ref()?.iter()
+            .find(|assignment| assignment.frame == FRAMES[self.frame] && assignment.accepts(&self.contract))
+    }
+
+    fn reset_queue(&mut self) {
+        self.views.clear();
+        self.live_hashes.clear();
+        self.detail = None;
+        self.signals.clear();
+        self.pages.clear();
+        self.totals.clear();
+        self.tokens.clear();
+        self.selected = None;
+        self.cursor = None;
+        self.queue_has_more = false;
+        self.epoch = uuid::Uuid::new_v4().to_string();
+    }
+
+    async fn refresh_queue(&mut self, backend: &Backend, registry: &Registry, page_only: bool) -> Result<bool, String> {
+        let deadline = || tokio::time::Instant::now() + backend.default_timeout();
+        if page_only && self.assignments.is_none() {
+            return Ok(false);
+        }
+        let context = tokio::time::timeout_at(deadline(), BusinessContext::load(backend))
+            .await.map_err(|_| "Strategy API clock deadline expired")??;
+        if !page_only {
+            let (current, catalog) = tokio::join!(
+                market_history::current_contract(backend, registry, &self.symbol),
+                api::queue_catalog(backend, registry, &self.symbol, deadline()),
+            );
+            let Some((assignments, mut contracts)) = catalog? else { return Ok(false); };
+            let current = current?;
+            if assignments.iter().any(|route| route.accepts(&current)) {
+                contracts.push(current.clone());
+            }
+            contracts.sort_unstable();
+            contracts.dedup();
+            if self.contract.is_empty() || !contracts.contains(&self.contract) {
+                self.reset_queue();
+                self.contract = if contracts.contains(&current) { current.clone() }
+                    else { contracts.first().cloned().unwrap_or_default() };
+            }
+            if !assignments.iter().any(|route| route.frame == FRAMES[self.frame] && route.accepts(&self.contract))
+                && let Some(frame) = FRAMES.iter().position(|frame| assignments.iter().any(|route| route.frame == *frame && route.accepts(&self.contract)))
+            {
+                self.reset_queue();
+                self.frame = frame;
+            }
+            self.current_contract = current;
+            self.assignments = Some(assignments);
+            self.contracts = contracts;
+        }
+        self.context = Some(context.clone());
+        let Some(route) = self.selected_assignment().cloned() else {
+            self.status = "No configured Strategy Updates queue".into();
+            return Ok(true);
+        };
+        let frame = FRAMES[self.frame];
+        let from = chrono::DateTime::UNIX_EPOCH;
+        let to = context.as_of_utc;
+        let page = if page_only { self.pages.get(frame).copied().unwrap_or(1) + 1 } else { 1 };
+        if page_only && (!self.queue_has_more || self.cursor.is_none()) {
+            return Ok(true);
+        }
+        let history = api::workflow_queue_page(backend, registry, &route.root, frame, from, to, page, deadline(),
+            api::QueueScope { contract: &self.contract, assignment: &route.key,
+                before: if page_only { self.cursor.as_ref() } else { None } });
+        let signals = async {
+            if !page_only && self.contract == self.current_contract {
+                api::signal_history(backend, registry, &route.root, &context, frame, deadline()).await
+            } else {
+                Ok(Vec::new())
+            }
+        };
+        let (history, signals) = tokio::join!(history, signals);
+        let (rows, has_more) = history?;
+        if page_only || self.pages.get(frame).copied().unwrap_or(1) <= 1 {
+            self.cursor = rows.last().cloned();
+            self.queue_has_more = has_more;
+            self.pages.insert(frame.into(), page);
+        }
+        for row in rows {
+            self.apply_grid(self.frame, row)?;
+        }
+        for signal in signals? {
+            self.apply_signal(registry, signal, true)?;
+        }
+        self.status = "Listening for strategy and ITI updates".into();
+        Ok(true)
+    }
+
     /// Provides action for the strategy controller implementation.
     pub fn action(&mut self, action: u32) -> Result<(), String> {
         match action {
             10..=12 => {
-                self.frame = (action - 10) as usize;
+                let frame = (action - 10) as usize;
+                if self.frame != frame && self.assignments.is_some() { self.reset_queue(); }
+                self.frame = frame;
                 self.selected = None;
+            }
+            0x2000_0000..=0x2fff_ffff => {
+                let contract = self.contracts.get((action - 0x2000_0000) as usize)
+                    .cloned().ok_or("Strategy signal contract selection is unavailable")?;
+                if self.contract != contract {
+                    self.reset_queue();
+                    self.contract = contract;
+                }
             }
             1000.. => {
                 let key = self
@@ -392,15 +521,36 @@ impl StrategyController {
         let Some(context) = self.context.as_ref() else {
             return Ok(result);
         };
-        let (start, mut end) = api::graph_window(context, frame)?;
+        let (mut start, mut end) = api::graph_window(context, frame)?;
+        if self.assignments.is_some() && self.contract != self.current_contract {
+            start = self.views.values().map(|(_, row)| row.occurred).min().unwrap_or(start);
+        }
+        if let Some(assignments) = &self.assignments {
+            result.strategy_contracts = self.contracts.iter().enumerate().map(|(index, id)| WorkflowChoice {
+                id: id.clone(), label: id.clone(), action: 0x2000_0000 + index as u32,
+            }).collect();
+            result.strategy_timeframes = FRAMES.iter().enumerate()
+                .filter(|(_, frame)| assignments.iter().any(|assignment| assignment.frame == **frame && assignment.accepts(&self.contract)))
+                .map(|(index, frame)| WorkflowChoice { id: (*frame).into(), label: (*frame).into(), action: 10 + index as u32 }).collect();
+            if let Some(route) = self.selected_assignment() {
+                result.strategy_fund = route.fund.clone();
+                result.strategy_family = match route.family.as_str() {
+                    "Future" => "Futures",
+                    "Vertical" => "Verticals",
+                    "IronCondor" => "Iron Condors",
+                    value => value,
+                }.into();
+            }
+        }
         let mut views = self
             .views
             .values()
-            .filter(|(index, row)| *index == self.frame && row.occurred >= start)
+            .filter(|(index, row)| *index == self.frame && (self.assignments.is_some() || row.occurred >= start))
             .map(|(_, row)| row)
             .collect::<Vec<_>>();
         views.sort_by(|left, right| {
-            (right.occurred, &right.row.id).cmp(&(left.occurred, &left.row.id))
+            (right.history_order_at.unwrap_or(right.occurred), right.signal_sequence, &right.row.id)
+                .cmp(&(left.history_order_at.unwrap_or(left.occurred), left.signal_sequence, &left.row.id))
         });
         if self
             .selected
@@ -471,16 +621,17 @@ impl StrategyController {
                 }
             };
             let local = at.with_timezone(&chrono_tz::America::New_York);
+            let mut tooltip = format!("{} ET | {mode} | {price:.2}", local.format("%Y-%m-%d %-I:%M:%S %p"));
+            if let Some(milliseconds) = signal.trend_velocity {
+                tooltip.push_str(&format!(" | TrendVelocity {milliseconds:.3} ms"));
+            }
             result.signals.push(GraphPoint {
                 identity: signal_identity(signal)?,
                 utc_seconds: at.timestamp_millis() as f64 / 1000.,
                 market_seconds: Some(market_history::market_seconds(at)),
                 price,
                 direction: direction.into(),
-                tooltip: format!(
-                    "{} ET | {mode} | {price:.2}",
-                    local.format("%Y-%m-%d %-I:%M:%S %p")
-                ),
+                tooltip,
             });
         }
         result.signals.sort_by(|a, b| {
@@ -494,7 +645,7 @@ impl StrategyController {
         result.page_number = page;
         result.page_count = total.div_ceil(50).max(1);
         result.total_rows = total;
-        result.has_more = page * 50 < total;
+        result.has_more = if self.assignments.is_some() { self.queue_has_more } else { page * 50 < total };
         result.graph_start_utc = start.timestamp_millis() as f64 / 1000.;
         result.graph_end_utc = end.timestamp_millis() as f64 / 1000.;
         result.graph_start_market = Some(market_history::market_seconds(start));

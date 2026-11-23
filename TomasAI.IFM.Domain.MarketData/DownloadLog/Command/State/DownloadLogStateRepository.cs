@@ -77,6 +77,8 @@ public sealed class DownloadLogStateRepository(
                 }
                 return true;
             },cancellationToken).ConfigureAwait(false);
+            if (pending.OfType<MarketDataDownloadLogInsertedEvent>().Any(x => x.Outcome.Dataset == MarketDataDownloadDataset.EconomicCalendar))
+                TomasAI.IFM.Application.Storage.ReadCacheInvalidation.CalendarChanged();
             state.AcceptChanges();
             await DenormalizeEventsAsync(context,pending).ConfigureAwait(false);
             return;

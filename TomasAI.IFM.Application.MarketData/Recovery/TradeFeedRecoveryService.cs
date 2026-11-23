@@ -61,9 +61,9 @@ public sealed class TradeFeedRecoveryService(ITradeFeedRecoveryStore store, ITra
             if (runtime.ActiveDate != date || (!enable && previous is null)) { operation.Complete(); return false; }
             if (definition?.Status != EstablishedTradeStatus.Open)
             {
+                if (previous is not null) await StopAllAsync(previous.OptionContracts.Select(contract => (Owner(trade,date), contract)), token);
                 await store.RemoveAsync(trade, date, token);
                 enabledTrades.TryRemove((trade, date), out _);
-                if (previous is not null) await StopAllAsync(previous.OptionContracts.Select(contract => (Owner(trade,date), contract)), token);
                 operation.Complete();
                 return false;
             }
@@ -109,9 +109,13 @@ public sealed class TradeFeedRecoveryService(ITradeFeedRecoveryStore store, ITra
         try
         {
             var previous = (await store.ReadAsync(date, token)).SingleOrDefault(row => row.TradeId == trade);
+            var closed = previous is not null && (await runtime.LoadAsync(TradeEntityId.Parse(trade),token))?.Status == EstablishedTradeStatus.Closed;
+            // Closed trades cannot restore. Preserve their owner list until release succeeds; explicit OFF on an
+            // open trade still removes enable intent first so a restart cannot silently enable it again.
+            if (closed) await StopAllAsync(previous!.OptionContracts.Select(contract => (Owner(trade,date), contract)), token);
             await store.RemoveAsync(trade, date, token);
             enabledTrades.TryRemove((trade, date), out _);
-            if (previous is not null) await StopAllAsync(previous.OptionContracts.Select(contract => (Owner(trade,date), contract)), token);
+            if (!closed && previous is not null) await StopAllAsync(previous.OptionContracts.Select(contract => (Owner(trade,date), contract)), token);
         }
         finally { serial.Release(); }
     }

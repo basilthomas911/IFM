@@ -95,8 +95,10 @@ public sealed class IntradayFourHourInitializationTests
         Assert.True(Assert.Single(restoredAtr.Events.OfType<FuturesAtrSignalGeneratedEvent>()).FuturesAtrSignal.IsWarm);
         var reinitialized = new FuturesAtrSignalCommandState();
         foreach (var fact in restoredAtr.Events) reinitialized.Apply(fact, false);
-        Assert.False((atrCommand with { CommandId = Guid.NewGuid() }).Execute(reinitialized).Success);
-        Assert.Empty(reinitialized.Events);
+        Assert.True((atrCommand with { CommandId = Guid.NewGuid() }).Execute(reinitialized).Success);
+        Assert.False(Assert.Single(reinitialized.Events.OfType<FuturesAtrSignalStartedEvent>()).ResetForHistoricalSeed);
+        Assert.Empty(reinitialized.Events.OfType<FuturesAtrSignalGeneratedEvent>());
+        Assert.Equal(nextBar.IntervalEndUtc, reinitialized.FuturesAtrCheckpoint!.LastIntervalEndUtc);
         Assert.True(restoredMacd.MacdSignals.Last().IsWarm);
     }
 

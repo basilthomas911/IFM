@@ -380,7 +380,7 @@ public sealed class DatabentoResiliencyTests
             Contract("VX20260916", "VX", new(2026, 9, 16)),
             Contract("VX20261021", "VX", new(2026, 10, 21))]);
         var registry = Substitute.For<IDatabentoContractRegistrationRegistry>();
-        var authority = new DatabentoContractAuthority(store, catalog, registry, TimeProvider.System);
+        using var authority = new DatabentoContractAuthority(store, catalog, registry, TimeProvider.System);
 
         var first = await authority.ReconcileAsync(ValueDate, "test", CancellationToken.None);
         var second = await authority.ReconcileAsync(ValueDate, "test", CancellationToken.None);
@@ -405,7 +405,7 @@ public sealed class DatabentoResiliencyTests
             Assignment(DatabentoContractRole.VxSecondMonth, "VX20261118", new(2026, 11, 18)), 0);
         var catalog = Substitute.For<ICurrentFuturesContractCatalog>();
         var registry = Substitute.For<IDatabentoContractRegistrationRegistry>();
-        var authority = new DatabentoContractAuthority(store, catalog, registry, TimeProvider.System);
+        using var authority = new DatabentoContractAuthority(store, catalog, registry, TimeProvider.System);
 
         var assignments = await authority.ReconcileAsync(ValueDate, "test", CancellationToken.None);
 
@@ -430,7 +430,7 @@ public sealed class DatabentoResiliencyTests
             Contract("VX20261021", "VX", new(2026, 10, 21)),
             Contract("VX20261118", "VX", new(2026, 11, 18))]);
         var registry = Substitute.For<IDatabentoContractRegistrationRegistry>();
-        var authority = new DatabentoContractAuthority(store, catalog, registry, TimeProvider.System);
+        using var authority = new DatabentoContractAuthority(store, catalog, registry, TimeProvider.System);
 
         var assignments = await authority.ReconcileAsync(valueDate, "test", CancellationToken.None);
 
@@ -457,7 +457,7 @@ public sealed class DatabentoResiliencyTests
             Contract("VX20261021", "VX", new(2026, 10, 21)) with { LocalSymbol = "VX/V6" },
             Contract("VX20261118", "VX", new(2026, 11, 18)) with { LocalSymbol = "VX/X6" }]);
         var registry = Substitute.For<IDatabentoContractRegistrationRegistry>();
-        var authority = new DatabentoContractAuthority(store, catalog, registry, TimeProvider.System);
+        using var authority = new DatabentoContractAuthority(store, catalog, registry, TimeProvider.System);
 
         var assignments = await authority.ReconcileAsync(ValueDate, "test", CancellationToken.None);
 
@@ -485,7 +485,7 @@ public sealed class DatabentoResiliencyTests
         catalog.GetFuturesContractsBySymbolAsync("VX", Arg.Any<CancellationToken>()).Returns([
             Contract("VX20260916", "VX", valueDate),
             Contract("VX20261021", "VX", new(2026, 10, 21))]);
-        var authority = new DatabentoContractAuthority(
+        using var authority = new DatabentoContractAuthority(
             store,
             catalog,
             Substitute.For<IDatabentoContractRegistrationRegistry>(),

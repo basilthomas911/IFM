@@ -10,13 +10,24 @@ public sealed class DatabentoContractAuthority(
     IMarketDataServiceStore store,
     ICurrentFuturesContractCatalog sourceCatalog,
     IDatabentoContractRegistrationRegistry registrations,
-    TimeProvider timeProvider) : IDatabentoContractAuthority
+    TimeProvider timeProvider,
+    ICurrentFuturesContractDiscovery? discovery = null) : IDatabentoContractAuthority, IDisposable
 {
+    readonly SemaphoreSlim _reconcileGate = new(1, 1);
+
     public async Task<IReadOnlyList<FuturesRolloverContractAssignment>> ReconcileAsync(
         DateOnly valueDate, string changedBy, CancellationToken cancellationToken)
     {
         ArgumentOutOfRangeException.ThrowIfEqual(valueDate, default);
         ArgumentException.ThrowIfNullOrWhiteSpace(changedBy);
+        await _reconcileGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try { return await ReconcileCoreAsync(valueDate, changedBy, cancellationToken).ConfigureAwait(false); }
+        finally { _reconcileGate.Release(); }
+    }
+
+    async Task<IReadOnlyList<FuturesRolloverContractAssignment>> ReconcileCoreAsync(
+        DateOnly valueDate, string changedBy, CancellationToken cancellationToken)
+    {
         var persisted = await store.ListAssignmentsAsync(cancellationToken).ConfigureAwait(false);
         if (CanReuse(persisted, valueDate))
         {
@@ -27,6 +38,11 @@ public sealed class DatabentoContractAuthority(
         var esSources = Eligible(await sourceCatalog.GetFuturesContractsBySymbolAsync("ES", cancellationToken).ConfigureAwait(false), valueDate)
             .Where(value => value.LastTradeDate.Month is 3 or 6 or 9 or 12).ToArray();
         var vxSources = Eligible(await sourceCatalog.GetFuturesContractsBySymbolAsync("VX", cancellationToken).ConfigureAwait(false), valueDate);
+        if (vxSources.Length < 2 && discovery is not null)
+        {
+            await discovery.EnsureEligibleAsync("VX", valueDate, 2, cancellationToken).ConfigureAwait(false);
+            vxSources = Eligible(await sourceCatalog.GetFuturesContractsBySymbolAsync("VX", cancellationToken).ConfigureAwait(false), valueDate);
+        }
         if (esSources.Length == 0 || vxSources.Length < 2)
             throw new InvalidOperationException("The source catalog must contain one eligible ES and two ordered VX contracts.");
 
@@ -62,6 +78,13 @@ public sealed class DatabentoContractAuthority(
         return reconciled;
     }
 
+    /// <summary>Releases the cold-path reconciliation gate.</summary>
+    public void Dispose()
+    {
+        _reconcileGate.Dispose();
+        GC.SuppressFinalize(this);
+    }
+
     static bool CanReuse(IReadOnlyList<FuturesRolloverContractAssignment> assignments, DateOnly valueDate)
         => assignments.Count == 3
             && assignments.Select(value => value.ContractRole).Distinct().Count() == 3
@@ -88,7 +111,7 @@ public sealed class DatabentoContractAuthority(
             value.SecurityType, value.Currency, value.Exchange, value.Multiplier,
             value.LastTradeDate, onTheRun, true);
 
-    static FuturesContractV3ReadModel[] Eligible(IEnumerable<FuturesContractV3ReadModel> values, DateOnly valueDate)
+    internal static FuturesContractV3ReadModel[] Eligible(IEnumerable<FuturesContractV3ReadModel> values, DateOnly valueDate)
         => [.. values.Where(value => value.IsValid
                 && value.LastTradeDate > valueDate
                 && HasConsistentProviderIdentity(value))

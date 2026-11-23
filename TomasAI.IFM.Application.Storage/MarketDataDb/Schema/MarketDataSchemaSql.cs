@@ -3,6 +3,37 @@ namespace TomasAI.IFM.Application.Storage.MarketDataDb.Schema;
 /// <summary>Contains PostgreSQL schema statements for MarketDataDb.</summary>
 public static class MarketDataSchemaSql
 {
+    public const string PositionEodQuoteEvidenceCreate = """
+        CREATE TABLE IF NOT EXISTS market_data.position_eod_quote_evidence (
+            evidence_id text PRIMARY KEY CHECK(length(evidence_id)=64),
+            payload bytea NOT NULL,
+            source_archive_sha256 text NOT NULL CHECK(length(source_archive_sha256)=64)
+        );
+        ALTER TABLE market_data.position_eod_quote_evidence ADD COLUMN IF NOT EXISTS contract_id text;
+        ALTER TABLE market_data.position_eod_quote_evidence ADD COLUMN IF NOT EXISTS value_date date;
+        ALTER TABLE market_data.position_eod_quote_evidence ADD COLUMN IF NOT EXISTS observed_at timestamptz;
+        CREATE INDEX IF NOT EXISTS position_eod_quote_evidence_lookup ON market_data.position_eod_quote_evidence(contract_id,value_date,observed_at DESC);
+        CREATE TABLE IF NOT EXISTS market_data.position_eod_quote_original (
+            sha256 text PRIMARY KEY CHECK(length(sha256)=64), original_record bytea NOT NULL
+        );
+        """;
+
+    internal const string ItiTrendVelocityCreate = """
+        ALTER TABLE IF EXISTS market_data.futures_iti_signal ADD COLUMN IF NOT EXISTS trendvelocity double precision;
+        ALTER TABLE IF EXISTS market_data.futures_iti_signal_by_contract_day ADD COLUMN IF NOT EXISTS trendvelocity double precision;
+        ALTER TABLE IF EXISTS market_data.futures_iti_signal_by_contract_month ADD COLUMN IF NOT EXISTS trendvelocity double precision;
+        ALTER TABLE IF EXISTS market_data.futures_iti_signal_by_trend_mode_month ADD COLUMN IF NOT EXISTS trendvelocity double precision;
+        ALTER TABLE IF EXISTS market_data.futures_iti_timeframe_state ADD COLUMN IF NOT EXISTS trendvelocity double precision;
+        """;
+
+    internal const string ItiTrendVelocityDrop = """
+        ALTER TABLE IF EXISTS market_data.futures_iti_signal DROP COLUMN IF EXISTS trendvelocity;
+        ALTER TABLE IF EXISTS market_data.futures_iti_signal_by_contract_day DROP COLUMN IF EXISTS trendvelocity;
+        ALTER TABLE IF EXISTS market_data.futures_iti_signal_by_contract_month DROP COLUMN IF EXISTS trendvelocity;
+        ALTER TABLE IF EXISTS market_data.futures_iti_signal_by_trend_mode_month DROP COLUMN IF EXISTS trendvelocity;
+        ALTER TABLE IF EXISTS market_data.futures_iti_timeframe_state DROP COLUMN IF EXISTS trendvelocity;
+        """;
+
     internal const string DropDuplicateIndexes =
         """
         DROP INDEX IF EXISTS market_data.economic_calendar_country_code_ordered RESTRICT;

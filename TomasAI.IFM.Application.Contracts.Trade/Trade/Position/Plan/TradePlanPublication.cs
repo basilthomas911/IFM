@@ -11,6 +11,9 @@ public static class TradePlanPublication
     {
         ArgumentNullException.ThrowIfNull(current);
         return previous is null || previous.Position.Id != current.Position.Id || previous.ValueDate != current.ValueDate
+            || (current.RequiresExit || previous.RequiresExit || current.State == TradePlanState.Closed || previous.State == TradePlanState.Closed)
+                && (current.State != previous.State || current.RequiresExit != previous.RequiresExit
+                    || current.ReasonCode != previous.ReasonCode || current.Explanation != previous.Explanation)
             || current.IronCondorTradePlanSnapshot?.DailyPnl is { } pnl
                 && previous.IronCondorTradePlanSnapshot?.DailyPnl != pnl;
     }

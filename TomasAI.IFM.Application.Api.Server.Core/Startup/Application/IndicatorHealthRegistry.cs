@@ -10,6 +10,8 @@ namespace TomasAI.IFM.Application.Api.Server.Core.Startup.Application;
 public sealed record IndicatorHealthEntry(string ContractId, TimeFrameType TimeFrame, string Indicator,
     bool Warm, bool Valid, DateTimeOffset? SourceAsOfUtc, DateTimeOffset? ExpectedAsOfUtc, string Reason)
 {
+    /// <summary>Strategy-specific qualification is enforced at admission, independently of other horizons.</summary>
+    public bool AffectsGlobalReadiness { get; init; } = true;
     /// <summary>Gets whether both initialization and current observation coverage qualify.</summary>
     public bool Ready => Warm && Valid && SourceAsOfUtc is { } at
         && (ExpectedAsOfUtc is null || at >= ExpectedAsOfUtc) && Reason.Length == 0;
@@ -22,8 +24,9 @@ public static class IndicatorHealthRegistry
     public static IReadOnlyDictionary<TimeFrameType, string> TimeFrameCoverage { get; } =
         Enum.GetValues<TimeFrameType>().ToDictionary(frame => frame, frame => frame == TimeFrameType.None ? "Invalid"
             : FuturesIntradaySignalActivationProfile.TimeFrames.Contains(frame) ? "Active intraday producers"
-            : frame == TimeFrameType.Daily ? "Active Daily baseline and ITI"
-            : frame is TimeFrameType.Weekly or TimeFrameType.Monthly ? "Active ITI horizon; trend EMAs use Daily baseline"
+            : frame == TimeFrameType.Daily ? "Active Daily ITI; EMA-only regime uses FiveMinutes baseline"
+            : frame == TimeFrameType.Weekly ? "Active Weekly ITI; EMA-only regime uses FourHours baseline"
+            : frame == TimeFrameType.Monthly ? "Active Monthly ITI; EMA-only regime uses Daily baseline"
             : "Inactive: no automatically configured indicator producer");
     /// <summary>Every automatically attached intraday processor must be audited, including five-minute Market Outlook inputs.</summary>
     public static IReadOnlyList<TimeFrameType> IntradayFrames => FuturesIntradaySignalActivationProfile.TimeFrames;

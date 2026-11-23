@@ -46,6 +46,10 @@ public sealed record StrategyPositionSnapshot
     [Key(23)] public decimal? ContractCashMultiplier { get; init; }
     [Key(24)] public decimal? OpeningCommission { get; init; }
     [Key(25)] public DateOnly? OpeningValueDate { get; init; }
+    [Key(26)] [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public DailyFuturesEntryState? DailyFuturesEntry { get; init; }
+    [Key(27)] [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public StoredPositionClosingQuote[]? EndOfDayClosingQuotes { get; init; }
 
 }
 

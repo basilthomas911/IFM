@@ -12787,6 +12787,11 @@
         "name": "cancellationToken",
         "type": "CancellationToken",
         "optional": "default"
+      },
+      {
+        "name": "pagingState",
+        "type": "byte[]?",
+        "optional": "null"
       }
     ],
     "result": "Task\u003CServiceResult\u003CStrategyTradePlanHistoryPage\u003E\u003E",
@@ -12798,14 +12803,14 @@
     ],
     "subjects": [],
     "resolvedUiCallSites": [
-      "TomasAI.IFM.UI.Net.Services/Trade/StrategyTradePlanQueryService.cs:96"
+      "TomasAI.IFM.UI.Net.Services/Trade/StrategyTradePlanQueryService.cs:97"
     ],
     "nativeOwner": "services/trade_monitor_queries.rs; state/trade_monitors/mod.rs",
     "status": "Implemented; see native contract/controller tests"
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/StrategyTradePlanQueryApi.cs",
-    "line": 48,
+    "line": 49,
     "client": "StrategyTradePlanQueryApi",
     "method": "GetIronCondorHistoryAsync",
     "parameters": [
@@ -12844,14 +12849,14 @@
     ],
     "subjects": [],
     "resolvedUiCallSites": [
-      "TomasAI.IFM.UI.Net.Services/Trade/StrategyTradePlanQueryService.cs:103"
+      "TomasAI.IFM.UI.Net.Services/Trade/StrategyTradePlanQueryService.cs:104"
     ],
     "nativeOwner": "services/trade_monitor_queries.rs; state/trade_monitors/mod.rs",
     "status": "Implemented; see native contract/controller tests"
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/StrategyTradePlanQueryApi.cs",
-    "line": 65,
+    "line": 66,
     "client": "StrategyTradePlanQueryApi",
     "method": "GetCurrentVerticalSpreadAsync",
     "parameters": [
@@ -12888,7 +12893,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/StrategyTradePlanQueryApi.cs",
-    "line": 79,
+    "line": 80,
     "client": "StrategyTradePlanQueryApi",
     "method": "GetVerticalSpreadHistoryAsync",
     "parameters": [
@@ -12927,14 +12932,14 @@
     ],
     "subjects": [],
     "resolvedUiCallSites": [
-      "TomasAI.IFM.UI.Net.Services/Trade/StrategyTradePlanQueryService.cs:106"
+      "TomasAI.IFM.UI.Net.Services/Trade/StrategyTradePlanQueryService.cs:107"
     ],
     "nativeOwner": null,
     "status": "Pending reachability review or native port"
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/StrategyTradePlanQueryApi.cs",
-    "line": 96,
+    "line": 97,
     "client": "StrategyTradePlanQueryApi",
     "method": "GetCurrentFuturesAsync",
     "parameters": [
@@ -12971,7 +12976,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/StrategyTradePlanQueryApi.cs",
-    "line": 110,
+    "line": 111,
     "client": "StrategyTradePlanQueryApi",
     "method": "GetFuturesHistoryAsync",
     "parameters": [
@@ -13010,14 +13015,14 @@
     ],
     "subjects": [],
     "resolvedUiCallSites": [
-      "TomasAI.IFM.UI.Net.Services/Trade/StrategyTradePlanQueryService.cs:109"
+      "TomasAI.IFM.UI.Net.Services/Trade/StrategyTradePlanQueryService.cs:110"
     ],
     "nativeOwner": null,
     "status": "Pending reachability review or native port"
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/StrategyTradePlanQueryApi.cs",
-    "line": 127,
+    "line": 128,
     "client": "StrategyTradePlanQueryApi",
     "method": "GetActivityAsync",
     "parameters": [
@@ -13058,7 +13063,7 @@
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/StrategyTradePlanQueryApi.cs",
-    "line": 144,
+    "line": 145,
     "client": "StrategyTradePlanQueryApi",
     "method": "GetCurrentExitWorkflowAsync",
     "parameters": [
@@ -13087,14 +13092,14 @@
     ],
     "subjects": [],
     "resolvedUiCallSites": [
-      "TomasAI.IFM.UI.Net.Services/Trade/StrategyTradePlanQueryService.cs:123"
+      "TomasAI.IFM.UI.Net.Services/Trade/StrategyTradePlanQueryService.cs:124"
     ],
     "nativeOwner": null,
     "status": "Pending reachability review or native port"
   },
   {
     "source": "TomasAI.IFM.Application.Api.Nats.Client/StrategyTradePlanQueryApi.cs",
-    "line": 160,
+    "line": 161,
     "client": "StrategyTradePlanQueryApi",
     "method": "GetExitWorkflowTimelineAsync",
     "parameters": [
@@ -13133,7 +13138,7 @@
     ],
     "subjects": [],
     "resolvedUiCallSites": [
-      "TomasAI.IFM.UI.Net.Services/Trade/StrategyTradePlanQueryService.cs:136"
+      "TomasAI.IFM.UI.Net.Services/Trade/StrategyTradePlanQueryService.cs:137"
     ],
     "nativeOwner": null,
     "status": "Pending reachability review or native port"

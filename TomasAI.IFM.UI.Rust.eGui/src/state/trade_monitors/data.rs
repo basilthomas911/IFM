@@ -168,6 +168,11 @@ impl Monitor {
 
     /// Provides snapshot for the monitor implementation.
     pub fn snapshot(&mut self, value: typed::TradeRealtimeSnapshot) -> bool {
+        // A delayed market mark must not replace the retained settled close.
+        if self.trade.status == Some(typed::EstablishedTradeStatus::Closed)
+            && value.position.as_ref().is_some_and(|position| position.is_open != Some(false)) {
+            return false;
+        }
         if value
             .position
             .as_ref()
@@ -200,6 +205,20 @@ impl Monitor {
         }
         if let Some(plan) = plan {
             self.plan(*plan);
+        }
+        let final_snapshot = self.realtime.current.as_ref().filter(|snapshot| {
+            snapshot.position.as_ref().is_some_and(|position| position.is_open == Some(false))
+                && snapshot.plan.as_ref().is_some_and(|plan| plan.state == Some(typed::TradePlanState::Closed))
+        });
+        if let Some(snapshot) = final_snapshot {
+            self.selected = snapshot.position.as_ref().map(|position| (**position).clone());
+            self.trade.status = Some(typed::EstablishedTradeStatus::Closed);
+            self.status = snapshot.status.clone().unwrap_or_else(|| "Closed — stopping live feed".into());
+            if self.status == "Closed — live feed stopped" {
+                self.live = false;
+                self.collecting = false;
+                self.starting = false;
+            }
         }
         true
     }
@@ -241,7 +260,7 @@ impl Monitor {
         {
             return false;
         }
-        if !(self.live || self.collecting) {
+        if !(self.live || self.collecting || value.state == Some(typed::TradePlanState::Closed)) {
             return false;
         }
         let Some(key) = value
@@ -337,7 +356,7 @@ impl Monitor {
             },
         )?);
         if self.iron() {
-            if self.live {
+            if self.live || self.trade.status == Some(typed::EstablishedTradeStatus::Closed) {
                 if let Some(value) = &self.realtime.current {
                     result.rows.push(self.cached_row(
                         "realtime",
@@ -354,7 +373,7 @@ impl Monitor {
                     .rows
                     .push(self.cached_row("position", &index.to_string(), &value)?);
             }
-            let plans = if self.live && !self.live_plans.is_empty() {
+            let plans = if (self.live || self.trade.status == Some(typed::EstablishedTradeStatus::Closed)) && !self.live_plans.is_empty() {
                 self.live_plans.values().rev().collect::<Vec<_>>()
             } else {
                 self.page

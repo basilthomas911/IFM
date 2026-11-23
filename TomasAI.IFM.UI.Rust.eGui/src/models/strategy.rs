@@ -59,6 +59,8 @@ pub struct WorkflowHeader {
     pub definition_id: String,
     /// Entity contract associated with this workflow header.
     pub entity_contract: String,
+    pub assignment_key: Option<String>,
+    pub signal_sequence: i64,
     /// Entity date associated with this workflow header.
     pub entity_date: String,
     /// Frame associated with this workflow header.
@@ -221,6 +223,9 @@ impl WorkflowHeader {
             id,
             definition_id: text(r, entity_kind, entity, "WorkflowDefinitionId")?,
             entity_contract: text(r, iti_kind, iti, "ContractId")?,
+            assignment_key: entity.as_array().and_then(|fields| fields.get(2)).filter(|value| !value.is_nil())
+                .map(crate::services::strategy::assignment_key).transpose()?,
+            signal_sequence: value(r, trigger_kind, trigger, "EventId")?.as_i64().unwrap_or_default(),
             entity_date: crate::backend::contracts::date_only(value(
                 r,
                 iti_kind,
@@ -454,6 +459,7 @@ pub fn workflow_grid_row(
         }
     }
     Ok(WorkflowRow {
+        legacy_unassigned: false,
         id: id.into(),
         action,
         trigger_identity: signal_identity(signal)?,

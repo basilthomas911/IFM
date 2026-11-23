@@ -128,7 +128,7 @@ public sealed class IntrinsicTimeStrategyWorkflowEventProjector : ConventionalEv
             }
 
             using var timing_workflow_project_notify = WorkflowTrace.Start("workflow.project.notify", snapshot.State);
-            if (!snapshot.SkipPipelineDispatch)
+            if (!snapshot.SkipPipelineDispatch && snapshot.State.DecisionRuntimeVersion == 0)
                 await _actorContext.SendAsync<WorkflowStrategyStateUpdatedEvent, IntrinsicTimeStrategyWorkflowEntityId>(global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(snapshot, snapshot with { Subject = new ActorSubject(ActorType.Realtime, RealtimeActorName, WorkflowStrategyStateUpdatedEvent.Verb, entityKey) }), cancellationToken).ConfigureAwait(false);
             timing_workflow_project_notify?.Stop();
             // UI observation is deliberately isolated from workflow dispatch. A desktop listener outage must never
@@ -212,7 +212,12 @@ public sealed class IntrinsicTimeStrategyWorkflowEventProjector : ConventionalEv
         var iti = entity.ItiSignalEntityId;
         var status = ToLegacyStatus(workflow.Status);
         var outcome = workflow.Outcome != StrategyWorkflowOutcome.None ? workflow.Outcome : ToLegacyOutcome(workflow.Status);
-        var detail = new IntrinsicTimeStrategyWorkflowReadModel(workflow.WorkflowId, entity.Format(), entity.WorkflowDefinitionId, workflow.WorkflowDefinitionVersion, iti.ContractId, iti.TimeFrameStartValueDate, iti.TimePeriod, workflow.TriggerEventId, workflow.CorrelationId, status, outcome, workflow.CurrentStage, workflow.WorkflowRevision, eventId, StateSchemaVersion, payload, workflow.StopReasonCode, workflow.StartedAtUtc, workflow.TerminalAtUtc, workflow.UpdatedAtUtc);
+        var detail = new IntrinsicTimeStrategyWorkflowReadModel(workflow.WorkflowId, entity.Format(), entity.WorkflowDefinitionId, workflow.WorkflowDefinitionVersion, iti.ContractId, iti.TimeFrameStartValueDate, iti.TimePeriod, workflow.TriggerEventId, workflow.CorrelationId, status, outcome, workflow.CurrentStage, workflow.WorkflowRevision, eventId, StateSchemaVersion, payload, workflow.StopReasonCode, workflow.StartedAtUtc, workflow.TerminalAtUtc, workflow.UpdatedAtUtc)
+        {
+            SignalAtUtc = IntrinsicTimeStrategyUpdatesGridRow.SignalTime(workflow),
+            SignalSequence = workflow.TriggerEvent.EventId,
+            AssignmentKey = entity.Assignment?.QueueSuffix()
+        };
         var history = new IntrinsicTimeStrategyWorkflowHistoryReadModel(entity.Format(), workflow.StartedAtUtc, workflow.WorkflowId, status, outcome, workflow.CurrentStage, workflow.WorkflowRevision, workflow.TerminalAtUtc, workflow.StopReasonCode);
         var active = workflow.Status == WorkflowStrategyMachineStatus.Started ? new ActiveIntrinsicTimeStrategyWorkflowReadModel(entity.Format(), workflow.WorkflowId, iti.ContractId, iti.TimeFrameStartValueDate, iti.TimePeriod, workflow.CurrentStage, workflow.WorkflowRevision, eventId, StateSchemaVersion, payload, workflow.StartedAtUtc, workflow.UpdatedAtUtc) : null;
         var tradeDb = _actorContext.DbFactory.TradeDb;

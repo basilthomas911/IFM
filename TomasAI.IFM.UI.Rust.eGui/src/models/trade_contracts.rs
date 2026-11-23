@@ -9214,6 +9214,9 @@ pub struct FuturesItiSignalV2ReadModel {
     /// C# ReversalLevel, wire slot 26.
     #[serde(default, rename = "reversalLevel", alias = "ReversalLevel")]
     pub reversal_level: Option<f64>,
+    /// C# TrendVelocity, wire slot 27.
+    #[serde(default, rename = "trendVelocity", alias = "TrendVelocity")]
+    pub trend_velocity: Option<f64>,
 }
 impl FromBackend for FuturesItiSignalV2ReadModel {
     const KIND: &'static str =
@@ -9296,6 +9299,8 @@ impl FromBackend for FuturesItiSignalV2ReadModel {
                 .map_err(|error| format!("FuturesItiSignalV2ReadModel.BandLevel: {error}"))?,
             reversal_level: FromBackend::from_backend(fields.get(26).unwrap_or(&Value::Nil))
                 .map_err(|error| format!("FuturesItiSignalV2ReadModel.ReversalLevel: {error}"))?,
+            trend_velocity: FromBackend::from_backend(fields.get(27).unwrap_or(&Value::Nil))
+                .map_err(|error| format!("FuturesItiSignalV2ReadModel.TrendVelocity: {error}"))?,
         })
     }
 }
@@ -9501,6 +9506,13 @@ impl PresentationRecord for FuturesItiSignalV2ReadModel {
                 mode: child_mode,
             },
         )?;
+        map.serialize_entry(
+            "trendVelocity",
+            &FieldValue {
+                value: &self.trend_velocity,
+                mode: child_mode,
+            },
+        )?;
         self.serialize_extras(&mut map)?;
         map.end()
     }
@@ -9577,6 +9589,7 @@ impl BackendRecord for FuturesItiSignalV2ReadModel {
         map.serialize_entry("BandSize", &BackendDocument(&self.band_size))?;
         map.serialize_entry("BandLevel", &BackendDocument(&self.band_level))?;
         map.serialize_entry("ReversalLevel", &BackendDocument(&self.reversal_level))?;
+        map.serialize_entry("TrendVelocity", &BackendDocument(&self.trend_velocity))?;
         map.end()
     }
 }
@@ -9617,6 +9630,7 @@ impl Cells for FuturesItiSignalV2ReadModel {
             "bandSize" | "BandSize" => self.band_size.scalar_cell(),
             "bandLevel" | "BandLevel" => self.band_level.scalar_cell(),
             "reversalLevel" | "ReversalLevel" => self.reversal_level.scalar_cell(),
+            "trendVelocity" | "TrendVelocity" => self.trend_velocity.scalar_cell(),
             _ => Cell::Missing,
         }
     }
@@ -11703,6 +11717,9 @@ pub struct MarketOutlookReadModel {
     /// C# MdiClassification, wire slot 35.
     #[serde(default, rename = "mdiClassification", alias = "MdiClassification")]
     pub mdi_classification: Option<FuturesMDITrendType>,
+    /// C# FiveMinuteEmaState, wire slot 36.
+    #[serde(default, rename = "fiveMinuteEmaState", alias = "FiveMinuteEmaState")]
+    pub five_minute_ema_state: Option<String>,
 }
 impl FromBackend for MarketOutlookReadModel {
     const KIND: &'static str =
@@ -11801,6 +11818,8 @@ impl FromBackend for MarketOutlookReadModel {
                 .map_err(|error| format!("MarketOutlookReadModel.MdiPercent: {error}"))?,
             mdi_classification: FromBackend::from_backend(fields.get(35).unwrap_or(&Value::Nil))
                 .map_err(|error| format!("MarketOutlookReadModel.MdiClassification: {error}"))?,
+            five_minute_ema_state: FromBackend::from_backend(fields.get(36).unwrap_or(&Value::Nil))
+                .map_err(|error| format!("MarketOutlookReadModel.FiveMinuteEmaState: {error}"))?,
         })
     }
 }
@@ -12069,6 +12088,13 @@ impl PresentationRecord for MarketOutlookReadModel {
                 mode: child_mode,
             },
         )?;
+        map.serialize_entry(
+            "fiveMinuteEmaState",
+            &FieldValue {
+                value: &self.five_minute_ema_state,
+                mode: child_mode,
+            },
+        )?;
         self.serialize_extras(&mut map)?;
         map.end()
     }
@@ -12193,6 +12219,10 @@ impl BackendRecord for MarketOutlookReadModel {
             "MdiClassification",
             &BackendDocument(&self.mdi_classification),
         )?;
+        map.serialize_entry(
+            "FiveMinuteEmaState",
+            &BackendDocument(&self.five_minute_ema_state),
+        )?;
         map.end()
     }
 }
@@ -12226,6 +12256,7 @@ impl Cells for MarketOutlookReadModel {
             "macdAvailability" | "MacdAvailability" => self.macd_availability.scalar_cell(),
             "mdiPercent" | "MdiPercent" => self.mdi_percent.scalar_cell(),
             "mdiClassification" | "MdiClassification" => self.mdi_classification.scalar_cell(),
+            "fiveMinuteEmaState" | "FiveMinuteEmaState" => self.five_minute_ema_state.scalar_cell(),
             _ => Cell::Missing,
         }
     }
@@ -34220,6 +34251,13 @@ pub struct IronCondorPositionChangedEvent {
         alias = "HistoricalSourceEventId"
     )]
     pub historical_source_event_id: Option<i64>,
+    /// C# VerifiedPriceCorrectionId, wire slot 13.
+    #[serde(
+        default,
+        rename = "verifiedPriceCorrectionId",
+        alias = "VerifiedPriceCorrectionId"
+    )]
+    pub verified_price_correction_id: Option<String>,
 }
 impl FromBackend for IronCondorPositionChangedEvent {
     const KIND: &'static str =
@@ -34274,6 +34312,12 @@ impl FromBackend for IronCondorPositionChangedEvent {
             .map_err(|error| {
                 format!("IronCondorPositionChangedEvent.HistoricalSourceEventId: {error}")
             })?,
+            verified_price_correction_id: FromBackend::from_backend(
+                fields.get(13).unwrap_or(&Value::Nil),
+            )
+            .map_err(|error| {
+                format!("IronCondorPositionChangedEvent.VerifiedPriceCorrectionId: {error}")
+            })?,
         })
     }
 }
@@ -34315,6 +34359,13 @@ impl PresentationRecord for IronCondorPositionChangedEvent {
             "historicalSourceEventId",
             &FieldValue {
                 value: &self.historical_source_event_id,
+                mode: child_mode,
+            },
+        )?;
+        map.serialize_entry(
+            "verifiedPriceCorrectionId",
+            &FieldValue {
+                value: &self.verified_price_correction_id,
                 mode: child_mode,
             },
         )?;
@@ -34428,6 +34479,10 @@ impl BackendRecord for IronCondorPositionChangedEvent {
             "HistoricalSourceEventId",
             &BackendDocument(&self.historical_source_event_id),
         )?;
+        map.serialize_entry(
+            "VerifiedPriceCorrectionId",
+            &BackendDocument(&self.verified_price_correction_id),
+        )?;
         map.serialize_entry("Subject", &BackendDocument(&self.subject))?;
         map.serialize_entry("Id", &BackendDocument(&self.id))?;
         map.serialize_entry("EntityId", &BackendDocument(&self.entity_id))?;
@@ -34455,6 +34510,9 @@ impl Cells for IronCondorPositionChangedEvent {
             }
             "historicalSourceEventId" | "HistoricalSourceEventId" => {
                 self.historical_source_event_id.scalar_cell()
+            }
+            "verifiedPriceCorrectionId" | "VerifiedPriceCorrectionId" => {
+                self.verified_price_correction_id.scalar_cell()
             }
             "id" | "Id" => self.id.scalar_cell(),
             "eventId" | "EventId" => self.event_id.scalar_cell(),
@@ -36431,6 +36489,13 @@ pub struct OrderExecutionDefinition {
     /// C# RejectionDetail, wire slot 16.
     #[serde(default, rename = "rejectionDetail", alias = "RejectionDetail")]
     pub rejection_detail: Option<String>,
+    /// C# VerifiedPriceCorrectionId, wire slot 17.
+    #[serde(
+        default,
+        rename = "verifiedPriceCorrectionId",
+        alias = "VerifiedPriceCorrectionId"
+    )]
+    pub verified_price_correction_id: Option<String>,
 }
 impl FromBackend for OrderExecutionDefinition {
     const KIND: &'static str = "TomasAI.IFM.Domain.Trade.Shared.OrderExecutionDefinition";
@@ -36482,6 +36547,12 @@ impl FromBackend for OrderExecutionDefinition {
             })?,
             rejection_detail: FromBackend::from_backend(fields.get(16).unwrap_or(&Value::Nil))
                 .map_err(|error| format!("OrderExecutionDefinition.RejectionDetail: {error}"))?,
+            verified_price_correction_id: FromBackend::from_backend(
+                fields.get(17).unwrap_or(&Value::Nil),
+            )
+            .map_err(|error| {
+                format!("OrderExecutionDefinition.VerifiedPriceCorrectionId: {error}")
+            })?,
         })
     }
 }
@@ -36617,6 +36688,13 @@ impl PresentationRecord for OrderExecutionDefinition {
                 mode: child_mode,
             },
         )?;
+        map.serialize_entry(
+            "verifiedPriceCorrectionId",
+            &FieldValue {
+                value: &self.verified_price_correction_id,
+                mode: child_mode,
+            },
+        )?;
         self.serialize_extras(&mut map)?;
         map.end()
     }
@@ -36684,6 +36762,10 @@ impl BackendRecord for OrderExecutionDefinition {
             &BackendDocument(&self.cumulative_filled_quantity),
         )?;
         map.serialize_entry("RejectionDetail", &BackendDocument(&self.rejection_detail))?;
+        map.serialize_entry(
+            "VerifiedPriceCorrectionId",
+            &BackendDocument(&self.verified_price_correction_id),
+        )?;
         map.end()
     }
 }
@@ -36704,6 +36786,9 @@ impl Cells for OrderExecutionDefinition {
                 self.cumulative_filled_quantity.scalar_cell()
             }
             "rejectionDetail" | "RejectionDetail" => self.rejection_detail.scalar_cell(),
+            "verifiedPriceCorrectionId" | "VerifiedPriceCorrectionId" => {
+                self.verified_price_correction_id.scalar_cell()
+            }
             _ => Cell::Missing,
         }
     }
@@ -41528,6 +41613,13 @@ pub struct StrategyTradePlanSnapshot {
         alias = "IronCondorTradePlanSnapshot"
     )]
     pub iron_condor_trade_plan_snapshot: Option<Box<IronCondorTradePlanSnapshot>>,
+    /// C# FuturesTrailingExtremePrice, wire slot 20.
+    #[serde(
+        default,
+        rename = "futuresTrailingExtremePrice",
+        alias = "FuturesTrailingExtremePrice"
+    )]
+    pub futures_trailing_extreme_price: Option<DecimalText>,
 }
 impl FromBackend for StrategyTradePlanSnapshot {
     const KIND: &'static str =
@@ -41583,6 +41675,12 @@ impl FromBackend for StrategyTradePlanSnapshot {
             )
             .map_err(|error| {
                 format!("StrategyTradePlanSnapshot.IronCondorTradePlanSnapshot: {error}")
+            })?,
+            futures_trailing_extreme_price: FromBackend::from_backend(
+                fields.get(20).unwrap_or(&Value::Nil),
+            )
+            .map_err(|error| {
+                format!("StrategyTradePlanSnapshot.FuturesTrailingExtremePrice: {error}")
             })?,
         })
     }
@@ -41745,6 +41843,13 @@ impl PresentationRecord for StrategyTradePlanSnapshot {
                 mode: mode,
             },
         )?;
+        map.serialize_entry(
+            "futuresTrailingExtremePrice",
+            &FieldValue {
+                value: &self.futures_trailing_extreme_price,
+                mode: child_mode,
+            },
+        )?;
         self.serialize_extras(&mut map)?;
         map.end()
     }
@@ -41802,6 +41907,10 @@ impl BackendRecord for StrategyTradePlanSnapshot {
             "IronCondorTradePlanSnapshot",
             &BackendDocument(&self.iron_condor_trade_plan_snapshot),
         )?;
+        map.serialize_entry(
+            "FuturesTrailingExtremePrice",
+            &BackendDocument(&self.futures_trailing_extreme_price),
+        )?;
         map.end()
     }
 }
@@ -41826,6 +41935,9 @@ impl Cells for StrategyTradePlanSnapshot {
             "explanation" | "Explanation" => self.explanation.scalar_cell(),
             "contentHash" | "ContentHash" => self.content_hash.scalar_cell(),
             "calculatedAtUtc" | "CalculatedAtUtc" => self.calculated_at_utc.scalar_cell(),
+            "futuresTrailingExtremePrice" | "FuturesTrailingExtremePrice" => {
+                self.futures_trailing_extreme_price.scalar_cell()
+            }
             _ => Cell::Missing,
         }
     }
@@ -48549,6 +48661,7 @@ impl StrategyTradePlanSnapshot {
                 .iron_condor_trade_plan_snapshot
                 .as_ref()
                 .map(|v| Box::new(v.history_view())),
+            futures_trailing_extreme_price: self.futures_trailing_extreme_price.clone(),
         }
     }
 
@@ -48580,6 +48693,7 @@ impl StrategyTradePlanSnapshot {
                 (None, None) => true,
                 _ => false,
             })
+            && self.futures_trailing_extreme_price == other.futures_trailing_extreme_price
     }
 
 
@@ -49993,6 +50107,12 @@ pub const CONTRACT_FIELDS: &[(&str, &str, usize, &str)] = &[
         "System.Double",
     ),
     (
+        "TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels.FuturesItiSignalV2ReadModel",
+        "TrendVelocity",
+        27,
+        "System.Nullable`1[System.Double]",
+    ),
+    (
         "TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels.FuturesMacdSignalReadModel",
         "ContractId",
         0,
@@ -50801,6 +50921,12 @@ pub const CONTRACT_FIELDS: &[(&str, &str, usize, &str)] = &[
         "MdiClassification",
         35,
         "System.Nullable`1[TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesMDITrendType]",
+    ),
+    (
+        "TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels.MarketOutlookReadModel",
+        "FiveMinuteEmaState",
+        36,
+        "System.String",
     ),
     (
         "TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels.FuturesBarDataReadModel",
@@ -55262,6 +55388,12 @@ pub const CONTRACT_FIELDS: &[(&str, &str, usize, &str)] = &[
     ),
     (
         "TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position.IronCondorPositionChangedEvent",
+        "VerifiedPriceCorrectionId",
+        13,
+        "System.Guid",
+    ),
+    (
+        "TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position.IronCondorPositionChangedEvent",
         "Subject",
         0,
         "TomasAI.IFM.Shared.EventModelActor.ActorSubject",
@@ -55787,6 +55919,12 @@ pub const CONTRACT_FIELDS: &[(&str, &str, usize, &str)] = &[
         "RejectionDetail",
         16,
         "System.String",
+    ),
+    (
+        "TomasAI.IFM.Domain.Trade.Shared.OrderExecutionDefinition",
+        "VerifiedPriceCorrectionId",
+        17,
+        "System.Guid",
     ),
     (
         "TomasAI.IFM.Domain.Trade.Shared.OrderExecutionId",
@@ -57113,6 +57251,12 @@ pub const CONTRACT_FIELDS: &[(&str, &str, usize, &str)] = &[
         "IronCondorTradePlanSnapshot",
         19,
         "TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.IronCondorTradePlanSnapshot",
+    ),
+    (
+        "TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.StrategyTradePlanSnapshot",
+        "FuturesTrailingExtremePrice",
+        20,
+        "System.Nullable`1[System.Decimal]",
     ),
     (
         "TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.TradePlanParameters",

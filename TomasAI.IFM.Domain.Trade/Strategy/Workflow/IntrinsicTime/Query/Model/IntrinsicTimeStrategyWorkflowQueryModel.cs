@@ -77,11 +77,10 @@ internal static class IntrinsicTimeStrategyWorkflowQueryModel
 
     internal static async ValueTask<ServiceResult<StrategyWorkflowStageState>> ExecuteAsync(IIntrinsicTimeStrategyWorkflowQueryContext services, GetIntrinsicTimeStrategyWorkflowStageStateQuery query, CancellationToken cancellationToken)
     {
-        var projection = await services.DbFactory.TradeDb.GetIntrinsicTimeStrategyWorkflowAsync(query.WorkflowId, cancellationToken).ConfigureAwait(false);
-        RequireRevision(projection?.WorkflowRevision, query.MinimumWorkflowRevision, query.WorkflowId.ToString());
-        if (projection is null)
+        var state = await services.DbFactory.TradeDb.GetIntrinsicTimeStrategyWorkflowViewAsync(query.WorkflowId, cancellationToken).ConfigureAwait(false);
+        RequireRevision(state?.WorkflowRevision, query.MinimumWorkflowRevision, query.WorkflowId.ToString());
+        if (state is null)
             throw new KeyNotFoundException($"Workflow {query.WorkflowId} was not found.");
-        var state = ProjectedWorkflowView.Decode(projection, cancellationToken);
         var result = query.Stage switch
         {
             StrategyWorkflowStage.RegimeDiscovery => state.RegimeDiscovery,
@@ -117,21 +116,69 @@ internal static class IntrinsicTimeStrategyWorkflowQueryModel
 
     internal static async ValueTask<ServiceResult<IntrinsicTimeStrategyUpdatesGridPage>> ExecuteAsync(IIntrinsicTimeStrategyWorkflowQueryContext services, GetIntrinsicTimeStrategyUpdatesGridQuery query, CancellationToken cancellationToken)
     {
+        if (query.QueueCatalog)
+        {
+            var assignments = services.QueueAssignments.ToArray();
+            var contracts = await services.DbFactory.TradeDb.ListStrategyUpdatesContractsAsync(cancellationToken).ConfigureAwait(false);
+            return new ServiceResult<IntrinsicTimeStrategyUpdatesGridPage>(new IntrinsicTimeStrategyUpdatesGridPage([], 1, 0, 0)
+            {
+                Assignments = assignments,
+                Contracts = contracts.Where(contract => assignments.Any(assignment => assignment.MatchesContract(contract))).ToArray()
+            });
+        }
+
         RequireHistoryPage(query.Symbol, query.TimePeriod, query.FromUtc, query.ToUtc, query.PageNumber);
-        var ordered = await ReadHistoryAsync(services, query.Symbol, query.TimePeriod, query.FromUtc, query.ToUtc, cancellationToken).ConfigureAwait(false);
         var pageSize = RequirePageSize(query.PageSize);
+        if (query.ContractId is { } contract)
+        {
+            var assignment = services.QueueAssignments.SingleOrDefault(value => value.Timeframe == query.TimePeriod
+                && value.QueueSuffix() == query.AssignmentKey && value.MatchesContract(contract));
+            if (assignment is null)
+                throw new ArgumentException("The Strategy Updates queue is unavailable.", nameof(query));
+            if ((query.BeforeSignalAtUtc is null) != (query.BeforeWorkflowId == Guid.Empty)
+                || query.BeforeSignalAtUtc is { Kind: not DateTimeKind.Utc })
+                throw new ArgumentException("Invalid Strategy Updates cursor.", nameof(query));
+            var candidates = await services.DbFactory.TradeDb.ReadStrategyUpdatesQueueAsync(contract, query.TimePeriod.ToString(),
+                assignment.QueueSuffix(), query.FromUtc, query.ToUtc, query.BeforeSignalAtUtc ?? DateTime.SpecifyKind(DateTime.MaxValue, DateTimeKind.Utc),
+                query.BeforeSignalAtUtc is null ? long.MaxValue : query.BeforeSignalSequence,
+                query.BeforeWorkflowId, pageSize + 1, cancellationToken).ConfigureAwait(false);
+            var page = candidates.Take(pageSize).ToArray();
+            var rows = await ReadGridRowsAsync(services,
+                page.Select(candidate => (new StrategyWorkflowId(candidate.WorkflowId), candidate.Revision)).ToArray(),
+                cancellationToken).ConfigureAwait(false);
+            for (var index = 0; index < rows.Length; index++)
+            {
+                var candidate = page[index];
+                rows[index] = rows[index] with
+                {
+                    LegacyUnassigned = candidate.LegacyUnassigned,
+                    HistoryOrderAtUtc = candidate.LegacyUnassigned ? candidate.OrderAtUtc : null,
+                    SignalSequence = candidate.Sequence
+                };
+            }
+            return new ServiceResult<IntrinsicTimeStrategyUpdatesGridPage>(new IntrinsicTimeStrategyUpdatesGridPage(rows, query.PageNumber, pageSize, 0)
+                { HasMore = candidates.Count > pageSize });
+        }
+
+        var ordered = await ReadHistoryAsync(services, query.Symbol, query.TimePeriod, query.FromUtc, query.ToUtc, cancellationToken).ConfigureAwait(false);
         var offset = checked((query.PageNumber - 1) * pageSize);
-        var page = ordered.Skip(offset).Take(pageSize).ToArray();
+        var legacyPage = ordered.Skip(offset).Take(pageSize).Select(item => (item.WorkflowId, item.WorkflowRevision)).ToArray();
+        var legacyRows = await ReadGridRowsAsync(services, legacyPage, cancellationToken).ConfigureAwait(false);
+        return new ServiceResult<IntrinsicTimeStrategyUpdatesGridPage>(new IntrinsicTimeStrategyUpdatesGridPage(legacyRows, query.PageNumber, pageSize, ordered.Length));
+    }
+
+    static async Task<IntrinsicTimeStrategyUpdatesGridRow[]> ReadGridRowsAsync(IIntrinsicTimeStrategyWorkflowQueryContext services,
+        (StrategyWorkflowId WorkflowId, long Revision)[] page, CancellationToken cancellationToken)
+    {
         var rows = new IntrinsicTimeStrategyUpdatesGridRow[page.Length];
         await Parallel.ForEachAsync(Enumerable.Range(0, page.Length), new ParallelOptions { MaxDegreeOfParallelism = 8, CancellationToken = cancellationToken }, async (index, token) =>
         {
             var history = page[index];
-            var projection = await services.DbFactory.TradeDb.GetIntrinsicTimeStrategyWorkflowAsync(history.WorkflowId, token).ConfigureAwait(false);
-            RequireRevision(projection?.WorkflowRevision, history.WorkflowRevision, history.WorkflowId.ToString());
-            var view = TomasAI.IFM.Framework.Serialization.MessagePackBinarySerializer.Shared.Deserialize<IntrinsicTimeStrategyWorkflowView>(projection!.StatePayload);
-            rows[index] = IntrinsicTimeStrategyUpdatesGridRow.FromView(view);
+            var row = await services.DbFactory.TradeDb.GetIntrinsicTimeStrategyUpdatesGridRowAsync(history.WorkflowId, token).ConfigureAwait(false);
+            RequireRevision(row?.WorkflowRevision, history.Revision, history.WorkflowId.ToString());
+            rows[index] = row!;
         }).ConfigureAwait(false);
-        return new ServiceResult<IntrinsicTimeStrategyUpdatesGridPage>(new IntrinsicTimeStrategyUpdatesGridPage(rows, query.PageNumber, pageSize, ordered.Length));
+        return rows;
     }
 
     static async Task<IntrinsicTimeStrategyWorkflowHistoryReadModel[]> ReadHistoryAsync(
@@ -200,6 +247,9 @@ internal static class IntrinsicTimeStrategyWorkflowQueryModel
         var prefix = $"{IntrinsicTimeStrategyWorkflowDefinition.Id}.";
         if (!workflowEntityId.StartsWith(prefix, StringComparison.Ordinal))
             return false;
+        var assignmentSeparator = workflowEntityId.IndexOf('~');
+        if (assignmentSeparator >= 0)
+            workflowEntityId = workflowEntityId[..assignmentSeparator];
         var timePeriodSeparator = workflowEntityId.LastIndexOf('.');
         if (timePeriodSeparator <= prefix.Length || !Enum.TryParse<TimeFrameType>(workflowEntityId[(timePeriodSeparator + 1)..], out var entityTimePeriod) || entityTimePeriod != timePeriod)
             return false;

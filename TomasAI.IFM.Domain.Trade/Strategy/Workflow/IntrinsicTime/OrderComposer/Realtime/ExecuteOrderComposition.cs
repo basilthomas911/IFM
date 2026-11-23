@@ -73,7 +73,14 @@ public static class ExecuteOrderComposition
             throw new CompositionMarketSourceException("HistoricalCompositionRequiresNewWorkflow");
         var key = CompositionPreparationAcceptance.Key(view);
         using var timing_composer_preparation_read = WorkflowTrace.Start("composer.preparation.read", view);
-        var prepared = await context.CompositionPreparations.ReadAsync(key, default).ConfigureAwait(false);
+        CompositionPreparation? prepared;
+        if (view.DecisionRuntimeVersion > 0)
+        {
+            var inputs = context.CompositionInputs ?? throw new CompositionMarketSourceException("OC.INPUT.CACHE_NOT_READY");
+            var capture = await inputs.CaptureAsync(view, context.ValueDateProvider.ValueDate).ConfigureAwait(false);
+            prepared = capture.Preparation ?? throw new CompositionMarketSourceException(capture.Failure?.Code ?? "OC.INPUT.CACHE_NOT_READY");
+        }
+        else prepared = await context.CompositionPreparations.ReadAsync(key, default).ConfigureAwait(false);
         timing_composer_preparation_read?.Stop();
         if (prepared is null)
         {

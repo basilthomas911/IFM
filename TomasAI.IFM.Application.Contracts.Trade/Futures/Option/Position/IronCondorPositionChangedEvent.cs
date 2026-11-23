@@ -17,4 +17,6 @@ public sealed record IronCondorPositionChangedEvent : PositionChangedEvent
     [Key(11)] public StrategyPositionSnapshot? HistoricalEndOfDay { get; init; }
     /// <summary>Committed mark from which the historical close was calculated.</summary>
     [Key(12)] public long HistoricalSourceEventId { get; init; }
+    /// <summary>Audited closed-position repricing; does not reopen or emit another close lifecycle.</summary>
+    [Key(13)] public Guid VerifiedPriceCorrectionId { get; init; }
 }

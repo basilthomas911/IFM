@@ -68,4 +68,9 @@
   <ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.EventModelActor/TomasAI.IFM.Application.EventModelActor.csproj" /><Using Include="TomasAI.IFM.Application.EventModelActor" /></ItemGroup>
 <ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.EventSourcing/TomasAI.IFM.Application.EventSourcing.csproj" /><Using Include="TomasAI.IFM.Application.EventSourcing" /></ItemGroup>
 <ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.EventSourcing.Projections/TomasAI.IFM.Application.EventSourcing.Projections.csproj" /></ItemGroup><ItemGroup><Using Include="TomasAI.IFM.Shared.Identity" /></ItemGroup><ItemGroup><Using Include="TomasAI.IFM.Shared.OptionPricing" /></ItemGroup><ItemGroup><Using Include="TomasAI.IFM.Shared.Storage" /></ItemGroup><ItemGroup><Compile Include="../test-support/ResidentPilotInputs.cs" Link="Support/ResidentPilotInputs.cs" /><Compile Include="../test-support/ResidentPilotDatabase.cs" Link="Support/ResidentPilotDatabase.cs" /></ItemGroup>
-</Project>
+<ItemGroup><Compile Include="../test-support/DailyFuturesGateTestScenario.cs" Link="Support/DailyFuturesGateTestScenario.cs" /></ItemGroup>
+<ItemGroup><Compile Include="../test-support/AssessmentSeparationScenario.cs" Link="Support/AssessmentSeparationScenario.cs" /></ItemGroup>
+<ItemGroup><Compile Include="../TomasAI.IFM.Domain.Trade.UnitTests/Strategy/Workflow/IntrinsicTime/TradeSelection/TradeSelectionFixture.cs" Link="Support/TradeSelectionFixture.cs" /></ItemGroup>
+<ItemGroup><Compile Include="../test-support/OptionVxVetoScenario.cs" Link="Support/OptionVxVetoScenario.cs" /></ItemGroup>
+<ItemGroup><Compile Include="../test-support/DailyAtrFuturesScenario.cs" Link="Support/DailyAtrFuturesScenario.cs" /></ItemGroup>
+<ItemGroup><Compile Include="../test-support/ExpiryFixingTestScenario.cs" Link="Support/ExpiryFixingTestScenario.cs" /></ItemGroup></Project>

@@ -48,6 +48,12 @@ public sealed record CompleteRiskManagementCommand : ICommand<IntrinsicTimeStrat
     [Key(12)] public DateTime CompletedAtUtc { get; init; }
     /// <summary>Gets the atomic Portfolio decision for portfolio-neutral workflow schema 2.</summary>
     [Key(13)] public PortfolioRiskDecision? PortfolioDecision { get; init; }
+    /// <summary>Pure fifth-stage approval, before any financial effects.</summary>
+    [Key(14)] [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition.PortfolioEntryApproval? EntryApproval { get; init; }
+    /// <summary>Entry-commit acknowledgement or uncertainty, outside the decision deadline.</summary>
+    [Key(15)] [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public WorkflowEntryCommitState? EntryCommit { get; init; }
 
     /// <summary>Gets the concrete command contract name.</summary>
     [IgnoreMember] public string CommandName => nameof(CompleteRiskManagementCommand);
@@ -99,7 +105,9 @@ public sealed record CompleteRiskManagementCommand : ICommand<IntrinsicTimeStrat
         Guid correlationId,
         Guid causationId,
         DateTime completedAtUtc,
-        PortfolioRiskDecision? portfolioDecision = null)
+        PortfolioRiskDecision? portfolioDecision = null,
+        TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition.PortfolioEntryApproval? entryApproval = null,
+        WorkflowEntryCommitState? entryCommit = null)
     {
         CommandId = commandId;
         Subject = subject;
@@ -115,5 +123,7 @@ public sealed record CompleteRiskManagementCommand : ICommand<IntrinsicTimeStrat
         CausationId = causationId;
         CompletedAtUtc = completedAtUtc;
         PortfolioDecision = portfolioDecision;
+        EntryApproval = entryApproval;
+        EntryCommit = entryCommit;
     }
 }

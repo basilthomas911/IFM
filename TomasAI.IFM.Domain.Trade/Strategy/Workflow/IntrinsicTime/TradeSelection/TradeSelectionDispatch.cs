@@ -11,13 +11,15 @@ using TomasAI.IFM.Shared.EventModelActor;
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection;
 public static class TradeSelectionDispatch
 {
-    public static ExecuteTradeSelectionPipelineCommand Create(IntrinsicTimeStrategyWorkflowView view, Guid sourceEventId)
+    public static ExecuteTradeSelectionPipelineCommand Create(IntrinsicTimeStrategyWorkflowView view, Guid sourceEventId,
+        Model.PreparedTradeSelectionConfiguration? prepared = null)
     {
         ArgumentNullException.ThrowIfNull(view);
         var binding = view.SelectionBinding ?? throw new ArgumentException("Selection binding is missing; unbound historical workflows cannot continue.",nameof(view));
         // ValidateRequest checks the full binding after the deadline is derived.
-        var policy = TradeSelectionContracts.CommonPolicy(binding);
-        var assessment = MarketConditionAssessmentContracts.ReadResult(view.MarketCondition.Result!);
+        var policy = prepared?.Policy ?? TradeSelectionContracts.CommonPolicy(binding);
+        var assessment = prepared is null ? MarketConditionAssessmentContracts.ReadResult(view.MarketCondition.Result!)
+            : view.MarketCondition.Result!.AssessmentResult!;
         var id = new TradeSelectionExecutionId(view.EntityId, view.WorkflowId, view.WorkflowRevision);
         var commandId = new Guid(SHA256.HashData(Encoding.UTF8.GetBytes($"{view.WorkflowId}|{StrategyWorkflowStage.TradeSelection}|{view.WorkflowRevision}")).AsSpan(0, 16));
         var command = new ExecuteTradeSelectionPipelineCommand
@@ -38,7 +40,7 @@ public static class TradeSelectionDispatch
             EvaluatedAtUtc = view.UpdatedAtUtc,
             ExpiresAtUtc = new[]
             {
-                view.ExpiresAtUtc,
+                Runtime.WorkflowCalculationRuntime.EffectiveDeadline(view),
                 view.UpdatedAtUtc.AddMilliseconds(policy.MaximumExecutionMilliseconds),
                 binding.ValidUntilUtc
             }.Min(),
@@ -51,8 +53,11 @@ public static class TradeSelectionDispatch
         TradeSelectionContracts.Require(command.EvaluatedAtUtc < assessment.Assessment.ValidUntilUtc,
             "TS.TIME.EXPIRED", "Assessment evidence expired before selection was requested.");
         // Normalize historical trigger constructor defaults once, before persisting the dispatch.
-        command = command.NormalizeContent();
-        TradeSelectionContracts.ValidateRequest(command);
+        if (prepared is null)
+        {
+            command = command.NormalizeContent();
+            TradeSelectionContracts.ValidateRequest(command);
+        }
         return command;
     }
 }

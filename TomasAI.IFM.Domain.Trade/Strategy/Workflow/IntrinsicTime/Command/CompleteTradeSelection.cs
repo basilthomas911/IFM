@@ -32,7 +32,7 @@ public static class CompleteTradeSelection
         public ServiceResult<GuidResult> Execute(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context, IntrinsicTimeStrategyWorkflowCommandState state)
         {
             ArgumentNullException.ThrowIfNull(state);
-            var preparation = new WorkflowSnapshotPreparation(state.WorkflowDefinition);
+            var preparation = new WorkflowSnapshotPreparation(state.DecisionView);
             var preparationResult = PrepareWorkflow(command, context, preparation);
             if (!preparationResult.Success)
                 return preparationResult;
@@ -64,7 +64,7 @@ public static class CompleteTradeSelection
             }
 
             var now = context.TimeProvider.GetUtcNow().UtcDateTime;
-            if (now >= current.ExpiresAtUtc)
+            if (now >= Runtime.WorkflowCalculationRuntime.EffectiveDeadline(current))
             {
                 return PrepareTimedOut(command, context, state, current, now);
             }
@@ -74,8 +74,10 @@ public static class CompleteTradeSelection
             {
                 result = TradeSelectionContracts.ReadResult(command.Result);
                 var dispatch = current.SelectionDispatch ?? throw new ArgumentException("Missing durable selector dispatch.", nameof(command));
-                var expected = TradeSelectionEvaluator.Evaluate(dispatch);
-                TradeSelectionContracts.Require(command.SourceEventId == result.ResultId && result.InputWorkflowRevision == command.InputWorkflowRevision && string.Equals(TradeSelectionContracts.DecisionEvidenceHash(expected), TradeSelectionContracts.DecisionEvidenceHash(result), StringComparison.Ordinal), "TS.RESULT.INVALID", "Selector result differs from the deterministic decision over the saved request.");
+                var trusted = current.DecisionRuntimeVersion > 0
+                    ? context is IIntrinsicTimeStrategyWorkflowCommandContext { DecisionRuntime: { } runtime } && runtime.MatchesResult(current, command.Result)
+                    : string.Equals(TradeSelectionContracts.DecisionEvidenceHash(TradeSelectionEvaluator.Evaluate(dispatch)), TradeSelectionContracts.DecisionEvidenceHash(result), StringComparison.Ordinal);
+                TradeSelectionContracts.Require(command.SourceEventId == result.ResultId && result.InputWorkflowRevision == command.InputWorkflowRevision && trusted, "TS.RESULT.INVALID", "Selector result does not match the accepted decision.");
             }
             catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
             {
@@ -126,6 +128,10 @@ public static class CompleteTradeSelection
                 Outcome = noTrade ? StrategyWorkflowOutcome.NoTrade : StrategyWorkflowOutcome.None,
                 TerminalAtUtc = noTrade ? now : null,
                 StopReasonCode = noTrade ? result.PrimaryReasonCode : string.Empty,
+                DailyFuturesEntry = current.DailyFuturesEntry is { } entry
+                    ? !noTrade ? entry with { Consumed = true }
+                        : result.PrimaryReasonCode == "TS.DAILY.EMA_RANGEBOUND" ? entry with { DcTriggerId = Guid.Empty } : entry
+                    : null,
                 TradeSelection = current.TradeSelection with
                 {
                     ProcessingStatus = StrategyActorProcessingStatus.Completed,

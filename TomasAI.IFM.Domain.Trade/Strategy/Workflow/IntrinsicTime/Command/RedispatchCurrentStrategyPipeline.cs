@@ -31,7 +31,7 @@ public static class RedispatchCurrentStrategyPipeline
             ArgumentNullException.ThrowIfNull(c);
             ArgumentNullException.ThrowIfNull(context);
             ArgumentNullException.ThrowIfNull(state);
-            var preparation = new WorkflowSnapshotPreparation(state.WorkflowDefinition);
+            var preparation = new WorkflowSnapshotPreparation(state.DecisionView);
             var preparationResult = PrepareWorkflow(c, context, preparation);
             if (!preparationResult.Success)
                 return preparationResult;
@@ -59,6 +59,23 @@ public static class RedispatchCurrentStrategyPipeline
             if (view.Status != WorkflowStrategyMachineStatus.Started && view.CompositionHandoff is null)
                 return new ServiceOk<GuidResult>(new(c.CommandId));
             var now = context.TimeProvider.GetUtcNow().UtcDateTime;
+            if (c.RequestedBy is Runtime.WorkflowLocalDispatcher.DeadlineSource or Runtime.WorkflowLocalDispatcher.InterruptedSource or Runtime.WorkflowLocalDispatcher.OverloadedSource)
+            {
+                if (!ExecuteIntrinsicTimeStrategyWorkflow.CanExpire(view, now) && c.RequestedBy == Runtime.WorkflowLocalDispatcher.DeadlineSource)
+                    return new ServiceOk<GuidResult>(new(c.CommandId));
+                if (view.EntryCommit?.Phase is WorkflowEntryCommitPhase.Approved or WorkflowEntryCommitPhase.OutcomeUnknown)
+                    return new ServiceOk<GuidResult>(new(c.CommandId));
+                var expired = ExecuteIntrinsicTimeStrategyWorkflow.CreateExpiredView(view, c.CommandId, now);
+                if (c.RequestedBy == Runtime.WorkflowLocalDispatcher.InterruptedSource)
+                    expired = expired with { StopReasonCode = "WF.DECISION.INTERRUPTED" };
+                if (c.RequestedBy == Runtime.WorkflowLocalDispatcher.OverloadedSource)
+                    expired = expired with { StopReasonCode = "WF.DECISION.OVERLOADED" };
+                state.Record(new WorkflowSnapshotChange { SnapshotEventId = Guid.CreateVersion7(new DateTimeOffset(now)),
+                    EntityId = c.EntityId, WorkflowId = expired.WorkflowId, WorkflowRevision = expired.WorkflowRevision,
+                    CorrelationId = expired.CorrelationId, CausationId = c.CommandId, PreviousStatus = view.Status,
+                    WorkflowDefinition = expired, UpdatedAtUtc = now }, c);
+                return new ServiceOk<GuidResult>(new(c.CommandId));
+            }
             state.Record(new WorkflowSnapshotChange { SnapshotEventId = Guid.CreateVersion7(new DateTimeOffset(now)), EntityId = c.EntityId, WorkflowId = view.WorkflowId, WorkflowRevision = view.WorkflowRevision, CorrelationId = view.CorrelationId, CausationId = c.CommandId, PreviousStatus = view.Status, WorkflowDefinition = view, UpdatedAtUtc = now }, c);
             return new ServiceOk<GuidResult>(new(c.CommandId));
         }

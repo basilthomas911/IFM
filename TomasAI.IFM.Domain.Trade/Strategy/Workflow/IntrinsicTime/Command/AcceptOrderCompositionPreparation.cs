@@ -43,7 +43,7 @@ public static class AcceptOrderCompositionPreparation
             ArgumentNullException.ThrowIfNull(command);
             ArgumentNullException.ThrowIfNull(context);
             ArgumentNullException.ThrowIfNull(state);
-            var preparation = new WorkflowSnapshotPreparation(state.WorkflowDefinition);
+            var preparation = new WorkflowSnapshotPreparation(state.DecisionView);
             var preparationResult = PrepareWorkflow(command, context, preparation);
             if (!preparationResult.Success)
                 return ValueTask.FromResult(preparationResult);
@@ -93,7 +93,10 @@ public static class AcceptOrderCompositionPreparation
             using var timing_composer_accept_create_execution = WorkflowTrace.Start("composer.accept.create_execution", current);
             next = next with
             {
-                CompositionExecution = CompositionDispatch.Create(next, prepared, now)
+                CompositionExecution = current.DecisionRuntimeVersion > 0
+                    ? ((context as IIntrinsicTimeStrategyWorkflowCommandContext)?.DecisionRuntime
+                        ?? throw new InvalidOperationException("OC.RUNTIME.NOT_READY")).CreateCompositionDispatch(next, prepared, now)
+                    : CompositionDispatch.Create(next, prepared, now)
             };
             timing_composer_accept_create_execution?.Stop();
             using var timing_composer_accept_state_update = WorkflowTrace.Start("composer.accept.state_update", current);

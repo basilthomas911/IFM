@@ -74,6 +74,7 @@ public class FuturesItiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         return baseCommand with
         {
             CommandId = commandId ?? Guid.NewGuid(),
+            Timestamp = DateTime.SpecifyKind(baseCommand.Timestamp, DateTimeKind.Utc),
             Subject = new ActorSubject(ActorType.Command, GenerateFuturesItiSignalCommand.Actor, GenerateFuturesItiSignalCommand.Verb, entityId.Format()),
             EntityId = entityId
         };
@@ -403,6 +404,12 @@ public class FuturesItiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         var actor = _fixture.CreateCommandActor(dbEventSource, logger);
 
         var cmd = CreateGenerateCommand(timePeriod: timePeriod);
+        if (timePeriod == TimeFrameType.Daily)
+            TomasAI.IFM.Domain.MarketData.Analytics.RegimeDiscovery.RegimeDiscoverySignalCacheAdapter.Publish(new TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels.FuturesAtrSignalReadModel
+            {ContractId=cmd.ContractId,ValueDate=cmd.ValueDate,TimePeriod=TimeFrameType.FiveMinutes,PeriodLength=14,AtrValue=8,TrueRange=8,IsWarm=true,
+             Metadata=new(){IsValid=true,ContractId=cmd.ContractId,SignalKey=new(){TimeFrame=TimeFrameType.FiveMinutes, MarketSeriesIdentity=TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common.MarketSeriesIdentity.ForContract(cmd.ContractId)},SourceSequence=123,
+                MarketDataAsOfUtc=new DateTimeOffset(cmd.Timestamp.AddMinutes(-1)),CalculatedAtUtc=new DateTimeOffset(cmd.Timestamp.AddSeconds(-30))}});
+
         var state = new FuturesItiSignalCommandState { Id = cmd.Subject.ThreadId };
         var context = Substitute.For<ICommandActorContext<FuturesItiSignalCommandActor>>();
 
@@ -600,6 +607,12 @@ public class FuturesItiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         var actor = _fixture.CreateCommandActor(dbEventSource, logger);
 
         var cmd = CreateGenerateCommand(timePeriod: timePeriod);
+        if (timePeriod == TimeFrameType.Daily)
+            TomasAI.IFM.Domain.MarketData.Analytics.RegimeDiscovery.RegimeDiscoverySignalCacheAdapter.Publish(new TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels.FuturesAtrSignalReadModel
+            {ContractId=cmd.ContractId,ValueDate=cmd.ValueDate,TimePeriod=TimeFrameType.FiveMinutes,PeriodLength=14,AtrValue=8,TrueRange=8,IsWarm=true,
+             Metadata=new(){IsValid=true,ContractId=cmd.ContractId,SignalKey=new(){TimeFrame=TimeFrameType.FiveMinutes, MarketSeriesIdentity=TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common.MarketSeriesIdentity.ForContract(cmd.ContractId)},SourceSequence=123,
+                MarketDataAsOfUtc=new DateTimeOffset(cmd.Timestamp.AddMinutes(-1)),CalculatedAtUtc=new DateTimeOffset(cmd.Timestamp.AddSeconds(-30))}});
+
         var threadId = cmd.Subject.ThreadId;
         var context = Substitute.For<ICommandActorContext<FuturesItiSignalCommandActor>>();
 
@@ -989,6 +1002,12 @@ public class FuturesItiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         var actor = _fixture.CreateCommandActor(dbEventSource, logger);
 
         var cmd = CreateGenerateCommand(timePeriod: timePeriod);
+        if (timePeriod == TimeFrameType.Daily)
+            TomasAI.IFM.Domain.MarketData.Analytics.RegimeDiscovery.RegimeDiscoverySignalCacheAdapter.Publish(new TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels.FuturesAtrSignalReadModel
+            {ContractId=cmd.ContractId,ValueDate=cmd.ValueDate,TimePeriod=TimeFrameType.FiveMinutes,PeriodLength=14,AtrValue=8,TrueRange=8,IsWarm=true,
+             Metadata=new(){IsValid=true,ContractId=cmd.ContractId,SignalKey=new(){TimeFrame=TimeFrameType.FiveMinutes, MarketSeriesIdentity=TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common.MarketSeriesIdentity.ForContract(cmd.ContractId)},SourceSequence=123,
+                MarketDataAsOfUtc=new DateTimeOffset(cmd.Timestamp.AddMinutes(-1)),CalculatedAtUtc=new DateTimeOffset(cmd.Timestamp.AddSeconds(-30))}});
+
         var threadId = cmd.Subject.ThreadId;
         var expectedState = new FuturesItiSignalCommandState { Id = threadId };
 
@@ -1119,6 +1138,12 @@ public class FuturesItiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         var actor = _fixture.CreateCommandActor(dbEventSource, logger);
 
         var cmd = CreateGenerateCommand(timePeriod: timePeriod);
+        if (timePeriod == TimeFrameType.Daily)
+            TomasAI.IFM.Domain.MarketData.Analytics.RegimeDiscovery.RegimeDiscoverySignalCacheAdapter.Publish(new TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels.FuturesAtrSignalReadModel
+            {ContractId=cmd.ContractId,ValueDate=cmd.ValueDate,TimePeriod=TimeFrameType.FiveMinutes,PeriodLength=14,AtrValue=8,TrueRange=8,IsWarm=true,
+             Metadata=new(){IsValid=true,ContractId=cmd.ContractId,SignalKey=new(){TimeFrame=TimeFrameType.FiveMinutes, MarketSeriesIdentity=TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common.MarketSeriesIdentity.ForContract(cmd.ContractId)},SourceSequence=123,
+                MarketDataAsOfUtc=new DateTimeOffset(cmd.Timestamp.AddMinutes(-1)),CalculatedAtUtc=new DateTimeOffset(cmd.Timestamp.AddSeconds(-30))}});
+
         var threadId = cmd.Subject.ThreadId;
         var state = new FuturesItiSignalCommandState { Id = threadId };
 

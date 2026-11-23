@@ -68,7 +68,9 @@ public sealed class RegimeDiscoveryMarketSignalSnapshotProviderTests
         var end = DateTimeOffset.UtcNow.AddMinutes(-1);
         RegimeDiscoverySignalCacheAdapter.Publish(new FuturesAtrSignalReadModel
         {
-            ContractId = contract, TimePeriod = TimeFrameType.OneHour, AtrValue = 2,
+            ContractId = contract, TimePeriod = TimeFrameType.OneHour, AtrValue = 2, AtrBaseline = 2, AtrRatio = 1,
+            Metadata = new() { ContractId = contract, MarketDataAsOfUtc = end, IsValid = true,
+                SignalKey = new(MarketSeriesIdentity.ForContract(contract), MarketAnalyticsSignalKind.Atr, TimeFrameType.OneHour, "atr") },
             ValueDate = DateOnly.FromDateTime(end.UtcDateTime), Timestamp = TimeOnly.FromDateTime(end.UtcDateTime), IsWarm = true
         });
         RegimeDiscoverySignalCacheAdapter.Publish(new TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesEmaSignal.FuturesEmaSignalReadModel
@@ -321,6 +323,54 @@ public sealed class RegimeDiscoveryMarketSignalSnapshotProviderTests
         result.IsSuccess.Should().BeFalse();
         result.Issues.Should().ContainSingle().Which.Availability.Should()
             .Be(RegimeDiscoverySignalAvailability.Missing);
+    }
+
+    [Theory]
+    [InlineData(300, true)]
+    [InlineData(359, true)]
+    [InlineData(390, false)]
+    public async Task Five_minute_atr_cannot_use_an_hour_old_allowance(int secondsOld, bool allowed)
+    {
+        var contract = $"ES-{Guid.NewGuid():N}";
+        var now = new DateTimeOffset(2026, 11, 19, 14, 31, 0, TimeSpan.Zero);
+        var provider = new RegimeDiscoveryMarketSignalSnapshotProvider(new AtrClock(now));
+        foreach (var metric in new[] { RegimeDiscoverySignalMetric.Atr14, RegimeDiscoverySignalMetric.AtrBaselineRatio })
+        {
+            provider.Upsert(Observation(contract) with
+            {
+                Metric = metric,
+                SignalKey = new(MarketSeriesIdentity.ForContract(contract), MarketAnalyticsSignalKind.Atr, TimeFrameType.FiveMinutes, $"{metric}.v1"),
+                MarketDataAsOfUtc = now.UtcDateTime.AddSeconds(-secondsOld), CalculatedAtUtc = now.UtcDateTime
+            });
+            var result = await provider.CaptureAsync(SingleMetricRequest(contract, metric, TimeFrameType.FiveMinutes));
+            result.IsSuccess.Should().Be(allowed);
+            if (!allowed) result.Issues.Should().Contain(issue => issue.Availability == RegimeDiscoverySignalAvailability.Stale);
+        }
+    }
+
+    sealed class AtrClock(DateTimeOffset now) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => now;
+    }
+
+    [Theory]
+    [InlineData(false, 2, 1)]
+    [InlineData(true, 0, 0)]
+    public async Task Atr_without_a_warm_baseline_cannot_qualify_a_trade(bool warm, double baseline, double ratio)
+    {
+        var contract = $"ES-{Guid.NewGuid():N}";
+        var now = DateTimeOffset.UtcNow;
+        RegimeDiscoverySignalCacheAdapter.Publish(new FuturesAtrSignalReadModel
+        {
+            ContractId = contract, TimePeriod = TimeFrameType.FiveMinutes, PeriodLength = 14,
+            AtrValue = 5, AtrBaseline = baseline, AtrRatio = ratio, IsWarm = warm,
+            Metadata = new() { ContractId = contract, IsValid = true, MarketDataAsOfUtc = now, CalculatedAtUtc = now,
+                SignalKey = new(MarketSeriesIdentity.ForContract(contract), MarketAnalyticsSignalKind.Atr, TimeFrameType.FiveMinutes, "atr") }
+        });
+        var result = await new RegimeDiscoveryMarketSignalSnapshotProvider().CaptureAsync(
+            SingleMetricRequest(contract, RegimeDiscoverySignalMetric.Atr14, TimeFrameType.FiveMinutes));
+        result.IsSuccess.Should().BeFalse();
+        result.Issues.Should().Contain(issue => issue.Availability == RegimeDiscoverySignalAvailability.NotWarm);
     }
 
     static RegimeDiscoveryMarketSignalSnapshotRequest Request(string contract) => new()

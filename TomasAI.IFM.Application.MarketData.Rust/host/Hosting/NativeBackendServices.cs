@@ -118,6 +118,8 @@ public static class NativeBackendServices
             services.AddSingleton<IFuturesContractRolloverStore, ActorFuturesRolloverStore>();
             services.AddSingleton(p => new FuturesDefinitionPublisher(p.GetRequiredService<ISecuritiesDbContext>().DbReader,
                 p.GetRequiredService<IActorProducer>()));
+            services.AddSingleton<IDiscoveredFuturesContractPublisher>(p => p.GetRequiredService<FuturesDefinitionPublisher>());
+            services.AddSingleton<ICurrentFuturesContractDiscovery, StoredFuturesContractDiscovery>();
             services.AddSingleton<IDatabentoContractAuthority, DatabentoContractAuthority>();
             services.AddSingleton(p => new SecuritiesOptionDefinitionPublisher(p.GetRequiredService<ISecuritiesDbContext>().DbWriter,
                 p.GetRequiredService<TimeProvider>()));

@@ -3,6 +3,15 @@ namespace TomasAI.IFM.Application.Storage.TradeDb;
 /// <summary>SQL statements and query templates for Trade storage.</summary>
 public static class TradeDbSql
 {
+    internal const string ReadOpenPositionsForEndOfDay = """
+        SELECT payload FROM trade.strategy_position_current WHERE isOpen
+        ORDER BY portfolioId,fundId,orderId,tradeId,positionId LIMIT $1;
+        """;
+    internal const string ReadOpenPositionsForEndOfDayAfter = """
+        SELECT payload FROM trade.strategy_position_current WHERE isOpen
+          AND (portfolioId,fundId,orderId,tradeId,positionId)>($1,$2,$3,$4,$5)
+        ORDER BY portfolioId,fundId,orderId,tradeId,positionId LIMIT $6;
+        """;
     public const string FindStartedIntrinsicTimeTrigger = """
         SELECT EXISTS (SELECT 1 FROM trade.intrinsic_time_strategy_workflow
             WHERE workflowentityid=$1 AND triggereventid=$2);
@@ -23,6 +32,35 @@ public static class TradeDbSql
         JOIN trade.intrinsic_time_strategy_workflow_active a USING (workflowentityid)
         WHERE q.workflowentityid > $1
         ORDER BY q.workflowentityid LIMIT 64;
+        """;
+
+    /// <summary>Lists exact futures contracts with workflow history.</summary>
+    internal const string ListStrategyUpdatesContracts = """
+        SELECT DISTINCT contractid FROM trade.intrinsic_time_strategy_workflow
+        WHERE contractid IS NOT NULL ORDER BY contractid;
+        """;
+
+    internal const string ReadStrategyUpdatesQueue = """
+        SELECT workflowid, workflowrevision, sort_at, signalsequence, legacy_unassigned FROM (
+          (SELECT workflowid, workflowrevision, signalatutc AS sort_at, signalsequence, false AS legacy_unassigned
+           FROM trade.intrinsic_time_strategy_workflow
+           WHERE contractid = $1 AND timeperiod = $2 AND assignmentkey = $3
+             AND signalatutc >= $4 AND signalatutc <= $5
+             AND (signalatutc, signalsequence, workflowid) < ($6, $7, $8)
+           ORDER BY signalatutc DESC, signalsequence DESC, workflowid DESC
+           LIMIT $9)
+          UNION ALL
+          (SELECT workflowid, workflowrevision, COALESCE(signalatutc, startedatutc) AS sort_at,
+                  signalsequence, true AS legacy_unassigned
+           FROM trade.intrinsic_time_strategy_workflow
+           WHERE contractid = $1 AND timeperiod = $2 AND assignmentkey IS NULL
+             AND COALESCE(signalatutc, startedatutc) >= $4 AND COALESCE(signalatutc, startedatutc) <= $5
+             AND (COALESCE(signalatutc, startedatutc), signalsequence, workflowid) < ($6, $7, $8)
+           ORDER BY sort_at DESC, signalsequence DESC, workflowid DESC
+           LIMIT $9)
+        ) AS history
+        ORDER BY sort_at DESC, signalsequence DESC, workflowid DESC
+        LIMIT $9;
         """;
 
     /// <summary>SQL for context statement1.</summary>
@@ -2303,6 +2341,14 @@ public static class TradeDbSql
         WHERE workflowid = $1;
         """;
 
+    internal const string NativeGetIntrinsicTimeStrategyWorkflowView =
+        """
+        SELECT workflowentityid, workflowrevision, stateschemaversion,
+               octet_length(statepayload), statepayload
+        FROM trade.intrinsic_time_strategy_workflow
+        WHERE workflowid = $1;
+        """;
+
     /// <summary>SQL for native get intrinsic time strategy workflow start attempts.</summary>
     internal const string NativeGetIntrinsicTimeStrategyWorkflowStartAttempts =
         """
@@ -2594,7 +2640,7 @@ public static class TradeDbSql
         """
         UPDATE trade.strategy_position_history SET phase='EndOfDay',payload=$4,projection_sequence=$5
         WHERE positionid=$1 AND asofutc=$2 AND positionsequence=$3
-            AND phase='MarkToMarket' AND projection_sequence=$6 RETURNING positionid;
+            AND phase IN ('MarkToMarket','EndOfDay') AND projection_sequence=$6 RETURNING positionid;
         """;
 
     /// <summary>Deletes live feed recovery rows.</summary>
@@ -2787,11 +2833,11 @@ public static class TradeDbSql
             workflowid, workflowentityid, workflowdefinitionid, workflowdefinitionversion,
             contractid, timeframestartvaluedate, timeperiod, triggereventid, correlationid,
             status, outcome, currentstage, workflowrevision, lasteventid, stateschemaversion,
-            statepayload, stopreasoncode, startedatutc, terminalatutc, updatedatutc)
+            statepayload, stopreasoncode, startedatutc, terminalatutc, updatedatutc, signalatutc, signalsequence, assignmentkey)
         VALUES ($1, $2, $3, $4,
             $5, $6, $7, $8, $9,
             $10, $11, $12, $13, $14, $15,
-            $16, $17, $18, $19, $20)
+            $16, $17, $18, $19, $20, $21, $22, $23)
             ON CONFLICT (workflowid) DO UPDATE SET workflowentityid=EXCLUDED.workflowentityid,
             workflowdefinitionid=EXCLUDED.workflowdefinitionid,
             workflowdefinitionversion=EXCLUDED.workflowdefinitionversion, contractid=EXCLUDED.contractid,
@@ -2800,7 +2846,8 @@ public static class TradeDbSql
             outcome=EXCLUDED.outcome, currentstage=EXCLUDED.currentstage, workflowrevision=EXCLUDED.workflowrevision,
             lasteventid=EXCLUDED.lasteventid, stateschemaversion=EXCLUDED.stateschemaversion,
             statepayload=EXCLUDED.statepayload, stopreasoncode=EXCLUDED.stopreasoncode,
-            startedatutc=EXCLUDED.startedatutc, terminalatutc=EXCLUDED.terminalatutc, updatedatutc=EXCLUDED.updatedatutc;
+            startedatutc=EXCLUDED.startedatutc, terminalatutc=EXCLUDED.terminalatutc, updatedatutc=EXCLUDED.updatedatutc,
+            signalatutc=EXCLUDED.signalatutc, signalsequence=EXCLUDED.signalsequence, assignmentkey=EXCLUDED.assignmentkey;
         """;
 
     /// <summary>SQL for upsert intrinsic time strategy workflow by entity.</summary>

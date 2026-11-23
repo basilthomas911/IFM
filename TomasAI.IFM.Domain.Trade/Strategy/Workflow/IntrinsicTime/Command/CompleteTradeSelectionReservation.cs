@@ -32,7 +32,7 @@ public static class CompleteTradeSelectionReservation
             ArgumentNullException.ThrowIfNull(c);
             ArgumentNullException.ThrowIfNull(context);
             ArgumentNullException.ThrowIfNull(state);
-            var preparation = new WorkflowSnapshotPreparation(state.WorkflowDefinition);
+            var preparation = new WorkflowSnapshotPreparation(state.DecisionView);
             var preparationResult = PrepareWorkflow(c, context, preparation);
             if (!preparationResult.Success)
                 return preparationResult;

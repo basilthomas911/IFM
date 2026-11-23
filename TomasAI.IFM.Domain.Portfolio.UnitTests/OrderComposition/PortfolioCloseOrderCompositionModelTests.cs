@@ -30,6 +30,9 @@ public sealed class PortfolioCloseOrderCompositionModelTests
             .Which.ReservedTradeId.Should().Be(request.Body.Position.Id.TradeId);
         identities.OrderAllocations.Should().Be(1);
         identities.TradeAllocations.Should().Be(0);
+        receipt.TradeOrder.BrokerOrderType.Should().Be(PortfolioBrokerOrderType.Market);
+        receipt.TradeOrder.Components[0].TickIncrement.Should().Be(0.25m);
+        receipt.TradeOrder.Components[0].SignedNetDebitLimit.Should().Be(100m);
     }
 
     [Fact]
@@ -87,7 +90,7 @@ public sealed class PortfolioCloseOrderCompositionModelTests
             ComponentId = Guid.Parse("30000000-0000-0000-0000-000000000001"),
             StrategyKind = TradeStrategyKind.FuturesOutright,
             ReservedTradeId = trade.TradeId,
-            Legs = [openLeg]
+            Legs = [openLeg], TickIncrement=0.25m, SignedNetDebitLimit=100m
         };
         var openingOrder = new TradeOrderDefinition
         {

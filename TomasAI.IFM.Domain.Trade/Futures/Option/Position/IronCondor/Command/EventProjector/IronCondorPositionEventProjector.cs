@@ -17,9 +17,11 @@ public sealed class IronCondorPositionEventProjector : ConventionalEventProjecto
 {
     readonly IIronCondorPositionCommandContext context;
     readonly ImmutableArray<EventProjectionDescriptor> descriptors;
-    public IronCondorPositionEventProjector(ICommandActorContext<FuturesIronCondorTradePositionCommandActor> actorContext, EventProjectorReliabilityOptions? options = null) : base(Typed(actorContext).DurableReplayQueue, Typed(actorContext).DbEventSource, Typed(actorContext).Logger, options)
+    readonly IronCondorAutomaticExitDispatcher? exits;
+    public IronCondorPositionEventProjector(ICommandActorContext<FuturesIronCondorTradePositionCommandActor> actorContext, EventProjectorReliabilityOptions? options = null, IronCondorAutomaticExitDispatcher? exits = null) : base(Typed(actorContext).DurableReplayQueue, Typed(actorContext).DbEventSource, Typed(actorContext).Logger, options)
     {
         context = Typed(actorContext);
+        this.exits = exits;
         descriptors = [DescribeNotification<IronCondorMonitoringInitializedEvent, StrategyPositionId>(source => string.Equals(context.DbFactory.TradeDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? Task.CompletedTask : ProjectMonitoringLimitsAsync(source)).WithReadModelRebuild((source, _) => ProjectMonitoringLimitsAsync((IronCondorMonitoringInitializedEvent)source)), new EventProjectionDescriptor(typeof(IronCondorPositionChangedEvent), EventProjectionIdempotencyStrategy.NaturalKeyMutation, async (source, _) =>
         {
             await ProjectAsync((IronCondorPositionChangedEvent)source).ConfigureAwait(false);
@@ -46,6 +48,7 @@ public sealed class IronCondorPositionEventProjector : ConventionalEventProjecto
         // Historical reconciliation was committed with its source event. Never
         // re-dispatch old lifecycle notifications or reopen pricing routes.
         if (changed.HistoricalEndOfDay is not null) return;
+        if (changed.VerifiedPriceCorrectionId != Guid.Empty) return;
         if (changed.PositionSnapshot.Phase == StrategyPositionPhase.MarkToMarket)
         {
             // This mark was already delivered to the live view.
@@ -56,7 +59,8 @@ public sealed class IronCondorPositionEventProjector : ConventionalEventProjecto
         }
 
         await context.SendAsync<IronCondorPositionChangedEvent, StrategyPositionId>(global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(changed, changed with { Subject = new(TomasAI.IFM.Shared.EventModelActor.ActorType.Event, "FuturesIronCondorTradePositionEvent", IronCondorPositionChangedEvent.Verb, changed.EntityId.Format()) })).ConfigureAwait(false);
-        await PositionProjectionActions.ProjectAsync(context, context.DbFactory, changed, FuturesIronCondorTradePositionCommandActor.ActorName, FuturesOptionRealtimeActor.ActorName, IronCondorTradePositionRealtimeActor.ActorName).ConfigureAwait(false);
+        var deferCleanup = !changed.PositionSnapshot.IsOpen && exits is not null && await exits.HasIntentAsync(changed.EntityId, CancellationToken.None).ConfigureAwait(false);
+        await PositionProjectionActions.ProjectAsync(context, context.DbFactory, changed, FuturesIronCondorTradePositionCommandActor.ActorName, FuturesOptionRealtimeActor.ActorName, IronCondorTradePositionRealtimeActor.ActorName, deferCleanup).ConfigureAwait(false);
     }
 
     /// <summary>Rebuilds accepted limit configuration from its recorded source facts; live PostgreSQL notification already skips this write.</summary>

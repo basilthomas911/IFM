@@ -18,6 +18,8 @@ public record GenerateFuturesItiSignalCommand : ICommand<FuturesItiSignalEntityI
     public const string Actor = "FuturesItiSignalCommand";
     public const string Verb = "GenerateFuturesItiSignal";
     public const int ErrorId = 20011;
+    [Key(13)] public DailyItiAtrThreshold? DailyAtr { get; init; }
+    [Key(14)] public bool RequireDailyAtr { get; init; }
 
     // Base command members (keys 0..5)
     [Key(0)] public Guid CommandId { get; init; }

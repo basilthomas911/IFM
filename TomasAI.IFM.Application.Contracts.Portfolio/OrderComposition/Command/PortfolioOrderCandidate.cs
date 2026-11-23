@@ -53,4 +53,7 @@ public sealed record PortfolioOrderCandidate
     /// <summary>Manual setup identity propagated into backend execution.</summary>
     [Key(34)] [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public TomasAI.IFM.Domain.Portfolio.Shared.Contracts.FundTradeSetupReference? SetupTrade { get; init; }
+
+    [Key(35)] [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public int? AssignedFundId { get; init; }
 }

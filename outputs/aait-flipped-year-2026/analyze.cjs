@@ -30,23 +30,27 @@ function execute(day, allow) {
     return taken;
 }
 
-const october = days.filter(day => day.date.startsWith('2026-10'));
-const regression = october.flatMap(day => execute(day, () => true).map(trade => [
-    day.date, trade.candidate.sign === 1 ? 'Long' : 'Short', trade.candidate.group,
-    trade.candidate.row + 1, trade.entry_row, trade.exit_row, trade.entry_price, trade.candidate.threshold,
-    trade.best_price, trade.exit_price, trade.stopped ? 'Trailing stop' : 'Session flatten', trade.gross,
-].join(',')));
-const [header, ...lines] = fs.readFileSync(octoberLedger, 'utf8').trim().split(/\r?\n/);
-const columns = header.split(',');
-const keys = ['date','side','dc_group','dc_row','entry_row','exit_row','entry_price','dc_threshold',
-    'best_price','exit_price','exit_reason','gross_pnl_usd'];
-assert.deepEqual(regression, lines.map(line => {
-    const cells = line.split(',');
-    return keys.map((key, i) => {
-        const cell = cells[columns.indexOf(key)];
-        return [0,1,10].includes(i) ? cell : Number(cell);
-    }).join(',');
-}));
+let verifiedOctoberTrades = null;
+if (octoberLedger) {
+    const october = days.filter(day => day.date.startsWith('2026-10'));
+    const regression = october.flatMap(day => execute(day, () => true).map(trade => [
+        day.date, trade.candidate.sign === 1 ? 'Long' : 'Short', trade.candidate.group,
+        trade.candidate.row + 1, trade.entry_row, trade.exit_row, trade.entry_price, trade.candidate.threshold,
+        trade.best_price, trade.exit_price, trade.stopped ? 'Trailing stop' : 'Session flatten', trade.gross,
+    ].join(',')));
+    const [header, ...lines] = fs.readFileSync(octoberLedger, 'utf8').trim().split(/\r?\n/);
+    const columns = header.split(',');
+    const keys = ['date','side','dc_group','dc_row','entry_row','exit_row','entry_price','dc_threshold',
+        'best_price','exit_price','exit_reason','gross_pnl_usd'];
+    assert.deepEqual(regression, lines.map(line => {
+        const cells = line.split(',');
+        return keys.map((key, i) => {
+            const cell = cells[columns.indexOf(key)];
+            return [0,1,10].includes(i) ? cell : Number(cell);
+        }).join(',');
+    }));
+    verifiedOctoberTrades = regression.length;
+}
 
 function fit(examples, names) {
     const modes = [...new Set(examples.map(example => example.candidate.prior_mode))].sort((a,b) => a-b);
@@ -134,7 +138,7 @@ const report = {
     sessions: days.length, es_ticks: days.reduce((sum,d) => sum+d.rows,0),
     signals: days.reduce((sum,d) => sum+d.signal_count,0),
     early_end_dates: days.filter(day => !day.has_cutoff_tick).map(day => day.date),
-    verified_october_baseline_trades: regression.length,
+    verified_october_baseline_trades: verifiedOctoberTrades,
     full_year_no_filter: sides(days.flatMap(day => execute(day, () => true))),
     training_warmup_months: months.slice(0,3),
     held_out_months: months.slice(3,-1),

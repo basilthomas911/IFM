@@ -226,6 +226,7 @@ fn member(registry: &Registry, kind: &str, wire: &Value, name: &str) -> Result<V
     wire.as_array()
         .and_then(|v| v.get(*index))
         .cloned()
+        .or_else(|| (kind == SIGNAL && name == "TrendVelocity").then_some(Value::Nil))
         .ok_or("Incomplete workflow value".into())
 }
 
@@ -653,6 +654,7 @@ fn node(
                 wire.as_array()
                     .and_then(|v| v.get(index))
                     .cloned()
+                    .or_else(|| (kind == SIGNAL && p.name == "TrendVelocity").then_some(Value::Nil))
                     .ok_or("Missing workflow display slot".into())
             } else {
                 member(registry, &kind, &wire, &p.name)

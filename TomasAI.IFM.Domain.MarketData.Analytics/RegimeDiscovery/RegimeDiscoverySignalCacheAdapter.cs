@@ -15,6 +15,11 @@ public static class RegimeDiscoverySignalCacheAdapter
 {
     static readonly RegimeDiscoveryMarketSignalSnapshotProvider Cache = new();
     static readonly ConcurrentDictionary<(string ContractId, TimeFrameType TimeFrame), decimal> LatestAtr = new();
+    static readonly ConcurrentDictionary<(string ContractId, TimeFrameType TimeFrame), FuturesAtrSignalReadModel> LatestAtrSignals = new();
+
+    /// <summary>Reads original ATR provenance for entry qualification without PostgreSQL on the signal path.</summary>
+    public static bool TryGetLatestAtr(string contract, TimeFrameType frame, out FuturesAtrSignalReadModel signal)
+        => LatestAtrSignals.TryGetValue((contract, frame), out signal!);
     static readonly ConcurrentDictionary<(string ContractId, TimeFrameType TimeFrame), decimal> LatestEma20 = new();
     static readonly ConcurrentDictionary<(string ContractId, TimeFrameType TimeFrame), FuturesEmaSignalReadModel> LatestEmaSignals = new();
     static readonly ConcurrentDictionary<(string ContractId, TimeFrameType TimeFrame), FuturesBbSignalReadModel> LatestBbSignals = new();
@@ -87,10 +92,14 @@ public static class RegimeDiscoverySignalCacheAdapter
         ArgumentNullException.ThrowIfNull(signal);
         var metadata = Metadata(signal.Metadata, signal.ContractId, signal.TimePeriod, signal.ValueDate,
             signal.Timestamp, "atr-v1", timeProvider);
-        Publish(metadata, RegimeDiscoverySignalMetric.Atr14, (decimal)signal.AtrValue, signal.IsWarm);
-        LatestAtr[(signal.ContractId, signal.TimePeriod)] = (decimal)signal.AtrValue;
+        if (signal.PeriodLength == 14)
+            LatestAtrSignals.AddOrUpdate((signal.ContractId, signal.TimePeriod), signal with { Metadata = metadata },
+                (_, current) => metadata.MarketDataAsOfUtc >= current.Metadata!.MarketDataAsOfUtc ? signal with { Metadata = metadata } : current);
+        var qualified = signal is { IsWarm: true, AtrValue: > 0, AtrBaseline: > 0, AtrRatio: > 0, Metadata.IsValid: true };
+        Publish(metadata, RegimeDiscoverySignalMetric.Atr14, (decimal)signal.AtrValue, qualified);
+        if (qualified) LatestAtr[(signal.ContractId, signal.TimePeriod)] = (decimal)signal.AtrValue;
         PublishNullable(metadata, RegimeDiscoverySignalMetric.AtrBaselineRatio,
-            signal.AtrRatio is { } ratio ? (decimal)ratio : null, signal.IsWarm);
+            signal.AtrRatio is { } ratio ? (decimal)ratio : null, qualified);
     }
 
     /// <summary>Publishes RSI14 and its slope.</summary>

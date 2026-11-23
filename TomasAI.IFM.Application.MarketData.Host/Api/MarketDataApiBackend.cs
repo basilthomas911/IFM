@@ -77,6 +77,9 @@ public sealed partial class MarketDataApiBackend(MarketDataHostConnection connec
             case nameof(ReadIndicatorSeedBarsAsync):
                 result = await services.GetRequiredService<Seeding.FourHourDatabentoSeedReplay>()
                     .ReadAsync((string)args[0]!, (TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType)args[1]!, token).ConfigureAwait(false); break;
+            case nameof(ReadEmaSeedBarsAsync):
+                result = await services.GetRequiredService<Seeding.FourHourDatabentoSeedReplay>()
+                    .ReadEmaAsync((string)args[0]!, (TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType)args[1]!, (int)args[2]!, token).ConfigureAwait(false); break;
             case nameof(GetBackendReadSnapshotAsync):
                 var snapshot = host.CaptureReadSnapshot();
                 var contractsForMirror = PreparedContracts();

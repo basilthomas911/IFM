@@ -11,8 +11,9 @@ public static class SeedFuturesEmaSignalsValidation
         public TErrors ValidateSeedBatch(SeedFuturesEmaSignalsCommand command)
         {
             ArgumentNullException.ThrowIfNull(command);
-            if (command.Observations is not { Length: >= 1 and <= 64 })
-            { errors.Add(new("EMA.SEED.COUNT", "An ordered seed must contain 1..64 observations.")); return errors; }
+            if (command.Observations is not { Length: >= 1 } || command.Observations.Length > (command.InitializeEma200 ? 512 : 64)
+                || (command.InitializeEma200 && command.Observations.Length < 200))
+            { errors.Add(new("EMA.SEED.COUNT", "An ordinary seed requires 1..64 bars; EMA200 initialization requires 200..512 bars.")); return errors; }
             DateTimeOffset? previous = null;
             foreach (var observation in command.Observations)
             {

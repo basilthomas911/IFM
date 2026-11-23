@@ -32,9 +32,11 @@ public interface IMarketDataDbReadContext : TomasAI.IFM.Application.MarketData.C
     /// <param name="intervalEndsUtc">The interval ends utc supplied by the caller.</param>
     /// <param name="sourceVersion">The source version supplied by the caller.</param>
     /// <param name="cancellationToken">Cancels the database operation.</param>
+    /// <param name="seriesIdentity">The canonical series used by the live writer, when different from the contract.</param>
     /// <returns>The selected rows in the query's defined order.</returns>
     Task<IReadOnlyList<FuturesTradeSessionBarReadModel>> GetQualifiedIndicatorSeedBarsAsync(string contractId, TimeFrameType frame,
-        DateOnly valueDate, DateTimeOffset[] intervalEndsUtc, string sourceVersion, CancellationToken cancellationToken);
+        DateOnly valueDate, DateTimeOffset[] intervalEndsUtc, string sourceVersion, CancellationToken cancellationToken,
+        MarketSeriesIdentity? seriesIdentity = null);
 
 
     /// <summary>Reads one completed, immutable contract interval for indicator restart without reacquiring provider history.</summary>
@@ -162,6 +164,8 @@ public interface IMarketDataDbReadContext : TomasAI.IFM.Application.MarketData.C
         MarketSeriesIdentity seriesIdentity,
         DateOnly valueDate,
         CancellationToken cancellationToken = default);
+    Task<FuturesEmaSignalReadModel?> GetLatestFuturesEmaSignalForTimeFrameAsync(
+        MarketSeriesIdentity seriesIdentity, DateOnly valueDate, TimeFrameType timeFrame, CancellationToken cancellationToken = default);
     /// <summary>Get Latest Futures Bollinger Band Signal using the MarketDataDb persistence.</summary>
     /// <param name="seriesIdentity">The series identity used by this operation.</param>
     /// <param name="valueDate">The value date used by this operation.</param>

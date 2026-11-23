@@ -12,6 +12,7 @@ namespace TomasAI.IFM.Domain.MarketData.Securities.Persistence;
 
 /// <summary>Prepares newly discovered futures definitions and submits them to the existing Securities catalog actor.</summary>
 public sealed class FuturesDefinitionPublisher(ISecuritiesDbReadContext database, IActorProducer producer)
+    : TomasAI.IFM.Application.MarketData.Contracts.IDiscoveredFuturesContractPublisher
 {
     static readonly ActorMailboxId Publisher = new(ActorType.Command, "FuturesDefinitionPreparation");
 

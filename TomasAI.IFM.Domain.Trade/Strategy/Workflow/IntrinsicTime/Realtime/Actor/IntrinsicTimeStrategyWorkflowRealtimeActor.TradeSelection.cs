@@ -25,6 +25,15 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor
         FunctionResult<TradeSelectionFunctionCompletedEvent, TradeSelectionFunctionFailedEvent> terminal;
         try
         {
+            if (snapshot.State.DecisionRuntimeVersion > 0 && domain.DecisionRuntime is null)
+                throw new InvalidOperationException("TS.RUNTIME.NOT_READY");
+            if (snapshot.State.DecisionRuntimeVersion > 0 && domain.DecisionRuntime is { } local)
+            {
+                var calculated = await local.SelectionAsync(execute).ConfigureAwait(false);
+                terminal = TradeSelectionFunctionActor.MapEvent(new(typeof(TradeSelectionFunctionCompletedEvent), execute, calculated), clock);
+            }
+            else
+            {
             var remaining = execute.ExpiresAtUtc - clock.GetUtcNow().UtcDateTime;
             using var deadline = new CancellationTokenSource((remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero) + FunctionReplyGrace);
             var reply = await context.RequestFunctionAsync<ExecuteTradeSelectionPipelineCommand, TradeSelectionExecutionId, FunctionResult<TradeSelectionFunctionCompletedEvent, TradeSelectionFunctionFailedEvent>>(execute, deadline.Token).ConfigureAwait(false);
@@ -37,6 +46,7 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor
                 if (committed is null)
                     throw new InvalidOperationException("The selector commit is unconfirmed; retry the saved dispatch.");
                 terminal = FunctionResult<TradeSelectionFunctionCompletedEvent, TradeSelectionFunctionFailedEvent>.Complete(committed);
+            }
             }
             if (terminal.IsCompleted)
             {
@@ -53,7 +63,7 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor
         {
             // An unknown transport outcome is recoverable through the saved dispatch. Do not reject a
             // possibly committed Function result while the workflow can still accept its replay.
-            if (ex is not TradeSelectionValidationException && clock.GetUtcNow().UtcDateTime < snapshot.State.ExpiresAtUtc)
+            if (snapshot.State.DecisionRuntimeVersion == 0 && ex is not TradeSelectionValidationException && clock.GetUtcNow().UtcDateTime < snapshot.State.ExpiresAtUtc)
                 throw;
             terminal = TradeSelectionFunctionActor.MapEvent(new(typeof(TradeSelectionFunctionFailedEvent), execute, Exception: ex is TradeSelectionValidationException ? ex : new TradeSelectionValidationException("TS.TRANSPORT.FAILED", ex.Message)), clock);
         }
@@ -61,6 +71,7 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor
         if (terminal.IsCompleted)
         {
             var completed = terminal.Completed!;
+            if (snapshot.State.DecisionRuntimeVersion > 0) domain.DecisionRuntime?.RecordResult(snapshot.State, completed.Result);
             var c = new CompleteTradeSelectionCommand
             {
                 CommandId = DeterministicTerminalCommandId(execute.WorkflowEntityId, execute.WorkflowId, execute.InputWorkflowRevision, completed.Id, CompleteTradeSelectionCommand.Verb),

@@ -83,7 +83,13 @@ public sealed partial class ApiServerLifecycle
                 // must have their additive operational table before any hosted services start.
                 using (var recoverySchemaDeadline = new CancellationTokenSource(TimeSpan.FromMinutes(2)))
                     await app.Services.GetRequiredService<TomasAI.IFM.Application.Storage.TradeDb.Schema.TradeSchemaDb>()
-                        .CreateAsync(["live_feed_recovery", "intrinsic_time_strategy_signal_queue"], recoverySchemaDeadline.Token);
+                        .CreateAsync(["live_feed_recovery", "intrinsic_time_strategy_signal_queue", "intrinsic_time_strategy_updates_queue", "position_eod_recovery"], recoverySchemaDeadline.Token);
+            }),
+            RunPreflightAsync("Automatic iron-condor exit intent schema", async () =>
+            {
+                using var deadline=new CancellationTokenSource(TimeSpan.FromSeconds(30));
+                await app.Services.GetRequiredService<TomasAI.IFM.Application.Storage.TradePlanDb.Schema.TradePlanSchemaDb>()
+                    .CreateAsync(["iron_condor_exit_intent"],deadline.Token);
             }),
             RunPreflightAsync("Market Data recovery log schema", async () =>
             {
@@ -106,7 +112,7 @@ public sealed partial class ApiServerLifecycle
                 // These additive cache tables must exist before background configuration readers start.
                 using (var cacheSchemaDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(30)))
                 await app.Services.GetRequiredService<MarketDataSchemaDb>().CreateAsync(
-                ["strategy_option_chain_parameter_version", "strategy_option_chain_parameter_current"], cacheSchemaDeadline.Token);
+                ["strategy_option_chain_parameter_version", "strategy_option_chain_parameter_current", "position_eod_quote_evidence"], cacheSchemaDeadline.Token);
             }, marketDataNamespace),
             RunPreflightAsync("Historical analytics diagnostics schema", async () =>
             {
@@ -124,7 +130,7 @@ public sealed partial class ApiServerLifecycle
             {
                 using var schemaDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
                 await app.Services.GetRequiredService<MarketDataSchemaDb>().CreateAsync(
-                    ["indicator_seed_coverage"], schemaDeadline.Token);
+                    ["indicator_seed_coverage", "iti_trend_velocity"], schemaDeadline.Token);
             }, marketDataNamespace),
             RunPreflightAsync("Configuration schema and parameter migration", async () =>
             {

@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using TomasAI.IFM.Shared.Diagnostics;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Serializers;
@@ -74,7 +74,7 @@ public sealed class MarketDataNatsService(MarketDataWorkerHost host, MarketDataH
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
         var maximum = request.Path == "api/RefreshInstrumentDefinitionsAsync" ? TimeSpan.FromMinutes(30)
             : request.Path == "api/LoadHistoricalAsync" ? TimeSpan.FromMinutes(25)
-            : request.Path.EndsWith("/start", StringComparison.Ordinal) || request.Path is "api/StartAsync" or "api/ReadFiveMinuteSeedBarsAsync" or "api/ReadIndicatorSeedBarsAsync" or "api/RefreshOptionCalendarAsync"
+            : request.Path.EndsWith("/start", StringComparison.Ordinal) || request.Path is "api/StartAsync" or "api/ReadFiveMinuteSeedBarsAsync" or "api/ReadIndicatorSeedBarsAsync" or "api/ReadEmaSeedBarsAsync" or "api/RefreshOptionCalendarAsync"
             ? TimeSpan.FromSeconds(180) : request.Path is "api/AcquireOptionScopeAsync" or "api/PrepareCompositionAsync" ? TimeSpan.FromSeconds(90)
             : TimeSpan.FromSeconds(30);
         if (!recovery) deadline.CancelAfter(remaining < maximum ? remaining : maximum);
@@ -146,3 +146,4 @@ public sealed class MarketDataNatsService(MarketDataWorkerHost host, MarketDataH
     static async Task<bool> HangAsync(DatasetWorkerProcessSupervisor worker, CancellationToken token)
     { await worker.HangAsync(token).ConfigureAwait(false); return true; }
 }
+

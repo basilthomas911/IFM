@@ -13,9 +13,9 @@ namespace TomasAI.IFM.LivePipeline.IntegrationTests;
 public sealed class FrozenEmulatorOrderExecutionTests
 {
     [Theory]
-    [InlineData(FuturesMarketState.Closed, true)]
+    [InlineData(FuturesMarketState.Closed, false)]
     [InlineData(FuturesMarketState.LiveTrading, false)]
-    public async Task Frozen_quotes_match_only_when_market_is_closed(FuturesMarketState state, bool shouldFill)
+    public async Task Frozen_display_quotes_never_become_executable_quotes(FuturesMarketState state, bool shouldFill)
     {
         var now = DateTimeOffset.UtcNow;
         var sessions = Substitute.For<IFuturesMarketSessionAuthority>();

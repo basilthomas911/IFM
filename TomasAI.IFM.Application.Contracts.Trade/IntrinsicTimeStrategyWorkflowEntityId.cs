@@ -25,6 +25,8 @@ public readonly record struct IntrinsicTimeStrategyWorkflowEntityId : IActorEnti
     [Key(1)]
     public FuturesItiSignalEntityId ItiSignalEntityId { get; init; }
 
+    [Key(2)] public IntrinsicTimeFundAssignment? Assignment { get; init; }
+
     /// <summary>Initializes an empty instance for serialization.</summary>
     public IntrinsicTimeStrategyWorkflowEntityId()
     {
@@ -38,10 +40,11 @@ public readonly record struct IntrinsicTimeStrategyWorkflowEntityId : IActorEnti
     [SerializationConstructor]
     public IntrinsicTimeStrategyWorkflowEntityId(
         string workflowDefinitionId,
-        FuturesItiSignalEntityId itiSignalEntityId)
+        FuturesItiSignalEntityId itiSignalEntityId, IntrinsicTimeFundAssignment? assignment = null)
     {
         WorkflowDefinitionId = workflowDefinitionId;
         ItiSignalEntityId = itiSignalEntityId;
+        Assignment = assignment;
     }
 
     /// <summary>Creates an identity for the current Intrinsic Time Strategy workflow definition.</summary>
@@ -55,7 +58,7 @@ public readonly record struct IntrinsicTimeStrategyWorkflowEntityId : IActorEnti
 
     /// <summary>Formats the stable actor-routing identity.</summary>
     /// <returns>The workflow definition followed by the complete futures ITI identity.</returns>
-    public string Format() => $"{WorkflowDefinitionId}.{ItiSignalEntityId?.Format()}";
+    public string Format() => $"{WorkflowDefinitionId}.{ItiSignalEntityId?.Format()}{Assignment?.QueueSuffix()}";
 
     /// <summary>Returns the stable formatted actor-routing identity.</summary>
     public override string ToString() => Format();

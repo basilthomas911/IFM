@@ -40,7 +40,7 @@ public sealed class MarketDataSchemaDb(IDbConnectionSettings connectionSettings,
     public static string OptionChainPoliciesCreateStatement { get; } = OptionChainVersionCreate + "\n" + OptionChainCurrentCreate;
 
     internal static string CreateBaseStatement { get; } =
-        OptionChainPoliciesCreateStatement + "\n" + IndicatorSeedCoverageCreate + "\n" + CreateMarketDataTables;
+        OptionChainPoliciesCreateStatement + "\n" + IndicatorSeedCoverageCreate + "\n" + CreateMarketDataTables + "\n" + ItiTrendVelocityCreate + "\n" + PositionEodQuoteEvidenceCreate;
 
     /// <summary>Gets the derived market data schema and its prerequisite policy and coverage tables.</summary>
     public static string CreateStatement { get; } =
@@ -53,6 +53,8 @@ public sealed class MarketDataSchemaDb(IDbConnectionSettings connectionSettings,
         new("historical_data_loader", CreateHistoricalDataLoader, DropHistoricalDataLoader),
         new("historical_analytics_attempt_projection", CreateHistoricalAnalyticsAttemptProjection, DropHistoricalAnalyticsAttemptProjection),
         new("market_data", CreateStatement, DropMarketData),
+        new("position_eod_quote_evidence", PositionEodQuoteEvidenceCreate, "DROP TABLE IF EXISTS market_data.position_eod_quote_evidence; DROP TABLE IF EXISTS market_data.position_eod_quote_original;"),
+        new("iti_trend_velocity", ItiTrendVelocityCreate, ItiTrendVelocityDrop),
         new("indicator_seed_coverage", IndicatorSeedCoverageCreate, DropIndicatorSeedCoverage),
         new("strategy_option_chain_parameter_version", OptionChainVersionCreate, DropOptionChainVersion),
         new("strategy_option_chain_parameter_current", OptionChainCurrentCreate, DropOptionChainCurrent),

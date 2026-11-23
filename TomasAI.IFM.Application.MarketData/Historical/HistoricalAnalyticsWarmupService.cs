@@ -19,6 +19,7 @@ public sealed class HistoricalAnalyticsWarmupService : IDisposable
     readonly IHistoricalDailyReplayPublisher dailyReplayPublisher;
     readonly IMarketSessionCalendar calendar;
     readonly TimeProvider timeProvider;
+    readonly ICompletedDailyObservationRepair? completedDailyRepair;
     readonly SemaphoreSlim gate = new(1, 1);
     string lastCompletedReplayKey = string.Empty;
     /// <summary>The last successfully published baseline; retained when acquisition fails.</summary>
@@ -27,7 +28,7 @@ public sealed class HistoricalAnalyticsWarmupService : IDisposable
     /// <summary>True when more than one completed trading session is missing, matching the acquisition policy.</summary>
     public bool BaselineIsStale => BaselineValueDate is { } baseline && expectedBaselineDate is { } end
         && baseline < end && TradingDates(baseline.AddDays(1), end).Length > 1;
-    public HistoricalAnalyticsWarmupService(HistoricalAnalyticsWarmupOptions options, HistoricalDataLoader loader, IHistoricalObservationStore observationStore, IHistoricalDailyReplayPublisher dailyReplayPublisher, IMarketSessionCalendar calendar, TimeProvider timeProvider, ILogger<HistoricalAnalyticsWarmupService>? logger = null)
+    public HistoricalAnalyticsWarmupService(HistoricalAnalyticsWarmupOptions options, HistoricalDataLoader loader, IHistoricalObservationStore observationStore, IHistoricalDailyReplayPublisher dailyReplayPublisher, IMarketSessionCalendar calendar, TimeProvider timeProvider, ILogger<HistoricalAnalyticsWarmupService>? logger = null, ICompletedDailyObservationRepair? completedDailyRepair = null)
     {
         this.logger = logger ?? NullLogger<HistoricalAnalyticsWarmupService>.Instance;
         this.options = (options ?? throw new ArgumentNullException(nameof(options))).Validate();
@@ -36,6 +37,7 @@ public sealed class HistoricalAnalyticsWarmupService : IDisposable
         this.dailyReplayPublisher = dailyReplayPublisher ?? throw new ArgumentNullException(nameof(dailyReplayPublisher));
         this.calendar = calendar ?? throw new ArgumentNullException(nameof(calendar));
         this.timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
+        this.completedDailyRepair = completedDailyRepair;
     }
 
     public async ValueTask<HistoricalAnalyticsWarmupResult> EnsureAsync(MarketDataHistoricalRequest template, CancellationToken cancellationToken)
@@ -75,6 +77,9 @@ public sealed class HistoricalAnalyticsWarmupService : IDisposable
             if (BaselineValueDate > endDate) BaselineValueDate = null;
             logger.LogInformation("Daily analytics warmup effective range: TargetValueDate={ValueDate}; LastCompletedDate={EndDate}; AttemptId={AttemptId}",
                 template.EndDate, endDate, template.DataLoadAttemptId);
+            if (completedDailyRepair is not null)
+                foreach (var series in template.Series)
+                    await completedDailyRepair.RepairAsync(series.SeriesIdentity, template.AnalyticsTargetContractId, endDate, cancellationToken).ConfigureAwait(false);
             foreach (var series in template.Series)
             {
                 try

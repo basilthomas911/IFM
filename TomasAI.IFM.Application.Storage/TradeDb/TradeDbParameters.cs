@@ -1153,7 +1153,7 @@ internal readonly record struct UpsertActiveIntrinsicTimeStrategyWorkflow(string
 }
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
-internal readonly record struct UpsertIntrinsicTimeStrategyWorkflow(Guid WorkflowId, string WorkflowEntityId, string WorkflowDefinitionId, int WorkflowDefinitionVersion, string ContractId, DateOnly TimeFrameStartValueDate, string TimePeriod, Guid TriggerEventId, Guid CorrelationId, string Status, string Outcome, string CurrentStage, long WorkflowRevision, long LastEventId, int StateSchemaVersion, byte[] StatePayload, string StopReasonCode, DateTime StartedAtUtc, DateTime? TerminalAtUtc, DateTime UpdatedAtUtc) : IBindValue
+internal readonly record struct UpsertIntrinsicTimeStrategyWorkflow(Guid WorkflowId, string WorkflowEntityId, string WorkflowDefinitionId, int WorkflowDefinitionVersion, string ContractId, DateOnly TimeFrameStartValueDate, string TimePeriod, Guid TriggerEventId, Guid CorrelationId, string Status, string Outcome, string CurrentStage, long WorkflowRevision, long LastEventId, int StateSchemaVersion, byte[] StatePayload, string StopReasonCode, DateTime StartedAtUtc, DateTime? TerminalAtUtc, DateTime UpdatedAtUtc, DateTime? SignalAtUtc, long SignalSequence, string? AssignmentKey) : IBindValue
 {
     public object Bind() => new object? []
     {
@@ -1176,7 +1176,10 @@ internal readonly record struct UpsertIntrinsicTimeStrategyWorkflow(Guid Workflo
         StopReasonCode,
         StartedAtUtc,
         TerminalAtUtc,
-        UpdatedAtUtc
+        UpdatedAtUtc,
+        SignalAtUtc,
+        SignalSequence,
+        AssignmentKey
     };
 }
 

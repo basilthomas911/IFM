@@ -16,6 +16,13 @@ public sealed record MarketOutlookPresentation([property: MessagePack.Key("cells
         var cells = new Dictionary<string, MarketOutlookCell>();
         Add(new FuturesEodDataUIViewModel(snapshot));
         Add(new FuturesTradeSignalUIViewModel(snapshot));
+        cells["marketDirection"] = snapshot.FiveMinuteEmaState switch
+        {
+            "StronglyBullish" => new("StronglyBullish", "DarkText", "Positive"),
+            "RangeBound" => new("RangeBound", "DarkText", "Caution"),
+            "StronglyBearish" => new("StronglyBearish", "DarkText", "Negative"),
+            _ => new("Unavailable", "LightText", "DarkSurface")
+        };
         // The close price textbox is yellow on black in the WinForms designer.
         if (cells.TryGetValue("closePrice", out var close)) cells["closePrice"] = close with { Foreground = "Caution" };
         var updated = new DateTimeOffset(DateTime.SpecifyKind(snapshot.UpdatedAtUtc, DateTimeKind.Utc));

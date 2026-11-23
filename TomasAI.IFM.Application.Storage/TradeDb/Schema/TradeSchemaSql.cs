@@ -3,6 +3,20 @@ namespace TomasAI.IFM.Application.Storage.TradeDb.Schema;
 /// <summary>Contains PostgreSQL schema statements for TradeDb.</summary>
 public static class TradeSchemaSql
 {
+    public const string PositionEndOfDayRecoveryCreate = """
+        CREATE TABLE IF NOT EXISTS trade.position_eod_recovery (
+            position_id uuid NOT NULL, value_date date NOT NULL, position_identity bytea NOT NULL,
+            boundary_utc timestamptz NOT NULL, state text NOT NULL DEFAULT 'Pending',
+            attempts integer NOT NULL DEFAULT 0, next_attempt_at timestamptz NOT NULL,
+            lease_id uuid, lease_until timestamptz, last_error text NOT NULL DEFAULT '',
+            updated_at timestamptz NOT NULL,
+            PRIMARY KEY(position_id,value_date),
+            CHECK(state IN ('Pending','Working','Complete'))
+        );
+        CREATE INDEX IF NOT EXISTS position_eod_recovery_due ON trade.position_eod_recovery(next_attempt_at,position_id,value_date)
+            WHERE state<>'Complete';
+        """;
+
     internal const string StrategySignalQueueCreate =
         """
         CREATE TABLE IF NOT EXISTS trade.intrinsic_time_strategy_signal_queue (
@@ -17,6 +31,34 @@ public static class TradeSchemaSql
         """
         DROP INDEX IF EXISTS trade.intrinsic_time_strategy_workflow_trigger;
         DROP TABLE IF EXISTS trade.intrinsic_time_strategy_signal_queue;
+        """;
+
+    internal const string StrategyUpdatesQueueCreate =
+        """
+        ALTER TABLE trade.intrinsic_time_strategy_workflow
+            ADD COLUMN IF NOT EXISTS signalatutc timestamptz,
+            ADD COLUMN IF NOT EXISTS signalsequence bigint NOT NULL DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS assignmentkey text;
+
+        CREATE INDEX IF NOT EXISTS intrinsic_time_strategy_workflow_queue_order
+            ON trade.intrinsic_time_strategy_workflow
+            (contractid, timeperiod, assignmentkey, signalatutc DESC, signalsequence DESC, workflowid DESC)
+            WHERE assignmentkey IS NOT NULL;
+
+        CREATE INDEX IF NOT EXISTS intrinsic_time_strategy_workflow_legacy_order
+            ON trade.intrinsic_time_strategy_workflow
+            (contractid, timeperiod, COALESCE(signalatutc, startedatutc) DESC, signalsequence DESC, workflowid DESC)
+            WHERE assignmentkey IS NULL;
+        """;
+
+    internal const string StrategyUpdatesQueueDrop =
+        """
+        DROP INDEX IF EXISTS trade.intrinsic_time_strategy_workflow_queue_order;
+        DROP INDEX IF EXISTS trade.intrinsic_time_strategy_workflow_legacy_order;
+        ALTER TABLE IF EXISTS trade.intrinsic_time_strategy_workflow
+            DROP COLUMN IF EXISTS assignmentkey,
+            DROP COLUMN IF EXISTS signalsequence,
+            DROP COLUMN IF EXISTS signalatutc;
         """;
 
     internal const string DropDuplicateIndexes =
@@ -120,6 +162,9 @@ public static class TradeSchemaSql
             payload bytea,
             PRIMARY KEY (portfolioId, fundId, orderId, tradeId, positionId)
         );
+
+        CREATE INDEX IF NOT EXISTS strategy_position_current_open_eod
+            ON trade.strategy_position_current(portfolioId,fundId,orderId,tradeId,positionId) WHERE isOpen;
 
         CREATE TABLE IF NOT EXISTS trade.strategy_position_history (
             positionId uuid,

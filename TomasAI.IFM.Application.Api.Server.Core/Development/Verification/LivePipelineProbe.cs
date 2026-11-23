@@ -470,9 +470,19 @@ public sealed class LivePipelineHealthCheck(LivePipelineMonitor monitor) : IHeal
 {
     public Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
     {
-        var snapshot = monitor.Current;
+        return Task.FromResult(Evaluate(monitor.Current));
+    }
+
+    public static HealthCheckResult Evaluate(LivePipelineHealthSnapshot snapshot)
+    {
         var data = new Dictionary<string, object> { ["pipeline"] = snapshot };
-        return Task.FromResult(snapshot.Status == "Healthy" ? HealthCheckResult.Healthy("All required live-pipeline components verified; UI session evidence is reported separately.", data)
-            : HealthCheckResult.Degraded("Live pipeline has failed or unverified components.", data: data));
+        var plannedClosure = snapshot.Status == "Inactive" && snapshot.ValueDate is null
+            && snapshot.Checks.Any(check => check.Component == "Session authority" && check.Status == "Healthy")
+            && snapshot.Checks.Where(check => check.Required).All(check => check.Status is "Healthy" or "Inactive");
+        return snapshot.Status == "Healthy" || plannedClosure
+            ? HealthCheckResult.Healthy(plannedClosure
+                ? "Planned market closure; all required pipeline components verified."
+                : "All required live-pipeline components verified; UI session evidence is reported separately.", data)
+            : HealthCheckResult.Degraded("Live pipeline has failed or unverified components.", data: data);
     }
 }

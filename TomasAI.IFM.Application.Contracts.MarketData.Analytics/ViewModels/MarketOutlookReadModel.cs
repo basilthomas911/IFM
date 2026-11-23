@@ -49,6 +49,8 @@ public sealed record MarketOutlookReadModel
     [Key(33)] public MarketOutlookInputAvailability MacdAvailability { get; init; }
     [Key(34)] public decimal? MdiPercent { get; init; }
     [Key(35)] public FuturesMDITrendType? MdiClassification { get; init; }
+    /// <summary>Completed five-minute EMA20/50/200 state, independently of the Daily EMA display baseline.</summary>
+    [Key(36)] public string FiveMinuteEmaState { get; init; } = "Unavailable";
 
     [IgnoreMember]
     public bool IsComplete => FuturesEodData.IsValid

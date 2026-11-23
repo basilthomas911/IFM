@@ -237,7 +237,7 @@ public sealed class EmulatorLedger
             {
                 var leg = legs[i];
                 var quote = quotes[i];
-                if (!string.Equals(leg.ContractId,quote.ContractId,StringComparison.Ordinal) || quote.SourceEpoch != epoch ||
+                if (!string.Equals(leg.ContractId,quote.ContractId,StringComparison.Ordinal) || quote.SourceEpoch <= 0 || quote.SourceSequence <= 0 || quote.SourceEpoch != epoch ||
                     quote.MarketTimeUtc.Kind != DateTimeKind.Utc || quote.MarketTimeUtc > _clock.UtcNow ||
                     _clock.UtcNow - quote.MarketTimeUtc > _scenario.MaximumQuoteAge || quote.Bid <= 0 ||
                     quote.Ask < quote.Bid) return false;
@@ -316,7 +316,10 @@ public sealed class EmulatorLedger
     {
         lock (_sync) return _orders.TryGetValue(brokerOrderId, out var order) &&
             order.Request.Legs.All(leg => _latestQuotes.TryGetValue(leg.ContractId, out var quote) &&
-                quote.MarketTimeUtc <= _clock.UtcNow && _clock.UtcNow - quote.MarketTimeUtc <= _scenario.MaximumQuoteAge);
+                quote.MarketTimeUtc.Kind == DateTimeKind.Utc && quote.MarketTimeUtc <= _clock.UtcNow
+                && _clock.UtcNow - quote.MarketTimeUtc <= _scenario.MaximumQuoteAge
+                && quote.Bid > 0 && quote.Ask >= quote.Bid
+                && (leg.SignedQuantity > 0 ? quote.AskSize : quote.BidSize) > 0);
     }
 
     public int RemainingStrategyUnits(string brokerOrderId)
@@ -325,7 +328,7 @@ public sealed class EmulatorLedger
             ? Math.Abs(order.Request.Legs[0].SignedQuantity) - order.FilledStrategyUnits : 0;
     }
 
-    /// <summary>Simulates a crossing at the latest accepted limit using the normal execution and accounting path.</summary>
+    /// <summary>Attempts a quote-backed fill without fabricating prices, liquidity or quote timestamps.</summary>
     public bool SimulateOfflineFill(string brokerOrderId, int strategyUnits)
     {
         lock (_sync)
@@ -333,21 +336,12 @@ public sealed class EmulatorLedger
             if (strategyUnits <= 0 || !_orders.TryGetValue(brokerOrderId, out var order) || order.Cancelled || order.Filled)
                 return false;
             var legs = order.Request.Legs;
-            var total = Math.Abs(legs[0].SignedQuantity);
-            var prices = legs.Select(leg =>
-            {
-                if (!_latestQuotes.TryGetValue(leg.ContractId, out var quote)) return 1m;
-                return leg.SignedQuantity > 0 ? quote.Ask : quote.Bid;
-            }).ToArray();
-            var net = legs.Select((leg, i) => prices[i] * leg.SignedQuantity / total).Sum();
-            var difference = order.Request.OrderType == FrameworkOrderType.Market ? 0m : order.Limit - net;
-            var pivot = Array.FindIndex(legs, leg => difference >= 0 ? leg.SignedQuantity > 0 : leg.SignedQuantity < 0);
-            if (pivot < 0) pivot = 0;
-            prices[pivot] += difference * total / legs[pivot].SignedQuantity;
-            if (prices.Any(price => price <= 0)) return false;
-            var quotes = legs.Select((leg, i) => new EmulatorQuote(leg.ContractId, prices[i], prices[i],
-                strategyUnits, strategyUnits, _clock.UtcNow, _generation, _sequence + 1)).ToArray();
-            // Do not publish synthetic quotes into the live quote cache or match other orders.
+            var quotes = new EmulatorQuote[legs.Length];
+            for (var i=0;i<legs.Length;i++) {
+                if (!_latestQuotes.TryGetValue(legs[i].ContractId,out var quote)) return false;
+                quotes[i]=quote with { BidSize=Math.Min(quote.BidSize,strategyUnits), AskSize=Math.Min(quote.AskSize,strategyUnits) };
+            }
+            // TryMatch enforces freshness, coherent epochs, executable depth and the approved limit.
             return TryMatch(brokerOrderId, quotes);
         }
     }
@@ -375,6 +369,45 @@ public sealed class EmulatorLedger
     public FrameworkBrokerObservation[] Reconcile(string brokerOrderId)
     {
         lock (_sync) return [.. _observations.Where(x => string.Equals(x.BrokerOrderId,brokerOrderId,StringComparison.Ordinal))];
+    }
+
+    /// <summary>Applies an audited price-only correction once, retaining the original broker observations.</summary>
+    public FrameworkDispatchReceipt CorrectVerifiedClosingPrices(Guid correctionId, string brokerOrderId,
+        IReadOnlyDictionary<string, decimal> verifiedPrices, string evidenceSha256)
+    {
+        ArgumentNullException.ThrowIfNull(verifiedPrices);
+        if (correctionId == Guid.Empty || evidenceSha256.Length != 64 || verifiedPrices.Count != 4
+            || verifiedPrices.Values.Any(price => price <= 0))
+            throw new ArgumentException("Identified four-leg price correction with a source hash is required.");
+        lock (_sync)
+        {
+            var hash = Fingerprint(new { brokerOrderId, evidenceSha256,
+                Prices = verifiedPrices.OrderBy(x => x.Key, StringComparer.Ordinal).ToArray() });
+            if (_operations.TryGetValue(correctionId, out var prior))
+                return prior.Hash == hash ? prior.Receipt : throw new InvalidOperationException("Correction identity conflicts with prior evidence.");
+            if (!_orders.TryGetValue(brokerOrderId, out var order) || !order.Filled
+                || order.Request.Shape != FrameworkOrderShape.IronCondor)
+                throw new InvalidOperationException("A completed four-leg order is required.");
+            var originals = _observations.Where(x => x.BrokerOrderId == brokerOrderId
+                && x.Kind == FrameworkObservationKind.Execution).ToArray();
+            if (originals.Length != 4 || originals.Any(x => x.Price != 1m)
+                || originals.Select(x => x.ContractId).Distinct(StringComparer.Ordinal).Count() != 4)
+                throw new InvalidOperationException("Correction requires the complete original synthetic one-point fill set.");
+            decimal cashDelta = 0;
+            foreach (var leg in order.Request.Legs)
+            {
+                var fill = originals.Single(x => x.LegId == leg.LegId && x.ContractId == leg.ContractId);
+                if (fill.SignedQuantity != leg.SignedQuantity || !verifiedPrices.TryGetValue(leg.ContractId, out var price)
+                    || _positions.TryGetValue(leg.ContractId, out var position) && position.SignedQuantity != 0)
+                    throw new InvalidOperationException("Correction must preserve fully closed quantities.");
+                cashDelta -= (price - fill.Price) * fill.SignedQuantity * leg.CashMultiplier;
+            }
+            _cash += cashDelta;
+            _generation++;
+            Append("VerifiedClosingPriceCorrection", brokerOrderId, correctionId);
+            return StoreAndPersist(correctionId, hash, Receipt(correctionId, brokerOrderId,
+                FrameworkDispatchOutcome.AcceptedForDispatch, "EM.PRICE_CORRECTED", evidenceSha256));
+        }
     }
 
     public IAsyncEnumerable<FrameworkBrokerObservation> ObserveOrders(CancellationToken token) => _orderEvents.Reader.ReadAllAsync(token);

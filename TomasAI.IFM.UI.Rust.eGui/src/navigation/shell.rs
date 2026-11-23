@@ -207,6 +207,10 @@ impl MainShell {
                 }
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = crate::presentation::field_gap(ui);
+                    if snapshot.is_some_and(|state| !state.strategy_contracts.is_empty()) {
+                        ui.trading_caption("Futures ITI | Intrinsic Time");
+                        return;
+                    }
 
                     // Measure the controls before sizing the heading. Content overflow would
                     // otherwise become the SidePanel's remembered width on every repaint.

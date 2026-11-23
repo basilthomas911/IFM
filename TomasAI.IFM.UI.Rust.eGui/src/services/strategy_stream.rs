@@ -61,7 +61,7 @@ pub async fn run(
     connection.borrow_and_update();
     loop {
         let result = tokio::select! {
-         value=actions.recv()=>{let Some(action)=value else{return;};match state.action(action){Err(error)=>Err(error),Ok(())=>if action==2||action==13{state.refresh(&backend,&registry,action==13).await.map(|_|true)}else{Ok(true)}}},
+         value=actions.recv()=>{let Some(action)=value else{return;};match state.action(action){Err(error)=>Err(error),Ok(())=>if action==2||action==13||(10..=12).contains(&action)||(0x2000_0000..=0x2fff_ffff).contains(&action){state.refresh(&backend,&registry,action==13).await.map(|_|true)}else{Ok(true)}}},
          value=workflows.next()=>{let Some(event)=value else{let _=updates.send(Err("Strategy workflow subscription stopped; reopen the UI to reattach.".into())).await;return;};
           (||{if event.subject.splitn(4,'.').nth(2)!=Some("Updated"){return Ok(false);}let wire=codec::decode(&event.payload)?;let value=strategy::member(&registry,workflow,&wire,"State")?;let declared=registry.project(workflow,&wire)?;let actual=registry.project(crate::services::strategy_display::VIEW,&value)?;if declared["WorkflowId"]!=actual["WorkflowId"]||declared["WorkflowRevision"]!=actual["WorkflowRevision"]{return Err("Strategy notification identity/revision mismatch".into());}state.apply_view(&registry,value)})()
          },

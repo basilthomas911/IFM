@@ -13,10 +13,11 @@ public sealed class TradePlanSchemaDb(IDbConnectionSettings settings, ILogger<Db
     : SchemaDbContext<TradePlanSchemaDb>(settings[TradePlanDbContext.TradePlanDbConnection], logger)
 {
     /// <summary>Gets the trade plan schema for isolated setup and verification.</summary>
-    public static string CreateStatement => TradePlanSchemaSql.Create;
+    public static string CreateStatement => TradePlanSchemaSql.Create + "\n" + TradePlanSchemaSql.IronCondorExitIntentCreate;
 
     static readonly SchemaObjectDefinition[] Objects =
-        [new("trade_plan", TradePlanSchemaSql.Create, TradePlanSchemaSql.Drop)];
+        [new("trade_plan", CreateStatement, TradePlanSchemaSql.Drop),
+            new("iron_condor_exit_intent", TradePlanSchemaSql.IronCondorExitIntentCreate, "DROP TABLE IF EXISTS trade_plan.iron_condor_exit_intent;")];
 
     /// <inheritdoc />
     protected override IReadOnlyList<SchemaObjectDefinition> Definitions => Objects;

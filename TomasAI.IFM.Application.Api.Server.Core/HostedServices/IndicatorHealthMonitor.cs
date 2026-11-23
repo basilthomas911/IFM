@@ -76,7 +76,7 @@ public sealed class IndicatorHealthMonitor(IIndicatorHealthReader reader, IFutur
                     {
                         var read = await audit.ConfigureAwait(false);
                         if (auditDate != date) continue;
-                        var ready = read.Length > 0 && read.All(row => row.Ready);
+                        var ready = read.Length > 0 && read.Where(row => row.AffectsGlobalReadiness).All(row => row.Ready);
                         lock (gate) { entries = read; auditedAt = now; auditMilliseconds = System.Diagnostics.Stopwatch.GetElapsedTime(auditStarted, Interlocked.Read(ref auditFinished)).TotalMilliseconds;
                             failure = string.Empty; status = ready ? "Warm" : IsOverdue(incident, now) ? "Failed" : "Initializing"; }
                         logger.LogInformation("Indicator health audit completed: ValueDate={ValueDate}; Ready={Ready}; Total={Total}; ElapsedMilliseconds={ElapsedMilliseconds}; Failures={Failures}.",
@@ -90,7 +90,7 @@ public sealed class IndicatorHealthMonitor(IIndicatorHealthReader reader, IFutur
                         }
                         else
                         {
-                            incident = incident with { Failures = read.Where(row => !row.Ready).ToArray() };
+                            incident = incident with { Failures = read.Where(row => row.AffectsGlobalReadiness && !row.Ready).ToArray() };
                             Save(incident);
                         }
                         nextAudit = now + (ready ? AuditInterval : TimeSpan.FromSeconds(30));

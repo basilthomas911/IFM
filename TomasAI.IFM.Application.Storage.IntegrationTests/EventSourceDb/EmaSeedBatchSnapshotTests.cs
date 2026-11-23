@@ -59,10 +59,11 @@ public sealed class EmaSeedBatchSnapshotTests(EventSourceActorSnapshotRangeFixtu
     [InlineData(21)]
     [InlineData(48)]
     [InlineData(64)]
+    [InlineData(300)]
     public async Task Batch_commits_matching_source_and_projection_rows_and_restores_latest_snapshot_without_duplicates(int count)
     {
         await SchemaAsync();
-        var command = Command(count);
+        var command = Command(count) with { InitializeEma200 = count >= 200 };
         var (repository, context, projector) = Repository();
         var state = await repository.LoadStateAsync(command);
         Assert.True(command.Execute(state).Success);

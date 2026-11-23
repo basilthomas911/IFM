@@ -7,13 +7,18 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Futures.Position;
 
 /// <summary>Seals the explicit ended value date; retries must validate committed position state.</summary>
 [MessagePackObject]
-public sealed record EndOfDayFuturesPositionCommand : FuturesPositionCommand, IRecoverableCommandAudit
+public sealed record EndOfDayFuturesPositionCommand : FuturesPositionCommand, IRecoverableCommandAudit, IStoredQuotePositionEndOfDayCommand
 {
     public const string Verb = "EndOfDayFuturesPosition";
     /// <summary>Gets the UTC boundary of the ended session.</summary>
     [Key(4)] public DateTime EffectiveAtUtc { get; init; }
     /// <summary>Gets the explicit ended exchange value date.</summary>
     [Key(5)] public DateOnly ValueDate { get; init; }
+
+    [Key(6)] public StrategyPositionSnapshot? HistoricalSnapshot { get; init; }
+    [Key(7)] public long HistoricalSourceEventId { get; init; }
+    [Key(8)] public StoredPositionClosingQuote[] HistoricalClosingQuotes { get; init; } = [];
+    [Key(9)] public StrategyPositionSnapshot? PreviousEndOfDay { get; init; }
 
     /// <summary>Retains the complete business identity so a retry cannot change the position, date or close boundary.</summary>
     ICommand ICommandRetryIdentity.ForRetryIdentity() => this;

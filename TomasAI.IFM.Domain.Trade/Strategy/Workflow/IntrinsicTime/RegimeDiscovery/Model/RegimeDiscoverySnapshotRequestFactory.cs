@@ -7,13 +7,26 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscove
 /// <summary>Builds exact, deterministic snapshot requirements from one frozen parameter set.</summary>
 public static class RegimeDiscoverySnapshotRequestFactory
 {
+    /// <summary>Captures only the three completed-bar EMAs for this horizon; no other horizon can veto it.</summary>
+    public static RegimeDiscoveryMarketSignalSnapshotRequest CreateEmaStack(MarketSeriesIdentity series, RegimeDiscoveryParameterSet parameters)
+    {
+        var frame = Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.Model.EmaStackRegimePolicy.Frame(parameters.TargetHorizon);
+        var seconds = frame == TimeFrameType.FiveMinutes ? 630 : frame == TimeFrameType.FourHours ? 8 * 3600 : 96 * 3600;
+        return new() { MarketSeriesIdentity = series, TargetHorizon = parameters.TargetHorizon,
+            Requirements = new[] { RegimeDiscoverySignalMetric.Ema20, RegimeDiscoverySignalMetric.Ema50, RegimeDiscoverySignalMetric.Ema200 }
+                .Select(metric => Requirement(metric, frame, true, seconds, 1m)).ToArray(),
+            FutureClockSkewSeconds = parameters.Freshness.FutureClockSkewSeconds,
+            SupportedSchemaVersions = parameters.DataQuality.SupportedSignalSchemaVersions,
+            ApprovedCalculationVersions = parameters.DataQuality.ApprovedCalculationVersions,
+            CaptureAttempts = parameters.DataQuality.SnapshotCaptureAttempts };
+    }
     static readonly RegimeDiscoverySignalMetric[] TrendMetrics = [RegimeDiscoverySignalMetric.Ema20, RegimeDiscoverySignalMetric.Ema50, RegimeDiscoverySignalMetric.Ema200, RegimeDiscoverySignalMetric.Ema20Slope, RegimeDiscoverySignalMetric.Ema50Slope, RegimeDiscoverySignalMetric.Ema200Slope, RegimeDiscoverySignalMetric.Rsi14, RegimeDiscoverySignalMetric.Rsi14Slope, RegimeDiscoverySignalMetric.Adx14, RegimeDiscoverySignalMetric.PlusDi14, RegimeDiscoverySignalMetric.MinusDi14, RegimeDiscoverySignalMetric.MacdHistogram, RegimeDiscoverySignalMetric.Atr14];
     static readonly RegimeDiscoverySignalMetric[] TargetEvidenceRequiredMetrics = [RegimeDiscoverySignalMetric.Atr14, RegimeDiscoverySignalMetric.AtrBaselineRatio, RegimeDiscoverySignalMetric.BollingerWidthRatio, RegimeDiscoverySignalMetric.BollingerPosition, RegimeDiscoverySignalMetric.Ema20Interaction, RegimeDiscoverySignalMetric.AtrNormalizedRange, RegimeDiscoverySignalMetric.RollingHigh20, RegimeDiscoverySignalMetric.RollingLow20, RegimeDiscoverySignalMetric.BreakoutDistanceAtr];
     /// <summary>Creates an exact snapshot request for one market series and frozen parameter set.</summary>
     /// <param name = "marketSeriesIdentity">Provider-neutral market series.</param>
     /// <param name = "parameterSet">Frozen Regime Discovery parameters.</param>
     /// <returns>The complete immutable request.</returns>
-    public static RegimeDiscoveryMarketSignalSnapshotRequest Create(MarketSeriesIdentity marketSeriesIdentity, RegimeDiscoveryParameterSet parameterSet)
+    public static RegimeDiscoveryMarketSignalSnapshotRequest Create(MarketSeriesIdentity marketSeriesIdentity, RegimeDiscoveryParameterSet parameterSet, bool vxTermStructureContextOnly = false)
     {
         ArgumentNullException.ThrowIfNull(parameterSet);
         if (parameterSet.SchemaVersion is not (1 or 2 or 3 or 4 or 5))
@@ -71,7 +84,7 @@ public static class RegimeDiscoverySnapshotRequestFactory
         {
             MarketSeriesIdentity = marketSeriesIdentity,
             TargetHorizon = parameterSet.TargetHorizon,
-            Requirements = requirements.GroupBy(value => (value.Metric, value.TimeFrame)).Select(group => group.OrderByDescending(value => value.IsRequired).First()).OrderBy(value => value.TimeFrame).ThenBy(value => value.Metric).ToArray(),
+            Requirements = requirements.GroupBy(value => (value.Metric, value.TimeFrame)).Select(group => group.OrderByDescending(value => value.IsRequired).First()).Select(value => vxTermStructureContextOnly && value.Metric == RegimeDiscoverySignalMetric.VxFrontSecondRatio ? value with { IsRequired = false, Weight = 0m } : value).OrderBy(value => value.TimeFrame).ThenBy(value => value.Metric).ToArray(),
             FutureClockSkewSeconds = parameterSet.Freshness.FutureClockSkewSeconds,
             SupportedSchemaVersions = parameterSet.DataQuality.SupportedSignalSchemaVersions.ToArray(),
             ApprovedCalculationVersions = parameterSet.DataQuality.ApprovedCalculationVersions.ToArray(),

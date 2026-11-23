@@ -8,6 +8,7 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscove
 /// <summary>Contains all immutable inputs required for one deterministic Regime Discovery calculation.</summary>
 public sealed record RegimeDiscoveryCalculationInput
 {
+    public string? CalculationPolicy { get; init; }
     /// <summary>Gets the preselected result identity.</summary>
     public Guid ResultId { get; init; }
     /// <summary>Gets the owning workflow execution.</summary>

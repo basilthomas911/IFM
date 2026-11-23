@@ -10,6 +10,12 @@ public static class FuturesExitConditionModel
         ArgumentNullException.ThrowIfNull(position);
         if (!position.IsOpen || position.Phase == StrategyPositionPhase.Close)
             return new(TradePlanState.Closed, TradePlanAction.None, false, "PLAN.CLOSED", "Position is closed.");
+        if (position.DailyFuturesEntry is { } entry)
+        {
+            if (nowUtc >= DailyFuturesSession.FlattenUtc(entry.ValueDate))
+                return new(TradePlanState.ExitRequired, TradePlanAction.ExitAtMarket, true, "PLAN.DAILY.SESSION_FLATTEN", "Daily ATR futures must be flat by 15:55 America/New_York.");
+            return new(TradePlanState.Normal, TradePlanAction.Monitor, false, "PLAN.DAILY.ATR_TRAIL", "Daily ATR futures exits use the tightening trail or the 15:55 session flatten.");
+        }
         if (nowUtc - position.AsOfUtc > TimeSpan.FromSeconds(parameters.MaximumDataAgeSeconds))
             return new(TradePlanState.Hold, TradePlanAction.Hold, false, "PLAN.DATA.STALE", "Market data is stale.");
         if (-pnl >= parameters.MaximumLoss || -(pnl + forwardChange) >= parameters.MaximumLoss)

@@ -55,7 +55,7 @@ public static class ExecuteRegimeDiscoveryPipeline
         var snapshot = command.Snapshot;
         if (snapshot.SnapshotId == Guid.Empty || snapshot.Observations.Length == 0)
             return new RegimeDiscoveryExecutionFailed(UtcNow(context.TimeProvider), "Regime Discovery was invoked without an initialized market-signal snapshot.", "RegimeDiscoveryInitialization", 23102, [new RegimeDiscoveryReason { Code = RegimeDiscoveryReasonCodes.RequiredDataMissing, Severity = RegimeReasonSeverity.Failure, Area = RegimeEvidenceArea.Data }], Guid.Empty);
-        var calculated = await context.CalculationModel.CalculateAsync(new RegimeDiscoveryCalculationInput { ResultId = command.CommandId, WorkflowId = command.WorkflowId, EntityId = command.WorkflowEntityId, TriggerEventId = command.TriggerEvent.Id, TriggerEvent = command.TriggerEvent, ParameterSet = command.ParameterSet, Snapshot = snapshot, ProducedAtUtc = UtcNow(context.TimeProvider) }, context.ExecutionMode, cancellationToken).ConfigureAwait(false);
+        var calculated = await context.CalculationModel.CalculateAsync(new RegimeDiscoveryCalculationInput { CalculationPolicy = command.CalculationPolicy, ResultId = command.CommandId, WorkflowId = command.WorkflowId, EntityId = command.WorkflowEntityId, TriggerEventId = command.TriggerEvent.Id, TriggerEvent = command.TriggerEvent, ParameterSet = command.ParameterSet, Snapshot = snapshot, ProducedAtUtc = UtcNow(context.TimeProvider) }, context.ExecutionMode, cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         return calculated.Decision.IsComplete ? new RegimeDiscoveryExecutionCompleted(calculated, snapshot.SnapshotId, snapshot.CacheRevision) : new RegimeDiscoveryExecutionFailed(calculated.ProducedAtUtc, "Regime Discovery specialist or decision calculation did not complete.", "RegimeDiscoveryCalculation", 23102, calculated.Reasons, snapshot.SnapshotId, FormatReasons(calculated.Reasons));
     }
@@ -64,3 +64,4 @@ public static class ExecuteRegimeDiscoveryPipeline
     /// <summary>Reads the domain clock when stamping captured evidence and calculated outcomes.</summary>
     static DateTime UtcNow(TimeProvider provider) => provider.GetUtcNow().UtcDateTime;
 }
+

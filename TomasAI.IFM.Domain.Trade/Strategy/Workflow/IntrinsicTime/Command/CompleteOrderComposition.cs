@@ -38,7 +38,7 @@ public static class CompleteOrderComposition
         public ServiceResult<GuidResult> Execute(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context, IntrinsicTimeStrategyWorkflowCommandState state)
         {
             ArgumentNullException.ThrowIfNull(state);
-            var preparation = new WorkflowSnapshotPreparation(state.WorkflowDefinition);
+            var preparation = new WorkflowSnapshotPreparation(state.DecisionView);
             var preparationResult = PrepareWorkflow(command, context, preparation);
             if (!preparationResult.Success)
                 return preparationResult;
@@ -70,7 +70,7 @@ public static class CompleteOrderComposition
             }
 
             var now = context.TimeProvider.GetUtcNow().UtcDateTime;
-            if (now >= current.ExpiresAtUtc || current.CompositionExecution is { } execution && now >= execution.ExpiresAtUtc)
+            if (now >= Runtime.WorkflowCalculationRuntime.EffectiveDeadline(current) || current.CompositionExecution is { } execution && now >= execution.ExpiresAtUtc)
             {
                 return PrepareTimedOut(command, context, state, current, now);
             }
@@ -80,7 +80,13 @@ public static class CompleteOrderComposition
             {
                 var accepted = current.CompositionExecution ?? throw new CompositionException("OC.RESULT.LEGACY_READ_ONLY");
                 using var deadline = new CancellationTokenSource(accepted.ExpiresAtUtc > now ? accepted.ExpiresAtUtc - now : TimeSpan.Zero);
-                result = CompositionAcceptance.Validate(accepted, command, new TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Model.OrderComposer(new Black76ComposerPricer()), now, deadline.Token);
+                if (current.DecisionRuntimeVersion > 0)
+                {
+                    if (context is not IIntrinsicTimeStrategyWorkflowCommandContext { DecisionRuntime: { } runtime } || !runtime.MatchesResult(current, command.Result))
+                        throw new CompositionException("OC.RESULT.UNTRUSTED_LOCAL_RESULT");
+                    result = CompositionAcceptance.ValidateIdentity(accepted, command, now);
+                }
+                else result = CompositionAcceptance.Validate(accepted, command, new TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Model.OrderComposer(new Black76ComposerPricer()), now, deadline.Token);
             }
             catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or OperationCanceledException)
             {

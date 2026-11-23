@@ -12,12 +12,13 @@ namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Realtime.A
 public sealed class IronCondorTradePositionRealtimeContext : EventActorContext, IIronCondorTradePositionRealtimeContext
 {
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "This typed context adapts services for its actor and intentionally retains the actor logger category.")]
-    public IronCondorTradePositionRealtimeContext(IActorSupervisor supervisor, ILogger<IronCondorTradePositionRealtimeActor> logger, IDbContextFactory? databases = null, IFinancialQueryStore? financialQueries = null, StrategyRiskParameterSetResolver? riskParameterSets = null, TomasAI.IFM.Domain.Trade.Futures.Option.Realtime.TradeRealtimeCacheRegistry? realtimeCache = null, TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi? marketData = null, TimeProvider? timeProvider = null) : base(supervisor, new(ActorType.Realtime, IronCondorTradePositionRealtimeActor.ActorName))
+    public IronCondorTradePositionRealtimeContext(IActorSupervisor supervisor, ILogger<IronCondorTradePositionRealtimeActor> logger, IDbContextFactory? databases = null, IFinancialQueryStore? financialQueries = null, StrategyRiskParameterSetResolver? riskParameterSets = null, TomasAI.IFM.Domain.Trade.Futures.Option.Realtime.TradeRealtimeCacheRegistry? realtimeCache = null, TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi? marketData = null, TimeProvider? timeProvider = null, TomasAI.IFM.Domain.Trade.Persistence.IronCondorAutomaticExitDispatcher? exits = null) : base(supervisor, new(ActorType.Realtime, IronCondorTradePositionRealtimeActor.ActorName))
     {
         TimeProvider = timeProvider ?? TimeProvider.System;
         Logger = logger;
         this.realtimeCache = realtimeCache;
         this.databases = databases;
+        this.exits = exits;
         inputReader = databases is null ? null : new(databases, logger, financialQueries, stoppingToken: RealtimeGeneration.Token, publishInputChange: async (position, date, inputs, now) =>
         {
             await SendAsync<TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position.IronCondorMonitoringInputsChangedEvent, StrategyPositionId>(new() { Subject = new(ActorType.Realtime, IronCondorTradePositionRealtimeActor.ActorName, TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position.IronCondorMonitoringInputsChangedEvent.Verb, position.Id.Format()), Id = Guid.NewGuid(), EntityId = position.Id, PositionSnapshot = position, ValueDate = date, IronCondorTradePlanInputs = inputs, ReceivedOn = now, MonitoringGenerationId = RealtimeGeneration.Id }).ConfigureAwait(false);
@@ -27,9 +28,22 @@ public sealed class IronCondorTradePositionRealtimeContext : EventActorContext, 
     readonly IronCondorMonitoringInputReader? inputReader;
     readonly TomasAI.IFM.Domain.Trade.Futures.Option.Realtime.TradeRealtimeCacheRegistry? realtimeCache;
     readonly IDbContextFactory? databases;
+    readonly TomasAI.IFM.Domain.Trade.Persistence.IronCondorAutomaticExitDispatcher? exits;
+    readonly System.Collections.Concurrent.ConcurrentDictionary<StrategyPositionId, bool> closing = new();
+    readonly System.Collections.Concurrent.ConcurrentDictionary<StrategyPositionId, DateTimeOffset> closeChecks = new();
+    public async ValueTask<bool> IsClosingAsync(StrategyPositionId position)
+    {
+        var now=TimeProvider.GetUtcNow();
+        if (closing.TryGetValue(position, out var result)
+            && (result || closeChecks.TryGetValue(position,out var checkedAt) && now-checkedAt<TimeSpan.FromSeconds(5))) return result;
+        result = exits is not null && await exits.HasIntentAsync(position, RealtimeGeneration.Token).ConfigureAwait(false);
+        closeChecks[position]=now;
+        return closing.AddOrUpdate(position,result,(_,prior)=>prior||result);
+    }
     public async ValueTask PublishRealtimeAsync(StrategyPositionSnapshot position, StrategyTradePlanSnapshot? plan = null)
     {
         RealtimeGeneration.Token.ThrowIfCancellationRequested();
+        if (plan?.RequiresExit == true) closing[position.Id] = true;
         if (realtimeCache is null) return;
         var cache = realtimeCache.Find(position.Id.Trade);
         if (!position.IsOpen && cache is null) return;

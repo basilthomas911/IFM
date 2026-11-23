@@ -1,9 +1,9 @@
 //! Actor explorer and generation-bound Supervisor operations. HTTP owns health
 //! observation; existing NATS commands own lifecycle changes. UI time is API time.
 use crate::models::{
-    actor_health::{ActorHealthSnapshot, ActorHealthThreadId},
+    actor_health::{ActorHealthActorSnapshot, ActorHealthHistoryPoint, ActorHealthSnapshot, ActorHealthThreadId},
     cells::{Cell, Cells},
-    health_fields::HealthFields,
+    health_fields::{HealthFields, Present},
 };
 use crate::{
     backend::{contracts::*, health_http::HealthClient, schema::Registry, transport::Backend},
@@ -12,6 +12,7 @@ use crate::{
 };
 use chrono::{DateTime, Datelike, Utc};
 use rmpv::Value;
+use serde::Deserialize;
 use serde_json::Value as Json;
 use std::{collections::BTreeMap, time::Duration};
 pub const OPERATIONS: [&str; 8] = [
@@ -24,6 +25,119 @@ pub const OPERATIONS: [&str; 8] = [
     "Recycle",
     "AcknowledgeIncident",
 ];
+
+const PAGE_SIZE: usize = 64;
+const HISTORY_LIMIT: usize = 1440;
+const HEALTH_BODY_LIMIT: usize = 8 * 1024 * 1024;
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct HealthPage<T> {
+    observed_utc: Option<String>,
+    offset: usize,
+    total: usize,
+    rows: Vec<T>,
+}
+
+impl<T> HealthPage<T> {
+    fn validate(&self, offset: usize, total: usize) -> Result<(), String> {
+        if self.offset != offset || self.total != total
+            || self.rows.len() != total.saturating_sub(offset).min(PAGE_SIZE)
+        {
+            return Err("Actor health page does not match its advertised range".into());
+        }
+        Ok(())
+    }
+}
+
+fn health_route(base: &reqwest::Url, view: &str) -> reqwest::Url {
+    let mut url = base.clone();
+    url.set_query(None);
+    let path = format!("{}/{}", base.path().trim_end_matches('/'), view);
+    url.set_path(&path);
+    url
+}
+
+async fn read_health<T: serde::de::DeserializeOwned>(
+    client: &HealthClient,
+    url: &reqwest::Url,
+    deadline: tokio::time::Instant,
+) -> Result<T, String> {
+    Ok(client.get_typed_observation(url.as_str(), HEALTH_BODY_LIMIT, deadline).await?.value)
+}
+
+async fn read_dashboard(
+    client: &HealthClient,
+    base: &reqwest::Url,
+    requested_from: Option<DateTime<Utc>>,
+    deadline: tokio::time::Instant,
+) -> Result<(DateTime<Utc>, ActorHealthSnapshot), String> {
+    let summary_url = health_route(base, "summary");
+    'snapshot: for _ in 0..3 {
+        let summary: ActorHealthSnapshot = read_health(client, &summary_url, deadline).await?;
+        let observed = utc(&summary.cell("ObservedUtc"))?;
+        let from = requested_from.unwrap_or(observed - chrono::Duration::hours(1));
+        if from > observed {
+            return Err("The From time must be before the API observation time".into());
+        }
+        let total = summary.cell("ActorCount").as_i64()
+            .filter(|count| (0..=10080).contains(count))
+            .ok_or("Invalid actor count in health summary")? as usize;
+        let expected_stamp = summary.observed_utc.as_ref().map(String::as_str);
+        let mut actors = Vec::with_capacity(total);
+        while actors.len() < total {
+            let mut url = health_route(base, "actors");
+            url.query_pairs_mut()
+                .append_pair("offset", &actors.len().to_string())
+                .append_pair("limit", &PAGE_SIZE.to_string())
+                .append_pair("includeMailboxes", "true");
+            let page: HealthPage<ActorHealthActorSnapshot> = read_health(client, &url, deadline).await?;
+            if page.observed_utc.as_deref() != expected_stamp {
+                continue 'snapshot;
+            }
+            page.validate(actors.len(), total)?;
+            actors.extend(page.rows);
+        }
+        let mut url = health_route(base, "diagnostics");
+        url.query_pairs_mut().append_pair("fromUtc", &from.to_rfc3339());
+        let diagnostics: ActorHealthSnapshot = read_health(client, &url, deadline).await?;
+        if diagnostics.observed_utc.as_ref().map(String::as_str) != expected_stamp {
+            continue;
+        }
+
+        let mut history_url = health_route(base, "history");
+        history_url.query_pairs_mut()
+            .append_pair("fromUtc", &from.to_rfc3339())
+            .append_pair("toUtc", &observed.to_rfc3339());
+        let mut history = Vec::new();
+        let mut history_total = None;
+        loop {
+            let mut url = history_url.clone();
+            url.query_pairs_mut()
+                .append_pair("offset", &history.len().to_string())
+                .append_pair("limit", &PAGE_SIZE.to_string());
+            let page: HealthPage<ActorHealthHistoryPoint> = read_health(client, &url, deadline).await?;
+            let total = *history_total.get_or_insert(page.total);
+            page.validate(history.len(), total)?;
+            history.extend(page.rows.into_iter().take(HISTORY_LIMIT - history.len()));
+            if history.len() >= total.min(HISTORY_LIMIT) {
+                break;
+            }
+        }
+        return Ok((from, ActorHealthSnapshot {
+            observed_utc: summary.observed_utc,
+            overall_status: summary.overall_status,
+            actor_count: summary.actor_count,
+            running_actor_count: summary.running_actor_count,
+            processing_mailbox_count: summary.processing_mailbox_count,
+            queued_message_count: summary.queued_message_count,
+            actors: Present::Value(actors),
+            history: Present::Value(history),
+            ..diagnostics
+        }));
+    }
+    Err("Actor health changed while loading its pages; refresh to try again".into())
+}
 
 /// Control Options used by the actor health component.
 #[derive(Clone)]
@@ -502,33 +616,13 @@ impl ActorHealthController {
     async fn refresh(&mut self, backend: &Backend) -> Result<(), String> {
         let deadline = tokio::time::Instant::now() + backend.default_timeout();
         let result = tokio::time::timeout_at(deadline, async {
-            let mut url = reqwest::Url::parse(
+            let url = reqwest::Url::parse(
                 self.endpoint
                     .as_deref()
                     .ok_or("Actor health endpoint is not configured")?,
             )
             .map_err(|_| "Invalid actor health endpoint")?;
-            url.set_query(None);
-            // The endpoint supplies ToUtc and its default history window from
-            // the supervisor's operational clock, including while markets close.
-            if let Some(from) = self.from {
-                url.query_pairs_mut()
-                    .append_pair("fromUtc", &from.to_rfc3339());
-            }
-            let snapshot = self
-                .client
-                .get_typed_observation::<ActorHealthSnapshot>(
-                    url.as_str(),
-                    8 * 1024 * 1024,
-                    deadline,
-                )
-                .await?
-                .value;
-            let observed = utc(&snapshot.cell("ObservedUtc"))?;
-            let from = self.from.unwrap_or(observed - chrono::Duration::hours(1));
-            if from > observed {
-                return Err("The From time must be before the API observation time".into());
-            }
+            let (from, snapshot) = read_dashboard(&self.client, &url, self.from, deadline).await?;
             let projection = project(&snapshot, from, &self.options)?;
             Ok::<_, String>((from, snapshot, projection))
         })

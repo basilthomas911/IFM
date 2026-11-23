@@ -62,6 +62,42 @@ public sealed class TypedRegimeEnvelopeTests
     }
 
     [Fact]
+    public void Persisted_v1_hash_keeps_its_original_value_and_round_trips()
+    {
+        var result = Sample();
+        // Captured from the pre-fix test run, before assignment fields were fingerprinted.
+        const string originalHash = "F9AD84B9665700FD469D51AE0EAA23A56FA508713BEFDB1B8E97D4FFD19DCA17";
+        RegimeDiscoveryResultContent.Fingerprint(result, 1).Hash.Should().Be(originalHash);
+        var legacy = StrategyStageResultEnvelope.CreateRegime(result) with
+        { ContentType = StrategyStageResultEnvelope.TypedRegimeContentType, PayloadSha256 = originalHash };
+        legacy.HasValidPayloadSha256().Should().BeTrue();
+        legacy.ContentSize.Should().Be(RegimeDiscoveryResultContent.Fingerprint(result, 1).Size);
+        var restored = MessagePackSerializer.Deserialize<StrategyStageResultEnvelope>(MessagePackSerializer.Serialize(legacy));
+        restored.PayloadSha256.Should().Be(originalHash);
+        restored.ReadRegimeResult().Should().BeEquivalentTo(result);
+        var json = JsonConvert.DeserializeObject<StrategyStageResultEnvelope>(JsonConvert.SerializeObject(legacy))!;
+        json.PayloadSha256.Should().Be(originalHash);
+        json.ReadRegimeResult().Should().BeEquivalentTo(result);
+    }
+
+    [Fact]
+    public void V2_envelope_rejects_assignment_tampering_and_content_type_downgrade()
+    {
+        var result = Sample();
+        var envelope = StrategyStageResultEnvelope.CreateRegime(result);
+        envelope.ContentType.Should().Be(StrategyStageResultEnvelope.TypedRegimeContentTypeV2);
+        var altered = result with { EntityId = result.EntityId with
+        { Assignment = result.EntityId.Assignment! with { FundId = result.EntityId.Assignment.FundId + 1 } } };
+        (envelope with { RegimeResult = altered }).HasValidPayloadSha256().Should().BeFalse();
+        (envelope with { ContentType = StrategyStageResultEnvelope.TypedRegimeContentType }).HasValidPayloadSha256().Should().BeFalse();
+        var reversed = new Newtonsoft.Json.Linq.JObject(
+            Newtonsoft.Json.Linq.JObject.FromObject(envelope).Properties().Reverse());
+        var restored = reversed.ToObject<StrategyStageResultEnvelope>()!;
+        restored.ReadRegimeResult().Should().BeEquivalentTo(result);
+        restored.ContentSize.Should().Be(envelope.ContentSize);
+    }
+
+    [Fact]
     public void Defensive_copies_protect_nested_arrays_and_changed_content_is_rejected()
     {
         var result = Sample();
@@ -81,15 +117,18 @@ public sealed class TypedRegimeEnvelopeTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task Projector_encodes_only_at_storage_boundary_with_a_valid_blob_digest(bool legacy)
+    [InlineData("opaque")]
+    [InlineData("v1")]
+    [InlineData("v2")]
+    public async Task Projector_encodes_only_at_storage_boundary_with_a_valid_blob_digest(string format)
     {
         var result = Sample();
-        var envelope = legacy
+        var envelope = format == "opaque"
             ? StrategyStageResultEnvelope.Create(result.ResultId, nameof(RegimeDiscoveryResult), result.SchemaVersion,
                 MessagePackSerializer.Serialize(result), result.MarketDataAsOfUtc, result.ProducedAtUtc)
             : StrategyStageResultEnvelope.CreateRegime(result);
+        if (format == "v1") envelope = envelope with
+        { ContentType = StrategyStageResultEnvelope.TypedRegimeContentType, PayloadSha256 = RegimeDiscoveryResultContent.Fingerprint(result, 1).Hash };
         var factory = Substitute.For<IDbContextFactory>();
         RegimeDiscoveryReadModel? row = null;
         factory.TradeDb.UpsertRegimeDiscoveryAsync(Arg.Any<RegimeDiscoveryReadModel>(), Arg.Any<CancellationToken>())
@@ -114,6 +153,7 @@ public sealed class TypedRegimeEnvelopeTests
     static RegimeDiscoveryResult Sample() => (RegimeDiscoveryResult)Sample(typeof(RegimeDiscoveryResult));
     static object Sample(Type type)
     {
+        if (Nullable.GetUnderlyingType(type) is { } underlying) return Sample(underlying);
         if (type == typeof(string)) return "alpha";
         if (type == typeof(Guid)) return Guid.Parse("11111111-1111-1111-1111-111111111111");
         if (type == typeof(DateTime)) return new DateTime(2026, 9, 7, 12, 0, 0, DateTimeKind.Utc);
@@ -127,7 +167,15 @@ public sealed class TypedRegimeEnvelopeTests
             array.SetValue(Sample(type.GetElementType()!), 0);
             return array;
         }
-        var value = Activator.CreateInstance(type)!;
+        // Positional records (including fund assignments) have no default constructor.
+        // Populate their constructor and keyed properties so mutation coverage includes
+        // the assignment rather than stopping before the fingerprint assertion.
+        var constructor = type.GetConstructors().SingleOrDefault(candidate =>
+            candidate.GetParameters().Length > 0 && candidate.GetParameters().All(parameter =>
+                Properties(type).Any(property => string.Equals(property.Name, parameter.Name, StringComparison.OrdinalIgnoreCase))));
+        var value = type.IsValueType || type.GetConstructor(Type.EmptyTypes) is not null
+            ? Activator.CreateInstance(type)!
+            : constructor!.Invoke(constructor.GetParameters().Select(parameter => Sample(parameter.ParameterType)).ToArray());
         foreach (var property in Properties(type)) property.SetValue(value, Sample(property.PropertyType));
         return value;
     }

@@ -30,6 +30,8 @@ public class FuturesItiSignalCommandActor(ICommandActorContext<FuturesItiSignalC
     /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
     protected IFuturesItiSignalCommandContext ActorContext => IsArgumentNull.Named(Context as IFuturesItiSignalCommandContext, nameof(Context))!;
 
+    readonly TomasAI.IFM.Domain.MarketData.Analytics.RegimeDiscovery.FuturesAtrHotCacheReader atrReader = new();
+
     public const string ActorName = "FuturesItiSignalCommand";
     IEventProjector<FuturesItiSignalCommandActor> EventProjector => ActorContext.EventProjector;
 
@@ -82,6 +84,18 @@ public class FuturesItiSignalCommandActor(ICommandActorContext<FuturesItiSignalC
         IsArgumentNull.Check(state);
         IsArgumentNull.Check(command);
         var itiSignalState = IsArgumentNull.Set((state as FuturesItiSignalCommandState)!);
+        if (command is GenerateFuturesItiSignalCommand { TimePeriod: TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType.Daily } generate)
+        {
+            TomasAI.IFM.Domain.MarketData.Analytics.Shared.DailyItiAtrThreshold? input = null;
+            if (atrReader.TryGetLatest(generate.ContractId, TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType.FiveMinutes, out var atr)
+                && atr is { IsWarm: true, Metadata.IsValid: true, PeriodLength: 14, AtrValue: > 0 } && double.IsFinite(atr.AtrValue)
+                && atr.Metadata.CalculatedAtUtc.UtcDateTime <= generate.Timestamp
+                && atr.Metadata.MarketDataAsOfUtc.UtcDateTime <= generate.Timestamp
+                && generate.Timestamp - atr.Metadata.MarketDataAsOfUtc.UtcDateTime <= TimeSpan.FromSeconds(630))
+                input = new(generate.ContractId, atr.AtrValue, atr.Metadata.MarketDataAsOfUtc.UtcDateTime,
+                    atr.Metadata.CalculatedAtUtc.UtcDateTime, atr.Metadata.SourceSequence);
+            command = MessageOrigins.Copy(generate, generate with { RequireDailyAtr = true, DailyAtr = input });
+        }
         var receiveFunc = ResolveMappedCommandHandler(command, _receiveMap);
         return ValueTask.FromResult(receiveFunc.Invoke(command, dispatchContext, itiSignalState));
     }

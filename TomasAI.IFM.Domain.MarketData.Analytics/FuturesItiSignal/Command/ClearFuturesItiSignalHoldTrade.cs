@@ -57,6 +57,7 @@ public static class ClearFuturesItiSignalHoldTrade
                 SequenceId = 0,
                 IntrinsicTime = command.Timestamp,
                 IntrinsicTimeLength = 0,
+                TrendVelocity = currentFuturesItiSignal.ElapsedMillisecondsTo(command.Timestamp),
                 IntrinsicTimeMode = IntrinsicTimeModeType.HoldTradeChanged,
                 TradeState = IntrinsicTimeTradeState.Ready
             };

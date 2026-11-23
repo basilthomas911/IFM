@@ -199,7 +199,9 @@ fn pair(ui: &mut egui::Ui, dashboard: &Dashboard, columns: &[(&str, &str)]) {
                         )
                         .truncate(),
                     )
-                    .on_hover_text(format!("{label}: {value}"));
+                    .on_hover_text(if *key == "marketDirection" {
+                        format!("{label}: {value}\nCompleted 5-minute EMA20/50/200 stack")
+                    } else { format!("{label}: {value}") });
                 },
             );
         });

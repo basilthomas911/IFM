@@ -181,15 +181,20 @@ public static class FuturesItiSignalGeneratedComplete
             VixFuturesPrice = completed.VixFuturesPrice,
             DeriveLongerPeriods = false
         };
-        var workflowEntityId = IntrinsicTimeStrategyWorkflowEntityId.Create(completed.EntityId);
         var clock = context.Container?.Resolve<TimeProvider>() ?? TimeProvider.System;
         var requestedAtUtc = clock.GetUtcNow().UtcDateTime;
+        var policy = (context as IFuturesItiSignalEventContext)?.WorkflowStartPolicy;
+        var assignment = policy?.ResolveAssignment(completed.EntityId, requestedAtUtc);
+        if (policy?.RequiresAssignment == true && assignment is null)
+            return ValueTask.CompletedTask;
+        var workflowEntityId = IntrinsicTimeStrategyWorkflowEntityId.Create(completed.EntityId) with { Assignment = assignment };
         var command = new ExecuteIntrinsicTimeStrategyWorkflowCommand
         {
             CommandId = Guid.NewGuid(),
             Subject = new ActorSubject(ActorType.Command, ExecuteIntrinsicTimeStrategyWorkflowCommand.Actor, ExecuteIntrinsicTimeStrategyWorkflowCommand.Verb, workflowEntityId.Format()),
             EntityId = workflowEntityId,
-            ProposedWorkflowId = StrategyWorkflowId.New(clock),
+            ProposedWorkflowId = assignment is null ? StrategyWorkflowId.New(clock)
+                : StrategyWorkflowId.ForTrigger(triggerId, workflowEntityId, completed.CreatedOn != default ? completed.CreatedOn : completed.ReceivedOn),
             TriggerEventId = triggerId,
             TriggerEvent = trigger,
             CorrelationId = completed.CommandId == Guid.Empty ? triggerId : completed.CommandId,

@@ -143,6 +143,10 @@ public class FuturesItiSignalV2ReadModelValidationRules : BaseValidationRules, I
                 .Must(value => !double.IsNaN(value) && !double.IsInfinity(value))
                 .WithMessage("FuturesItiSignalV2.BandLevel must be a finite number");
 
+            RuleFor(x => x.TrendVelocity)
+                .Must(value => value is null || double.IsFinite(value.Value) && value.Value >= 0)
+                .WithMessage("FuturesItiSignalV2.TrendVelocity must be finite and nonnegative when available");
+
             RuleFor(x => x.ReversalLevel)
                 .Must(value => !double.IsNaN(value) && !double.IsInfinity(value))
                 .WithMessage("FuturesItiSignalV2.ReversalLevel must be a finite number");

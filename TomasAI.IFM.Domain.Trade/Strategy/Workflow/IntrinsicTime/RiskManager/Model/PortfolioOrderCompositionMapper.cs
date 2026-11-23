@@ -14,9 +14,15 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.M
 /// <summary>Maps a portfolio-neutral composed opportunity into the Portfolio's atomic decision contract.</summary>
 public static class PortfolioOrderCompositionMapper
 {
-    public static EvaluatePortfolioOrderCompositionCommand CreateRequest(IntrinsicTimeStrategyWorkflowView view, int portfolioId, DateTime requestedAtUtc)
+    public static EvaluatePortfolioOrderCompositionCommand CreateRequest(IntrinsicTimeStrategyWorkflowView view, int portfolioId, DateTime requestedAtUtc) =>
+        CreateRequest(view, portfolioId, requestedAtUtc, 0);
+
+    public static EvaluatePortfolioOrderCompositionCommand CreateRequest(IntrinsicTimeStrategyWorkflowView view, int portfolioId,
+        DateTime requestedAtUtc, long expectedFinancialRevision)
     {
         ArgumentNullException.ThrowIfNull(view);
+        var assignment = view.EntityId.Assignment;
+        portfolioId = assignment?.PortfolioId ?? portfolioId;
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(portfolioId);
         var result = view.OrderComposition.Result?.ReadCompositionResult() ?? throw new InvalidOperationException("RiskManager requires a committed Order Composition result.");
         var candidate = result.Candidate ?? throw new InvalidOperationException("RiskManager cannot evaluate an absent composition candidate.");
@@ -39,6 +45,7 @@ public static class PortfolioOrderCompositionMapper
         {
             CompositionId = result.ResultId,
             WorkflowId = view.WorkflowId.Value,
+            AssignedFundId = assignment?.FundId,
             DecisionHorizon = candidate.TargetHorizon.ToString(),
             StrategyKind = (PortfolioExecutionStrategyKind)strategy,
             ValueDate = result.DecisionContext.ValueDate,
@@ -90,10 +97,10 @@ public static class PortfolioOrderCompositionMapper
             RequestedAtUtc = requestedAtUtc,
             ExpiresAtUtc = new[]
             {
-                view.ExpiresAtUtc,
+                view.DecisionRuntimeVersion > 0 ? Runtime.WorkflowCalculationRuntime.EffectiveDeadline(view) : view.ExpiresAtUtc,
                 candidate.ValidUntilUtc
             }.Min(),
-            ExpectedFinancialRevision = 0,
+            ExpectedFinancialRevision = expectedFinancialRevision,
             Body = body,
             Access = new FinancialAccess("IntrinsicTimeStrategyWorkflow", ["OrderCompositionEvaluate"], [portfolioId])
         };

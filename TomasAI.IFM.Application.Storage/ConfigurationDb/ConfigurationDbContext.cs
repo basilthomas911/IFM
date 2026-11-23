@@ -194,6 +194,7 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
             .ExecuteCommandAsync(cancellationToken)
             .ConfigureAwait(false);
         this.EnsureSingleLifecycleTransition(affected, kind, parameterSetId, version, "publish", "Draft");
+        ReadCacheInvalidation.ConfigurationChanged();
     }
 
     /// <summary>Retires a published parameter-set version.</summary>
@@ -212,6 +213,7 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
             .ExecuteCommandAsync(cancellationToken)
             .ConfigureAwait(false);
         this.EnsureSingleLifecycleTransition(affected, kind, parameterSetId, version, "retire", "Published");
+        ReadCacheInvalidation.ConfigurationChanged();
     }
 
     /// <summary>Gets one exact immutable Regime Discovery version.</summary>
@@ -542,6 +544,7 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
                 .ConfigureAwait(false);
         await transaction.CommitAsync(cancellationToken)
             .ConfigureAwait(false);
+        ReadCacheInvalidation.ConfigurationChanged();
     }
 
     /// <summary>Retires a published strategy-catalog version.</summary>
@@ -563,6 +566,7 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
             .ConfigureAwait(false);
         await transaction.CommitAsync(cancellationToken)
             .ConfigureAwait(false);
+        ReadCacheInvalidation.ConfigurationChanged();
     }
 
 

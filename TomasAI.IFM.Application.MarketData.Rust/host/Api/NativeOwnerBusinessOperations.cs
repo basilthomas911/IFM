@@ -69,6 +69,8 @@ public sealed partial class NativeOwnerBusinessOperations(IServiceProvider servi
     /// <summary>Builds indicator seed data using the independent native replay/history runtime.</summary>
     /// <summary>Reads completed indicator seed bars under the native owner.</summary>
     public global::System.Threading.Tasks.Task<global::TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal.FuturesTradeSessionBarReadModel[]> ReadIndicatorSeedBarsAsync(global::System.String contractId, global::TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType timeFrame, global::System.Threading.CancellationToken cancellationToken = default) => Get<Seeding.NativeFuturesSeedReplay>().ReadAsync(contractId,timeFrame,cancellationToken);
+    /// <inheritdoc/>
+    public global::System.Threading.Tasks.Task<global::TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal.FuturesTradeSessionBarReadModel[]> ReadEmaSeedBarsAsync(global::System.String contractId, global::TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType timeFrame, global::System.Int32 count, global::System.Threading.CancellationToken cancellationToken = default) => Get<Seeding.NativeFuturesSeedReplay>().ReadEmaAsync(contractId,timeFrame,count,cancellationToken);
     /// <inheritdoc />
     public Task<TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal.FuturesTradeSessionBarReadModel[]> ReadFiveMinuteSeedBarsAsync(string contract,CancellationToken token=default)=>Get<Seeding.NativeFuturesSeedReplay>().ReadAsync(contract,token);
     /// <summary>Loads saved business demand; native code resolves its contracts.</summary>
@@ -82,3 +84,6 @@ public sealed partial class NativeOwnerBusinessOperations(IServiceProvider servi
     /// <summary>Reads durable copied intent for the explicit API ValueDate.</summary>
     public Task<TradeFeedRecoveryRegistration[]> ReadTradeFeedRecoveryAsync(DateOnly date,CancellationToken token=default)=>trades.ReadAsync(date,token);
 }
+
+
+

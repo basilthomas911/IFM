@@ -15,6 +15,27 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.SignalOwnership;
 public sealed class EmaSeedBatchTests
 {
     [Fact]
+    public void Ema200_bootstrap_rebuilds_incomplete_live_state_and_retries_keep_the_full_checkpoint()
+    {
+        var bars = Enumerable.Range(1, 300).Select(index => Bar(index, 5000 + index / 4m)).ToArray();
+        var state = new FuturesEmaSignalCommandState();
+        Assert.True(Seed(bars[^48..]).Execute(state).Success);
+        Assert.Null(state.FuturesEmaCheckpoint!.Ema200);
+        state.AcceptChanges();
+        var bootstrap = Seed(bars) with { InitializeEma200 = true };
+        Assert.Empty(new List<ValidationError>().ValidateSeedBatch(bootstrap));
+        Assert.True(bootstrap.Execute(state).Success);
+        Assert.Equal(300, state.FuturesEmaCheckpoint!.Count);
+        Assert.True(state.FuturesEmaSignal!.IsWarm);
+        var expected = new FuturesEmaSignalCommandState();
+        Assert.True(bootstrap.Execute(expected).Success);
+        Assert.Equal(expected.FuturesEmaCheckpoint, state.FuturesEmaCheckpoint);
+        var facts = state.Events.Count;
+        Assert.True(bootstrap.Execute(state).Success);
+        Assert.Equal(facts, state.Events.Count);
+        Assert.Equal(300, state.FuturesEmaCheckpoint.Count);
+    }
+    [Fact]
     public void Late_history_repair_rebuilds_cold_prefix_without_regressing_newer_live_state()
     {
         var bars = Enumerable.Range(1, 48).Select(index => Bar(index, 5000 + index / 4m)).ToArray();

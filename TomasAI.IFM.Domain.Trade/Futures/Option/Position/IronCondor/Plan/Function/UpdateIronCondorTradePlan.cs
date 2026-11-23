@@ -29,6 +29,18 @@ public static class UpdateIronCondorTradePlan
             ArgumentNullException.ThrowIfNull(dispatch);
             ArgumentNullException.ThrowIfNull(state);
             cancellationToken.ThrowIfCancellationRequested();
+            if (command.ClosingDecision is { } closing)
+            {
+                if (state.LatestSourceTradePlan is { State: TradePlanState.Closed }
+                    && !TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Model.IronCondorClosePlan.IsSettled(command.Position))
+                    throw new SupersededIronCondorPlanObservationException();
+                var progress = TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Model.IronCondorClosePlan.Create(
+                    closing, command.Position, command.ClosingProgress ?? string.Empty, checked(state.LatestPlanRevision + 1), command.RequestedAtUtc);
+                return ValueTask.FromResult(dispatch(new(typeof(IronCondorTradePlanUpdatedEvent), command, progress)));
+            }
+            // The first committed exit decision is immutable. Only execution lifecycle updates may follow it.
+            if (state.LatestSourceTradePlan is { RequiresExit: true } or { State: TradePlanState.Closed })
+                throw new SupersededIronCondorPlanObservationException();
             if (state.LatestSourceTradePlan is { } latest && (command.RequestedAtUtc < latest.CalculatedAtUtc || command.Position.RouteGeneration < latest.Position.RouteGeneration || command.Position.RouteGeneration == latest.Position.RouteGeneration && command.Position.PositionSequence < latest.Position.PositionSequence))
                 throw new SupersededIronCondorPlanObservationException();
             // Valuation uses current inputs; only the revision comes from the single latest source snapshot.
@@ -80,6 +92,22 @@ public static class UpdateIronCondorTradePlan
     /// <returns>A monitoring plan that cannot report normal readiness or recommend exit from missing inputs.</returns>
     internal static StrategyTradePlanSnapshot ApplyMonitoringRecommendation(StrategyTradePlanSnapshot plan, IronCondorTradePlanSnapshot monitoring)
     {
+        // A current short-leg delta stop is independent of the forward-price model and the sign of PnL.
+        var deltaExit = TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Model.IronCondorShortDeltaExitRule
+            .Evaluate(plan.Position, plan.CalculatedAtUtc, plan.Parameters.MaximumDataAgeSeconds);
+        var profitExit = TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Model.IronCondorCreditProfitExitRule
+            .Evaluate(plan.Position, plan.CalculatedAtUtc, plan.Parameters.MaximumDataAgeSeconds);
+        if ((deltaExit ?? profitExit) is { } decision)
+            return plan with {
+                Position=monitoring.Position, IronCondorTradePlanSnapshot=monitoring with {
+                    ExitRecommended=true, ExitReason=decision.Explanation, ActionType="Exit", ActionState="ExitRequired",
+                    ActionSubType=decision.ReasonCode, ActionReason=decision.Explanation },
+                State=decision.State, Action=decision.Action, RequiresExit=true,
+                ForwardTradePrice=monitoring.IronCondorForwardRisk?.IronCondorForwardPrice.ForwardPrice ?? 0,
+                ForwardPnl=monitoring.IronCondorForwardRisk?.ForwardPnl ?? 0,
+                ForwardLoss=-(monitoring.IronCondorForwardRisk?.ForwardLoss ?? 0),
+                ReasonCode=decision.ReasonCode, Explanation=decision.Explanation
+            };
         if (!monitoring.IsComplete)
             return plan with
             {

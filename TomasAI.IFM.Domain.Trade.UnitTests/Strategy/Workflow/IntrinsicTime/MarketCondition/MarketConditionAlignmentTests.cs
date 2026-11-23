@@ -129,6 +129,23 @@ public sealed class MarketConditionAlignmentTests
     }
 
     [Fact]
+    public void Streamed_hash_matches_legacy_utf8_and_tracks_assessment_size()
+    {
+        var command = AssessmentFixture.Command();
+        var result = Calculate(command, Snapshot(command).Seal());
+        result = result with
+        {
+            SummaryText = "résumé 😀 <>&\r\n\\\"" + new string('界', 100_000),
+            Assessment = result.Assessment with { AssessmentConfidence = .50000m }
+        };
+        var canonicalBytes = System.Text.Encoding.UTF8.GetBytes(MarketConditionAssessmentHash.Serialize(result));
+        var expectedHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(canonicalBytes));
+
+        MarketConditionAssessmentHash.Compute(result).Should().Be(expectedHash);
+        result.ContentFingerprint().Should().Be((expectedHash, canonicalBytes.Length));
+    }
+
+    [Fact]
     public void Typed_content_rejects_tampering_mixed_representations_and_oversized_content()
     {
         var c = AssessmentFixture.Command(); var result = Calculate(c, Snapshot(c).Seal());

@@ -28,7 +28,9 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.State
 /// <param name = "actorService">Actor infrastructure used by the base event-source repository.</param>
 /// <param name = "eventProjector">Post-commit notification and actor-handoff projector.</param>
 /// <param name = "logger">Repository logger.</param>
-public sealed class IntrinsicTimeStrategyWorkflowStateRepository(IEventSourceActorStateFactory stateFactory, IEventSourceActorDbContext eventSource, IActorService actorService, IEventProjector<IntrinsicTimeStrategyWorkflowCommandActor> eventProjector, ILogger<IntrinsicTimeStrategyWorkflowStateRepository> logger, IDbContextFactory? dbFactory = null, IPostgresEventTransaction? transactions = null) : BaseEventSourceActorRepository(stateFactory, eventSource, actorService, logger), IEventSourceActorStateRepository<IntrinsicTimeStrategyWorkflowCommandState>
+public sealed class IntrinsicTimeStrategyWorkflowStateRepository(IEventSourceActorStateFactory stateFactory, IEventSourceActorDbContext eventSource, IActorService actorService, IEventProjector<IntrinsicTimeStrategyWorkflowCommandActor> eventProjector, ILogger<IntrinsicTimeStrategyWorkflowStateRepository> logger, IDbContextFactory? dbFactory = null, IPostgresEventTransaction? transactions = null,
+    Runtime.WorkflowResidentStateRegistry? resident = null, Runtime.WorkflowLocalDispatcher? localDispatcher = null,
+    Runtime.WorkflowDecisionBatchRunner? decisions = null) : BaseEventSourceActorRepository(stateFactory, eventSource, actorService, logger), IEventSourceActorStateRepository<IntrinsicTimeStrategyWorkflowCommandState>
 {
     readonly IEventSourceActorStateFactory _stateFactory = stateFactory ?? throw new ArgumentNullException(nameof(stateFactory));
     readonly IEventSourceActorDbContext _eventSource = eventSource ?? throw new ArgumentNullException(nameof(eventSource));
@@ -49,6 +51,12 @@ public sealed class IntrinsicTimeStrategyWorkflowStateRepository(IEventSourceAct
         trace?.SetTag("ifm.workflow.entity", command.Subject.EntityId);
         trace?.SetTag("ifm.command.name", command.CommandName);
         cancellationToken.ThrowIfCancellationRequested();
+        if (resident is not null && string.Equals(dbFactory?.TradeDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal)
+            && resident.TryFork(command.Subject.EntityId, out var owned))
+        {
+            await RememberPersistedTriggerAsync(owned!, command, cancellationToken).ConfigureAwait(false);
+            return owned!;
+        }
         var state = (IntrinsicTimeStrategyWorkflowCommandState)_stateFactory.CreateState<IntrinsicTimeStrategyWorkflowCommandState>();
         state.Id = command.Subject.ThreadId;
         using var streamRead = WorkflowTrace.Start("workflow.state.stream_lookup", null);
@@ -113,16 +121,9 @@ public sealed class IntrinsicTimeStrategyWorkflowStateRepository(IEventSourceAct
         state.RestoreCommittedStreamVersion(head);
         state.SetPersistedStreamVersion(head);
         state.ResetQueueChangeTracking();
-        if (command is ExecuteIntrinsicTimeStrategyWorkflowCommand execute && execute.TriggerEventId != Guid.Empty &&
-            !state.IsDuplicateTrigger(execute.TriggerEventId) &&
-            transactions is not null && string.Equals(dbFactory?.TradeDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
-        {
-            var started = await transactions.ExecuteOnceAsync((db, token) => db.ScalarAsync(
-                TradeDbSql.FindStartedIntrinsicTimeTrigger, [command.Subject.EntityId, execute.TriggerEventId], token),
-                cancellationToken).ConfigureAwait(false);
-            if (started is true)
-                state.RememberStartedTrigger(execute.TriggerEventId);
-        }
+        await RememberPersistedTriggerAsync(state, command, cancellationToken).ConfigureAwait(false);
+        if (string.Equals(dbFactory?.TradeDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
+            resident?.PublishCommitted(command.Subject.EntityId, state);
         return state;
 
         bool IsOwned(WorkflowStrategyStateUpdatedEvent source) => source.WorkflowId.Value != Guid.Empty && source.WorkflowRevision > 0 &&
@@ -130,6 +131,17 @@ public sealed class IntrinsicTimeStrategyWorkflowStateRepository(IEventSourceAct
     }
 
     private static readonly Type[] CheckpointTypes = [typeof(IntrinsicTimeStrategyWorkflowStateSnapshottedEvent)];
+
+    async Task RememberPersistedTriggerAsync(IntrinsicTimeStrategyWorkflowCommandState state, ICommand command, CancellationToken token)
+    {
+        // This is duplicate checking at durable signal admission, never a decision input read.
+        if (command is not ExecuteIntrinsicTimeStrategyWorkflowCommand execute || execute.TriggerEventId == Guid.Empty
+            || state.IsDuplicateTrigger(execute.TriggerEventId) || transactions is null
+            || !string.Equals(dbFactory?.TradeDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal)) return;
+        var started = await transactions.ExecuteOnceAsync((db, ct) => db.ScalarAsync(
+            TradeDbSql.FindStartedIntrinsicTimeTrigger, [command.Subject.EntityId, execute.TriggerEventId], ct), token).ConfigureAwait(false);
+        if (started is true) state.RememberStartedTrigger(execute.TriggerEventId);
+    }
 
     /// <summary>Persists pending workflow events as one ACID event batch.</summary>
     /// <param name = "context">Command actor context associated with the save operation.</param>
@@ -143,7 +155,12 @@ public sealed class IntrinsicTimeStrategyWorkflowStateRepository(IEventSourceAct
     /// <param name = "command">Command that produced the pending events.</param>
     /// <param name = "cancellationToken">Cancellation token honored until event persistence commits.</param>
     /// <returns>A task representing the save operation.</returns>
-    public async ValueTask SaveStateAsync(ICommandActorContext context, IntrinsicTimeStrategyWorkflowCommandState state, ICommand command, CancellationToken cancellationToken)
+    public ValueTask SaveStateAsync(ICommandActorContext context, IntrinsicTimeStrategyWorkflowCommandState state, ICommand command, CancellationToken cancellationToken)
+        => SaveCoreAsync(context, state, command, cancellationToken);
+
+    async ValueTask SaveCoreAsync(ICommandActorContext context, IntrinsicTimeStrategyWorkflowCommandState state, ICommand command,
+        CancellationToken cancellationToken, IReadOnlyList<ICommand>? decisionCommands = null,
+        DomainEventCollection? precedingProjectionEvents = null)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(command);
@@ -158,16 +175,27 @@ public sealed class IntrinsicTimeStrategyWorkflowStateRepository(IEventSourceAct
             var owner = transactions ?? throw new InvalidOperationException("Atomic workflow persistence requires the PostgreSQL transaction service.");
             var writer = dbFactory.TradeDb as IEnlistedTradeDbWriter ?? throw new InvalidOperationException("TradeDb requires an enlisted workflow writer.");
             var pending = new DomainEventCollection(state.Events);
+            if (decisionCommands is not null)
+            {
+                var commands = decisionCommands.Select(value => value.CommandId).Append(command.CommandId).ToHashSet();
+                if (pending.Any(value => !commands.Contains(value.CommandId))) throw new InvalidOperationException("WF.EVIDENCE.COMMAND_NOT_OWNED");
+            }
             var capture = ShouldCapturePeriodicSnapshot(state.PersistedStreamVersion, pending.Count);
+            try
+            {
             await owner.ExecuteOnceAsync(async (transaction, token) =>
             {
+                await transaction.ExecuteAsync(TradeDbWorkflowRuntimeSql.LockDecisionStream, [command.StreamId], token).ConfigureAwait(false);
                 await transaction.ReserveCommandAsync(command, token).ConfigureAwait(false);
+                if (decisionCommands is not null)
+                    foreach (var decision in decisionCommands.DistinctBy(value => value.CommandId))
+                        await transaction.ReserveCommandAsync(decision, token).ConfigureAwait(false);
                 var version = state.PersistedStreamVersion;
                 foreach (var domainEvent in pending)
                 {
                     if (domainEvent is not (WorkflowStrategyStateUpdatedEvent or IntrinsicTimeStrategySignalQueuedEvent))
                         throw new InvalidOperationException("A strategy workflow transaction requires a snapshot or a queued ITI signal.");
-                    await transaction.AppendAsync(new EnlistedEventAppend(command.StreamId, command.CommandId, domainEvent, version++), token).ConfigureAwait(false);
+                    await transaction.AppendAsync(new EnlistedEventAppend(command.StreamId, domainEvent.CommandId, domainEvent, version++), token).ConfigureAwait(false);
                     if (domainEvent is WorkflowStrategyStateUpdatedEvent snapshot)
                         await writer.ProjectWorkflowAsync(transaction, snapshot, token).ConfigureAwait(false);
                 }
@@ -182,12 +210,61 @@ public sealed class IntrinsicTimeStrategyWorkflowStateRepository(IEventSourceAct
                 }
                 return true;
             }, cancellationToken).ConfigureAwait(false);
+            }
+            catch
+            {
+                resident?.Invalidate(command.Subject.EntityId);
+                foreach (var unconfirmed in pending.OfType<WorkflowStrategyStateUpdatedEvent>()
+                    .Where(value => value.State.DecisionRuntimeVersion > 0).DistinctBy(value => value.WorkflowId))
+                    resident?.MarkUncertain(unconfirmed.State, command.StreamId);
+                throw;
+            }
             state.SetPersistedStreamVersion(checked(state.PersistedStreamVersion + pending.Count + (capture ? 1 : 0)));
             state.AcceptChanges();
             state.ResetQueueChangeTracking();
             if (capture)
                 state.RestoreCommittedStreamVersion(state.PersistedStreamVersion);
-            await ProjectWorkflowEventsAsync(pending).ConfigureAwait(false);
+            resident?.PublishCommitted(command.Subject.EntityId, state);
+            trace?.Stop(); // Source persistence ends here; subsequent decisions have their own timing boundary.
+            var latest = pending.OfType<WorkflowStrategyStateUpdatedEvent>().LastOrDefault();
+            if (latest is not null) resident?.ConfirmOutcome(latest.WorkflowId.Value);
+            if (decisions is not null && latest is { DispatchRegimeDiscovery: true, SkipPipelineDispatch: false }
+                && latest.State is { DecisionRuntimeVersion: > 0, Status: Shared.Strategy.Workflow.IntrinsicTime.Model.WorkflowStrategyMachineStatus.Started })
+            {
+                // Admission is durable before any calculation. The same assignment owner retains its state while
+                // all stages run locally, so another command cannot interleave with private decision evidence.
+                // Publish admission projection work after calculation, so notification backpressure cannot
+                // consume an operator deadline. Its earlier stream version must not be stranded behind
+                // the final evidence: fenced projectors correctly refuse to skip that admission.
+                Runtime.WorkflowDecisionBatchRunner.Evidence evidence;
+                try
+                {
+                    evidence = await decisions.RunAsync((ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor>)context, state).ConfigureAwait(false);
+                    await SaveCoreAsync(context, state, evidence.Command, cancellationToken, evidence.Commands, pending).ConfigureAwait(false);
+                }
+                finally
+                {
+                    // Admission is already committed even when the final evidence reply is lost.
+                    // Startup recovery also retains the original source identity if publication fails.
+                    await ProjectWorkflowEventsAsync(pending).ConfigureAwait(false);
+                }
+                // A following signal is a separate admission, never part of an uncertain decision-result write.
+                if (state.NextSignal is not null && !state.HasActiveWorkflow)
+                {
+                    var promotion = evidence.Command with { CommandId = Guid.NewGuid(), RequestedBy = Realtime.IntrinsicTimeSignalQueueRecoveryService.RequestSource };
+                    ExecuteIntrinsicTimeStrategyWorkflow.PromoteQueuedSignals(
+                        (ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor>)context, state, promotion, expireActive: false);
+                    await SaveStateAsync(context, state, promotion, cancellationToken).ConfigureAwait(false);
+                }
+                return;
+            }
+            // Only the acknowledged source transaction can publish a decision continuation.
+            // Projector reads, notifications and financial handoffs cannot delay its scheduling.
+            foreach (var snapshot in pending.OfType<WorkflowStrategyStateUpdatedEvent>().Where(value => value.State.DecisionRuntimeVersion > 0 && !value.SkipPipelineDispatch
+                && (decisions is null || ReferenceEquals(value, latest))))
+                (localDispatcher ?? throw new InvalidOperationException("WF.RUNTIME.DISPATCHER_NOT_READY")).Dispatch(snapshot);
+            await ProjectWorkflowEventsAsync(precedingProjectionEvents is null ? pending :
+                new DomainEventCollection(precedingProjectionEvents.Concat(pending))).ConfigureAwait(false);
             return;
         }
         var committed = await _eventSource.SaveEventsAsync(command.StreamId, command.CommandId, state.Events, state.PersistedStreamVersion, cancellationToken).ConfigureAwait(false);

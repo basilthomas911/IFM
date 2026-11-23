@@ -28,7 +28,10 @@ public static class IronCondorPositionChanged
         {
             ArgumentNullException.ThrowIfNull(changed);
             ArgumentNullException.ThrowIfNull(context);
+            // The durable close coordinator publishes the final position and plan together, then stops the feed.
+            if (!changed.PositionSnapshot.IsOpen) return;
             await context.PublishRealtimeAsync(changed.PositionSnapshot).ConfigureAwait(false);
+            if (await context.IsClosingAsync(changed.PositionSnapshot.Id).ConfigureAwait(false)) return;
             if (changed.PositionSnapshot.AsOfUtc.Kind != DateTimeKind.Utc || !FuturesTradingValueDate.TryGet(new DateTimeOffset(changed.PositionSnapshot.AsOfUtc), out var valueDate))
                 throw new InvalidOperationException("IronCondorTradePlan.VALUE_DATE.UNAVAILABLE: position observation is outside an active futures session.");
             var capturedAtUtc = context.TimeProvider.GetUtcNow().UtcDateTime;
@@ -49,6 +52,7 @@ public static class IronCondorPositionChanged
         /// <returns>The completed forward-price/trade-plan workflow and realtime publication.</returns>
         internal async ValueTask CalculateMonitoringPlanAsync(IIronCondorTradePositionRealtimeContext context, DateOnly valueDate, IronCondorTradePlanInputs capturedInputs, DateTime capturedAtUtc)
         {
+            if (await context.IsClosingAsync(changed.PositionSnapshot.Id).ConfigureAwait(false)) return;
             var id = new IronCondorTradePlanId(changed.PositionSnapshot.Id, valueDate);
             var commandId = TradePlanContractIdentity.DeterministicId($"{changed.Id:N}|{changed.PositionSnapshot.PositionSequence}|{UpdateIronCondorTradePlanCommand.Verb}");
             IronCondorForwardPriceCalculatedEvent? forward = null;

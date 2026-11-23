@@ -8,6 +8,23 @@ namespace TomasAI.IFM.Application.MarketData.UnitTests;
 public sealed class TradeFeedRecoveryServiceTests
 {
     [Fact]
+    public async Task Closed_trade_cleanup_retains_contract_owners_for_retry_and_leaves_other_trade_leases_running()
+    {
+        var store=new Store();var runtime=new Runtime();var service=new TradeFeedRecoveryService(store,runtime);
+        var other=new TradeEntityId(101,703,2,2);
+        await service.LoadAsync(Trade.Format(),Date,true,default);
+        await service.LoadAsync(other.Format(),Date,true,default);
+        Assert.Equal(8,runtime.Active.Count);
+        runtime.Closed=true;runtime.FailStop=true;
+        await Assert.ThrowsAsync<AggregateException>(()=>service.DisableAsync(Trade.Format(),Date,default));
+        Assert.Equal(2,(await store.ReadAsync(Date,default)).Length);
+        runtime.FailStop=false;
+        await new TradeFeedRecoveryService(store,runtime).DisableAsync(Trade.Format(),Date,default);
+        Assert.Equal(other.Format(),Assert.Single(await store.ReadAsync(Date,default)).TradeId);
+        Assert.Equal(4,runtime.Active.Count);
+        Assert.All(runtime.Active,item=>Assert.StartsWith(TradeFeedRecoveryService.Owner(other.Format(),Date),item));
+    }
+    [Fact]
     public async Task Unchanged_restore_preserves_intent_revision_and_explicit_enable_still_persists()
     {
         var store = new Store(); var runtime = new Runtime();

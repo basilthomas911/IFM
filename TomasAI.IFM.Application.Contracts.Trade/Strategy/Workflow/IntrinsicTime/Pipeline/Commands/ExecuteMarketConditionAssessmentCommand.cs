@@ -39,8 +39,9 @@ public sealed record ExecuteMarketConditionAssessmentCommand : ICommand<MarketCo
     /// <param name="marketProfileId">The MarketProfileId field.</param>
     /// <param name="instrumentRoot">The InstrumentRoot field.</param>
     /// <param name="targetHorizon">The TargetHorizon field.</param>
+    /// <param name="calculationPolicy">The frozen calculation policy; null retains the legacy implementation.</param>
     [SerializationConstructor]
-    public ExecuteMarketConditionAssessmentCommand(short schemaVersion, Guid commandId, ActorSubject subject, bool postEvents, MarketConditionAssessmentExecutionId entityId, int errorCode, BoundedContextName routeTo, long inputWorkflowRevision, IntrinsicTimeStrategyWorkflowView workflowView, FuturesItiSignalGeneratedEvent triggerEvent, Guid correlationId, Guid causationId, DateTime requestedAtUtc, DateTime expiresAtUtc, MarketConditionAssessmentParameterSet parameterSet, string parameterPayloadSha256, StrategyStageResultEnvelope regimeResultEnvelope, string regimePayloadSha256, string marketProfileId, string instrumentRoot, TimeFrameType targetHorizon)
+    public ExecuteMarketConditionAssessmentCommand(short schemaVersion, Guid commandId, ActorSubject subject, bool postEvents, MarketConditionAssessmentExecutionId entityId, int errorCode, BoundedContextName routeTo, long inputWorkflowRevision, IntrinsicTimeStrategyWorkflowView workflowView, FuturesItiSignalGeneratedEvent triggerEvent, Guid correlationId, Guid causationId, DateTime requestedAtUtc, DateTime expiresAtUtc, MarketConditionAssessmentParameterSet parameterSet, string parameterPayloadSha256, StrategyStageResultEnvelope regimeResultEnvelope, string regimePayloadSha256, string marketProfileId, string instrumentRoot, TimeFrameType targetHorizon, string? calculationPolicy = null)
     {
         SchemaVersion = schemaVersion;
         CommandId = commandId;
@@ -63,6 +64,7 @@ public sealed record ExecuteMarketConditionAssessmentCommand : ICommand<MarketCo
         MarketProfileId = marketProfileId;
         InstrumentRoot = instrumentRoot;
         TargetHorizon = targetHorizon;
+        CalculationPolicy = calculationPolicy;
     }
     public const string Actor = "MarketConditionPipelineFunction";
     public const string Verb = "Assess";
@@ -88,6 +90,9 @@ public sealed record ExecuteMarketConditionAssessmentCommand : ICommand<MarketCo
     [Key(18)] public string MarketProfileId { get; init; } = string.Empty;
     [Key(19)] public string InstrumentRoot { get; init; } = string.Empty;
     [Key(20)] public TimeFrameType TargetHorizon { get; init; }
+    /// <summary>Frozen calculation choice. Null preserves the historical assessment and fingerprint.</summary>
+    [Key(21), System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? CalculationPolicy { get; init; }
     [IgnoreMember] public IntrinsicTimeStrategyWorkflowEntityId WorkflowEntityId => EntityId.WorkflowEntityId;
     [IgnoreMember] public StrategyWorkflowId WorkflowId => EntityId.WorkflowId;
     [IgnoreMember] public string CommandName => nameof(ExecuteMarketConditionAssessmentCommand);

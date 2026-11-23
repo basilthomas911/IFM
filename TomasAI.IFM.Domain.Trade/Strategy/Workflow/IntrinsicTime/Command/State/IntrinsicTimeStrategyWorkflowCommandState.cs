@@ -60,6 +60,9 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandState : BaseEventSourceA
     public IntrinsicTimeStrategyWorkflowView? CurrentView => WorkflowDefinition;
     /// <summary>Gets a defensive copy of the authoritative workflow definition.</summary>
     public IntrinsicTimeStrategyWorkflowView? WorkflowDefinition => _workflowDefinition is null ? null : CloneView(_workflowDefinition);
+    /// <summary>Manager-owned immutable input references; historical transport keeps its defensive-copy boundary.</summary>
+    internal IntrinsicTimeStrategyWorkflowView? DecisionView => _workflowDefinition is { DecisionRuntimeVersion: > 0 }
+        ? _workflowDefinition : WorkflowDefinition;
     /// <summary>Gets the PostgreSQL stream version observed when this state was loaded.</summary>
     public long PersistedStreamVersion { get; private set; }
     /// <summary>Gets a value indicating whether this entity currently has a running workflow.</summary>
@@ -238,6 +241,24 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandState : BaseEventSourceA
     }
 
     internal void ResetQueueChangeTracking() => QueueChanged = false;
+    /// <summary>Forks committed owner state without serialization. Private graphs are replaced, never mutated in place.</summary>
+    internal IntrinsicTimeStrategyWorkflowCommandState ForkCommitted()
+    {
+        if (Events.Count != 0) throw new InvalidOperationException("Uncommitted workflow state cannot be published.");
+        var fork = new IntrinsicTimeStrategyWorkflowCommandState
+        {
+            Id = Id, EntityId = EntityId, _workflowDefinition = _workflowDefinition, _latestWorkflow = _latestWorkflow,
+            _activeTriggerEvent = _activeTriggerEvent, LatestSource = LatestSource, PersistedStreamVersion = PersistedStreamVersion,
+            AppliedEntityEventCount = AppliedEntityEventCount, LastPersistedEventId = LastPersistedEventId,
+            LastTriggerEventId = LastTriggerEventId, LastRequestedWorkflowId = LastRequestedWorkflowId,
+            LastStartDecision = LastStartDecision, ActiveDispatchInstruction = ActiveDispatchInstruction
+        };
+        fork._knownTriggerIds.UnionWith(_knownTriggerIds);
+        foreach (var signal in _pendingSignals) fork._pendingSignals.Enqueue(signal);
+        fork.RestoreCommittedStreamVersion(CommittedStreamVersion);
+        return fork;
+    }
+    internal IntrinsicTimeStrategyWorkflowView? TrustedCommittedView => _workflowDefinition;
     static T? CopySelection<T>(T? value)
         where T : class => value is null ? null : MessagePackSerializer.Deserialize<T>(MessagePackSerializer.Serialize(value));
     static IntrinsicTimeStrategyWorkflowState CloneWorkflow(IntrinsicTimeStrategyWorkflowState source) => source with
@@ -267,7 +288,8 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandState : BaseEventSourceA
         CompositionHandoff = CopySelection(source.CompositionHandoff),
         SelectionDispatch = CopySelection(source.SelectionDispatch),
         CompositionDispatch = CopySelection(source.CompositionDispatch),
-        PortfolioRiskDecision = CopySelection(source.PortfolioRiskDecision)
+        PortfolioRiskDecision = CopySelection(source.PortfolioRiskDecision),
+        EntryCommit = CopySelection(source.EntryCommit)
     };
     static IntrinsicTimeStrategyWorkflowState ToLegacyWorkflow(IntrinsicTimeStrategyWorkflowView source) => new()
     {

@@ -30,7 +30,7 @@ public static class FailMarketCondition
         public ServiceResult<GuidResult> Execute(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context, IntrinsicTimeStrategyWorkflowCommandState state)
         {
             ArgumentNullException.ThrowIfNull(state);
-            var preparation = new WorkflowSnapshotPreparation(state.WorkflowDefinition);
+            var preparation = new WorkflowSnapshotPreparation(state.DecisionView);
             var preparationResult = PrepareWorkflow(command, context, preparation);
             if (!preparationResult.Success)
                 return preparationResult;
@@ -61,7 +61,7 @@ public static class FailMarketCondition
             }
 
             var now = context.TimeProvider.GetUtcNow().UtcDateTime;
-            var timedOut = now >= current.ExpiresAtUtc || command.FailureCategory == MarketConditionFailureCategory.Timeout || IsLegacyTimeout(command);
+            var timedOut = now >= Runtime.WorkflowCalculationRuntime.EffectiveDeadline(current) || command.FailureCategory == MarketConditionFailureCategory.Timeout || IsLegacyTimeout(command);
             var updated = current with
             {
                 Status = timedOut ? WorkflowStrategyMachineStatus.TimedOut : WorkflowStrategyMachineStatus.Failed,

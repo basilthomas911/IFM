@@ -255,7 +255,7 @@ public static partial class TradeSelectionContracts
         Check(string.Equals(EvidenceHash(c.TriggerEvent),EvidenceHash(v.TriggerEvent),StringComparison.Ordinal) && c.RegimeResultEnvelope.HasSameContent(v.RegimeDiscovery.Result) && c.AssessmentResultEnvelope.HasSameContent(v.MarketCondition.Result), "TS.UPSTREAM.INVALID", "Accepted input metadata differs.");
         var assessment = MarketConditionAssessmentContracts.ReadResult(c.AssessmentResultEnvelope);
         MarketConditionAssessmentContracts.ValidateAcceptance(assessment, v, v.MarketCondition.InputWorkflowRevision);
-        Check(assessment.Assessment.Availability == AssessmentAvailability.Available && !assessment.Assessment.InheritedRestrictions.Contains(RegimeRestriction.NoNewTrade), "TS.UPSTREAM.NOT_ELIGIBLE", "Assessment is unavailable or restricted.");
+        Check(assessment.Assessment.Availability == AssessmentAvailability.Available && (MarketConditionObservationPolicy.Applies(assessment.Assessment) || !assessment.Assessment.InheritedRestrictions.Contains(RegimeRestriction.NoNewTrade)), "TS.UPSTREAM.NOT_ELIGIBLE", "Assessment is unavailable or restricted.");
         Check(c.RegimeResultEnvelope.HasValidPayloadSha256() && string.Equals(c.RegimeResultEnvelope.ResultType,nameof(RegimeDiscoveryResult),StringComparison.Ordinal), "TS.UPSTREAM.INVALID", "Invalid regime envelope.");
         var regime = c.RegimeResultEnvelope.ReadRegimeResult();
         Check(Utc(c.RequestedAtUtc) && Utc(c.EvaluatedAtUtc) && Utc(c.ExpiresAtUtc) && c.EvaluatedAtUtc >= c.RequestedAtUtc && c.EvaluatedAtUtc < c.ExpiresAtUtc && c.ExpiresAtUtc <= v.ExpiresAtUtc && c.ExpiresAtUtc <= c.SelectionBinding.ValidUntilUtc && c.EvaluatedAtUtc < assessment.Assessment.ValidUntilUtc && c.ExpiresAtUtc <= c.RequestedAtUtc.AddMilliseconds(p.MaximumExecutionMilliseconds), "TS.TIME.EXPIRED", "Invalid execution times/deadline or expired evaluation evidence.");
@@ -449,7 +449,18 @@ public static partial class TradeSelectionContracts
             && r.SelectionConfidence == Math.Round(Math.Min(regime.Decision.Confidence, assessment.Assessment.AssessmentConfidence ?? -1), 6, MidpointRounding.ToEven)
             && r.SelectionConfidence is >= 0 and <= 1, "TS.RESULT.INVALID", "Result upstream/confidence mismatch.");
         var expectedGlobalCount = b.VolatilityInput is null ? 21 : 22;
-        Require(r.GlobalEvidence.Select(x => x.RuleId).SequenceEqual(Enumerable.Range(1, expectedGlobalCount).Select(x => $"G{x:D2}"), StringComparer.Ordinal)
+        var hasDailyEntry = r.GlobalEvidence.Any(x => x.RuleId == "G23");
+        if (hasDailyEntry)
+            Require(p.TargetHorizon == TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType.Daily
+                && r.GlobalEvidence.Single(x => x.RuleId == "G23").FieldPath == "DailyFutures.ITIEntry"
+                && b.CatalogDefinitions.Where(x => b.Candidates.Any(c => c.StructureKey == x.Key))
+                    .All(x => x.Capabilities.Any(c => c.Role == "builder" && c.Code == "Future")),
+                "TS.RESULT.INVALID", "Daily entry evidence requires a Daily futures universe.");
+        // G22 remains optional volatility evidence. Daily futures append G23;
+        // historical selector results retain their original ordered evidence.
+        var expectedGlobalIds = Enumerable.Range(1, expectedGlobalCount).Select(x => $"G{x:D2}")
+            .Concat(hasDailyEntry ? ["G23"] : Array.Empty<string>());
+        Require(r.GlobalEvidence.Select(x => x.RuleId).SequenceEqual(expectedGlobalIds, StringComparer.Ordinal)
             && r.CandidateDecisions.Select(x => x.CandidateHash).SequenceEqual(b.Candidates.OrderBy(CandidateIdentity, StringComparer.Ordinal).Select(x => x.CandidateHash), StringComparer.Ordinal), "TS.RESULT.INVALID", "Incomplete or unordered decision evidence.");
         var volatilityGate = b.VolatilityInput is null ? null : VolatilityWorkflowGate.Evaluate(b.VolatilityInput);
         var expectedVolatility = b.VolatilityInput?.AcceptedEvidence is { } accepted && volatilityGate?.AllowsNewEntry == true

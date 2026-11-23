@@ -5,15 +5,15 @@ using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 
-/// <summary>Seeds one EMA aggregate with at most 64 ordered original observations.</summary>
+/// <summary>Seeds one EMA aggregate with up to 64 ordered observations, or 200–512 for an atomic EMA200 bootstrap.</summary>
 [MessagePackObject(AllowPrivate = true)]
 public sealed record SeedFuturesEmaSignalsCommand : ICommand<FuturesTradeSessionBarEntityId>
 {
     public SeedFuturesEmaSignalsCommand() { }
     [SerializationConstructor]
     public SeedFuturesEmaSignalsCommand(Guid commandId, ActorSubject subject, bool postEvents,
-        FuturesTradeSessionBarEntityId entityId, int errorCode, BoundedContextName routeTo, FuturesTradeSessionBarReadModel[] observations)
-    { CommandId = commandId; Subject = subject; PostEvents = postEvents; EntityId = entityId; ErrorCode = errorCode; RouteTo = routeTo; Observations = observations; }
+        FuturesTradeSessionBarEntityId entityId, int errorCode, BoundedContextName routeTo, FuturesTradeSessionBarReadModel[] observations, bool initializeEma200 = false)
+    { CommandId = commandId; Subject = subject; PostEvents = postEvents; EntityId = entityId; ErrorCode = errorCode; RouteTo = routeTo; Observations = observations; InitializeEma200 = initializeEma200; }
 
     public const string Actor = GenerateFuturesEmaSignalCommand.Actor;
     public const string Verb = "SeedBatch";
@@ -26,6 +26,8 @@ public sealed record SeedFuturesEmaSignalsCommand : ICommand<FuturesTradeSession
     [Key(5)] public BoundedContextName RouteTo { get; init; } = BoundedContextName.FuturesEmaSignalBoundedContext;
     /// <summary>Immutable producer-prepared bars for exactly one series and timeframe, in increasing interval order.</summary>
     [Key(6)] public FuturesTradeSessionBarReadModel[] Observations { get; init; } = [];
+    /// <summary>Allows a single bounded EMA200 bootstrap to replace an incomplete checkpoint atomically.</summary>
+    [Key(7)] public bool InitializeEma200 { get; init; }
     [IgnoreMember] public string CommandName => nameof(SeedFuturesEmaSignalsCommand);
     [IgnoreMember] public string StreamId => Subject.StreamId;
     [IgnoreMember] public string EventSource => Actor;

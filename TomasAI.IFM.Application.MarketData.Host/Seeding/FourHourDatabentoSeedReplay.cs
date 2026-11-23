@@ -26,8 +26,20 @@ public sealed class FourHourDatabentoSeedReplay(
 
     public async Task<FuturesTradeSessionBarReadModel[]> ReadAsync(
         string contractId, TimeFrameType frame, CancellationToken cancellationToken)
+        => await ReadCoreAsync(contractId, frame, BarCount, false, cancellationToken).ConfigureAwait(false);
+
+    /// <summary>Acquires complete calendar intervals for a full EMA200 bootstrap without changing the ordinary 48-bar path.</summary>
+    public Task<FuturesTradeSessionBarReadModel[]> ReadEmaAsync(string contractId, TimeFrameType frame, int count, CancellationToken token)
     {
-        if (frame is not (TimeFrameType.FiveMinutes or TimeFrameType.FifteenMinutes or TimeFrameType.OneHour or TimeFrameType.FourHours))
+        ArgumentOutOfRangeException.ThrowIfLessThan(count, 200);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(count, 512);
+        return ReadCoreAsync(contractId, frame, count, true, token);
+    }
+
+    async Task<FuturesTradeSessionBarReadModel[]> ReadCoreAsync(string contractId, TimeFrameType frame, int count, bool emaBootstrap, CancellationToken cancellationToken)
+    {
+        if (frame is not (TimeFrameType.FiveMinutes or TimeFrameType.FifteenMinutes or TimeFrameType.OneHour or TimeFrameType.FourHours)
+            && !(emaBootstrap && frame == TimeFrameType.Daily))
             throw new ArgumentOutOfRangeException(nameof(frame));
         cancellationToken.ThrowIfCancellationRequested();
         if (options.FeedOptions.DataSource != FeedDataSourceMode.DatabentoLive)
@@ -38,9 +50,9 @@ public sealed class FourHourDatabentoSeedReplay(
             throw new InvalidOperationException($"No Databento registration exists for {contractId}.");
 
         var now = clock.GetUtcNow();
-        var windows = RsiHistoricalSeedWindowModel.Create(frame, BarCount, now, calendar);
+        var windows = RsiHistoricalSeedWindowModel.Create(frame, count, now, calendar);
         // Initialization needs 48 actual trading bars, including across maintenance/session breaks.
-        if (windows.Length != BarCount)
+        if (windows.Length != count)
             return [];
 
         // Live trade replay cannot cross the weekend. Read prior sessions through Historical,
@@ -51,7 +63,7 @@ public sealed class FourHourDatabentoSeedReplay(
         var historicalWindows = windows.Where(window => window.StartUtc < sessionStart
             || window.StartUtc < now.AddHours(-23)).ToArray();
         var historicalBars = await ReadHistoricalAsync(registration, contractId,
-            historicalWindows, frame, cutoff, cancellationToken).ConfigureAwait(false);
+            historicalWindows, frame, cutoff, cancellationToken, emaBootstrap).ConfigureAwait(false);
         if (historicalBars.Length != historicalWindows.Length)
             return [];
         var replayWindows = windows.Except(historicalWindows).ToArray();
@@ -73,7 +85,7 @@ public sealed class FourHourDatabentoSeedReplay(
 
     async Task<FuturesTradeSessionBarReadModel[]> ReadHistoricalAsync(
         DatabentoContractRegistration registration, string contractId,
-        MarketSessionBounds[] windows, TimeFrameType frame, DateTimeOffset cutoff, CancellationToken token)
+        MarketSessionBounds[] windows, TimeFrameType frame, DateTimeOffset cutoff, CancellationToken token, bool allowQuietMinutes = false)
     {
         if (windows.Length == 0) return [];
         if (historical is null)
@@ -104,7 +116,9 @@ public sealed class FourHourDatabentoSeedReplay(
             var minutes = new Dictionary<DateTimeOffset, HistoricalProviderRecord>();
             await using var reader = await historical.OpenRangeAsync(request, 256, token).ConfigureAwait(false);
             var recordCount = 0;
+            var completed = false;
             while (await reader.ReadNextAsync(token).ConfigureAwait(false) is { } batch)
+            {
                 foreach (var record in batch.Records)
                 {
                     if (++recordCount > expectedMinutes)
@@ -119,15 +133,22 @@ public sealed class FourHourDatabentoSeedReplay(
                     if (!minutes.TryAdd(record.EventTimestampUtc, record))
                         throw new InvalidOperationException("Duplicate historical indicator seed minute.");
                 }
+                completed |= batch.IsFinal;
+            }
+            if (allowQuietMinutes && !completed) return [];
             foreach (var window in selected)
             {
                 var records = Enumerable.Range(0, checked((int)(window.EndUtc - window.StartUtc).TotalMinutes)).Select(index =>
                     minutes.GetValueOrDefault(window.StartUtc.AddMinutes(index))).ToArray();
-                if (records.Any(record => record is null))
+                if (!allowQuietMinutes && records.Any(record => record is null))
                 {
                     logger?.LogWarning("Historical indicator seed incomplete: ContractId={ContractId}; IntervalStartUtc={IntervalStartUtc}", contractId, window.StartUtc);
                     return [];
                 }
+                // A successful complete provider range can omit minutes with no trades.
+                // Aggregate actual records only; never fill forward invented OHLC.
+                records = records.Where(record => record is not null).ToArray();
+                if (records.Length == 0) return [];
                 var series = MarketSeriesIdentity.ForContract(contractId);
                 result.Add(new()
                 {
@@ -139,7 +160,8 @@ public sealed class FourHourDatabentoSeedReplay(
                     Low = records.Min(record => record!.Low), Close = records[^1]!.CloseOrPrice,
                     Volume = records.Sum(record => (decimal)record!.VolumeOrSize),
                     // OHLCV does not contain exact trade counts or price-volume sums. Do not invent them.
-                    FirstMarketEventUtc = window.StartUtc, LastMarketEventUtc = window.EndUtc.AddMinutes(-1),
+                    FirstMarketEventUtc = allowQuietMinutes ? records[0]!.EventTimestampUtc : window.StartUtc,
+                    LastMarketEventUtc = allowQuietMinutes ? records[^1]!.EventTimestampUtc : window.EndUtc.AddMinutes(-1),
                     CalculatedAtUtc = cutoff, IsComplete = true, IsValid = true,
                     CalculationVersion = "databento-historical-minute-seed-v1",
                     CalculationMethod = MarketSignalCalculationMethod.NormalizedHistoricalAggregate
@@ -176,7 +198,7 @@ public sealed class FourHourDatabentoSeedReplay(
                 reader = feed.GetReader(instrument.Instrument);
             });
             started = true;
-            var buckets = new BarBucket[BarCount];
+            var buckets = new BarBucket[windows.Length];
             var deadline = clock.GetUtcNow().AddMinutes(2);
             var completed = false;
             while (!completed && clock.GetUtcNow() < deadline)
@@ -206,7 +228,7 @@ public sealed class FourHourDatabentoSeedReplay(
                         if (time < windows[0].StartUtc || time >= cutoff)
                             continue;
                         var index = RsiHistoricalSeedWindowModel.FindIntervalIndex(windows, time);
-                        if ((uint)index >= BarCount || time < windows[index].StartUtc
+                        if ((uint)index >= windows.Length || time < windows[index].StartUtc
                             || time >= windows[index].EndUtc)
                             continue;
                         buckets[index].Add(record.Trade.Price / PriceScale, record.Trade.Size,
@@ -218,7 +240,7 @@ public sealed class FourHourDatabentoSeedReplay(
             if (!completed || windows.Where((window, index) => !retained.ContainsKey(window.StartUtc) && buckets[index].Count == 0).Any())
             {
                 logger?.LogWarning("{Method} initialization replay incomplete; ContractId={ContractId}; StartUtc={StartUtc}; CutoffUtc={CutoffUtc}; ReplayCompleted={ReplayCompleted}; PopulatedBars={PopulatedBars}; RequiredBars={RequiredBars}",
-                    nameof(ReadReplay), contractId, windows[0].StartUtc, cutoff, completed, buckets.Count(bucket => bucket.Count > 0), BarCount);
+                    nameof(ReadReplay), contractId, windows[0].StartUtc, cutoff, completed, buckets.Count(bucket => bucket.Count > 0), windows.Length);
                 return [];
             }
             var series = MarketSeriesIdentity.ForContract(contractId);

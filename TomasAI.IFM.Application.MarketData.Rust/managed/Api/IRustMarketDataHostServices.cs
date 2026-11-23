@@ -52,6 +52,8 @@ public interface IRustMarketDataHostServices
     global::System.Threading.Tasks.Task<global::TomasAI.IFM.Shared.MarketData.Contracts.EconomicCalendarEntry[]> ReadEconomicCalendarAsync(global::System.DateOnly fromInclusive, global::System.DateOnly toInclusive, global::System.String[]? countryCodes, global::System.Threading.CancellationToken cancellationToken = default);
     /// <summary>Reads completed intraday indicator bars without paid acquisition.</summary>
     global::System.Threading.Tasks.Task<global::TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal.FuturesTradeSessionBarReadModel[]> ReadIndicatorSeedBarsAsync(global::System.String contractId, global::TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType timeFrame, global::System.Threading.CancellationToken cancellationToken = default);
+    /// <summary>Reads a bounded completed-bar EMA200 history independently of ordinary warmup.</summary>
+    global::System.Threading.Tasks.Task<global::TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal.FuturesTradeSessionBarReadModel[]> ReadEmaSeedBarsAsync(global::System.String contractId, global::TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType timeFrame, global::System.Int32 count, global::System.Threading.CancellationToken cancellationToken = default);
     /// <summary>Executes the ReadFiveMinuteSeedBarsAsync application operation.</summary>
     global::System.Threading.Tasks.Task<global::TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal.FuturesTradeSessionBarReadModel[]> ReadFiveMinuteSeedBarsAsync(global::System.String contractId, global::System.Threading.CancellationToken cancellationToken = default);
     /// <summary>Executes the ReadTradeFeedRecoveryAsync application operation.</summary>
@@ -91,3 +93,6 @@ public interface IRustMarketDataHostServices
     /// <summary>Executes the WarmTreasuryPricingAsync application operation.</summary>
     global::System.Threading.Tasks.Task<global::TomasAI.IFM.Application.MarketData.Pricing.TreasuryPricingResult> WarmTreasuryPricingAsync(global::System.Threading.CancellationToken cancellationToken = default);
 }
+
+
+

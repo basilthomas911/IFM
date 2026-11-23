@@ -21,6 +21,9 @@ public sealed class IntrinsicTimeStrategyWorkflowQueryContext : QueryActorContex
 
     /// <inheritdoc/>
     public IDbContextFactory DbFactory { get; }
+
+    public IEnumerable<TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity.IntrinsicTimeFundAssignment> QueueAssignments =>
+        Container.Resolve<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.Actor.IntrinsicTimeStrategyWorkflowOptions>()?.Assignments ?? [];
     /// <inheritdoc/>
     public IIntrinsicTimeStrategyWorkflowProjectionCache ProjectionCache { get; }
     /// <inheritdoc/>

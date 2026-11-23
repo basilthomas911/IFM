@@ -22,7 +22,9 @@ public static class MarketOutlookComposer
         MarketOutlookRefreshTrigger trigger,
         DateTime updatedAtUtc,
         FuturesEmaSignalReadModel? liveEma = null,
-        FuturesBbSignalReadModel? liveBb = null)
+        FuturesBbSignalReadModel? liveBb = null,
+        FuturesEmaSignalReadModel? fiveMinuteEma = null,
+        DateTime? minimumFiveMinuteSourceUtc = null)
     {
         ArgumentNullException.ThrowIfNull(state);
         var entityId = state.EntityId;
@@ -58,6 +60,7 @@ public static class MarketOutlookComposer
             LatestItiTrendSignal = state.LatestItiTrendSignal,
             VixFuturesPrice = state.VixFuturesPrice,
             FuturesEmaSignal = ema,
+            FiveMinuteEmaState = FiveMinuteEmaState(fiveMinuteEma, updatedAtUtc, minimumFiveMinuteSourceUtc),
             FuturesBbSignal = bb,
             FuturesVwapSignal = state.FuturesVwapSignal,
             FuturesAdxSignal = state.FuturesAdxSignal,
@@ -70,6 +73,16 @@ public static class MarketOutlookComposer
                 _ => FuturesMDITrendType.RangeBound } : null,
         };
         return ApplyTechnicalAvailability(ApplyPrimaryAvailability(snapshot, state, ema, bb, updatedAtUtc), state, updatedAtUtc);
+    }
+
+    static string FiveMinuteEmaState(FuturesEmaSignalReadModel? ema, DateTime now, DateTime? minimum)
+    {
+        if (ema is not { IsWarm: true, IsProvisional: false, Metadata.IsValid: true, Ema20: > 0, Ema50: > 0, Ema200: > 0 }
+            || ema.Metadata.SignalKey.TimeFrame != TimeFrameType.FiveMinutes
+            || ema.Metadata.MarketDataAsOfUtc.UtcDateTime < (minimum ?? now.AddSeconds(-630))
+            || ema.Metadata.MarketDataAsOfUtc.UtcDateTime > now.AddSeconds(30)) return "Unavailable";
+        return ema.Ema20 > ema.Ema50 && ema.Ema50 > ema.Ema200 ? "StronglyBullish"
+            : ema.Ema20 < ema.Ema50 && ema.Ema50 < ema.Ema200 ? "StronglyBearish" : "RangeBound";
     }
 
     /// <summary>Describes the freshness and readiness of the primary market inputs without changing their observed values.</summary>

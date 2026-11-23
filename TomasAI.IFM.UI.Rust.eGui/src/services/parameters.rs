@@ -123,12 +123,18 @@ pub fn document(
         let slots = wire.as_array().ok_or("Invalid parameter document model")?;
         let mut json = serde_json::Map::new();
         let original_draft_revision = Value::from(0);
+        let absent_futures_watermark = Value::Nil;
         for (name, index, inner) in shape.members {
             let slot = slots.get(index).or_else(|| {
                 // Older retained order receipts predate the Fund draft revision.
                 (kind == "TomasAI.IFM.Domain.Portfolio.Shared.Contracts.FundTradeSetupReference"
                     && name == "DraftRevision" && slots.len() == index)
                     .then_some(&original_draft_revision)
+            }).or_else(|| {
+                // Saved futures plans may predate the appended nullable trailing watermark.
+                (kind == "TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.StrategyTradePlanSnapshot"
+                    && name == "FuturesTrailingExtremePrice" && slots.len() == index)
+                    .then_some(&absent_futures_watermark)
             }).ok_or_else(|| format!("Missing parameter document slot {kind}.{name}"))?;
             json.insert(
                 name,

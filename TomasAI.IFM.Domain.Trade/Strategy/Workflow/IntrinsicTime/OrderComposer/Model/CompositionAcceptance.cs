@@ -9,14 +9,21 @@ public static class CompositionAcceptance
 {
     public static OrderCompositionResult Validate(ExecuteOrderCompositionPipelineCommand accepted, CompleteOrderCompositionCommand command, IOrderComposer model, DateTime now, CancellationToken token = default)
     {
+        ArgumentNullException.ThrowIfNull(model);
+        var result = ValidateIdentity(accepted, command, now);
+        var recomputed = model.Calculate(accepted, token);
+        Require(string.Equals(CompositionHash.Compute(recomputed), CompositionHash.Compute(result), StringComparison.Ordinal), "OC.RESULT.INVALID");
+        return result;
+    }
+
+    /// <summary>Checks the handoff identity without executing the already completed local decision again.</summary>
+    public static OrderCompositionResult ValidateIdentity(ExecuteOrderCompositionPipelineCommand accepted, CompleteOrderCompositionCommand command, DateTime now)
+    {
         ArgumentNullException.ThrowIfNull(accepted);
         ArgumentNullException.ThrowIfNull(command);
-        ArgumentNullException.ThrowIfNull(model);
         Require(string.Equals(accepted.InputSha256, accepted.Fingerprint(), StringComparison.Ordinal) && command.WorkflowId == accepted.WorkflowId && command.EntityId == accepted.WorkflowEntityId && command.InputWorkflowRevision == accepted.InputWorkflowRevision && command.SourceEventId == accepted.CommandId && now < accepted.ExpiresAtUtc, "OC.RESULT.INVALID");
         var result = OrderCompositionContracts.ReadResult(command.Result);
         Require(string.Equals(result.InputSha256, accepted.InputSha256, StringComparison.Ordinal) && result.InvocationId == accepted.CommandId, "OC.RESULT.INVALID");
-        var recomputed = model.Calculate(accepted, token);
-        Require(string.Equals(CompositionHash.Compute(recomputed), CompositionHash.Compute(result), StringComparison.Ordinal), "OC.RESULT.INVALID");
         if (result.Candidate is { } candidate)
         {
             Require(now < candidate.ValidUntilUtc, "OC.TIME.EXPIRED");

@@ -19,4 +19,11 @@ public interface IStrategyPositionCommandApi
     /// <summary>Seals the explicit ended exchange date after feeds are confirmed stopped.</summary>
     Task<ServiceResult<Guid>> EndOfDayAsync(StrategyPositionId positionId, TradeStrategyKind strategyKind,
         DateOnly valueDate, DateTime closeBoundaryUtc, CancellationToken cancellationToken = default);
+    Task<ServiceResult<Guid>> RepairEndOfDayWithBaselineAsync(StrategyPositionSnapshot source, long sourceEventId,
+        DateOnly valueDate, DateTime closeBoundaryUtc, StoredPositionClosingQuote[] quotes, StrategyPositionSnapshot? previousEndOfDay,
+        CancellationToken cancellationToken = default) => RepairEndOfDayAsync(source,sourceEventId,valueDate,closeBoundaryUtc,quotes,cancellationToken);
+    /// <summary>Repairs a completed session using immutable source-event and closing-quote evidence.</summary>
+    Task<ServiceResult<Guid>> RepairEndOfDayAsync(StrategyPositionSnapshot source, long sourceEventId,
+        DateOnly valueDate, DateTime closeBoundaryUtc, StoredPositionClosingQuote[] quotes,
+        CancellationToken cancellationToken = default);
 }

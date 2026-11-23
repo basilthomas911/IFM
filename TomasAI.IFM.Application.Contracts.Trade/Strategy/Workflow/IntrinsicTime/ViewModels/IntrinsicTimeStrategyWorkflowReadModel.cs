@@ -26,4 +26,9 @@ public sealed record IntrinsicTimeStrategyWorkflowReadModel(
     string StopReasonCode,
     DateTime StartedAtUtc,
     DateTime? TerminalAtUtc,
-    DateTime UpdatedAtUtc);
+    DateTime UpdatedAtUtc)
+{
+    public DateTime? SignalAtUtc { get; init; }
+    public long SignalSequence { get; init; }
+    public string? AssignmentKey { get; init; }
+}

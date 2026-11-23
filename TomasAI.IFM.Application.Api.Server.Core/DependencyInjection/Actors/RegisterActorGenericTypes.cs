@@ -289,9 +289,13 @@ public static partial class CoreServiceRegistration
         siContainer.AddRegistration<TomasAI.IFM.Domain.Trade.Futures.Position.Plan.Function.Actor.IFuturesTradePlanFunctionContext>(
         siContainer.GetCurrentRegistrations().Single(registration => registration.ServiceType ==
         typeof(IFunctionActorContext<TomasAI.IFM.Domain.Trade.Futures.Position.Plan.Function.Actor.FuturesTradePlanFunctionActor>)).Registration);
-        siContainer.Register(typeof(IEventActorContext<>), domainAssemblies, Lifestyle.Singleton);
+        // The batch adapter is created per decision by its owner, never as a second actor context singleton.
+        var localDecisionOwner = typeof(TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Runtime.WorkflowDecisionBatchRunner);
+        siContainer.Register(typeof(IEventActorContext<>), siContainer.GetTypesToRegister(typeof(IEventActorContext<>), domainAssemblies)
+            .Where(type => type.DeclaringType != localDecisionOwner), Lifestyle.Singleton);
         siContainer.Register(typeof(IQueryActorContext<>), domainAssemblies, Lifestyle.Singleton);
-        siContainer.Register(typeof(IRealtimeActorContext<>), domainAssemblies, Lifestyle.Singleton);
+        siContainer.Register(typeof(IRealtimeActorContext<>), siContainer.GetTypesToRegister(typeof(IRealtimeActorContext<>), domainAssemblies)
+            .Where(type => type.DeclaringType != localDecisionOwner), Lifestyle.Singleton);
         siContainer.Register(typeof(IActorStateDenormalizer<>), assemblies, Lifestyle.Singleton);
         siContainer.Register(typeof(IEventSourceActorStateRepository<>), assemblies, Lifestyle.Singleton);
         siContainer.Register(typeof(IResidentEventSourceActorStateRepository<>), assemblies, Lifestyle.Singleton);

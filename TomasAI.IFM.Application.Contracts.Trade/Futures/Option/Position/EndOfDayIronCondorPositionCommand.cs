@@ -7,7 +7,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position;
 
 /// <summary>Seals the explicit ended value date; retries must validate committed position state.</summary>
 [MessagePackObject]
-public sealed record EndOfDayIronCondorPositionCommand : TimedPositionCommand, IRecoverableCommandAudit
+public sealed record EndOfDayIronCondorPositionCommand : TimedPositionCommand, IRecoverableCommandAudit, IStoredQuotePositionEndOfDayCommand
 {
     public const string Verb = "EndOfDayIronCondorPosition";
     /// <inheritdoc />
@@ -19,6 +19,9 @@ public sealed record EndOfDayIronCondorPositionCommand : TimedPositionCommand, I
     [Key(6)] public StrategyPositionSnapshot? HistoricalSnapshot { get; init; }
     /// <summary>Global source-event identity for the supplied historical mark; verified in the commit transaction.</summary>
     [Key(7)] public long HistoricalSourceEventId { get; init; }
+    /// <summary>Optional immutable stored quotes correcting a stale seal, retaining their original source times.</summary>
+    [Key(8)] public StoredPositionClosingQuote[] HistoricalClosingQuotes { get; init; } = [];
+    [Key(9)] public StrategyPositionSnapshot? PreviousEndOfDay { get; init; }
 
     /// <summary>Retains the complete business identity so a retry cannot change the position, date or close boundary.</summary>
     ICommand ICommandRetryIdentity.ForRetryIdentity() => this;

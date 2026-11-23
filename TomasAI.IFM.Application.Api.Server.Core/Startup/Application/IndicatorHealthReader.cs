@@ -25,7 +25,8 @@ public interface IIndicatorHealthReader
 /// <summary>Reads actual durable observations and checks the same effective configuration as workflow admission.</summary>
 public sealed class IndicatorHealthReader(IDbContextFactory databases, IMarketDataApi market,
     IMarketSessionCalendar calendar, TimeProvider clock, IRegimeDiscoveryMarketSignalSnapshotProvider snapshots,
-    IParameterRuntimeSnapshot? parameters = null, StoredSessionIndicatorWarmup? warmup = null) : IIndicatorHealthReader
+    IParameterRuntimeSnapshot? parameters = null, StoredSessionIndicatorWarmup? warmup = null,
+    TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Options.RegimeDiscoveryExecutionOptions? execution = null) : IIndicatorHealthReader
 {
     /// <summary>Reads every automatically attached ES interval plus session VWAP and VX dependencies with bounded concurrency.</summary>
     public async Task<IndicatorHealthEntry[]> ReadAsync(DateOnly date, CancellationToken token)
@@ -45,8 +46,9 @@ public sealed class IndicatorHealthReader(IDbContextFactory databases, IMarketDa
                 Add("ADX14/DI", adx?.IsWarm == true, adx?.Metadata?.IsValid == true, adx?.Metadata?.MarketDataAsOfUtc);
                 var atrDate = frame == TimeFrameType.Daily ? RsiHistoricalSeedWindowModel.Create(frame, 1, now.AddSeconds(-30), calendar)[0].ValueDate : date;
                 var atr = await db.GetLastFuturesAtrSignalAsync(contract.ContractId, atrDate, frame, 14, ct).ConfigureAwait(false);
-                if (atr is { IsWarm: true, AtrRatio: > 0, Metadata.IsValid: true }) RegimeDiscoverySignalCacheAdapter.Publish(atr);
-                Add("ATR14/Baseline", atr?.IsWarm == true, atr?.Metadata?.IsValid == true && atr.AtrRatio is > 0, atr?.Metadata?.MarketDataAsOfUtc);
+                if (atr is { IsWarm: true, AtrValue: > 0, AtrBaseline: > 0, AtrRatio: > 0, Metadata.IsValid: true }) RegimeDiscoverySignalCacheAdapter.Publish(atr);
+                Add("ATR14/Baseline", atr?.IsWarm == true,
+                    atr is { AtrValue: > 0, AtrBaseline: > 0, AtrRatio: > 0, Metadata.IsValid: true }, atr?.Metadata?.MarketDataAsOfUtc);
                 var macd = await db.GetLastFuturesMacdSignalAsync(contract.ContractId, date, frame, 9, 12, 26, ct).ConfigureAwait(false);
                 if (macd is { IsWarm: true, Metadata.IsValid: true }) RegimeDiscoverySignalCacheAdapter.Publish(macd);
                 Add("MACD9/12/26", macd?.IsWarm == true, macd?.Metadata?.IsValid == true, macd?.Metadata?.MarketDataAsOfUtc);
@@ -62,11 +64,12 @@ public sealed class IndicatorHealthReader(IDbContextFactory databases, IMarketDa
                     if (tdi is { SchemaVersion: >= 2 }) RegimeDiscoverySignalCacheAdapter.Publish(tdi);
                     Add("TDI", tdi is not null, tdi is { SchemaVersion: >= 2 }, tdi is null ? null : new DateTimeOffset(DateTime.SpecifyKind(tdi.SourceEventTimestamp, DateTimeKind.Utc)));
                 }
-                var liveSeries = frame == TimeFrameType.Daily ? MarketSeriesIdentity.ForContract(contract.ContractId) : StoredSessionIndicatorWarmup.LiveIndicatorSeries(contract.ContractId);
+                var liveSeries = StoredSessionIndicatorWarmup.LiveIndicatorSeries(contract.ContractId);
                 var bb = await db.GetLatestFuturesBollingerBandSignalForTimeFrameAsync(liveSeries, date, frame, ct).ConfigureAwait(false);
                 // The live continuous-series producer carries the active contract alias.
                 if (RegimeDiscoverySignalCacheAdapter.TryGetLatestBb(contract.ContractId, frame, out var live)
-                    && live.Metadata.SignalKey.MarketSeriesIdentity == liveSeries
+                    && (live.Metadata.SignalKey.MarketSeriesIdentity == liveSeries
+                        || (frame == TimeFrameType.Daily && live.Metadata.SignalKey.MarketSeriesIdentity == MarketSeriesIdentity.ForContract(contract.ContractId)))
                     && (bb is null || live.Metadata.MarketDataAsOfUtc > bb.Metadata.MarketDataAsOfUtc)) bb = live;
                 if (bb is { IsWarm: true, Metadata.IsValid: true }) RegimeDiscoverySignalCacheAdapter.Publish(bb);
                 Add("Bollinger20/Baseline", bb?.IsWarm == true, bb is { Metadata.IsValid: true, Width20Ratio: > 0, Position20: not null }, bb?.Metadata.MarketDataAsOfUtc);
@@ -130,14 +133,18 @@ public sealed class IndicatorHealthReader(IDbContextFactory databases, IMarketDa
                 rows.Add(new(contract.ContractId, horizon, "RegimeDiscovery inputs", false, false, null, null, "Effective parameter set unavailable"));
                 continue;
             }
-            var request = RegimeDiscoverySnapshotRequestFactory.Create(MarketSeriesIdentity.ForContract(contract.ContractId), set);
+            var simple = execution?.CalculationPolicy == TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.Model.EmaStackRegimePolicy.Version;
+            var request = simple ? RegimeDiscoverySnapshotRequestFactory.CreateEmaStack(MarketSeriesIdentity.ForContract(contract.ContractId), set)
+                : RegimeDiscoverySnapshotRequestFactory.Create(MarketSeriesIdentity.ForContract(contract.ContractId), set);
             var captured = await snapshots.CaptureAsync(request, token).ConfigureAwait(false);
             var required = request.Requirements.Where(item => item.IsRequired).Select(item => (item.Metric, item.TimeFrame)).ToHashSet();
             var failures = captured.Issues.Where(item => required.Contains((item.Metric, item.SignalKey.TimeFrame))).ToArray();
             rows.Add(new(contract.ContractId, horizon, "RegimeDiscovery inputs", captured.IsSuccess, captured.IsSuccess,
                 captured.Snapshot is { } snapshot ? new DateTimeOffset(snapshot.MarketDataAsOfUtc, TimeSpan.Zero) : null, null,
-                captured.IsSuccess ? string.Empty : string.Join(", ", failures.Select(item => $"{item.SignalKey.TimeFrame}/{item.Metric}: {item.Availability}"))));
+                captured.IsSuccess ? string.Empty : string.Join(", ", failures.Select(item => $"{item.SignalKey.TimeFrame}/{item.Metric}: {item.Availability}")))
+                { AffectsGlobalReadiness = !simple });
         }
         return rows.OrderBy(row => row.ContractId, StringComparer.Ordinal).ThenBy(row => row.TimeFrame).ThenBy(row => row.Indicator, StringComparer.Ordinal).ToArray();
     }
 }
+

@@ -123,6 +123,37 @@ public sealed class TradeSelectionAlignmentTests
     }
 
     [Fact]
+    public async Task V1_and_v2_selection_hashes_remain_version_bound_after_round_trip()
+    {
+        var result = TradeSelectionEvaluator.Evaluate(await TradeSelectionFixture.Command());
+        var current = StrategyStageResultEnvelope.CreateSelection(result);
+        var historical = current with
+        {
+            ContentType = StrategyStageResultEnvelope.TypedSelectionContentType,
+            PayloadSha256 = result.ContentFingerprint().Hash
+        };
+
+        current.ContentType.Should().Be(StrategyStageResultEnvelope.BinarySelectionContentType);
+        current.PayloadSha256.Should().NotBe(historical.PayloadSha256);
+        var bytes = MessagePackBinarySerializer.SerializeHistoricalContent(result);
+        var expected = System.Security.Cryptography.SHA256.HashData([.."ifm.trade-selection.v2\0"u8, ..bytes]);
+        current.PayloadSha256.Should().Be(Convert.ToHexString(expected));
+        foreach (var envelope in new[] { historical, current })
+        {
+            var restored = RoundTrip(envelope);
+            restored.HasValidPayloadSha256().Should().BeTrue();
+            restored.ContentSize.Should().Be(bytes.Length);
+            restored.PayloadSha256.Should().Be(envelope.PayloadSha256);
+            MessagePackBinarySerializer.SerializeHistoricalContent(TradeSelectionContracts.ReadResult(restored)).Should().Equal(bytes);
+        }
+        RoundTrip(current with { ContentType = historical.ContentType }).HasValidPayloadSha256().Should().BeFalse();
+        RoundTrip(historical with { ContentType = current.ContentType }).HasValidPayloadSha256().Should().BeFalse();
+
+        static StrategyStageResultEnvelope RoundTrip(StrategyStageResultEnvelope envelope) =>
+            MessagePackBinarySerializer.Shared.Deserialize<StrategyStageResultEnvelope>(MessagePackBinarySerializer.Shared.Serialize(envelope)!)!;
+    }
+
+    [Fact]
     public async Task Compressible_oversized_model_result_fails_before_projection_or_persistence()
     {
         var c = await TradeSelectionFixture.Command();

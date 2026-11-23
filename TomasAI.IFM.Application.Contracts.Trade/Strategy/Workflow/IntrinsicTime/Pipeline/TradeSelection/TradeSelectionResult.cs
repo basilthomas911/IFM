@@ -1,5 +1,6 @@
 using TomasAI.IFM.Domain.Trade.Shared;
 using MessagePack;
+using TomasAI.IFM.Framework.Serialization;
 using System.Text.Json.Serialization;
 using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
 using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
@@ -51,8 +52,12 @@ public sealed record TradeSelectionResult
     };
 
     /// <summary>Fingerprints semantic content while measuring the established uncompressed MessagePack budget.</summary>
-    public (string Hash, int Size) ContentFingerprint() =>
-        (MarketCondition.Assessment.MarketConditionAssessmentHash.Compute(this),
-         TomasAI.IFM.Framework.Serialization.MessagePackBinarySerializer.MeasureContent(this));
+    public (string Hash, int Size) ContentFingerprint()
+    {
+        var hash = MarketCondition.Assessment.MarketConditionAssessmentHash.Compute(this);
+        using var buffer = new SelectionFingerprintBuffer();
+        MessagePackSerializer.Serialize(buffer, this, MessagePackBinarySerializer.ContentOptions);
+        return (hash, buffer.Written.Length);
+    }
 
 }

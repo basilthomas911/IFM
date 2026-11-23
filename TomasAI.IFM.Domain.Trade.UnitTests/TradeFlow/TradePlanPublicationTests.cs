@@ -7,6 +7,31 @@ namespace TomasAI.IFM.Domain.Trade.UnitTests.TradeFlow;
 public sealed class TradePlanPublicationTests
 {
     [Fact]
+    public void Close_trigger_execution_progress_and_final_close_publish_even_without_a_pnl_change()
+    {
+        var normal=Plan(1,10m);
+        var triggered=normal with {RequiresExit=true,State=TradePlanState.ExitRequired,Explanation="Short put delta -0.3265 reached 0.30"};
+        var working=triggered with {Explanation="Order submitted; filled 0/1"};
+        var final=working with {RequiresExit=false,State=TradePlanState.Closed,Explanation="Filled 1/1; settlement confirmed"};
+        Assert.True(TradePlanPublication.ShouldPublish(normal,triggered));
+        Assert.True(TradePlanPublication.ShouldPublish(triggered,working));
+        Assert.False(TradePlanPublication.ShouldPublish(working,working with {PlanRevision=2}));
+        Assert.True(TradePlanPublication.ShouldPublish(working,final));
+    }
+
+    [Fact]
+    public void Feed_stopped_publication_has_a_new_revision_even_when_the_final_plan_is_unchanged()
+    {
+        var plan=Plan(1,10m);
+        var cache=new TradeRealtimeHotCache(new() {Id=plan.Position.Id.Trade,StrategyKind=TradeStrategyKind.IronCondor},plan.ValueDate);
+        cache.Apply(plan);
+        var closing=cache.PublishLifecycleStatus("Closed — stopping live feed");
+        var stopped=cache.PublishLifecycleStatus("Closed — live feed stopped");
+        Assert.True(stopped.SnapshotRevision>closing.SnapshotRevision);
+        Assert.Equal(closing.Plan,stopped.Plan);
+        Assert.Equal("Closed — live feed stopped",stopped.Status);
+    }
+    [Fact]
     public void Publication_compares_unrounded_daily_pnl_and_not_other_risk_values()
     {
         var first = Plan(1, 10m);

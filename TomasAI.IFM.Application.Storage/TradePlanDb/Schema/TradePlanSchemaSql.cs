@@ -3,6 +3,21 @@ namespace TomasAI.IFM.Application.Storage.TradePlanDb.Schema;
 /// <summary>Contains PostgreSQL schema statements for TradePlanDb.</summary>
 public static class TradePlanSchemaSql
 {
+    public const string IronCondorExitIntentCreate = """
+        CREATE TABLE IF NOT EXISTS trade_plan.iron_condor_exit_intent (
+            positionid uuid PRIMARY KEY, payload bytea NOT NULL,
+            state text NOT NULL DEFAULT 'Pending' CHECK(state IN ('Pending','Working','Dispatched')),
+            attempts integer NOT NULL DEFAULT 0, nextattempt timestamptz NOT NULL DEFAULT now(),
+            leaseid uuid, leaseuntil timestamptz, lasterror text NOT NULL DEFAULT ''
+        );
+        ALTER TABLE trade_plan.iron_condor_exit_intent ADD COLUMN IF NOT EXISTS lastprogress text NOT NULL DEFAULT '';
+        ALTER TABLE trade_plan.iron_condor_exit_intent ADD COLUMN IF NOT EXISTS finalized boolean NOT NULL DEFAULT false;
+        ALTER TABLE trade_plan.iron_condor_exit_intent ADD COLUMN IF NOT EXISTS pendingprogress bytea;
+        ALTER TABLE trade_plan.iron_condor_exit_intent ADD COLUMN IF NOT EXISTS pendingstamp text;
+        CREATE INDEX IF NOT EXISTS iron_condor_exit_intent_due ON trade_plan.iron_condor_exit_intent(nextattempt)
+            WHERE state<>'Dispatched';
+        """;
+
     /// <summary>Creates the trade plan schema and its database objects.</summary>
     internal const string Create =
         """

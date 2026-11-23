@@ -27,5 +27,7 @@ public sealed record OrderExecutionDefinition
     [Key(14)] public int OrderQuantity { get; init; }
     [Key(15)] public int CumulativeFilledQuantity { get; init; }
     [Key(16)] public string? RejectionDetail { get; init; }
+    /// <summary>Identifies an audited replacement of historical emulator fill prices.</summary>
+    [Key(17)] public Guid VerifiedPriceCorrectionId { get; init; }
     [IgnoreMember] public OrderExecutionId Id => new(TradeOrderId, ExecutionAttemptId);
 }

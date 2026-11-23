@@ -19,6 +19,31 @@ namespace TomasAI.IFM.LivePipeline.IntegrationTests;
 public sealed class SessionAnalyticsInitializationTests
 {
     [Fact]
+    public async Task Configured_overnight_history_gap_blocks_attachment_instead_of_silently_starting_cold()
+    {
+        var commands = Substitute.For<IMarketDataAnalyticsCommandApi>();
+        var market = Substitute.For<TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi>();
+        market.PrepareSessionAsync(Arg.Any<DateOnly>(), Arg.Any<CancellationToken>()).Returns(Task.FromResult(new[] {
+            new FuturesContractV3ReadModel("ES-ATR-GAP", "ES", "ES", "ES", "FUT", "USD", "CME", "50", new(2026,12,18), true),
+            new FuturesContractV3ReadModel("VX-FRONT", "VX", "VX", "VX", "FUT", "USD", "CFE", "1000", new(2026,12,18), true),
+            new FuturesContractV3ReadModel("VX-SECOND", "VX", "VX", "VX", "FUT", "USD", "CFE", "1000", new(2027,1,18), false) }));
+        var databases = Substitute.For<TomasAI.IFM.Application.Storage.IDbContextFactory>();
+        var calendar = new TomasAI.IFM.Application.MarketData.Databento.Historical.CmeFuturesMarketSessionCalendar();
+        var clock = TimeProvider.System;
+        var actors = Substitute.For<TomasAI.IFM.Shared.EventModelActor.Contracts.IActorService>();
+        var reader = new StoredSessionIndicatorSeedReader(databases, calendar, clock,
+            NullLogger<StoredSessionIndicatorSeedReader>.Instance, market);
+        var warmup = new StoredSessionIndicatorWarmup(reader, actors, market, databases, calendar, clock,
+            NullLogger<StoredSessionIndicatorWarmup>.Instance);
+        var initializer = new ApiApplicationStartupActivities(Substitute.For<IFuturesMarketSessionAuthority>(), null!, null!, null!, commands,
+            null!, databases, market, null!, null!, Substitute.For<IMarketOutlookHotCache>(), new(), new(), new(),
+            clock, NullLogger<ApiApplicationStartupActivities>.Instance, actorService: actors, storedIndicatorWarmup: warmup);
+        var failure = await Assert.ThrowsAsync<InvalidOperationException>(() => initializer.InitializeAsync(new(2026, 11, 19), default));
+        Assert.Contains("ATR.FIVE_MINUTE.SEED_INCOMPLETE", failure.Message);
+        await commands.DidNotReceive().StartFuturesAtrSignalAsync(Arg.Any<FuturesAtrSignalEntityId>());
+    }
+
+    [Fact]
     public async Task Each_market_session_activates_its_own_consumers_and_duplicate_starts_reuse_warm_values()
     {
         var commands = Substitute.For<IMarketDataAnalyticsCommandApi>();

@@ -20,12 +20,10 @@ public sealed class VolatilityRegimeCalculationModel
         var vxRatio = Find(input, RegimeDiscoverySignalMetric.VxFrontSecondRatio, TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType.Daily);
         var realized = Find(input, RegimeDiscoverySignalMetric.RealizedVolatilityPercentile, evidenceFrame);
         var priorComposite = Find(input, RegimeDiscoverySignalMetric.PriorVolatilityComposite, evidenceFrame);
-        var required = new[]
-        {
-            levelInput,
-            atrRatio,
-            vxRatio
-        };
+        var contextOnly = input.EntityId.Assignment?.Family == "Future";
+        RegimeDiscoverySignalObservation?[] required = contextOnly ? [levelInput, atrRatio] : [levelInput, atrRatio, vxRatio];
+        var termAvailable = RegimeDiscoveryMath.IsAvailable(vxRatio);
+        var termWeight = contextOnly ? 0m : config.TermStructureWeight;
         if (required.Any(observation => !RegimeDiscoveryMath.IsAvailable(observation)))
         {
             var failedReasons = required.Where(observation => !RegimeDiscoveryMath.IsAvailable(observation)).Select(observation => RegimeDiscoveryMath.MissingReason(RegimeEvidenceArea.Volatility, observation, true)).Append(RegimeDiscoveryMath.Reason(RegimeDiscoveryReasonCodes.SpecialistFailed, RegimeReasonSeverity.Failure, RegimeEvidenceArea.Volatility));
@@ -38,7 +36,7 @@ public sealed class VolatilityRegimeCalculationModel
 
         var frontScore = LevelScore(levelInput!.Value, config.VixNormalBoundary, config.VixHighBoundary, config.VixExtremeBoundary, config.VixMaximum);
         var atrScore = RegimeDiscoveryMath.Piecewise(atrRatio!.Value, (0.75m, 0m), (1m, 0.40m), (1.50m, 0.75m), (2m, 1m));
-        var termStructureScore = RegimeDiscoveryMath.Piecewise(vxRatio!.Value, (0.95m, 0.10m), (1m, 0.30m), (1.05m, 0.60m), (1.10m, 0.90m));
+        var termStructureScore = termAvailable ? RegimeDiscoveryMath.Piecewise(vxRatio!.Value, (0.95m, 0.10m), (1m, 0.30m), (1.05m, 0.60m), (1.10m, 0.90m)) : 0m;
         var realizedAvailable = RegimeDiscoveryMath.IsAvailable(realized);
         // No production producer is enabled for this optional metric. Its absence
         // must not count as missing coverage; supplied evidence retains its existing calculation.
@@ -47,7 +45,7 @@ public sealed class VolatilityRegimeCalculationModel
         {
             new WeightedValue(frontScore, config.VixWeight, levelInput.FreshnessFactor),
             new WeightedValue(atrScore, config.AtrRatioWeight, atrRatio.FreshnessFactor),
-            new WeightedValue(termStructureScore, config.TermStructureWeight, vxRatio.FreshnessFactor),
+            new WeightedValue(termStructureScore, termWeight, vxRatio?.FreshnessFactor ?? 0m, termAvailable),
             new WeightedValue(realizedAvailable ? RegimeDiscoveryMath.Clamp(realized!.Value) : 0m, realizedWeight, realized?.FreshnessFactor ?? 0m, realizedAvailable)
         };
         var score = RegimeDiscoveryMath.WeightedScore(values);
@@ -67,17 +65,20 @@ public sealed class VolatilityRegimeCalculationModel
                 true => VolatilityRegimeChange.Expanding,
                 _ => priorComposite.Value - score >= config.ExpansionThreshold ? VolatilityRegimeChange.Contracting : VolatilityRegimeChange.Stable
             })});
-        var termStructure = ((vxRatio.Value < 1m) switch
+        var termStructure = (termAvailable ? vxRatio!.Value : (decimal?)null) switch
         {
-            true => VxTermStructureRegime.Contango,
-            _ => vxRatio.Value > 1m ? VxTermStructureRegime.Backwardation : VxTermStructureRegime.Flat
-        });
-        var noNewTrade = levelInput.Value >= config.VixExtremeBoundary || score >= 0.75m || vxRatio.Value >= config.SevereBackwardationRatio;
+            < 1m => VxTermStructureRegime.Contango,
+            > 1m => VxTermStructureRegime.Backwardation,
+            1m => VxTermStructureRegime.Flat,
+            _ => VxTermStructureRegime.Unknown
+        };
+        var noNewTrade = levelInput.Value >= config.VixExtremeBoundary || score >= 0.75m
+            || (!contextOnly && termAvailable && vxRatio!.Value >= config.SevereBackwardationRatio);
         var evidence = new[]
         {
             RegimeDiscoveryMath.Evidence(RegimeEvidenceArea.Volatility, "VX_FRONT_LEVEL", levelInput, frontScore, config.VixWeight, true),
             RegimeDiscoveryMath.Evidence(RegimeEvidenceArea.Volatility, "ATR_RATIO", atrRatio, atrScore, config.AtrRatioWeight, true),
-            RegimeDiscoveryMath.Evidence(RegimeEvidenceArea.Volatility, "VX_TERM_STRUCTURE", vxRatio, termStructureScore, config.TermStructureWeight, true),
+            RegimeDiscoveryMath.Evidence(RegimeEvidenceArea.Volatility, "VX_TERM_STRUCTURE", vxRatio, termStructureScore, termWeight, !contextOnly),
             RegimeDiscoveryMath.Evidence(RegimeEvidenceArea.Volatility, "REALIZED_VOLATILITY", realized, realizedAvailable ? realized!.Value : 0m, realizedWeight, false)
         };
         var reasons = new List<RegimeDiscoveryReason>
@@ -88,9 +89,10 @@ public sealed class VolatilityRegimeCalculationModel
                 VolatilityRegimeLevel.Normal => RegimeDiscoveryReasonCodes.VolatilityNormal,
                 VolatilityRegimeLevel.High => RegimeDiscoveryReasonCodes.VolatilityHigh,
                 _ => RegimeDiscoveryReasonCodes.VolatilityExtreme
-            }, level == VolatilityRegimeLevel.Extreme ? RegimeReasonSeverity.Restriction : RegimeReasonSeverity.Information, RegimeEvidenceArea.Volatility),
-            RegimeDiscoveryMath.Reason(termStructure == VxTermStructureRegime.Backwardation ? RegimeDiscoveryReasonCodes.VolatilityBackwardation : RegimeDiscoveryReasonCodes.VolatilityContango, termStructure == VxTermStructureRegime.Backwardation ? RegimeReasonSeverity.Warning : RegimeReasonSeverity.Information, RegimeEvidenceArea.Volatility)
+            }, level == VolatilityRegimeLevel.Extreme ? RegimeReasonSeverity.Restriction : RegimeReasonSeverity.Information, RegimeEvidenceArea.Volatility)
         };
+        if (termAvailable)
+            reasons.Add(RegimeDiscoveryMath.Reason(termStructure == VxTermStructureRegime.Backwardation ? RegimeDiscoveryReasonCodes.VolatilityBackwardation : RegimeDiscoveryReasonCodes.VolatilityContango, termStructure == VxTermStructureRegime.Backwardation ? RegimeReasonSeverity.Warning : RegimeReasonSeverity.Information, RegimeEvidenceArea.Volatility));
         if (levelInput.Value >= config.VixExtremeBoundary && level != VolatilityRegimeLevel.Extreme)
             reasons.Add(RegimeDiscoveryMath.Reason(RegimeDiscoveryReasonCodes.VolatilityExtreme, RegimeReasonSeverity.Restriction, RegimeEvidenceArea.Volatility, levelInput));
         if (change == VolatilityRegimeChange.Expanding)

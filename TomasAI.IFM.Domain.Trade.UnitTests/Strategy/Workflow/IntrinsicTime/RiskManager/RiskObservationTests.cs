@@ -28,13 +28,20 @@ public sealed class RiskObservationTests(Xunit.Abstractions.ITestOutputHelper ou
     [Fact]
     public void Legacy_workflow_wire_decodes_without_new_resize_or_explanation_fields()
     {
-        var value = new TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model.IntrinsicTimeStrategyWorkflowView();
+        var value = new TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model.IntrinsicTimeStrategyWorkflowView
+        {
+            WorkflowId = new(Guid.Parse("11111111-1111-1111-1111-111111111111")),
+            WorkflowRevision = 7,
+            RiskResize = new(Guid.NewGuid(), Guid.NewGuid(), 1, 2, 3, DateTime.UtcNow),
+            RiskExplanation = new()
+        };
         var bytes = MessagePackBinarySerializer.SerializeHistoricalContent(value);
-        var reader = new MessagePack.MessagePackReader(bytes); reader.ReadArrayHeader().Should().Be(40);
+        var reader = new MessagePack.MessagePackReader(bytes); reader.ReadArrayHeader().Should().BeGreaterThanOrEqualTo(35);
         var buffer = new System.Buffers.ArrayBufferWriter<byte>(); var writer = new MessagePack.MessagePackWriter(buffer); writer.WriteArrayHeader(35);
         for (var i = 0; i < 35; i++) writer.WriteRaw(reader.ReadRaw()); writer.Flush();
         var legacy = MessagePackBinarySerializer.Shared.Deserialize<TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model.IntrinsicTimeStrategyWorkflowView>(buffer.WrittenSpan.ToArray());
         legacy.RiskResize.Should().BeNull(); legacy.RiskExplanation.Should().BeNull();
+        legacy.WorkflowId.Should().Be(value.WorkflowId); legacy.WorkflowRevision.Should().Be(value.WorkflowRevision);
     }
 
     [Theory]

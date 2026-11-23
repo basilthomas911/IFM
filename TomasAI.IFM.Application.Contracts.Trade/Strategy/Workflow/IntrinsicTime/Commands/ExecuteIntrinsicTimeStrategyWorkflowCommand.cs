@@ -59,6 +59,7 @@ public sealed record ExecuteIntrinsicTimeStrategyWorkflowCommand : ICommand<Intr
     [Key(17)] public string MarketConditionParameterPayloadSha256 { get; init; } = string.Empty;
     [Key(18)] public MarketConditionAssessmentBinding? AssessmentBinding { get; init; }
     [Key(19)] public TradeSelectionBinding? SelectionBinding { get; init; }
+    [Key(20)] public StrategyPipelineFailure? SelectionInitializationFailure { get; init; }
 
 
     /// <summary>Gets the concrete command contract name.</summary>
@@ -115,7 +116,7 @@ public sealed record ExecuteIntrinsicTimeStrategyWorkflowCommand : ICommand<Intr
         string regimeDiscoveryParameterPayloadSha256,
         int fundId = 0,
         MarketConditionParameterSet? marketConditionParameterSet = null,
-        string marketConditionParameterPayloadSha256 = "", MarketConditionAssessmentBinding? assessmentBinding = null, TradeSelectionBinding? selectionBinding = null)
+        string marketConditionParameterPayloadSha256 = "", MarketConditionAssessmentBinding? assessmentBinding = null, TradeSelectionBinding? selectionBinding = null, StrategyPipelineFailure? selectionInitializationFailure = null)
     {
         CommandId = commandId;
         Subject = subject;
@@ -137,5 +138,6 @@ public sealed record ExecuteIntrinsicTimeStrategyWorkflowCommand : ICommand<Intr
         MarketConditionParameterPayloadSha256 = marketConditionParameterPayloadSha256 ?? string.Empty;
         AssessmentBinding = assessmentBinding;
         SelectionBinding = selectionBinding;
+        SelectionInitializationFailure = selectionInitializationFailure;
     }
 }

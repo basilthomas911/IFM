@@ -20,8 +20,8 @@ public sealed class MarketOutlookPresentationTests
         var presentation = MarketOutlookPresentation.Create(snapshot,true,DateTimeOffset.UtcNow);
         var eod = new FuturesEodDataUIViewModel(snapshot);
         var trade = new FuturesTradeSignalUIViewModel(snapshot);
-        Assert.Equal(eod.MarketDirection,presentation.Cells["marketDirection"].Value);
-        Assert.Equal(eod.MarketDirectionBackColor.ToString(),presentation.Cells["marketDirection"].Background);
+        Assert.Equal("Unavailable",presentation.Cells["marketDirection"].Value);
+        Assert.Equal("DarkSurface",presentation.Cells["marketDirection"].Background);
         Assert.Equal(eod.Adx,presentation.Cells["adx"].Value);
         Assert.Equal(trade.RSI,presentation.Cells["rsi"].Value);
         Assert.Equal(trade.RSIBackColor.ToString(),presentation.Cells["rsi"].Background);
@@ -32,6 +32,18 @@ public sealed class MarketOutlookPresentationTests
         Assert.Contains("live | complete",presentation.Status);
         var stale = MarketOutlookPresentation.Create(snapshot with { UpdatedAtUtc=DateTime.UtcNow.AddMinutes(-10), MissingInputs="TDI" },true,DateTimeOffset.UtcNow);
         Assert.Contains("STALE | warming/degraded: TDI",stale.Status);
+    }
+    [Theory]
+    [InlineData("StronglyBullish", "Positive")]
+    [InlineData("RangeBound", "Caution")]
+    [InlineData("StronglyBearish", "Negative")]
+    public void Direction_uses_five_minute_ema_state_and_semantic_color(string state, string background)
+    {
+        var snapshot = new MarketOutlookReadModel { FiveMinuteEmaState = state, UpdatedAtUtc = DateTime.UtcNow };
+        var cell = MarketOutlookPresentation.Create(snapshot, true, DateTimeOffset.UtcNow).Cells["marketDirection"];
+        Assert.Equal(state, cell.Value);
+        Assert.Equal("DarkText", cell.Foreground);
+        Assert.Equal(background, cell.Background);
     }
     [Fact]
     public void Dashboard_wire_preserves_nested_messagepack_contract_keys_and_colors()

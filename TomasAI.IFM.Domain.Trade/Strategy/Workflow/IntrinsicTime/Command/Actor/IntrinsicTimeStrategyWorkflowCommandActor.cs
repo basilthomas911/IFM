@@ -209,6 +209,17 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandActor(ICommandActorConte
     };
     /// <summary>Gets the workflow Command actor name.</summary>
     public const string ActorName = ExecuteIntrinsicTimeStrategyWorkflowCommand.Actor;
+    /// <summary>Applies one manager-owned decision continuation without transport, audit reads or persistence.</summary>
+    internal static ValueTask<ServiceResult<GuidResult>> ApplyLocalDecisionAsync(ICommand command,
+        ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context, IntrinsicTimeStrategyWorkflowCommandState state)
+    {
+        if (command is not (CompleteRegimeDiscoveryCommand or CompleteMarketConditionCommand or CompleteTradeSelectionCommand
+            or AcceptOrderCompositionPreparationCommand or CompleteOrderCompositionCommand or CompleteRiskManagementCommand
+            or FailRegimeDiscoveryCommand or FailMarketConditionCommand or FailTradeSelectionCommand
+            or FailOrderCompositionCommand or FailRiskManagementCommand or RedispatchCurrentStrategyPipelineCommand))
+            throw new InvalidOperationException("WF.DECISION.NON_LOCAL_COMMAND");
+        return _receiveMap[command.GetType()](command, context, state);
+    }
     IIntrinsicTimeStrategyWorkflowCommandContext ActorContext => Context as IIntrinsicTimeStrategyWorkflowCommandContext ?? throw new InvalidOperationException($"{nameof(Context)} must implement {nameof(IIntrinsicTimeStrategyWorkflowCommandContext)}.");
 
     /// <inheritdoc/>
@@ -217,6 +228,38 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandActor(ICommandActorConte
     protected override async ValueTask OnShutdown(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context) => await ActorContext.EventProjector.StopAsync().ConfigureAwait(false);
     /// <inheritdoc/>
     protected override ICommand ParseMessage(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context, IActorMessage message) => ParseMappedCommand(context, message, _parseMap);
+    protected override ValueTask<ICommand> ResolveCommandAsync(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context,
+        ICommand command, CancellationToken cancellationToken)
+    {
+        if (command is not ExecuteIntrinsicTimeStrategyWorkflowCommand start
+            || context is not IntrinsicTimeStrategyWorkflowCommandContext { WorkflowStartsEnabled: true } runtime)
+            return ValueTask.FromResult(command);
+        // The local manager accepts only its producer-published catalog, including for explicitly pinned requests.
+        // Historical transports retain their original frozen-binding contract.
+        if (start.SelectionBinding is not null && !runtime.WorkflowOptions.LocalDecisionRuntimeEnabled)
+            return ValueTask.FromResult(command);
+        var now = runtime.TimeProvider.GetUtcNow().UtcDateTime;
+        var view = new TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model.IntrinsicTimeStrategyWorkflowView
+        {
+            EntityId = start.EntityId, WorkflowId = start.ProposedWorkflowId, CorrelationId = start.CorrelationId,
+            TriggerEvent = start.TriggerEvent, StartedAtUtc = now,
+            ExpiresAtUtc = now.Add(runtime.ExecutionOptions.MaximumExecutionDuration)
+        };
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!runtime.Container.Resolve<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.WorkflowSelectionConfigurationCache>()
+                .TryResolveReady(runtime.Container.Resolve<TomasAI.IFM.Application.Storage.ConfigurationDb.IConfigurationDbContext>(),
+                    runtime.WorkflowOptions, view, out var binding)) throw new InvalidOperationException("TS.CONFIG.CACHE_NOT_READY");
+            return ValueTask.FromResult<ICommand>(MessageOrigins.Copy(start, start with { SelectionBinding = binding }));
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch (Exception error)
+        {
+            return ValueTask.FromResult<ICommand>(MessageOrigins.Copy(start, start with { SelectionInitializationFailure = new()
+            { ErrorCode = 23023, ErrorType = "ConfigurationUnavailable", ErrorMessage = error.Message, FailedAtUtc = now } }));
+        }
+    }
     /// <inheritdoc/>
     protected override ValueTask OnValidateAsync(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context, ActorThreadId threadId, ICommand command)
     {

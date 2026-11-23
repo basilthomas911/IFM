@@ -13,14 +13,17 @@ public sealed class FuturesTradePositionRealtimeActor(IRealtimeActorContext<Futu
     readonly IFuturesTradePositionRealtimeContext _context = Require(actorContext);
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap = new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
     {
-        [PositionChangedEvent.Verb] = static message => message.AsEvent<FuturesPositionChangedEvent>()!
+        [PositionChangedEvent.Verb] = static message => message.AsEvent<FuturesPositionChangedEvent>()!,
+        [FuturesPositionExitClockEvent.Verb] = static message => message.AsEvent<FuturesPositionExitClockEvent>()!
     }.ToFrozenDictionary(StringComparer.Ordinal);
     static readonly IReadOnlyDictionary<Type, Func<FuturesPositionChangedEvent, IFuturesTradePositionRealtimeContext, ValueTask>> _receiveMap = new Dictionary<Type, Func<FuturesPositionChangedEvent, IFuturesTradePositionRealtimeContext, ValueTask>>
     {
         [typeof(FuturesPositionChangedEvent)] = static (@event, context) => @event.ExecuteAsync(context)
     }.ToFrozenDictionary();
     protected override IEvent ParseMessage(IEventActorContext<FuturesTradePositionRealtimeActor> context, IActorMessage message) => ParseMappedRealtimeEvent(context, message, _parseMap);
-    protected override ValueTask ReceiveAsync(IEventActorContext<FuturesTradePositionRealtimeActor> context, IEvent @event) => ResolveMappedEventHandler(@event, _receiveMap)((FuturesPositionChangedEvent)@event, _context);
+    protected override ValueTask ReceiveAsync(IEventActorContext<FuturesTradePositionRealtimeActor> context, IEvent @event)
+        => @event is FuturesPositionExitClockEvent clock ? clock.ExecuteAsync(_context)
+            : ResolveMappedEventHandler(@event, _receiveMap)((FuturesPositionChangedEvent)@event, _context);
     protected override ValueTask OnExceptionAsync(IEventActorContext<FuturesTradePositionRealtimeActor> context, ActorThreadId threadId, IEvent @event, Exception ex)
     {
         ArgumentNullException.ThrowIfNull(@event);

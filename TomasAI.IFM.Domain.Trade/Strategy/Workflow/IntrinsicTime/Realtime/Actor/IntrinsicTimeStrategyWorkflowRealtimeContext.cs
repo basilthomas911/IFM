@@ -19,15 +19,14 @@ public sealed class IntrinsicTimeStrategyWorkflowRealtimeContext : EventActorCon
     /// <inheritdoc/>
     public async Task<IntrinsicTimeStrategyWorkflowView?> ReadActiveWorkflowAsync(IntrinsicTimeStrategyWorkflowEntityId entityId, CancellationToken token = default)
     {
-        var projection = await Container.Resolve<Application.Storage.IDbContextFactory>().TradeDb
+        token.ThrowIfCancellationRequested();
+        var resident = Container.Resolve<Runtime.WorkflowResidentStateRegistry>().ReadCurrent(entityId.Format());
+        if (resident is not null || Options.LocalDecisionRuntimeEnabled) return resident;
+        // Historical transport remains compatible while the local runtime is being qualified.
+        // The local decision path never enters this branch.
+        var saved = await Container.Resolve<Application.Storage.IDbContextFactory>().TradeDb
             .GetActiveIntrinsicTimeStrategyWorkflowAsync(entityId.Format(), token).ConfigureAwait(false);
-        if (projection is null)
-            return null;
-        var view = MessagePackBinarySerializer.Shared.Deserialize<IntrinsicTimeStrategyWorkflowView>(projection.StatePayload);
-        if (view is null || view.EntityId != entityId || view.WorkflowId != projection.WorkflowId
-            || view.WorkflowRevision != projection.WorkflowRevision || view.CurrentStage != projection.CurrentStage)
-            throw new InvalidDataException("Active workflow projection metadata does not match its payload.");
-        return view;
+        return saved is null ? null : MessagePackBinarySerializer.Shared.Deserialize<IntrinsicTimeStrategyWorkflowView>(saved.StatePayload);
     }
     public Domain.Portfolio.Shared.Financial.IPortfolioFinancialApi FinancialApi => Container.Resolve<Domain.Portfolio.Shared.Financial.IPortfolioFinancialApi>();
     public IPortfolioQueryApi PortfolioQueries => Container.Resolve<IPortfolioQueryApi>();
@@ -61,6 +60,12 @@ public sealed class IntrinsicTimeStrategyWorkflowRealtimeContext : EventActorCon
     public RegimeDiscoveryExecutionOptions RegimeDiscoveryExecutionOptions { get; }
     /// <inheritdoc/>
     public TomasAI.IFM.Domain.Reference.Shared.ParameterSets.IParameterRuntimeSnapshot ParameterRuntime => Container.Resolve<TomasAI.IFM.Domain.Reference.Shared.ParameterSets.IParameterRuntimeSnapshot>();
+    public Runtime.WorkflowPreparedConfigurationCache PreparedConfiguration => Container.Resolve<Runtime.WorkflowPreparedConfigurationCache>();
+    public Runtime.WorkflowCalculationRuntime DecisionRuntime => Container.Resolve<Runtime.WorkflowCalculationRuntime>();
+    public Runtime.WorkflowCompositionInputCache CompositionInputs => Container.Resolve<Runtime.WorkflowCompositionInputCache>();
+    public IPortfolioDecisionStateReader FinancialDecisionState => Container.Resolve<IPortfolioDecisionStateReader>();
+    public IPortfolioEntryCommitApi EntryCommits => Container.Resolve<IPortfolioEntryCommitApi>();
+    public MarketCondition.Model.IMarketConditionAssessmentSnapshotProvider PreparedMarketContext => Container.Resolve<MarketCondition.Model.IMarketConditionAssessmentSnapshotProvider>();
     /// <inheritdoc/>
     public TomasAI.IFM.Application.Strategy.StrategyCatalog.IStrategyDeploymentReader CatalogDeployments =>
         Container.Resolve<TomasAI.IFM.Application.Strategy.StrategyCatalog.IStrategyDeploymentReader>();

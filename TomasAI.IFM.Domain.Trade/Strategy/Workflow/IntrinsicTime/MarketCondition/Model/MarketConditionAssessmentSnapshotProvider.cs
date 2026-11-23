@@ -10,13 +10,21 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.M
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.MarketCondition.Model;
 /// <summary>Captures market authorities only. Never starts feeds or queries options, fund mandates or brokers.</summary>
-public sealed class MarketConditionAssessmentSnapshotProvider(IMarketDataApi marketData, IDbContextFactory storage, IMarketSessionCalendar calendar, IMarketConditionEventRiskAdapter events, LivePipelineEvidence? pipelineHealth = null) : IMarketConditionAssessmentSnapshotProvider
+public sealed partial class MarketConditionAssessmentSnapshotProvider(IMarketDataApi marketData, IDbContextFactory storage, IMarketSessionCalendar calendar, IMarketConditionEventRiskAdapter events, LivePipelineEvidence? pipelineHealth = null,
+    TomasAI.IFM.Domain.MarketData.Analytics.Shared.RegimeDiscovery.IFuturesAtrSnapshotReader? atrCache = null,
+    MarketConditionHistoryCache? preparedHistory = null) : IMarketConditionAssessmentSnapshotProvider
 {
-    public async ValueTask<MarketConditionAssessmentSnapshot> CaptureAsync(MarketConditionAssessmentParameterSet parameters, DateTime evaluatedAtUtc, CancellationToken cancellationToken)
+    public ValueTask<MarketConditionAssessmentSnapshot> CaptureAsync(MarketConditionAssessmentParameterSet parameters, DateTime evaluatedAtUtc, CancellationToken cancellationToken)
+        => CaptureCoreAsync(parameters,evaluatedAtUtc,false,cancellationToken);
+
+    public ValueTask<MarketConditionAssessmentSnapshot> CaptureObservationAsync(MarketConditionAssessmentParameterSet parameters, DateTime evaluatedAtUtc, CancellationToken cancellationToken)
+        => CaptureCoreAsync(parameters,evaluatedAtUtc,true,cancellationToken);
+
+    async ValueTask<MarketConditionAssessmentSnapshot> CaptureCoreAsync(MarketConditionAssessmentParameterSet parameters, DateTime evaluatedAtUtc, bool observationOnly, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(parameters);
-        parameters.Validate();
-        for (var attempt = 0; attempt < parameters.SnapshotCaptureAttempts; attempt++)
+        if (preparedHistory is null) parameters.Validate();
+        for (var attempt = 0; attempt < (preparedHistory is null ? parameters.SnapshotCaptureAttempts : 1); attempt++)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var hasContract = marketData.TryGetOnTheRunFuturesContract(parameters.InstrumentRoot, out var contract);
@@ -38,7 +46,9 @@ public sealed class MarketConditionAssessmentSnapshotProvider(IMarketDataApi mar
                         Unit = "price"
                     };
                 // Consume an existing measured signal; do not rebuild ATR or a volatility regime.
-                var atr = await storage.MarketDataDb.GetLastFuturesAtrSignalAsync(contract.ContractId, price.ValueDate, TimeFrameType.OneMinute, 14, cancellationToken).ConfigureAwait(false);
+                var atr = preparedHistory is null
+                    ? await storage.MarketDataDb.GetLastFuturesAtrSignalAsync(contract.ContractId, price.ValueDate, TimeFrameType.OneMinute, 14, cancellationToken).ConfigureAwait(false)
+                    : atrCache is not null && atrCache.TryGetLatest(contract.ContractId, TimeFrameType.OneMinute, out var preparedAtr) ? preparedAtr : null;
                 if (atr is { IsWarm: true, Metadata: { IsValid: true } metadata })
                 {
                     if (!double.IsFinite(atr.AtrValue) || !double.IsFinite(atr.TrueRange) || atr.AtrValue <= 0)
@@ -61,9 +71,14 @@ public sealed class MarketConditionAssessmentSnapshotProvider(IMarketDataApi mar
             {
                 var target = TomasAI.IFM.Application.MarketData.Databento.Historical.MarketTradingTime.Add(
                     calendar, new(evaluatedAtUtc), TimeSpan.FromMinutes(-5)).UtcDateTime;
-                var bars = await storage.MarketDataDb.GetFuturesBarDataAsync(vx.ContractId, "VX", vxPrice.ValueDate, TomasAI.IFM.Application.MarketData.Databento.Historical.MarketTradingTime.Add(calendar, new(target), TimeSpan.FromMinutes(-5)).UtcDateTime, target).ConfigureAwait(false);
-                cancellationToken.ThrowIfCancellationRequested();
-                var baseline = bars.Where(x => x.BarDate <= target && x.BarValue > 0m).OrderByDescending(x => x.BarDate).FirstOrDefault();
+                TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels.FuturesBarDataReadModel? baseline;
+                if (preparedHistory is not null) preparedHistory.TryGetBaseline(vx.ContractId, vxPrice.ValueDate, target, evaluatedAtUtc, out baseline);
+                else
+                {
+                    var bars = await storage.MarketDataDb.GetFuturesBarDataAsync(vx.ContractId, "VX", vxPrice.ValueDate, TomasAI.IFM.Application.MarketData.Databento.Historical.MarketTradingTime.Add(calendar, new(target), TimeSpan.FromMinutes(-5)).UtcDateTime, target).ConfigureAwait(false);
+                    cancellationToken.ThrowIfCancellationRequested();
+                    baseline = bars.Where(x => x.BarDate <= target && x.BarValue > 0m).OrderByDescending(x => x.BarDate).FirstOrDefault();
+                }
                 if (baseline is not null)
                     observations["VolatilityChange"] = Observed("VolatilityChange", vxTrade.EventTimestamp, vxTrade.ReceiveTimestamp, vxTrade.SourceSequence)with
                     {
@@ -97,10 +112,11 @@ public sealed class MarketConditionAssessmentSnapshotProvider(IMarketDataApi mar
             var stillHasContract = marketData.TryGetOnTheRunFuturesContract(parameters.InstrumentRoot, out var latestContract);
             if (hasContract != stillHasContract || hasContract && !string.Equals(latestContract.ContractId, contract.ContractId, StringComparison.Ordinal) || before.ValueDate != after.ValueDate || before.Running != after.Running || !string.Equals(before.Generation, after.Generation, StringComparison.Ordinal))
                 continue;
-            var healthy = after.Running && after.Healthy && (pipelineHealth is null || pipelineHealth.AllowsNewDecisions);
+            var healthy = after.Running && after.Healthy && (observationOnly || pipelineHealth is null || pipelineHealth.AllowsNewDecisions);
             observations["FeedHealth"] = Observed("FeedHealth", after.ObservedAtUtc, after.ObservedAtUtc, after.Sequence)with
             {
-                Availability = healthy ? MarketSourceAvailability.Available : MarketSourceAvailability.Unavailable,
+                Availability = observationOnly || healthy ? MarketSourceAvailability.Available : MarketSourceAvailability.Unavailable,
+                Value = observationOnly ? healthy ? 1 : 0 : null,
                 Reason = healthy ? "Feed and latest-value cache operational: " + after.Generation : "MC.ASSESSMENT.FEED.UNAVAILABLE"
             };
             // Invalid optional market observations are excluded at the source

@@ -35,6 +35,12 @@ public interface IIntrinsicTimeStrategyWorkflowRealtimeContext : IRealtimeActorC
     IConfigurationDbContext ConfigurationDb { get; }
 
     TomasAI.IFM.Domain.Reference.Shared.ParameterSets.IParameterRuntimeSnapshot? ParameterRuntime => null;
+    Runtime.WorkflowPreparedConfigurationCache? PreparedConfiguration => null;
+    Runtime.WorkflowCalculationRuntime? DecisionRuntime => null;
+    Runtime.WorkflowCompositionInputCache? CompositionInputs => null;
+    IPortfolioDecisionStateReader? FinancialDecisionState => null;
+    IPortfolioEntryCommitApi? EntryCommits => null;
+    MarketCondition.Model.IMarketConditionAssessmentSnapshotProvider? PreparedMarketContext => null;
 
     /// <summary>Reads the latest committed active-workflow projection for dispatch fencing.</summary>
     Task<IntrinsicTimeStrategyWorkflowView?> ReadActiveWorkflowAsync(IntrinsicTimeStrategyWorkflowEntityId entityId, CancellationToken token = default);

@@ -18,52 +18,65 @@ public static class PortfolioOrderCompositionModel
         ArgumentNullException.ThrowIfNull(book);
         ArgumentNullException.ThrowIfNull(financial);
         ArgumentNullException.ThrowIfNull(identities);
+        var assessments = Assess(request, book, financial, cancellationToken);
+        return await MaterializeAsync(request, nextRevision, assessments, identities, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Evaluates a ready financial generation with no identifier allocation, I/O or financial effects.</summary>
+    public static PortfolioFundEntryAssessment[] Assess(EvaluatePortfolioOrderCompositionCommand request,
+        FinancialBookConfiguration book, IReadOnlyList<PortfolioFundFinancialSnapshot> financial, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(book);
+        ArgumentNullException.ThrowIfNull(financial);
         var candidate = request.Body;
         ValidateRequest(request, book);
-
-        var decisions = new List<PortfolioFundOrderDecision>(book.Funds.Length);
-        var orders = new List<PortfolioExecutionOrderInstruction>(book.Funds.Length);
-        var effects = new List<PortfolioAcceptedCapacityEffect>(book.Funds.Length);
+        var decisions = new List<PortfolioFundEntryAssessment>(book.Funds.Length);
         var provisional = new Dictionary<(CapacityScopeKind ScopeKind, string ScopeKey, CapacityMeasure Measure, CapacityUnit Unit), decimal>();
         foreach (var fund in book.Funds.OrderBy(value => value.FundId))
         {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (candidate.AssignedFundId is { } assignedFundId && assignedFundId != fund.FundId) continue;
             if (candidate.SetupTrade is { } setupScope && setupScope.FundId != fund.FundId) continue;
             if (IsDevelopmentManual(book, candidate))
-            {
-                var manualOrderId = await identities.AllocateOrderIdAsync(cancellationToken).ConfigureAwait(false);
-                var manualComponents = await AllocateComponentsAsync(candidate, identities, cancellationToken).ConfigureAwait(false);
-                decisions.Add(new(fund.FundId, true, "DevelopmentManual", manualOrderId));
-                orders.Add(CreateOrder(request, fund.FundId, manualOrderId, manualComponents));
-                continue;
-            }
+            { decisions.Add(new(fund.FundId, true, "DevelopmentManual", null)); continue; }
             if (!TrySelectDeployment(fund, candidate, request.RequestedAtUtc, out var deployment, out var reason))
-            {
-                decisions.Add(new(fund.FundId, false, reason, null));
-                continue;
-            }
+            { decisions.Add(new(fund.FundId, false, reason, null)); continue; }
             var snapshot = financial.SingleOrDefault(value => value.FundId == fund.FundId);
             if (snapshot is null)
-            {
-                decisions.Add(new(fund.FundId, false, "FinancialSnapshotUnavailable", null));
-                continue;
-            }
+            { decisions.Add(new(fund.FundId, false, "FinancialSnapshotUnavailable", null)); continue; }
             if (!TryCreateCapacityEffect(request.PortfolioId, fund, deployment!, candidate, snapshot,
                 provisional, out var effect, out var capacityReason))
-            {
-                decisions.Add(new(fund.FundId, false, capacityReason, null));
-                continue;
-            }
-            var orderId = await identities.AllocateOrderIdAsync(cancellationToken).ConfigureAwait(false);
-            var components = await AllocateComponentsAsync(candidate, identities, cancellationToken).ConfigureAwait(false);
-            decisions.Add(new(fund.FundId, true, "Accepted", orderId));
-            orders.Add(CreateOrder(request, fund.FundId, orderId, components));
-            effect = effect! with { OrderId = orderId };
-            effects.Add(effect);
-            foreach (var exposure in effect.Exposures)
+            { decisions.Add(new(fund.FundId, false, capacityReason, null)); continue; }
+            decisions.Add(new(fund.FundId, true, "Accepted", effect));
+            foreach (var exposure in effect!.Exposures)
             {
                 var key = Key(exposure);
                 provisional[key] = provisional.GetValueOrDefault(key) + Math.Abs(exposure.Amount);
             }
+        }
+        return [.. decisions];
+    }
+
+    /// <summary>Allocates identities and materializes an already-approved proposal at the entry-commit boundary.</summary>
+    public static async ValueTask<PortfolioOrderCompositionReceipt> MaterializeAsync(EvaluatePortfolioOrderCompositionCommand request,
+        long nextRevision, IReadOnlyList<PortfolioFundEntryAssessment> assessments, IPortfolioBusinessIdAllocator identities,
+        CancellationToken cancellationToken = default)
+    {
+        var candidate = request.Body;
+        var decisions = new List<PortfolioFundOrderDecision>(assessments.Count);
+        var orders = new List<PortfolioExecutionOrderInstruction>(assessments.Count);
+        var effects = new List<PortfolioAcceptedCapacityEffect>(assessments.Count);
+        foreach (var assessment in assessments)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!assessment.Accepted)
+            { decisions.Add(new(assessment.FundId, false, assessment.ReasonCode, null)); continue; }
+            var orderId = await identities.AllocateOrderIdAsync(cancellationToken).ConfigureAwait(false);
+            var components = await AllocateComponentsAsync(candidate, identities, cancellationToken).ConfigureAwait(false);
+            decisions.Add(new(assessment.FundId, true, assessment.ReasonCode, orderId));
+            orders.Add(CreateOrder(request, assessment.FundId, orderId, components));
+            if (assessment.CapacityEffect is { } effect) effects.Add(effect with { OrderId = orderId });
         }
         return new()
         {

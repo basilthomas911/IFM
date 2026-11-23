@@ -32,7 +32,7 @@ public static class EndOfDayVerticalSpreadPosition
             {
                 _ when !positionChange.Accepted => command.UpdateFailed(ref errorMsg, $"{positionChange.RejectionCode};{positionChange.RejectionReason}"),
                 _ when positionChange.PositionSnapshot is null => command.UpdateFailed(ref errorMsg, "VerticalSpreadPosition: the computed position snapshot is missing."),
-                _ => state.Update(command.CreateVerticalSpreadPositionChangedEvent(positionChange.PositionSnapshot), command)
+                _ => state.Update(command.CreateVerticalSpreadPositionChangedEvent(positionChange.PositionSnapshot, positionChange.RecoveredEndOfDay), command)
             };
             return updated ? new ServiceOk<GuidResult>(new GuidResult(command.CommandId)) : command.UpdateFailed(errorMsg);
         }
@@ -44,6 +44,22 @@ public static class EndOfDayVerticalSpreadPosition
         /// <returns>True when the transition is accepted.</returns>
         internal bool Compute(VerticalSpreadPositionCommandState state, out PositionChange positionChange)
         {
+            if (command.HistoricalClosingQuotes is { Length: > 0 })
+            {
+                try
+                {
+                    if (command.HistoricalSourceEventId <= 0 || command.HistoricalSnapshot is not { } source || state.PositionSnapshot is not { } current)
+                        throw new InvalidOperationException("POSITION.EOD_RECOVERY.INVALID_SOURCE");
+                    var recovered = StoredQuotePositionEndOfDayRecovery.Recover(source, current, command.ValueDate, command.EffectiveAtUtc, command.HistoricalClosingQuotes, command.PreviousEndOfDay);
+                    positionChange = new(true, recovered.Current, null, null) { RecoveredEndOfDay = recovered.Seal };
+                    return true;
+                }
+                catch (InvalidOperationException error)
+                {
+                    positionChange = new(false, null, "POSITION.EOD_RECOVERY.REJECTED", error.Message);
+                    return false;
+                }
+            }
             var positionDecision = VerticalSpreadPositionTransition.Compute(state.PositionSnapshot, machine => command.ValueDate == default ? machine.EndOfDay(command.EffectiveAtUtc) : machine.EndOfDay(command.ValueDate, command.EffectiveAtUtc));
             positionChange = new(positionDecision.Accepted, positionDecision.Value, positionDecision.Code, positionDecision.Detail);
             return positionChange.Accepted;
@@ -53,13 +69,13 @@ public static class EndOfDayVerticalSpreadPosition
         ///
         /// <param name = "positionSnapshot">The accepted position snapshot.</param>
         /// <returns>The event ready for state application.</returns>
-        internal VerticalSpreadPositionChangedEvent CreateVerticalSpreadPositionChangedEvent(StrategyPositionSnapshot positionSnapshot) => new()
+        internal VerticalSpreadPositionChangedEvent CreateVerticalSpreadPositionChangedEvent(StrategyPositionSnapshot positionSnapshot, StrategyPositionSnapshot? recovered = null) => new()
         {
             CommandId = command.CommandId,
             Subject = new(ActorType.Event, "FuturesVerticalSpreadTradePositionEvent", VerticalSpreadPositionChangedEvent.Verb, command.EntityId.Format()),
 
             EntityId = command.EntityId,
-            PositionSnapshot = positionSnapshot
+            PositionSnapshot = positionSnapshot, HistoricalEndOfDay = recovered, HistoricalSourceEventId = command.HistoricalSourceEventId
         };
     }
 }

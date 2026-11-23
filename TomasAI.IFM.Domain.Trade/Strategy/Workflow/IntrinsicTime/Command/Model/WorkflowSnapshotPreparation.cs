@@ -17,7 +17,7 @@ internal sealed class WorkflowSnapshotPreparation(IntrinsicTimeStrategyWorkflowV
         {
             WorkflowDefinition = ReferenceEquals(CurrentView, workflowChange.WorkflowDefinition)
                 ? workflowChange.WorkflowDefinition
-                : StrategyWorkflowStageReasons.Record(workflowChange.WorkflowDefinition)
+                : Runtime.WorkflowCalculationRuntime.StampActiveDeadline(StrategyWorkflowStageReasons.Record(workflowChange.WorkflowDefinition))
         });
         return true;
     }

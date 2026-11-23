@@ -27,6 +27,12 @@ public static class SeedFuturesEmaSignals
         /// <summary>Computes every accepted full-state fact without mutating actor state; duplicates and already committed prefixes produce no events.</summary>
         internal FuturesEmaSignalGeneratedEvent[] Compute(FuturesEmaAccumulatorCheckpoint? checkpoint)
         {
+            if (command.InitializeEma200 && checkpoint?.Ema200 is null)
+            {
+                if (checkpoint is not null && checkpoint.LastIntervalEndUtc > command.Observations[^1].IntervalEndUtc)
+                    throw new InvalidOperationException("EMA200 initialization cannot rewind a newer live interval; reacquire current history.");
+                checkpoint = null;
+            }
             // A late history repair must rebuild the missing prefix, rather than
             // discard it as stale behind a partially initialized live checkpoint.
             if (checkpoint is { Count: < 20 } && command.Observations.Length >= 40

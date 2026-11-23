@@ -23,17 +23,30 @@ public sealed class MarketConditionAssessmentCalculator(IMarketSessionCalendar? 
             && observation.ReceivedAtUtc >= observation.ObservedAtUtc.AddSeconds(-skewSeconds);
     }
     public MarketConditionAssessmentResult Calculate(ExecuteMarketConditionAssessmentCommand command, MarketConditionAssessmentSnapshot snapshot, Guid resultId)
+        => CalculateCore(command, snapshot, resultId, false);
+
+    internal MarketConditionAssessmentResult CalculatePrepared(ExecuteMarketConditionAssessmentCommand command, MarketConditionAssessmentSnapshot snapshot, Guid resultId)
+        => CalculateCore(command, snapshot, resultId, true);
+
+    MarketConditionAssessmentResult CalculateCore(ExecuteMarketConditionAssessmentCommand command, MarketConditionAssessmentSnapshot snapshot, Guid resultId, bool prepared)
     {
         ArgumentNullException.ThrowIfNull(command);
         ArgumentNullException.ThrowIfNull(snapshot);
-        var regime = MarketConditionAssessmentContracts.ValidateRequest(command);
+        if (DailyFuturesGatePolicy.IsSupported(command.CalculationPolicy))
+            return DailyFuturesGateCalculator.Calculate(command, snapshot, resultId, calendar, prepared);
+        var optionVx = command.CalculationPolicy == MarketConditionObservationPolicy.OptionVxVersion;
+        var observationOnly = command.CalculationPolicy == MarketConditionObservationPolicy.Version || optionVx;
+        if (optionVx && !MarketConditionObservationPolicy.IsOptionScope(command.WorkflowView)) throw Invalid("Option VX policy requires Monthly IronCondor or Weekly Vertical assignment.");
+        if (observationOnly && !MarketConditionObservationPolicy.Matches(command.WorkflowView)) throw Invalid("Observation policy requires an accepted EMA regime.");
+        if (command.CalculationPolicy is not null && !observationOnly) throw Invalid("Unsupported Market Condition calculation policy.");
+        var regime = prepared ? command.RegimeResultEnvelope.RegimeResult! : MarketConditionAssessmentContracts.ValidateRequest(command);
         var p = command.ParameterSet;
         var s = snapshot;
         var at = s.EvaluatedAtUtc;
-        if (s.SchemaVersion != 1 || s.SnapshotId == Guid.Empty || resultId == Guid.Empty || !string.Equals(s.MarketProfileId, p.MarketProfileId, StringComparison.Ordinal) || !string.Equals(s.InstrumentRoot, p.InstrumentRoot, StringComparison.Ordinal) || s.TargetHorizon != p.TargetHorizon || !MarketConditionAssessmentContracts.Utc(at) || at < command.RequestedAtUtc || at >= command.ExpiresAtUtc || !string.Equals(s.PayloadSha256, s.ComputeHash(), StringComparison.Ordinal) || !Enum.IsDefined(s.SessionState) || !Enum.IsDefined(s.EventContext))
+        if (s.SchemaVersion != 1 || s.SnapshotId == Guid.Empty || resultId == Guid.Empty || !string.Equals(s.MarketProfileId, p.MarketProfileId, StringComparison.Ordinal) || !string.Equals(s.InstrumentRoot, p.InstrumentRoot, StringComparison.Ordinal) || s.TargetHorizon != p.TargetHorizon || !MarketConditionAssessmentContracts.Utc(at) || at < command.RequestedAtUtc || at >= command.ExpiresAtUtc || !prepared && !string.Equals(s.PayloadSha256, s.ComputeHash(), StringComparison.Ordinal) || !Enum.IsDefined(s.SessionState) || !Enum.IsDefined(s.EventContext))
             throw Invalid("Snapshot identity, seal, time or classification is invalid.");
         var observations = s.Observations;
-        if (observations.Length != p.Sources.Length || observations.Select(x => x.SourceId).Distinct(StringComparer.Ordinal).Count() != observations.Length || observations.Any(x => !p.Sources.Any(y => string.Equals(y.SourceId, x.SourceId, StringComparison.Ordinal))))
+        if (observations.Length != p.Sources.Length + (optionVx ? 2 : 0) || observations.Select(x => x.SourceId).Distinct(StringComparer.Ordinal).Count() != observations.Length || observations.Any(x => !p.Sources.Any(y => string.Equals(y.SourceId, x.SourceId, StringComparison.Ordinal)) && !(optionVx && x.SourceId is "VxFront" or "VxSecond")))
             throw Invalid("Snapshot source set is invalid.");
         var reasons = new List<string>();
         var evidence = new List<AssessmentEvidence>();
@@ -107,6 +120,33 @@ public sealed class MarketConditionAssessmentCalculator(IMarketSessionCalendar? 
         if (!covered)
             reasons.Add("MC.ASSESSMENT.CALENDAR.COVERAGE_UNCONFIRMED");
         var available = p.Sources.Where(x => x.Required).All(x => fresh[x.SourceId]) && regimeAge < p.HorizonProfile.RegimeMaximumAgeSeconds && covered && expiry > at;
+        if (optionVx)
+        {
+            var curve = observations.Where(o => o.SourceId is "VxFront" or "VxSecond").ToArray();
+            var maximumAge = p.Sources.Single(o => o.SourceId == "VolatilityChange").MaximumAgeSeconds;
+            var usable = curve.Length == 2 && curve.Select(o => o.SourceId).Distinct(StringComparer.Ordinal).Count() == 2;
+            foreach (var o in curve)
+            {
+                var valid = o.Availability == MarketSourceAvailability.Available && o.Validity == MarketSourceValidity.Valid
+                    && HasTrustworthyMetadata(o,at,p.FutureClockSkewSeconds) && o.Value > 0 && !string.IsNullOrWhiteSpace(o.Reason);
+                var age = Age(at,o.ObservedAtUtc);
+                if (!valid) reasons.Add("MC.OPTIONS.VX_CURVE_UNAVAILABLE");
+                else if (age >= maximumAge) { valid = false; reasons.Add("MC.OPTIONS.VX_CURVE_STALE"); }
+                usable &= valid;
+                if (valid) expiry = Min(expiry,o.ObservedAtUtc.AddSeconds(maximumAge));
+                evidence.Add(new(p.TargetHorizon,o.SourceId,"SourceObservation",o.Value,"VX points",o.ObservedAtUtc,age,o.Availability,o.Reason,o.Sequence));
+            }
+            if (usable && curve[0].Reason == curve[1].Reason) { usable = false; reasons.Add("MC.OPTIONS.VX_CURVE_UNAVAILABLE"); }
+            available &= usable && expiry > at;
+            if (usable)
+            {
+                var front = curve.Single(o => o.SourceId == "VxFront"); var second = curve.Single(o => o.SourceId == "VxSecond");
+                var ratio = front.Value!.Value / second.Value!.Value;
+                evidence.Add(new(p.TargetHorizon,"VX.TermStructure","FrontSecondRatio",ratio,"ratio",curve.Min(o=>o.ObservedAtUtc),
+                    curve.Max(o=>Age(at,o.ObservedAtUtc)),MarketSourceAvailability.Available,$"Front {front.Reason}={front.Value}; second {second.Reason}={second.Value}"));
+                if (ratio > 1) reasons.Add(MarketConditionObservationPolicy.BackwardationReason);
+            }
+        }
         if (fresh["ReferenceQuote"] && (s.Quote is null || string.IsNullOrWhiteSpace(s.ReferenceInstrumentId)))
             throw Invalid("Available reference quote has no price or contract identity.");
         if (fresh["SessionCalendar"] && s.SessionState == MarketSessionStatus.Unknown || fresh["EventRiskCalendar"] && s.EventContext == AssessmentEventContext.Unknown)
@@ -178,10 +218,13 @@ public sealed class MarketConditionAssessmentCalculator(IMarketSessionCalendar? 
         var triggerAt = command.TriggerEvent.CreatedOn != default ? command.TriggerEvent.CreatedOn : command.TriggerEvent.ReceivedOn;
         if (!MarketConditionAssessmentContracts.Utc(triggerAt) || triggerAt > at.AddSeconds(p.FutureClockSkewSeconds))
             throw Invalid("Invalid trigger timestamp.");
+        var alignment = AssessmentTriggerAlignment.NotApplicable;
+        if (!observationOnly)
+        {
         var trend = command.TriggerEvent.FuturesItiSignal?.IntrinsicTimeTrend;
         if (trend is not (IntrinsicTimeTrendType.UpTrend or IntrinsicTimeTrendType.DownTrend))
             throw Invalid("Invalid trigger direction.");
-        var alignment = ((Age(at, triggerAt, true) >= p.TriggerMaximumAgeSeconds) switch
+        alignment = ((Age(at, triggerAt, true) >= p.TriggerMaximumAgeSeconds) switch
         {
             true => AssessmentTriggerAlignment.NotApplicable,
             _ => ((decision.Direction == RegimeDirection.Neutral) switch
@@ -193,6 +236,28 @@ public sealed class MarketConditionAssessmentCalculator(IMarketSessionCalendar? 
         evidence.Add(triggerEvidence);
         if (alignment == AssessmentTriggerAlignment.NotApplicable)
             reasons.Add("MC.ASSESSMENT.TRIGGER.STALE");
+        }
+        else
+        {
+            if (Age(at,triggerAt) >= p.TriggerMaximumAgeSeconds
+                || command.TriggerEvent.FuturesItiSignal is not { } signal
+                || !MarketConditionAssessmentContracts.Utc(signal.IntrinsicTime)
+                || signal.IntrinsicTime > at.AddSeconds(p.FutureClockSkewSeconds)
+                || Age(at,signal.IntrinsicTime) >= p.TriggerMaximumAgeSeconds)
+            {
+                available = false;
+                reasons.Add("MC.ASSESSMENT.TRIGGER.STALE");
+            }
+            if (crossed) available = false;
+            if (s.ReferenceInstrumentId != command.TriggerEvent.EntityId.ContractId)
+            {
+                available = false;
+                reasons.Add("MC.ASSESSMENT.SIGNAL.IDENTITY_MISMATCH");
+            }
+            evidence.Add(new(p.TargetHorizon,command.CalculationPolicy!,"Policy",null,"",at,0,
+                MarketSourceAvailability.Available,command.CalculationPolicy!));
+        }
+        if (!available) condition = null;
         decimal? confidence = available ? Math.Round(decision.Confidence * fitness, 6, MidpointRounding.AwayFromZero) : null;
         foreach (var term in new (string Feature, decimal Value, string Unit)[]
         {
@@ -254,7 +319,7 @@ public sealed class MarketConditionAssessmentCalculator(IMarketSessionCalendar? 
                     }}),
                 TriggerAlignment = alignment,
                 AssessmentConfidence = confidence,
-                DataQuality = ((!available) switch
+                DataQuality = ((!available || observationOnly && observations.Any(o => o.SourceId == "FeedHealth" && o.Value == 0)) switch
                 {
                     true => MarketConditionDataQuality.Unusable,
                     _ => reasons.Count > 0 ? MarketConditionDataQuality.Degraded : MarketConditionDataQuality.Healthy
@@ -262,13 +327,14 @@ public sealed class MarketConditionAssessmentCalculator(IMarketSessionCalendar? 
                 EvaluatedAtUtc = at,
                 ValidUntilUtc = available ? expiry : null,
                 EvidenceItems = evidence.OrderBy(x => x.SourceId, StringComparer.Ordinal).ThenBy(x => x.Feature, StringComparer.Ordinal).ToArray(),
-                ConflictingEvidenceItems = alignment == AssessmentTriggerAlignment.Conflicted ? [triggerEvidence] : [],
+                ConflictingEvidenceItems = !observationOnly && alignment == AssessmentTriggerAlignment.Conflicted
+                    ? evidence.Where(e => e.SourceId == "ITI" && e.Feature == "TriggerAlignment").ToArray() : [],
                 LimitationReasons = reasons.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray(),
                 InheritedRestrictions = decision.Restrictions.Distinct().Order().ToArray(),
                 SummaryText = summary
             }
         };
-        MarketConditionAssessmentContracts.ValidateResult(result);
+        if (!prepared) MarketConditionAssessmentContracts.ValidateResult(result);
         return result;
     }
 

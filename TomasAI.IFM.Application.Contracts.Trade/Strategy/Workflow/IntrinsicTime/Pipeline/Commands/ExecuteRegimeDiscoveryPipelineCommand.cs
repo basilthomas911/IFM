@@ -39,6 +39,8 @@ public sealed record ExecuteRegimeDiscoveryPipelineCommand : ICommand<RegimeDisc
     [Key(16)] public RegimeDiscoveryMarketSignalSnapshot Snapshot { get; init; } = new();
 
     [Key(17)] public ParameterApplicationProvenance? ParameterApplication { get; init; }
+    /// <summary>Frozen classifier version; absent on historical composite executions.</summary>
+    [Key(18)] public string? CalculationPolicy { get; init; }
 
     /// <summary>Gets the owning workflow entity without duplicating serialized identity.</summary>
     [IgnoreMember] public IntrinsicTimeStrategyWorkflowEntityId WorkflowEntityId => EntityId.WorkflowEntityId;
@@ -80,7 +82,8 @@ public sealed record ExecuteRegimeDiscoveryPipelineCommand : ICommand<RegimeDisc
         string parameterPayloadSha256,
         TimeFrameType targetHorizon,
         RegimeDiscoveryMarketSignalSnapshot? snapshot = null,
-        ParameterApplicationProvenance? parameterApplication = null)
+        ParameterApplicationProvenance? parameterApplication = null,
+        string? calculationPolicy = null)
     {
         CommandId = commandId;
         Subject = subject;
@@ -100,5 +103,6 @@ public sealed record ExecuteRegimeDiscoveryPipelineCommand : ICommand<RegimeDisc
         TargetHorizon = targetHorizon;
         Snapshot = snapshot ?? new RegimeDiscoveryMarketSignalSnapshot();
         ParameterApplication = parameterApplication;
+        CalculationPolicy = calculationPolicy;
     }
 }

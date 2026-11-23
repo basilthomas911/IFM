@@ -26,7 +26,7 @@ public sealed class FuturesPositionEventProjector : ConventionalEventProjector<F
     public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors => descriptors;
     public override IReadOnlyCollection<Type> ProjectedEventTypes => [typeof(FuturesPositionChangedEvent), typeof(FuturesTradePlanUpdatedEvent)];
 
-    Task ProjectAsync(FuturesPositionChangedEvent changed) => PositionProjectionActions.ProjectAsync(context, context.DbFactory, changed, FuturesTradePositionCommandActor.ActorName, FuturesRealtimeActor.ActorName, FuturesTradePositionRealtimeActor.ActorName);
+    Task ProjectAsync(FuturesPositionChangedEvent changed) => changed.HistoricalEndOfDay is not null ? Task.CompletedTask : PositionProjectionActions.ProjectAsync(context, context.DbFactory, changed, FuturesTradePositionCommandActor.ActorName, FuturesRealtimeActor.ActorName, FuturesTradePositionRealtimeActor.ActorName);
     Task ProjectTradePlanAsync(FuturesTradePlanUpdatedEvent updated, CancellationToken cancellationToken) =>
         string.Equals(context.DbFactory.TradePlanDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal)
             ? Task.CompletedTask // Required rows already committed with the source event.

@@ -77,8 +77,13 @@ public sealed class PostgresEodObservationTests
             TrendExtreme = 5000, TrendReversal = 5000, BandLevel = 0, ReversalLevel = 0
         };
         await db.InsertFuturesItiSignalAsync(first);
-        var extended = first with { SequenceId = 101, IntrinsicTimeMode = IntrinsicTimeModeType.TrendOvershootExtended, IntrinsicPrice = 5014, TrendExtreme = 5014, TrendReversal = 5014, BandLevel = 1.4 };
-        var reversal = extended with { SequenceId = 102, IntrinsicTimeMode = IntrinsicTimeModeType.TrendOvershootReversal, IntrinsicPrice = 5012, TrendReversal = 5012, BandLevel = 1.2, ReversalLevel = 2d / 14 };
+        var schema = new MarketDataSchemaDb(settings, NullLogger<DbProvider>.Instance);
+        await schema.CreateAsync(["iti_trend_velocity"]);
+        await schema.CreateAsync(["iti_trend_velocity"]);
+        var extended = first with { SequenceId = 101, IntrinsicTime = first.IntrinsicTime.AddMilliseconds(125.5),
+            TrendVelocity = 125.5, IntrinsicTimeMode = IntrinsicTimeModeType.TrendOvershootExtended, IntrinsicPrice = 5014, TrendExtreme = 5014, TrendReversal = 5014, BandLevel = 1.4 };
+        var reversal = extended with { SequenceId = 102, IntrinsicTime = extended.IntrinsicTime.AddMilliseconds(975),
+            TrendVelocity = 975, IntrinsicTimeMode = IntrinsicTimeModeType.TrendOvershootReversal, IntrinsicPrice = 5012, TrendReversal = 5012, BandLevel = 1.2, ReversalLevel = 2d / 14 };
         await db.InsertFuturesItiSignalAsync(extended);
         await db.InsertFuturesItiSignalAsync(reversal);
         await db.InsertFuturesItiSignalAsync(reversal); // projection redelivery keeps the same durable identity
@@ -91,8 +96,10 @@ public sealed class PostgresEodObservationTests
         Assert.Equal(IntrinsicTimeModeType.TrendOvershootReversal, state.IntrinsicTimeMode);
         Assert.Equal(reversal.BandLevel, state.BandLevel);
         Assert.Equal(reversal.ReversalLevel, state.ReversalLevel);
+        Assert.Equal(975d, state.TrendVelocity);
         var rows = await db.GetFuturesItiSignalsForContractAsync(first.ContractId, date, date);
         Assert.Equal(new long[] { 100, 101, 102 }, rows.Select(row => row.SequenceId));
+        Assert.Equal(new double?[] { null, 125.5, 975 }, rows.Select(row => row.TrendVelocity));
         Assert.Equal(3, (await db.GetFuturesItiSignalMDIAsync(first.ContractId, date)).Count);
         var ordinary = reversal with { SequenceId = 103, IntrinsicTimeMode = IntrinsicTimeModeType.TrendReversalChanged, IntrinsicPrice = 5008, TrendReversal = 5008, BandLevel = 0.8 };
         await db.InsertFuturesItiSignalAsync(ordinary);
@@ -628,6 +635,18 @@ public sealed class PostgresEodObservationTests
         };
         await db.InsertFuturesAtrSignalAsync(current);
         Assert.Equal(17, (await db.GetLastFuturesAtrSignalAsync(current.ContractId, date, atr.TimePeriod, 14))!.AtrValue);
+        // Repeated historical initialization must not replace qualified observations
+        // with its initial cold prefix or a value lacking the prior-only baseline.
+        var qualifiedAtr = current with { Metadata = current.Metadata! with { IsValid = true } };
+        await db.InsertFuturesAtrSignalAsync(qualifiedAtr);
+        await db.InsertFuturesAtrSignalAsync(qualifiedAtr with { AtrValue = 0, IsWarm = false, AtrBaseline = null, AtrRatio = null });
+        await db.InsertFuturesAtrSignalAsync(qualifiedAtr with { AtrValue = 3, IsWarm = true, AtrBaseline = null, AtrRatio = null });
+        var preserved = (await db.GetLastFuturesAtrSignalAsync(current.ContractId, date, atr.TimePeriod, 14))!;
+        Assert.Equal(17, preserved.AtrValue);
+        Assert.Equal(qualifiedAtr.AtrRatio, preserved.AtrRatio);
+        Assert.True(preserved.IsWarm);
+        await db.InsertFuturesAtrSignalAsync(qualifiedAtr with { AtrValue = 18 });
+        Assert.Equal(18, (await db.GetLastFuturesAtrSignalAsync(current.ContractId, date, atr.TimePeriod, 14))!.AtrValue);
         var adx = new FuturesAdxSignalReadModel
         {
             ContractId = "ADX", ValueDate = date, TimePeriod = atr.TimePeriod, PeriodLength = 14,

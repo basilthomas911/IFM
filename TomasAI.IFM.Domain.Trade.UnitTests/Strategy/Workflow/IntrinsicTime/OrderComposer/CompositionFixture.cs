@@ -43,7 +43,7 @@ internal static class CompositionFixture
         var selection = actualSelectionCommand ?? await TradeSelectionFixture.Command(variant, horizon, atUtc, contractId: contractId, compositionReady: true, compositionIntegrationTiming: integrationTiming, cacheDefaults: cacheDefaults);
         var result = actualSelectionResult ?? new TradeSelectionEvaluator().Calculate(selection);
         Assert.Equal(SelectionOutcome.Selected, result.Outcome);
-        var at = actualSelectionResult is null ? selection.EvaluatedAtUtc : DateTime.UtcNow;
+        var at = actualSelectionResult is null ? selection.EvaluatedAtUtc : atUtc ?? DateTime.UtcNow;
         var envelope = StrategyStageResultEnvelope.CreateSelection(result);
         var pending = TradeSelectionHandoff.Pending(result, envelope, 4, result.ResultId, at);
         var reservation = new PortfolioFundCompositionAggregate().Reserve(pending.Request, selection.SelectionBinding.PortfolioSnapshot, 7001, [8001], at, "composition-fixture");

@@ -7,6 +7,6 @@ public static class FuturesTradePlanComparisonModel
     public static bool IsMaterial(StrategyTradePlanSnapshot? previous, StrategyTradePlanSnapshot current)
     {
         ArgumentNullException.ThrowIfNull(current);
-        return previous is null || current.RequiresExit || previous.State != current.State || previous.Action != current.Action || previous.Position.Phase != current.Position.Phase || Math.Abs(previous.TotalPnl - current.TotalPnl) >= current.Parameters.MaterialPnlChange || Math.Abs(previous.CurrentValue - current.CurrentValue) >= current.Parameters.MaterialPriceChange;
+        return previous is null || current.RequiresExit || previous.State != current.State || previous.Action != current.Action || previous.Position.Phase != current.Position.Phase || previous.FuturesTrailingExtremePrice != current.FuturesTrailingExtremePrice || previous.FuturesStopPrice != current.FuturesStopPrice || previous.FuturesTrailTightened != current.FuturesTrailTightened || Math.Abs(previous.TotalPnl - current.TotalPnl) >= current.Parameters.MaterialPnlChange || Math.Abs(previous.CurrentValue - current.CurrentValue) >= current.Parameters.MaterialPriceChange;
     }
 }

@@ -27,7 +27,7 @@ public static class StartFuturesAtrSignal
             ArgumentNullException.ThrowIfNull(command);
             ArgumentNullException.ThrowIfNull(state);
             var errorMsg = "unable to apply ATR start event";
-            var updated = command.Compute(state.AtrSignal, out var futuresAtrInitialization) switch
+            var updated = command.Compute(state.AtrSignal, out var futuresAtrInitialization, state.FuturesAtrCheckpoint) switch
             {
                 _ when !futuresAtrInitialization.Accepted
                     => command.UpdateFailed(ref errorMsg, futuresAtrInitialization.RejectionReason!),
@@ -45,19 +45,31 @@ public static class StartFuturesAtrSignal
         /// <param name="futuresAtrInitialization">The computed business decision, including accepted domain values and any no-change or rejection information.</param>
         /// <returns>True when the proposed business result advances or is accepted; otherwise, false. The output retains the no-change or rejection decision.</returns>
         /// <remarks>Accumulator validation exceptions propagate to the command actor exception boundary.</remarks>
-        internal bool Compute(FuturesAtrSignalReadModel? currentFuturesAtrSignal, out FuturesAtrInitialization futuresAtrInitialization)
+        internal bool Compute(FuturesAtrSignalReadModel? currentFuturesAtrSignal, out FuturesAtrInitialization futuresAtrInitialization,
+            FuturesAtrAccumulatorCheckpoint? currentCheckpoint = null)
         {
             var seededSignals = new List<FuturesAtrSignalReadModel>();
             var historicalEvents = new List<FuturesAtrSignalGeneratedEvent>();
             var hasHistoricalSeed = command.HistoricalSeed is { Length: > 0 };
-            string? rejectionReason = hasHistoricalSeed
+            // Recovery is an append to an already warm Wilder calculation, not a new
+            // rolling-window calculation on every audit. The matching interval proves
+            // that the supplied qualified history bridges the restored checkpoint.
+            var continueCheckpoint = hasHistoricalSeed && currentFuturesAtrSignal is
+                { IsWarm: true, AtrValue: > 0, AtrBaseline: > 0, AtrRatio: > 0, Metadata.IsValid: true }
+                && currentCheckpoint is { CurrentAtr: > 0, CompletedAtrValues.Length: 20 }
+                && currentCheckpoint.PeriodLength == command.EntityId.PeriodLength
+                && (currentCheckpoint.LastIntervalEndUtc >= command.HistoricalSeed![^1].IntervalEndUtc
+                    || command.HistoricalSeed!.Any(bar => bar.IntervalEndUtc == currentCheckpoint.LastIntervalEndUtc
+                        || bar.IntervalStartUtc == currentCheckpoint.LastIntervalEndUtc));
+            string? rejectionReason = hasHistoricalSeed && !continueCheckpoint
                 && currentFuturesAtrSignal?.Metadata?.MarketDataAsOfUtc > command.HistoricalSeed![^1].IntervalEndUtc
                 ? "ATR historical initialization would replace a newer live observation" : null;
-            FuturesAtrAccumulatorCheckpoint? futuresAtrCheckpoint = null;
+            FuturesAtrAccumulatorCheckpoint? futuresAtrCheckpoint = continueCheckpoint ? currentCheckpoint : null;
             if (hasHistoricalSeed && rejectionReason is null)
             {
                 foreach (var bar in command.HistoricalSeed!)
                 {
+                    if (continueCheckpoint && bar.IntervalEndUtc <= currentCheckpoint!.LastIntervalEndUtc) continue;
                     var id = new FuturesAtrSignalId(command.EntityId.ContractId, command.EntityId.ValueDate,
                         command.EntityId.TimePeriod, command.EntityId.PeriodLength,
                         TimeOnly.FromDateTime(bar.LastMarketEventUtc.UtcDateTime));
@@ -79,11 +91,12 @@ public static class StartFuturesAtrSignal
                     historicalEvents.Add(historicalEvent);
                     seededSignals.Add(historicalEvent.FuturesAtrSignal);
                 }
-                if (rejectionReason is null && (seededSignals.LastOrDefault() is not { IsWarm: true, AtrRatio: not null }))
+                if (rejectionReason is null && ((seededSignals.LastOrDefault() ?? (continueCheckpoint ? currentFuturesAtrSignal : null))
+                    is not { IsWarm: true, AtrValue: > 0, AtrBaseline: > 0, AtrRatio: > 0, Metadata.IsValid: true }))
                     rejectionReason = "ATR historical initialization did not reach a warm state";
             }
-            futuresAtrInitialization = new(hasHistoricalSeed ? null : currentFuturesAtrSignal,
-                hasHistoricalSeed, historicalEvents, rejectionReason);
+            futuresAtrInitialization = new(!hasHistoricalSeed || continueCheckpoint ? currentFuturesAtrSignal : null,
+                hasHistoricalSeed && !continueCheckpoint, historicalEvents, rejectionReason);
             return futuresAtrInitialization.Accepted;
         }
 

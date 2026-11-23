@@ -6,4 +6,5 @@ public interface ISupervisorRuntimeContext : IActorFailureSink, IActorRuntimeMet
     void RemoveWorker(ISupervisorWorkerMetricsSource worker);
     void RegisterProjector(ISupervisorProjectorMetricsSource projector);
     SupervisorRuntimeSnapshot CaptureSnapshot(DateTime? fromUtc = null, DateTime? toUtc = null);
+    IReadOnlyList<SupervisorFailureRecord> ReadFailures(DateTime fromUtc, DateTime toUtc);
 }

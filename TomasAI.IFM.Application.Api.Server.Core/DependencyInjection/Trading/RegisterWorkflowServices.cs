@@ -136,9 +136,48 @@ public static partial class CoreServiceRegistration
 {
     static void RegisterWorkflowServices(IServiceCollection services, ConfigurationManager config, Microsoft.Extensions.Logging.ILogger logger, IHostEnvironment? hostEnvironment, Container siContainer, bool focusedActorIntegration)
     {
+        services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.WorkflowSelectionConfigurationCache>();
+        services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Runtime.WorkflowPreparedConfigurationCache>();
+        services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Runtime.WorkflowResidentStateRegistry>();
+        services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Runtime.WorkflowDecisionExecutor>();
+        services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition.WorkflowDecisionSession>();
+        services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Runtime.WorkflowCalculationRuntime>();
+        services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Runtime.WorkflowCompositionInputCache>();
+        services.AddSingleton(provider => new TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Runtime.WorkflowDecisionBatchRunner(
+            () => new IntrinsicTimeStrategyWorkflowRealtimeContext(provider.GetRequiredService<IActorSupervisor>(),
+                provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<IntrinsicTimeStrategyWorkflowRealtimeActor>>(),
+                provider.GetRequiredService<IntrinsicTimeStrategyWorkflowOptions>(), provider.GetRequiredService<RegimeDiscoveryExecutionOptions>(),
+                provider.GetRequiredService<TimeProvider>()), provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Runtime.WorkflowDecisionBatchRunner>>()));
+        services.AddSingleton(provider => new TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Runtime.WorkflowLocalDispatcher(
+            () => new IntrinsicTimeStrategyWorkflowRealtimeContext(provider.GetRequiredService<IActorSupervisor>(),
+                provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<IntrinsicTimeStrategyWorkflowRealtimeActor>>(),
+                provider.GetRequiredService<IntrinsicTimeStrategyWorkflowOptions>(), provider.GetRequiredService<RegimeDiscoveryExecutionOptions>(),
+                provider.GetRequiredService<TimeProvider>()),
+            provider.GetRequiredService<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Runtime.WorkflowResidentStateRegistry>(),
+            provider.GetRequiredService<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Runtime.WorkflowCalculationRuntime>(),
+            provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Runtime.WorkflowLocalDispatcher>>(),
+            provider.GetRequiredService<TimeProvider>()));
+        services.AddHostedService(provider => provider.GetRequiredService<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Runtime.WorkflowLocalDispatcher>());
+        services.AddHostedService<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Runtime.WorkflowRuntimeRecoveryService>();
+        services.AddSingleton<TomasAI.IFM.Domain.Portfolio.OrderComposition.Model.PortfolioDecisionStateCache>();
+        services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition.IPortfolioDecisionStateReader>(provider =>
+            provider.GetRequiredService<TomasAI.IFM.Domain.Portfolio.OrderComposition.Model.PortfolioDecisionStateCache>());
+        services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition.IPortfolioEntryDecisionCalculator,
+            TomasAI.IFM.Domain.Portfolio.OrderComposition.Model.PortfolioEntryDecisionCalculator>();
+        services.AddHostedService<TomasAI.IFM.Application.Api.Server.Core.HostedServices.PortfolioDecisionStatePreparationService>();
+        services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition.IPortfolioEntryCommitApi,
+            TomasAI.IFM.Application.Api.Server.Core.Hosting.Trading.PortfolioEntryCommitApi>();
+        services.AddHostedService<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Runtime.WorkflowInputPreparationService>();
+        services.AddSingleton<MarketConditionHistoryCache>();
+        services.AddHostedService<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Runtime.MarketConditionHistoryPreparationService>();
+        services.AddHostedService<TomasAI.IFM.Domain.Trade.Futures.Position.Realtime.DailyFuturesFlattenService>();
         services.AddSingleton(provider => new IntrinsicTimeStrategyWorkflowOptions
         {
             Enabled = provider.GetRequiredService<IConfiguration>().GetValue("AppSettings:IntrinsicTimeStrategyWorkflow:Enabled", false),
+            LocalDecisionRuntimeEnabled = provider.GetRequiredService<IConfiguration>().GetValue("AppSettings:IntrinsicTimeStrategyWorkflow:LocalDecisionRuntimeEnabled", false),
+            RequiresAssignment = hostEnvironment?.IsDevelopment() == true &&
+                string.IsNullOrWhiteSpace(config["IFM_TEST_ACTOR_DOMAIN"]) &&
+                config.GetValue(DevelopmentTradingPortfolioOptions.SectionName + ":Enabled", false),
             ExecuteDevelopmentOpenings = hostEnvironment?.IsDevelopment() == true && provider.GetRequiredService<IConfiguration>()
                 .GetValue("AppSettings:IntrinsicTimeStrategyWorkflow:ExecuteDevelopmentOpenings", false),
             MarketConditionAssessmentProfileId = provider.GetRequiredService<IConfiguration>().GetValue("AppSettings:IntrinsicTimeStrategyWorkflow:MarketConditionAssessmentProfileId", "ES.Standard")!,
@@ -161,6 +200,8 @@ public static partial class CoreServiceRegistration
         .Get<DevelopmentTradingPortfolioOptions>() ?? new DevelopmentTradingPortfolioOptions();
         services.AddSingleton(developmentPortfolio.Validate());
         services.AddSingleton<DevelopmentTradingPortfolioProvisioner>();
+        if (hostEnvironment?.IsDevelopment() == true && developmentPortfolio.Enabled && string.IsNullOrWhiteSpace(config["IFM_TEST_ACTOR_DOMAIN"]))
+            services.AddHostedService<DevelopmentWorkflowAssignmentRefreshService>();
         services.AddSingleton<DevelopmentTradingPortfolioIdentityRecovery>();
         services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Development.MarketConditionAssessmentDefaultProvisioner>();
         services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Development.RegimeDiscoveryDefaultProvisioner>();
@@ -169,6 +210,8 @@ public static partial class CoreServiceRegistration
         config.GetValue<Guid?>("StrategyRisk:IronCondor:ParameterSetId"),
         config.GetValue<int>("StrategyRisk:IronCondor:Version", 1)));
 
+        services.AddSingleton<TomasAI.IFM.Domain.MarketData.Analytics.Shared.RegimeDiscovery.IFuturesAtrSnapshotReader,
+            TomasAI.IFM.Domain.MarketData.Analytics.RegimeDiscovery.FuturesAtrHotCacheReader>();
         var regimeDiscoveryExecutionOptions = config.GetSection(RegimeDiscoveryExecutionOptions.SectionName)
             .Get<RegimeDiscoveryExecutionOptions>() ?? new RegimeDiscoveryExecutionOptions();
         regimeDiscoveryExecutionOptions.Validate();

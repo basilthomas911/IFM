@@ -27,10 +27,10 @@ internal static class TradeSelectionFixture
 {
     public static async Task<ExecuteTradeSelectionPipelineCommand> Command(string variantCode = "LongFuture", TimeFrameType horizon = TimeFrameType.Daily, DateTime? atUtc = null, string contractId = "ESZ6", int scopeId = 1, bool compositionReady = false, bool compositionIntegrationTiming = false,
         ExecuteMarketConditionAssessmentCommand? actualAssessmentCommand = null, StrategyStageResultEnvelope? actualAssessmentEnvelope = null,
-        TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RiskManagement.RiskParameterSet? riskPolicy = null, int compositionLifetimeMilliseconds = 5000, bool cacheDefaults = false, int policyId = 1)
+        TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RiskManagement.RiskParameterSet? riskPolicy = null, int compositionLifetimeMilliseconds = 5000, bool cacheDefaults = false, int policyId = 1, bool preserveAssessmentTime = false)
     {
         var assessmentCommand = actualAssessmentCommand ?? AssessmentFixture.Command(horizon, atUtc, contractId);
-        var at = actualAssessmentEnvelope is null ? assessmentCommand.RequestedAtUtc : DateTime.UtcNow;
+        var at = actualAssessmentEnvelope is null || preserveAssessmentTime ? assessmentCommand.RequestedAtUtc : DateTime.UtcNow;
         var common = TradeSelectionDefaultProfiles.Create(atUtc.HasValue ? Guid.NewGuid() : Guid.Parse("11111111-1111-1111-1111-111111111111"), horizon) with { MaximumExecutionMilliseconds = atUtc.HasValue ? 60000 : 2000 };
         var examples = StrategyCatalogExamples.Create(); var sourceVariant = examples.Single(x => x.Code == variantCode);
         var structure = examples.Single(x => x.Key == sourceVariant.Parent);

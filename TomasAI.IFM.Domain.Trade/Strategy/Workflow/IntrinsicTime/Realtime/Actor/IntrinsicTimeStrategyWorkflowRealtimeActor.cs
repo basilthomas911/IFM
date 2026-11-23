@@ -164,6 +164,7 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor(IRealtime
             return;
         }
         var execute = CreateRegimeExecute(snapshot) ?? throw new InvalidOperationException("Only a committed Started/Regime snapshot can dispatch Execute.");
+        if (view.DecisionRuntimeVersion > 0) execute = execute with { ExpiresAtUtc = Runtime.WorkflowCalculationRuntime.Deadline(view) };
         FunctionResult<RegimeDiscoveryPipelineCompletedEvent, RegimeDiscoveryPipelineFailedEvent>? terminal;
         try
         {
@@ -175,6 +176,16 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor(IRealtime
             }
 
             execute = start.Value!;
+            if (view.DecisionRuntimeVersion > 0 && services.DecisionRuntime is null)
+                throw new InvalidOperationException("RD.RUNTIME.NOT_READY");
+            if (view.DecisionRuntimeVersion > 0 && services.DecisionRuntime is { } local)
+            {
+                var calculated = await local.RegimeAsync(execute).ConfigureAwait(false);
+                terminal = RegimeDiscoveryFunctionActor.MapEvent(new(typeof(RegimeDiscoveryPipelineCompletedEvent), execute,
+                    new RegimeDiscoveryExecutionCompleted(calculated, execute.Snapshot.SnapshotId, execute.Snapshot.CacheRevision)), timeProvider);
+            }
+            else
+            {
             using var deadline = new CancellationTokenSource();
             var remaining = execute.ExpiresAtUtc - timeProvider.GetUtcNow().UtcDateTime;
             // ExpiresAtUtc is the calculation deadline enforced inside the Function. The transport receives a
@@ -186,6 +197,7 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor(IRealtime
             {
                 terminal = RegimeDiscoveryFunctionActor.MapEvent(new(typeof(RegimeDiscoveryPipelineFailedEvent), execute, new RegimeDiscoveryExecutionFailed(timeProvider.GetUtcNow().UtcDateTime, string.IsNullOrWhiteSpace(result.ErrorMessage) ? "Regime Discovery Function returned no terminal result." : result.ErrorMessage, "FunctionRequest", result.ErrorCode == 0 ? RegimeDiscoveryPipelineFailedEvent.ErrorId : result.ErrorCode, [], Guid.Empty)), timeProvider);
             }
+            }
         }
         catch (Exception exception)
         {
@@ -195,6 +207,7 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor(IRealtime
         if (terminal.IsCompleted)
         {
             var complete = CreateCompleteCommand(terminal.Completed!);
+            if (view.DecisionRuntimeVersion > 0) services.DecisionRuntime?.RecordResult(view, complete.Result);
             await context.SendAsync<CompleteRegimeDiscoveryCommand, IntrinsicTimeStrategyWorkflowEntityId>(complete, complete.EntityId).ConfigureAwait(false);
         }
         else

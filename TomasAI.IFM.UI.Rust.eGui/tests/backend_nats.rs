@@ -827,6 +827,32 @@ async fn strategy_native_history_hydration_notifications_selection_and_revision_
         .await
         .unwrap()
         .unwrap();
+
+    control(&backend, "StrategyMode", "AssignedQueues").await;
+    let mut scoped = StrategyController::default();
+    scoped.refresh(&backend, &registry, false).await.unwrap();
+    let snapshot = scoped.snapshot(&registry).unwrap();
+    assert_eq!(snapshot.contract_id, "ESZ6");
+    assert_eq!(snapshot.strategy_contracts.len(), 2);
+    assert_eq!(snapshot.strategy_fund, "Daily Futures Fund");
+    assert_eq!(snapshot.strategy_family, "Futures");
+    let prior_contract = snapshot.strategy_contracts.iter().find(|choice| choice.id == "ESH7").unwrap();
+    scoped.action(prior_contract.action).unwrap();
+    scoped.action(11).unwrap();
+    scoped.refresh(&backend, &registry, false).await.unwrap();
+    let snapshot = scoped.snapshot(&registry).unwrap();
+    assert_eq!(snapshot.contract_id, "ESH7");
+    assert_eq!(snapshot.strategy_fund, "Weekly Verticals Fund");
+    assert_eq!(snapshot.strategy_family, "Verticals");
+    assert_eq!(snapshot.rows.len(), 1);
+    assert_eq!(snapshot.rows[0].end_state, "No Trade");
+    scoped.action(12).unwrap();
+    scoped.refresh(&backend, &registry, false).await.unwrap();
+    let snapshot = scoped.snapshot(&registry).unwrap();
+    assert_eq!(snapshot.strategy_fund, "Monthly Condors Fund");
+    assert_eq!(snapshot.strategy_family, "Iron Condors");
+    assert_eq!(snapshot.strategy_timeframes.len(), 3);
+    control(&backend, "StrategyMode", "Normal").await;
 }
 
 
@@ -3803,7 +3829,8 @@ async fn actor_health_http_and_supervisor_commands_preserve_permissions_generati
     let stopping = Arc::new(AtomicBool::new(false));
     let signal = stopping.clone();
     let worker = std::thread::spawn(move || {
-        let body = include_str!("fixtures/backend/actor-health-http.json");
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("fixtures/backend/actor-health-http.json")).unwrap();
         while !signal.load(Ordering::Acquire) {
             match listener.accept() {
                 Ok((mut stream, _)) => {
@@ -3816,16 +3843,39 @@ async fn actor_health_http_and_supervisor_commands_preserve_permissions_generati
                     let mut bytes = [0; 8192];
                     let length = stream.read(&mut bytes).unwrap();
                     let request = String::from_utf8_lossy(&bytes[..length]);
-                    assert!(
-                        !request.contains("toUtc="),
-                        "API must own the current health-window end: {request}"
-                    );
-                    if request.contains("fromUtc=") {
-                        assert!(
-                            request.contains("2026-10-26T"),
-                            "API observation must own the initial From time: {request}"
-                        );
-                    }
+                    let target = request.split_whitespace().nth(1).unwrap();
+                    let url = reqwest::Url::parse(&format!("http://localhost{target}")).unwrap();
+                    let pairs: std::collections::HashMap<_, _> = url.query_pairs().collect();
+                    let body = match url.path() {
+                        "/api/actor-health/summary" => fixture.clone(),
+                        "/api/actor-health/diagnostics" => {
+                            assert!(pairs["fromUtc"].starts_with("2026-10-26T"));
+                            fixture.clone()
+                        }
+                        "/api/actor-health/actors" | "/api/actor-health/history" => {
+                            let key = if url.path().ends_with("/actors") {
+                                assert_eq!(pairs["includeMailboxes"], "true");
+                                "actors"
+                            } else {
+                                assert!(pairs["fromUtc"].starts_with("2026-10-26T"));
+                                assert_eq!(
+                                    pairs["toUtc"].parse::<chrono::DateTime<chrono::Utc>>().unwrap(),
+                                    fixture["observedUtc"].as_str().unwrap().parse::<chrono::DateTime<chrono::Utc>>().unwrap()
+                                );
+                                "history"
+                            };
+                            let offset = pairs["offset"].parse::<usize>().unwrap();
+                            let limit = pairs["limit"].parse::<usize>().unwrap();
+                            let rows = fixture[key].as_array().unwrap();
+                            json!({
+                                "observedUtc": fixture["observedUtc"],
+                                "offset": offset,
+                                "total": rows.len(),
+                                "rows": rows.iter().skip(offset).take(limit).collect::<Vec<_>>()
+                            })
+                        }
+                        path => panic!("Unexpected actor-health request {path}"),
+                    }.to_string();
                     let response = format!(
                         "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
                         body.len()

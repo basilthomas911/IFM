@@ -15,7 +15,7 @@ internal static class PositionProjectionActions
             await WriteRoutesAsync(dbFactory, changed.State).ConfigureAwait(false);
     }
 
-    public static async Task ProjectAsync(ICommandActorContext context, IDbContextFactory dbFactory, PositionChangedEvent changed, string positionActor, string realtimeActor, string tradePlanRealtimeActor)
+    public static async Task ProjectAsync(ICommandActorContext context, IDbContextFactory dbFactory, PositionChangedEvent changed, string positionActor, string realtimeActor, string tradePlanRealtimeActor, bool deferCloseCleanup = false)
     {
         if (!string.Equals(dbFactory.TradeDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
             await WritePositionAsync(dbFactory, changed.State).ConfigureAwait(false);
@@ -24,7 +24,9 @@ internal static class PositionProjectionActions
         {
             if (!string.Equals(dbFactory.TradeDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
                 await WriteRoutesAsync(dbFactory, changed.State).ConfigureAwait(false);
-            await context.SendAsync<OpenPositionRoutesChangedEvent, StrategyPositionId>(new OpenPositionRoutesChangedEvent { Subject = new ActorSubject(ActorType.Realtime, realtimeActor, OpenPositionRoutesChangedEvent.Verb, changed.EntityId.Format()), EntityId = changed.EntityId, Id = changed.Id, EventId = changed.EventId, CommandId = changed.CommandId, AggregateId = changed.AggregateId, EventSource = changed.EventSource, ReceivedOn = changed.ReceivedOn, Position = changed.State }).ConfigureAwait(false);
+            // Iron-condor close cleanup is ordered after the durable final plan by its close coordinator.
+            if (!deferCloseCleanup)
+                await context.SendAsync<OpenPositionRoutesChangedEvent, StrategyPositionId>(new OpenPositionRoutesChangedEvent { Subject = new ActorSubject(ActorType.Realtime, realtimeActor, OpenPositionRoutesChangedEvent.Verb, changed.EntityId.Format()), EntityId = changed.EntityId, Id = changed.Id, EventId = changed.EventId, CommandId = changed.CommandId, AggregateId = changed.AggregateId, EventSource = changed.EventSource, ReceivedOn = changed.ReceivedOn, Position = changed.State }).ConfigureAwait(false);
         }
 
         switch (changed.State.Phase)

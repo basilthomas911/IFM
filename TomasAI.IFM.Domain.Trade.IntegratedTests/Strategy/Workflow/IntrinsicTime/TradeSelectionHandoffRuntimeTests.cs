@@ -32,8 +32,10 @@ namespace TomasAI.IFM.Domain.Trade.IntegratedTests.Strategy.Workflow.IntrinsicTi
 
 public sealed partial class TradeSelectionRuntimeTests
 {
-    [Fact, Trait("Gate", "TS-06")]
-    public async Task Durable_pending_and_reserved_handoffs_recover_over_NATS_without_allocating_new_Portfolio_identities()
+    [Theory, Trait("Gate", "TS-06")]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Durable_pending_and_reserved_handoffs_recover_over_NATS_without_allocating_new_Portfolio_identities(bool historicalFingerprint)
     {
         // Stop only the notification boundary to simulate a crash after each authoritative commit.
         var snapshots = new ConcurrentQueue<WorkflowStrategyStateUpdatedEvent>();
@@ -64,6 +66,13 @@ public sealed partial class TradeSelectionRuntimeTests
             var c = await TradeSelectionFixture.Command("ShortBalancedIronCondor", atUtc: DateTime.UtcNow,
                 contractId: "ES.TEST." + Guid.NewGuid().ToString("N"), scopeId: scope, compositionReady: true, compositionIntegrationTiming: true);
             var result = TradeSelectionEvaluator.Evaluate(c);
+            var envelope = StrategyStageResultEnvelope.CreateSelection(result);
+            if (historicalFingerprint)
+                envelope = envelope with
+                {
+                    ContentType = StrategyStageResultEnvelope.TypedSelectionContentType,
+                    PayloadSha256 = result.ContentFingerprint().Hash
+                };
             var complete = new CompleteTradeSelectionCommand
             {
                 CommandId = Guid.NewGuid(),
@@ -75,7 +84,7 @@ public sealed partial class TradeSelectionRuntimeTests
                 CorrelationId = c.CorrelationId,
                 CausationId = result.ResultId,
                 CompletedAtUtc = DateTime.UtcNow,
-                Result = StrategyStageResultEnvelope.CreateSelection(result)
+                Result = envelope
             };
             var seed = new WorkflowStrategyStateUpdatedEvent
             {
@@ -94,6 +103,9 @@ public sealed partial class TradeSelectionRuntimeTests
                 .GetInstance<IEventSourceActorStateRepository<IntrinsicTimeStrategyWorkflowCommandState>>();
             var recovered = await repository.LoadStateAsync(complete);
             var pending = recovered.CurrentView!.CompositionHandoff!;
+            recovered.CurrentView.TradeSelection.Result!.ContentType.Should().Be(envelope.ContentType);
+            recovered.CurrentView.TradeSelection.Result.PayloadSha256.Should().Be(envelope.PayloadSha256);
+            pending.Request.TradeSelectionResultSha256.Should().Be(envelope.PayloadSha256);
             MessagePackSerializer.Serialize(pending).Should().Equal(MessagePackSerializer.Serialize(pendingSnapshot.State.CompositionHandoff));
 
             // Real Portfolio aggregate and PostgreSQL history, including restart and committed-command lookup.
@@ -115,6 +127,7 @@ public sealed partial class TradeSelectionRuntimeTests
             restarted.Orders.Should().ContainSingle();
             reservation.Trades.Should().ContainSingle();
             reservation.Order.OrderId.Should().Be(scope + 1);
+            reservation.Order.TradeSelectionResultHash.Should().Be(envelope.PayloadSha256);
             TradeSelectionHandoff.ValidateReservation(pending, reservation);
 
             var callback = new CompleteTradeSelectionReservationCommand

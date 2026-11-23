@@ -32,10 +32,20 @@ public static class ExecuteCompositionFunction
             FunctionResult<OrderCompositionFunctionCompletedEvent, OrderCompositionFunctionFailedEvent> terminal;
             try
             {
+                if (current.DecisionRuntimeVersion > 0 && context.DecisionRuntime is null)
+                    throw new CompositionException("OC.RUNTIME.NOT_READY");
+                if (current.DecisionRuntimeVersion > 0 && context.DecisionRuntime is { } local)
+                {
+                    var calculated = await local.CompositionAsync(execute).ConfigureAwait(false);
+                    terminal = OrderCompositionFunctionActor.MapEvent(new(typeof(OrderCompositionFunctionCompletedEvent), execute, calculated), context.TimeProvider);
+                }
+                else
+                {
                 var remaining = execute.ExpiresAtUtc - now;
                 using var timeout = new CancellationTokenSource((remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero) + TimeSpan.FromSeconds(5));
                 var reply = await context.RequestFunctionAsync<ExecuteOrderCompositionPipelineCommand, OrderCompositionExecutionId, FunctionResult<OrderCompositionFunctionCompletedEvent, OrderCompositionFunctionFailedEvent>>(execute, timeout.Token).ConfigureAwait(false);
                 terminal = reply.Value ?? throw new InvalidDataException("Missing composition Function reply.");
+                }
                 CompositionRulesContract.Require(terminal.IsTerminal, "OC.RESULT.INVALID");
                 if (terminal.IsCompleted)
                     CompositionRulesContract.Require(terminal.Completed!.Id == execute.CommandId && terminal.Completed.WorkflowId == execute.WorkflowId && terminal.Completed.EntityId == execute.WorkflowEntityId && string.Equals(terminal.Completed.RequestFingerprint, execute.InputSha256, StringComparison.Ordinal) && terminal.Completed.InputWorkflowRevision == execute.InputWorkflowRevision, "OC.RESULT.INVALID");
@@ -44,15 +54,18 @@ public static class ExecuteCompositionFunction
             }
             catch (Exception ex)
             {
-                if (ex is not CompositionException && context.TimeProvider.GetUtcNow().UtcDateTime < current.ExpiresAtUtc)
+                if (current.DecisionRuntimeVersion == 0 && ex is not CompositionException && context.TimeProvider.GetUtcNow().UtcDateTime < current.ExpiresAtUtc)
                     throw;
-                terminal = OrderCompositionFunctionActor.MapEvent(new(typeof(OrderCompositionFunctionFailedEvent), execute, Exception: ex is CompositionException ? ex : new CompositionException("OC.TRANSPORT.FAILED")), context.TimeProvider);
+                var code = ex is Runtime.WorkflowDecisionException { Status: Runtime.DecisionExecutionStatus.DeadlineExceeded }
+                    ? "OC.TIME.EXPIRED" : current.DecisionRuntimeVersion > 0 ? "OC.DECISION.FAILED" : "OC.TRANSPORT.FAILED";
+                terminal = OrderCompositionFunctionActor.MapEvent(new(typeof(OrderCompositionFunctionFailedEvent), execute, Exception: ex is CompositionException ? ex : new CompositionException(code)), context.TimeProvider);
             }
 
             Guid Id(string verb) => new(SHA256.HashData(Encoding.UTF8.GetBytes($"{execute.WorkflowId}|{execute.InputWorkflowRevision}|{execute.CommandId}|{verb}")).AsSpan(0, 16));
             if (terminal.IsCompleted)
             {
                 var completed = terminal.Completed!;
+                if (current.DecisionRuntimeVersion > 0) context.DecisionRuntime?.RecordResult(current, completed.Result);
                 var result = OrderCompositionContracts.ReadResult(completed.Result);
                 var command = new CompleteOrderCompositionCommand
                 {

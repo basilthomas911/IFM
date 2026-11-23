@@ -10,6 +10,7 @@ using TomasAI.IFM.Application.MarketData.Historical;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.TradeTickQuoteDb;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Framework.MarketData.DataBento;
 using Xunit;
@@ -96,7 +97,8 @@ public sealed class StoredSessionIndicatorSeedTests
         };
         db.MarketDataDb.GetQualifiedIndicatorSeedBarsAsync(contract, frame, window.ValueDate,
                 Arg.Is<DateTimeOffset[]>(ends => ends.Length == 1 && ends[0] == window.EndUtc),
-                "native-databento-seed-v1|9:GLBX.MDP3|ESZ6", Arg.Any<CancellationToken>())
+                "native-databento-seed-v1|9:GLBX.MDP3|ESZ6", Arg.Any<CancellationToken>(),
+                StoredSessionIndicatorWarmup.LiveIndicatorSeries(contract))
             .Returns(Task.FromResult<IReadOnlyList<FuturesTradeSessionBarReadModel>>([saved]));
 
         var restarted = new StoredSessionIndicatorSeedReader(db, calendar, new Clock(now),
@@ -104,6 +106,53 @@ public sealed class StoredSessionIndicatorSeedTests
         Assert.Same(saved, Assert.Single(await restarted.ReadAsync(contract, frame, 1, default)));
         Assert.Empty(ticks.ReceivedCalls());
         await market.DidNotReceive().ReadIndicatorSeedBarsAsync(Arg.Any<string>(), Arg.Any<TimeFrameType>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Rollover_rebuilds_partial_continuation_bar_without_the_provider()
+    {
+        const string contract = "ES20261218";
+        const TimeFrameType frame = TimeFrameType.FourHours;
+        var now = new DateTimeOffset(2026, 11, 16, 23, 0, 11, TimeSpan.Zero);
+        var calendar = new CmeFuturesMarketSessionCalendar();
+        var window = Assert.Single(RsiHistoricalSeedWindowModel.Create(frame, 1, now, calendar));
+        var series = MarketSeriesIdentity.ForFuturesSeries(new("ES", "calendar-front", "unadjusted", 1));
+        var first = Row(99m, 3, 1, window.StartUtc.AddMinutes(1)) with { ValueDate = window.ValueDate };
+        var last = Row(101m, 5, 2, window.EndUtc.AddSeconds(-1)) with { ValueDate = window.ValueDate };
+        var partial = StoredSessionIndicatorSeedReader.AggregateCore(contract, frame, window, now, [last],
+            alreadyDistinct: true, series)! with
+        {
+            CalculationVersion = "trade-session-bar-v1"
+        };
+        var db = Substitute.For<IDbContextFactory>();
+        var ticks = Substitute.For<ITradeTickQuoteDbContext>();
+        db.TradeTickQuoteDb.Returns(ticks);
+        var provider = Substitute.For<TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi>();
+        var options = new DatabentoMarketDataRuntimeOptions
+        {
+            FeedOptions = DatabentoFeedOptions.ForProfile(FeedDeploymentProfile.Development, "GLBX.MDP3")
+                with { DataSource = FeedDataSourceMode.DatabentoLive },
+            Contracts = [new() { DomainContractId = contract, ProviderContractName = "ESZ6", AssetTypeId = AssetTypeId.Futures }]
+        };
+        db.MarketDataDb.GetQualifiedIndicatorSeedBarsAsync(contract, frame, window.ValueDate,
+                Arg.Is<DateTimeOffset[]>(ends => ends.Length == 1 && ends[0] == window.EndUtc),
+                "native-databento-seed-v1|9:GLBX.MDP3|ESZ6", Arg.Any<CancellationToken>(), series)
+            .Returns(Task.FromResult<IReadOnlyList<FuturesTradeSessionBarReadModel>>([partial]));
+        ticks.GetRawFuturesTradeWindowAsync(contract, window.ValueDate, Arg.Any<TimeOnly>(), Arg.Any<TimeOnly>(),
+                Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyList<BootstrapTradeRow>>([last, first, first]));
+
+        var reader = new StoredSessionIndicatorSeedReader(db, calendar, new Clock(now),
+            NullLogger<StoredSessionIndicatorSeedReader>.Instance, provider, options);
+        var rebuilt = Assert.Single(await reader.ReadAsync(contract, frame, 1, default));
+        Assert.Equal(series, rebuilt.MarketSeriesIdentity);
+        Assert.Equal(window.EndUtc, rebuilt.IntervalEndUtc);
+        Assert.Equal(StoredSessionIndicatorSeedReader.RebuiltBarVersion, rebuilt.CalculationVersion);
+        Assert.Equal(2, rebuilt.TradeCount);
+        Assert.Equal(8m, rebuilt.Volume);
+        Assert.Equal(99m, rebuilt.Open);
+        Assert.Equal(101m, rebuilt.Close);
+        await provider.DidNotReceive().ReadIndicatorSeedBarsAsync(Arg.Any<string>(), Arg.Any<TimeFrameType>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -134,6 +183,7 @@ public sealed class StoredSessionIndicatorSeedTests
     }
 
     [Theory]
+    [InlineData(TimeFrameType.FiveMinutes)]
     [InlineData(TimeFrameType.FifteenMinutes)]
     [InlineData(TimeFrameType.OneHour)]
     [InlineData(TimeFrameType.FourHours)]

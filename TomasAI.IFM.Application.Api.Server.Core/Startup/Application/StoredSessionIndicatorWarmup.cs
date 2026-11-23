@@ -85,6 +85,10 @@ public sealed class StoredSessionIndicatorWarmup(StoredSessionIndicatorSeedReade
             && await HasCommittedShortFrameHistoryAsync(contractId, date, frame, latest, budget.Token).ConfigureAwait(false);
     }
 
+    /// <summary>Attempts the initial five-minute seed using durable local market data.</summary>
+    internal Task<FuturesTradeSessionBarReadModel[]> ReadFiveMinuteSeedAsync(string contractId, CancellationToken token)
+        => reader.ReadAtAsync(contractId, TimeFrameType.FiveMinutes, 48, clock.GetUtcNow(), token);
+
     /// <summary>Restores session baselines and reconciles each newly closed interval.</summary>
     public async Task<bool> WarmAsync(DateOnly date, CancellationToken token)
     {
@@ -237,7 +241,8 @@ public sealed class StoredSessionIndicatorWarmup(StoredSessionIndicatorSeedReade
                 {
                     // Market structure needs the current bar and the preceding 20 completed bars.
                     var structure = await reader.ReadAtAsync(contractId, frame, 21, cutoff, token).ConfigureAwait(false);
-                    if (structure.Length >= 21 && oldestObservation >= structure[^1].IntervalStartUtc)
+                    if (structure.Length >= 21 && oldestObservation >= structure[^1].IntervalStartUtc
+                        && !structure.Any(static bar => bar.CalculationVersion == StoredSessionIndicatorSeedReader.RebuiltBarVersion))
                     {
                         RegimeDiscoverySignalCacheAdapter.RestoreBars(structure);
                         return true;
@@ -250,9 +255,8 @@ public sealed class StoredSessionIndicatorWarmup(StoredSessionIndicatorSeedReade
         // A transport gap means local tick persistence may also be incomplete.
         // Repair must use the native owner's qualified full coverage, not aggregate
         // whatever subset of ticks survived the same overloaded realtime path.
-        var bars = requireNativeHistory
-            ? await market.ReadIndicatorSeedBarsAsync(contractId, frame, token).ConfigureAwait(false)
-            : acquiredSeed ?? await reader.ReadAtAsync(contractId, frame, 48, cutoff, token).ConfigureAwait(false);
+        var bars = acquiredSeed ?? await reader.ReadAtAsync(contractId, frame, 48, cutoff, token,
+            requireQualifiedCurrentSession: requireNativeHistory).ConfigureAwait(false);
         if (bars.Length != 48 || bars.Any(bar => !bar.IsComplete || !bar.IsValid)) return false;
         var revision = SeedRevision(bars);
         var progress = seedProgress.AddOrUpdate((date, contractId, frame), _ => new(revision),
@@ -452,7 +456,7 @@ public sealed class StoredSessionIndicatorWarmup(StoredSessionIndicatorSeedReade
         if (frame == TimeFrameType.Daily && RegimeDiscoverySignalCacheAdapter.TryGetLatestBb(contractId, frame, out var baseline)
             && baseline is { IsWarm: true, Width20: > 0, Width20Ratio: > 0, Position20: not null, Metadata.IsValid: true }) return true;
         var signal = await databases.MarketDataDb.GetLatestFuturesBollingerBandSignalForTimeFrameAsync(
-            frame == TimeFrameType.Daily ? MarketSeriesIdentity.ForContract(contractId) : LiveIndicatorSeries(contractId), date, frame, token).ConfigureAwait(false);
+            LiveIndicatorSeries(contractId), date, frame, token).ConfigureAwait(false);
         if (signal is not { IsWarm: true, Width20: > 0, Width20Ratio: > 0, Position20: not null, Metadata.IsValid: true }) return false;
         RegimeDiscoverySignalCacheAdapter.Publish(signal);
         return minimumAsOfUtc is null || signal.Metadata.MarketDataAsOfUtc >= minimumAsOfUtc;

@@ -172,15 +172,6 @@ pub fn project(
     simple(&mut cells, "volume", text(&e.cell("Volume")));
     for (key, field, colors) in [
         (
-            "marketDirection",
-            "MarketDirection",
-            &[
-                ("Up", "Caution"),
-                ("NeutralDown", "Warning"),
-                ("Down", "Negative"),
-            ][..],
-        ),
-        (
             "marketVolatility",
             "MarketVolatility",
             &[
@@ -214,6 +205,15 @@ pub fn project(
             .unwrap_or("Positive");
         cell(&mut cells, key, value, "DarkText", color);
     }
+    let direction = snapshot.five_minute_ema_state.as_deref().unwrap_or("Unavailable");
+    let (direction, background) = match direction {
+        "StronglyBullish" => ("StronglyBullish", "Positive"),
+        "RangeBound" => ("RangeBound", "Caution"),
+        "StronglyBearish" => ("StronglyBearish", "Negative"),
+        _ => ("Unavailable", "DarkSurface"),
+    };
+    cell(&mut cells, "marketDirection", direction.into(),
+        if background == "DarkSurface" { "LightText" } else { "DarkText" }, background);
     let change = &e.cell("DailyPercentChange");
     let percent = change
         .as_str()

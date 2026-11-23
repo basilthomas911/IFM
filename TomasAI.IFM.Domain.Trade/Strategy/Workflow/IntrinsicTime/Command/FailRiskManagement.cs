@@ -29,7 +29,7 @@ public static class FailRiskManagement
         public ServiceResult<GuidResult> Execute(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context, IntrinsicTimeStrategyWorkflowCommandState state)
         {
             ArgumentNullException.ThrowIfNull(state);
-            var preparation = new WorkflowSnapshotPreparation(state.WorkflowDefinition);
+            var preparation = new WorkflowSnapshotPreparation(state.DecisionView);
             var preparationResult = PrepareWorkflow(command, context, preparation);
             if (!preparationResult.Success)
                 return preparationResult;
@@ -60,7 +60,7 @@ public static class FailRiskManagement
             }
 
             var now = context.TimeProvider.GetUtcNow().UtcDateTime;
-            var timedOut = now >= current.ExpiresAtUtc || current.RiskExecution is { } execution && now >= execution.ExpiresAtUtc || IsTimeout(command.Failure);
+            var timedOut = now >= Runtime.WorkflowCalculationRuntime.EffectiveDeadline(current) || current.RiskExecution is { } execution && now >= execution.ExpiresAtUtc || IsTimeout(command.Failure);
             var updated = current with
             {
                 Status = timedOut ? WorkflowStrategyMachineStatus.TimedOut : WorkflowStrategyMachineStatus.Failed,

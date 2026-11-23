@@ -11,13 +11,16 @@ public sealed class BrokerOrderRealtimeActor(IRealtimeActorContext<BrokerOrderRe
 {
     public const string ActorName = "BrokerOrderRealtime";
     private static readonly ActorTypeId QuoteRoute = new(ActorType.Realtime, FuturesTickQuoteDataChangedEvent.Actor, FuturesTickQuoteDataChangedEvent.Verb);
+    private static readonly ActorTypeId OptionQuoteRoute = new(ActorType.Realtime, FuturesTickTradeDataChangedEvent.Actor, FuturesTickTradeDataChangedEvent.Verb);
     private static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap = new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
     {
-        [FuturesTickQuoteDataChangedEvent.Verb] = message => message.AsEvent<FuturesTickQuoteDataChangedEvent>()!
+        [FuturesTickQuoteDataChangedEvent.Verb] = message => message.AsEvent<FuturesTickQuoteDataChangedEvent>()!,
+        [FuturesTickTradeDataChangedEvent.Verb] = message => message.AsEvent<FuturesTickTradeDataChangedEvent>()!
     }.ToFrozenDictionary(StringComparer.Ordinal);
     private static readonly IReadOnlyDictionary<Type, Func<IBrokerOrderRealtimeContext, IEvent, ValueTask>> _receiveMap = new Dictionary<Type, Func<IBrokerOrderRealtimeContext, IEvent, ValueTask>>
     {
-        [typeof(FuturesTickQuoteDataChangedEvent)] = static (runtime, domainEvent) => ((FuturesTickQuoteDataChangedEvent)domainEvent).ExecuteAsync(runtime)
+        [typeof(FuturesTickQuoteDataChangedEvent)] = static (runtime, domainEvent) => ((FuturesTickQuoteDataChangedEvent)domainEvent).ExecuteAsync(runtime),
+        [typeof(FuturesTickTradeDataChangedEvent)] = static (runtime, domainEvent) => ((FuturesTickTradeDataChangedEvent)domainEvent).ForwardOptionQuoteAsync(runtime)
     }.ToFrozenDictionary();
     private readonly IBrokerOrderRealtimeContext _runtime = Typed(context);
     /// <inheritdoc/>
@@ -25,6 +28,7 @@ public sealed class BrokerOrderRealtimeActor(IRealtimeActorContext<BrokerOrderRe
     {
         ArgumentNullException.ThrowIfNull(context);
         context.AddRealtimeRouter(QuoteRoute, Id);
+        context.AddRealtimeRouter(OptionQuoteRoute, Id);
         return ValueTask.CompletedTask;
     }
 
@@ -33,6 +37,7 @@ public sealed class BrokerOrderRealtimeActor(IRealtimeActorContext<BrokerOrderRe
     {
         ArgumentNullException.ThrowIfNull(context);
         context.RemoveRealtimeRouter(QuoteRoute, Id);
+        context.RemoveRealtimeRouter(OptionQuoteRoute, Id);
         return ValueTask.CompletedTask;
     }
 

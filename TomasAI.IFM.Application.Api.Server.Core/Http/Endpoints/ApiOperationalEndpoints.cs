@@ -87,15 +87,39 @@ public static class ApiOperationalEndpoints
                 ManualMutationEnabled = configuration.GetSection("Supervisor:AllowedOperators").Get<string[]>() is { Length: > 0 },
                 actionOptions.AutomaticMutationEnabled
             });
-        })
-        .CacheOutput(ApiOutputCachePolicies.OperationalSnapshot);
-        // These views share a one-second capture, without a second output-cache TTL that could double their age.
+        });
+        // The live views share a one-second capture without caching serialized bodies.
         app.MapGet("/api/actor-health/summary", (Observability.HealthChecks.ActorHealthSnapshotReader reader) =>
             Results.Ok(ActorHealthReadViews.Summarize(reader.Capture())));
-        app.MapGet("/api/actor-health/actors", (Observability.HealthChecks.ActorHealthSnapshotReader reader, int? offset, int? limit) =>
+        app.MapGet("/api/actor-health/actors", (Observability.HealthChecks.ActorHealthSnapshotReader reader, int? offset,
+            int? limit, bool? includeMailboxes) =>
         {
-            try { return Results.Ok(ActorHealthReadViews.Actors(reader.Capture(), offset ?? 0, limit ?? 64)); }
+            try { return Results.Ok(ActorHealthReadViews.Actors(reader.Capture(), offset ?? 0, limit ?? 64, includeMailboxes ?? false)); }
             catch (ArgumentOutOfRangeException error) { return Results.BadRequest(new { Error = error.Message }); }
+        });
+        app.MapGet("/api/actor-health/diagnostics", (Observability.HealthChecks.ActorHealthSnapshotReader reader,
+            IActorSupervisor supervisor, ISupervisorActorMetricsState metrics, ISupervisorIncidentStore incidents,
+            ISupervisorOperationStore operations, ISupervisorActorMetricsPollingService poller,
+            ISupervisorHealthManager healthManager, SupervisorHealthActionOptions actionOptions,
+            IConfiguration configuration, DateTime? fromUtc) =>
+        {
+            var runtime = reader.Capture();
+            var from = (fromUtc ?? runtime.ObservedUtc.AddHours(-1)).ToUniversalTime();
+            if (from > runtime.ObservedUtc) return Results.BadRequest(new { Error = "fromUtc must be before the observation time." });
+            return Results.Ok(new
+            {
+                runtime.ObservedUtc,
+                Failures = fromUtc is null ? runtime.Failures : supervisor.RuntimeContext.ReadFailures(from, runtime.ObservedUtc),
+                runtime.Projectors,
+                Workers = runtime.Workers ?? [],
+                Collection = metrics.Current,
+                Polling = poller.CaptureStatus(),
+                Incidents = incidents.ActiveIncidents,
+                Operations = operations.RecentOperations,
+                SupervisorAuthorityState = healthManager.AuthorityState,
+                ManualMutationEnabled = configuration.GetSection("Supervisor:AllowedOperators").Get<string[]>() is { Length: > 0 },
+                actionOptions.AutomaticMutationEnabled
+            });
         });
         app.MapGet("/api/actor-health/actors/{actorType}/{name}", (Observability.HealthChecks.ActorHealthSnapshotReader reader, ActorType actorType, string name) =>
         {
@@ -106,13 +130,13 @@ public static class ApiOperationalEndpoints
         app.MapGet("/api/actor-health/workers", (Observability.HealthChecks.ActorHealthSnapshotReader reader) => Results.Ok(reader.Capture().Workers ?? []));
         app.MapGet("/api/actor-health/history", (ISupervisorHistoryStore history, DateTime fromUtc, DateTime toUtc, int? offset, int? limit) =>
         {
-            if (fromUtc > toUtc || toUtc - fromUtc > TimeSpan.FromDays(7))
-                return Results.BadRequest(new { Error = "History requires an ordered range of at most seven days." });
+            if (fromUtc > toUtc)
+                return Results.BadRequest(new { Error = "History requires an ordered range." });
             try { ActorHealthReadViews.ValidatePage(offset ?? 0, limit ?? 64); }
             catch (ArgumentOutOfRangeException error) { return Results.BadRequest(new { Error = error.Message }); }
             var rows = history.Read(fromUtc.ToUniversalTime(), toUtc.ToUniversalTime(), 10080);
             return Results.Ok(new { Offset = offset ?? 0, Total = rows.Count, Rows = rows.Skip(offset ?? 0).Take(limit ?? 64).ToArray() });
-        }).CacheOutput(ApiOutputCachePolicies.OperationalSnapshot);
+        });
         app.MapLivePipelineHealth();
         app.MapMarketClose();
 

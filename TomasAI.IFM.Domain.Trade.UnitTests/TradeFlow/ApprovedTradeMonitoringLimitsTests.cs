@@ -61,14 +61,18 @@ public sealed class ApprovedTradeMonitoringLimitsTests
         var bytes = MessagePack.MessagePackSerializer.Serialize(trade);
         MessagePack.MessagePackSerializer.Deserialize<EstablishedTradeDefinition>(bytes).Should().BeEquivalentTo(trade);
         var reader = new MessagePack.MessagePackReader(new System.Buffers.ReadOnlySequence<byte>(bytes));
-        // Keys 16 and 17 were already added by schema v4 before this assembly migration.
-        reader.ReadArrayHeader().Should().Be(18);
+        // The historical contract ends before monitoring limits at key 15;
+        // later append-only fields must not prevent testing that original payload.
+        reader.ReadArrayHeader().Should().BeGreaterThan(15);
         var output = new System.Buffers.ArrayBufferWriter<byte>();
         var writer = new MessagePack.MessagePackWriter(output);
         writer.WriteArrayHeader(15);
         for (var index = 0; index < 15; index++) writer.WriteRaw(reader.ReadRaw());
         writer.Flush();
-        MessagePack.MessagePackSerializer.Deserialize<EstablishedTradeDefinition>(output.WrittenMemory).MonitoringLimits.Should().BeNull();
+        var legacy = MessagePack.MessagePackSerializer.Deserialize<EstablishedTradeDefinition>(output.WrittenMemory);
+        legacy.MonitoringLimits.Should().BeNull();
+        legacy.Id.Should().Be(trade.Id);
+        legacy.OriginalFills.Should().BeEquivalentTo(trade.OriginalFills);
     }
     [Fact] public void Wrong_approval_identity_or_missing_fills_are_rejected()
     {

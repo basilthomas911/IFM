@@ -4,6 +4,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.RegimeDiscovery;
 using TomasAI.IFM.Application.MarketData.Contracts.Historical;
 using TomasAI.IFM.Application.MarketData.Databento.Historical;
+using TomasAI.IFM.Application.MarketData.Historical;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.RegimeDiscovery;
 
@@ -40,8 +41,12 @@ public sealed class RegimeDiscoveryMarketSignalSnapshotProvider(TimeProvider? ti
             }
             else
             {
+                var sameTime = observation.MarketDataAsOfUtc == current.MarketDataAsOfUtc;
+                var ema = observation.SignalKey.SignalKind == MarketAnalyticsSignalKind.Ema;
+                var upgrade = ema && sameTime && observation.IsWarm && observation.IsValid && !(current.IsWarm && current.IsValid);
+                if (ema && sameTime && current.IsWarm && current.IsValid && !(observation.IsWarm && observation.IsValid)) return;
                 if (observation == current || observation.MarketDataAsOfUtc < current.MarketDataAsOfUtc
-                    || observation.MarketDataAsOfUtc == current.MarketDataAsOfUtc
+                    || sameTime && !upgrade
                     && (observation.SourceSequence < current.SourceSequence
                         || observation.SourceSequence == current.SourceSequence
                         && observation.CalculatedAtUtc < current.CalculatedAtUtc)) return;
@@ -126,6 +131,15 @@ public sealed class RegimeDiscoveryMarketSignalSnapshotProvider(TimeProvider? ti
                 RegimeDiscoverySignalMetric.VixLevel or RegimeDiscoverySignalMetric.VxFrontLevel) &&
               TryGetExternal(requirement, out source)))
             return Missing(request, requirement, RegimeDiscoverySignalAvailability.Missing);
+        // Require the latest completed exchange-calendar interval, independently of
+        // a permissive strategy horizon. Its final trade may precede the bar close;
+        // preserve that original time rather than inventing a fresher observation.
+        var fiveMinuteAtr = requirement.TimeFrame == TimeFrameType.FiveMinutes
+            && requirement.Metric is RegimeDiscoverySignalMetric.Atr14 or RegimeDiscoverySignalMetric.AtrBaselineRatio;
+        var emaOnly = request.Requirements.Length == 3 && request.Requirements.All(r => r.Metric is
+            RegimeDiscoverySignalMetric.Ema20 or RegimeDiscoverySignalMetric.Ema50 or RegimeDiscoverySignalMetric.Ema200);
+        var currentInterval = !(fiveMinuteAtr || emaOnly) || source.MarketDataAsOfUtc >= RsiHistoricalSeedWindowModel.Create(
+            requirement.TimeFrame, 1, new DateTimeOffset(capturedAtUtc).AddSeconds(-30), calendar)[0].StartUtc.UtcDateTime;
         var maximumAge = TimeSpan.FromSeconds(requirement.MaximumAgeSeconds);
         var age = MarketTradingTime.Elapsed(calendar, new DateTimeOffset(source.MarketDataAsOfUtc),
             new DateTimeOffset(capturedAtUtc), maximumAge);
@@ -141,7 +155,7 @@ public sealed class RegimeDiscoveryMarketSignalSnapshotProvider(TimeProvider? ti
             false => (source.MarketDataAsOfUtc > capturedAtUtc.AddSeconds(request.FutureClockSkewSeconds)) switch
             {
                 true => RegimeDiscoverySignalAvailability.FutureTimestamp,
-                false => (age > maximumAge) switch
+                false => (age > maximumAge || !currentInterval) switch
                 {
                     true => RegimeDiscoverySignalAvailability.Stale,
                     false => (!request.SupportedSchemaVersions.Contains(source.SchemaVersion)) switch

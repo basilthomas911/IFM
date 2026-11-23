@@ -26,11 +26,7 @@ public sealed record MarketConditionAssessmentResult
 
     /// <summary>Fingerprints canonical typed content using the same numeric normalization as assessment snapshots.</summary>
     /// <remarks>The canonical JSON is used only for hashing and size validation; it is not embedded in the event.</remarks>
-    public (string Hash, int Size) ContentFingerprint()
-    {
-        var content = System.Text.Encoding.UTF8.GetBytes(MarketConditionAssessmentHash.Serialize(this));
-        return (Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(content)), content.Length);
-    }
+    public (string Hash, int Size) ContentFingerprint() => MarketConditionAssessmentHash.ComputeWithSize(this);
 
     [Key(0)] public short SchemaVersion { get; init; } = 1;
     [Key(1)] public Guid ResultId { get; init; }

@@ -31,7 +31,17 @@ public static class ExecuteMarketConditionAssessment
             MarketConditionExecutionCompleted outcome;
             try
             {
-                var snapshot = await context.SnapshotProvider.CaptureAsync(c.ParameterSet, context.TimeProvider.GetUtcNow().UtcDateTime, cancellationToken).ConfigureAwait(false);
+                var snapshot = c.CalculationPolicy == DailyFuturesGatePolicy.LegacyVersion
+                    ? await context.SnapshotProvider.CaptureDailyFuturesLegacyAsync(c.ParameterSet, context.TimeProvider.GetUtcNow().UtcDateTime, cancellationToken).ConfigureAwait(false)
+                    : c.CalculationPolicy == DailyFuturesGatePolicy.Version
+                    ? await context.SnapshotProvider.CaptureDailyFuturesMarketAsync(c.ParameterSet, context.TimeProvider.GetUtcNow().UtcDateTime, cancellationToken).ConfigureAwait(false)
+                    : c.CalculationPolicy == DailyFuturesGatePolicy.PreviousVersion
+                    ? await context.SnapshotProvider.CaptureDailyFuturesAsync(c.ParameterSet, context.TimeProvider.GetUtcNow().UtcDateTime, cancellationToken).ConfigureAwait(false)
+                    : c.CalculationPolicy == MarketConditionObservationPolicy.OptionVxVersion
+                    ? await context.SnapshotProvider.CaptureOptionObservationAsync(c.ParameterSet, context.TimeProvider.GetUtcNow().UtcDateTime, cancellationToken).ConfigureAwait(false)
+                    : c.CalculationPolicy == MarketConditionObservationPolicy.Version
+                    ? await context.SnapshotProvider.CaptureObservationAsync(c.ParameterSet, context.TimeProvider.GetUtcNow().UtcDateTime, cancellationToken).ConfigureAwait(false)
+                    : await context.SnapshotProvider.CaptureAsync(c.ParameterSet, context.TimeProvider.GetUtcNow().UtcDateTime, cancellationToken).ConfigureAwait(false);
                 cancellationToken.ThrowIfCancellationRequested();
                 if (context.TimeProvider.GetUtcNow().UtcDateTime >= c.ExpiresAtUtc)
                     throw new TimeoutException();

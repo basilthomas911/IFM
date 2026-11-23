@@ -15,7 +15,8 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer
 /// <summary>Builds the final immutable Function request before the workflow commits its dispatch intent.</summary>
 public static class CompositionDispatch
 {
-    public static ExecuteOrderCompositionPipelineCommand Create(IntrinsicTimeStrategyWorkflowView view, CompositionPreparation preparation, DateTime now)
+    public static ExecuteOrderCompositionPipelineCommand Create(IntrinsicTimeStrategyWorkflowView view, CompositionPreparation preparation, DateTime now,
+        PreparedCompositionConfiguration? configuration = null)
     {
         ArgumentNullException.ThrowIfNull(preparation);
         ArgumentNullException.ThrowIfNull(view);
@@ -29,7 +30,8 @@ public static class CompositionDispatch
 
         using var bindingTrace = WorkflowTrace.Start("composer.dispatch.resolve_binding", view);
         var selected = TradeSelectionContracts.ReadResult(start.AcceptedSelection!);
-        var binding = CompositionBindingResolver.Resolve(selected, start.SelectionBinding!, now);
+        var binding = configuration is null ? CompositionBindingResolver.Resolve(selected, start.SelectionBinding!, now)
+            : configuration.Bind(selected, start.SelectionBinding!, now);
         bindingTrace?.Stop();
         using var requestTrace = WorkflowTrace.Start("composer.dispatch.build_request", view);
         var p = binding.Rules.VariantRules.Single(x => x.VariantKey == binding.Selected.VariantKey).BaseParameters;
@@ -37,7 +39,7 @@ public static class CompositionDispatch
         var neutral = start.SelectionBinding!.SchemaVersion == 2;
         var deadlines = new List<DateTime>
         {
-            view.ExpiresAtUtc,
+            Runtime.WorkflowCalculationRuntime.EffectiveDeadline(view),
             binding.ValidUntilUtc,
             preparation.Snapshot.ValidUntilUtc.UtcDateTime,
             now.AddMilliseconds(p.ExecutionMilliseconds)

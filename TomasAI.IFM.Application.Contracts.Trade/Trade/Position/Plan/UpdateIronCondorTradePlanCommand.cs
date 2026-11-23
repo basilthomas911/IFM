@@ -30,6 +30,10 @@ public sealed record UpdateIronCondorTradePlanCommand : ICommand<IronCondorTrade
     [Key(10)] public string? ForwardPriceFailure { get; init; }
     /// <summary>Identifies the new production path; old stored requests preserve legacy interpretation.</summary>
     [Key(11)] public bool UseForwardPriceFunction { get; init; }
+    /// <summary>Immutable authorizing decision, supplied only for close execution progress; never repriced.</summary>
+    [Key(12)] public StrategyTradePlanSnapshot? ClosingDecision { get; init; }
+    /// <summary>Confirmed execution/settlement progress to retain in the plan's description.</summary>
+    [Key(13)] public string? ClosingProgress { get; init; }
     [IgnoreMember] public string CommandName => nameof(UpdateIronCondorTradePlanCommand);
     [IgnoreMember] public BoundedContextName RouteTo => BoundedContextName.StrategyPositionTradePlanBoundedContext;
     [IgnoreMember] public string StreamId => Subject.StreamId;

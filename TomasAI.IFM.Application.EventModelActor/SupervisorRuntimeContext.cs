@@ -248,10 +248,7 @@ public sealed class SupervisorRuntimeContext : ISupervisorRuntimeContext
             overall = SupervisorActorHealthStatus.Yellow;
         var from = (fromUtc ?? observedUtc.AddHours(-1)).ToUniversalTime();
         var to = (toUtc ?? observedUtc).ToUniversalTime();
-        var failures = _failures
-            .Where(failure => failure.FailedUtc >= from && failure.FailedUtc <= to)
-            .OrderByDescending(failure => failure.FailedUtc)
-            .ToArray();
+        var failures = ReadFailures(from, to);
         var projectors = _projectors.Values
             .Select(projector => projector.CaptureSupervisorSnapshot())
             .OrderBy(projector => projector.ActorName, StringComparer.Ordinal)
@@ -268,6 +265,17 @@ public sealed class SupervisorRuntimeContext : ISupervisorRuntimeContext
             failures,
             projectors,
             workers);
+    }
+
+    /// <inheritdoc />
+    public IReadOnlyList<SupervisorFailureRecord> ReadFailures(DateTime fromUtc, DateTime toUtc)
+    {
+        var from = fromUtc.ToUniversalTime();
+        var to = toUtc.ToUniversalTime();
+        return _failures
+            .Where(failure => failure.FailedUtc >= from && failure.FailedUtc <= to)
+            .OrderByDescending(failure => failure.FailedUtc)
+            .ToArray();
     }
 
     /// <inheritdoc />

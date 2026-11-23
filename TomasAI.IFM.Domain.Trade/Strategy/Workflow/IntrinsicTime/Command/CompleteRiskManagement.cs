@@ -31,7 +31,7 @@ public static class CompleteRiskManagement
         public ServiceResult<GuidResult> Execute(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context, IntrinsicTimeStrategyWorkflowCommandState state)
         {
             ArgumentNullException.ThrowIfNull(state);
-            var preparation = new WorkflowSnapshotPreparation(state.WorkflowDefinition);
+            var preparation = new WorkflowSnapshotPreparation(state.DecisionView);
             var preparationResult = PrepareWorkflow(command, context, preparation);
             if (!preparationResult.Success)
                 return preparationResult;
@@ -63,9 +63,39 @@ public static class CompleteRiskManagement
             }
 
             var now = context.TimeProvider.GetUtcNow().UtcDateTime;
-            if (now >= current.ExpiresAtUtc || current.RiskExecution is { } execution && now >= execution.ExpiresAtUtc)
+            if (current.DecisionRuntimeVersion > 0 && command.EntryCommit is { } entryOutcome)
+                return CompleteEntryCommit(command, context, state, current, entryOutcome, now);
+            if (now >= Runtime.WorkflowCalculationRuntime.EffectiveDeadline(current) || current.RiskExecution is { } execution && now >= execution.ExpiresAtUtc)
             {
                 return PrepareTimedOut(command, context, state, current, now);
+            }
+
+            if (current.DecisionRuntimeVersion > 0 && command.EntryApproval is { } approval)
+            {
+                if (context is not IIntrinsicTimeStrategyWorkflowCommandContext { DecisionRuntime: { } runtime }
+                    || !runtime.MatchesApproval(current, approval) || approval.Request.Body.WorkflowId != current.WorkflowId.Value
+                    || approval.ProducedAtUtc >= Runtime.WorkflowCalculationRuntime.Deadline(current))
+                    throw new InvalidOperationException("RM.RESULT.UNTRUSTED_LOCAL_APPROVAL");
+                var noTrade = !approval.Funds.Any(value => value.Accepted);
+                var proposalUpdated = current with
+                {
+                    WorkflowRevision = checked(current.WorkflowRevision + 1), UpdatedAtUtc = now,
+                    TerminalAtUtc = noTrade ? now : null,
+                    Status = noTrade ? WorkflowStrategyMachineStatus.Completed : WorkflowStrategyMachineStatus.Started,
+                    Outcome = noTrade ? StrategyWorkflowOutcome.NoTrade : StrategyWorkflowOutcome.None,
+                    StopReasonCode = noTrade ? "RM.PORTFOLIO.NO_TRADE_ORDERS" : string.Empty,
+                    EntryCommit = new(approval, noTrade ? WorkflowEntryCommitPhase.Rejected : WorkflowEntryCommitPhase.Approved,
+                        now, noTrade ? "RM.PORTFOLIO.NO_TRADE_ORDERS" : "ENTRY.COMMIT.PENDING"),
+                    RiskManagement = current.RiskManagement with
+                    {
+                        ProcessingStatus = StrategyActorProcessingStatus.Completed, CompletedAtUtc = approval.ProducedAtUtc,
+                        SourceEventId = command.SourceEventId, ContinuationDecision = noTrade ? StrategyWorkflowContinuationDecision.Stop : StrategyWorkflowContinuationDecision.Proceed,
+                        ContinuationReasonCodes = noTrade ? approval.Funds.Select(value => value.ReasonCode).Distinct(StringComparer.Ordinal).ToArray()
+                            : ["RM.PORTFOLIO.APPROVED_FOR_ENTRY_COMMIT"]
+                    }
+                };
+                AppendSnapshot(state, command, current.Status, proposalUpdated, now);
+                return Ok(command);
             }
 
             if (command.PortfolioDecision is { } portfolioDecision)
@@ -134,6 +164,34 @@ public static class CompleteRiskManagement
     /// <param name = "command">The concrete command intent.</param>
     /// <returns>The prepared business result or command acceptance.</returns>
     static ServiceResult<GuidResult> Ok(CompleteRiskManagementCommand command) => new ServiceOk<GuidResult>(new GuidResult(command.CommandId));
+
+    static ServiceResult<GuidResult> CompleteEntryCommit(CompleteRiskManagementCommand command,
+        ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context, WorkflowSnapshotPreparation state,
+        IntrinsicTimeStrategyWorkflowView current, WorkflowEntryCommitState outcome, DateTime now)
+    {
+        if (current.EntryCommit is not { } pending || pending.Approval.PayloadSha256 != outcome.Approval.PayloadSha256
+            || pending.Approval.Request.OperationId != outcome.Approval.Request.OperationId)
+            throw new InvalidOperationException("ENTRY.COMMIT.APPROVAL_MISMATCH");
+        if (pending.Phase == outcome.Phase && pending.Reason == outcome.Reason) return Ok(command);
+        if (outcome.Phase == WorkflowEntryCommitPhase.Committed)
+        {
+            var decision = command.PortfolioDecision ?? throw new InvalidOperationException("ENTRY.COMMIT.RECEIPT_MISSING");
+            if (decision.FinancialRevision != checked(pending.Approval.Request.ExpectedFinancialRevision + 1))
+                throw new InvalidOperationException("ENTRY.COMMIT.REVISION_MISMATCH");
+            return CompletePortfolioDecision(command, context, state, current with { EntryCommit = outcome }, decision, now);
+        }
+        var rejected = outcome.Phase == WorkflowEntryCommitPhase.Rejected;
+        var updated = current with
+        {
+            WorkflowRevision = checked(current.WorkflowRevision + 1), UpdatedAtUtc = now, EntryCommit = outcome,
+            Status = rejected ? WorkflowStrategyMachineStatus.Completed : WorkflowStrategyMachineStatus.Started,
+            Outcome = rejected ? StrategyWorkflowOutcome.NoTrade : StrategyWorkflowOutcome.None,
+            TerminalAtUtc = rejected ? now : null, StopReasonCode = rejected ? outcome.Reason : string.Empty,
+            RiskManagement = current.RiskManagement with { ContinuationReasonCodes = [outcome.Reason] }
+        };
+        AppendSnapshot(state, command, current.Status, updated, now);
+        return Ok(command);
+    }
     /// <summary>Evaluates complete portfolio decision business information.</summary>
     /// <param name = "command">The concrete command intent.</param>
     /// <param name = "context">The authorized actor services and logging context.</param>

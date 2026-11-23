@@ -74,11 +74,22 @@ public sealed class DevelopmentTradingPortfolioProvisioner(DevelopmentTradingPor
         VerifyPortfolioIdentity(portfolio);
         var policy = await EnsureFinancialPolicyAsync(portfolio, catalog.Deployments, token).ConfigureAwait(false);
         portfolio = await RequiredEventually(() => queries.GetPortfolioAsync(portfolioId, cancellationToken: token), "Read development Portfolio", token).ConfigureAwait(false);
+        workflow.RequiresAssignment = true;
         var fundMap = new Dictionary<TimeFrameType, int>();
+        var routes = new List<TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity.IntrinsicTimeFundAssignment>();
         foreach (var horizon in DevelopmentTradingPortfolioOptions.Horizons)
         {
-            var fund = await EnsureFundAsync(portfolio, policy, horizon, catalog.For(horizon), selection.Single(x => x.TargetHorizon == horizon), construction.Single(x => x.ParameterSetId == DevelopmentTradingPortfolioDefaults.ConstructionId(horizon)), token).ConfigureAwait(false);
+            var family = horizon switch
+            {
+                TimeFrameType.Daily => "Future",
+                TimeFrameType.Weekly => "Vertical",
+                _ => "IronCondor"
+            };
+            var deployment = catalog.For(horizon).Single(key => DevelopmentDeploymentCode(key) == $"Development{horizon}{family}");
+            var fund = await EnsureFundAsync(portfolio, policy, horizon, [deployment], selection.Single(x => x.TargetHorizon == horizon), construction.Single(x => x.ParameterSetId == DevelopmentTradingPortfolioDefaults.ConstructionId(horizon)), token).ConfigureAwait(false);
             fundMap.Add(horizon, fund.FundId);
+            routes.Add(new(portfolioId, fund.FundId, fund.Name, family, options.InstrumentRoot, horizon,
+                deployment, fund.FundMandateVersion, fund.EffectiveFromUtc, fund.EffectiveUntilUtc));
             portfolio = await RequiredEventually(() => queries.GetPortfolioAsync(portfolioId, cancellationToken: token), "Refresh development Portfolio", token).ConfigureAwait(false);
         }
 
@@ -131,9 +142,57 @@ public sealed class DevelopmentTradingPortfolioProvisioner(DevelopmentTradingPor
 
         workflow.PortfolioId = portfolioId;
         workflow.Activations = [..activationReferences];
+        workflow.ConfigureAssignments(routes);
         if (logger.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Information))
             global::TomasAI.IFM.Domain.Trade.TradeBoundaryDiagnosticLog.Write45(logger, nameof(DevelopmentTradingPortfolioProvisioner), nameof(EnsureAsync), portfolioId, fundMap.Count, catalog.Deployments.Length, options.DevelopmentCapital, options.Currency);
         return new(portfolioId, policy.PolicyId, fundMap, options.DevelopmentCapital, catalog.Deployments.Length, created, true);
+    }
+
+    public async Task RefreshAssignmentsAsync(DateTime now, CancellationToken token)
+    {
+        var configured = workflow.Assignments.ToArray();
+        if (configured.Length == 0)
+            return;
+        var portfolio = await queries.GetPortfolioAsync(configured[0].PortfolioId, cancellationToken: token).ConfigureAwait(false);
+        if (!portfolio.Success)
+            throw new InvalidOperationException($"Development Portfolio cache read failed: {portfolio.ErrorMessage}");
+        if (portfolio.Value is not { OperatingState: PortfolioOperatingState.Active } owner
+            || owner.EffectiveFromUtc > now || owner.EffectiveUntilUtc <= now)
+        {
+            workflow.SetAssignments([]);
+            return;
+        }
+
+        var qualified = await Task.WhenAll(configured.Select(QualifyAsync)).ConfigureAwait(false);
+        workflow.SetAssignments(qualified.OfType<TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity.IntrinsicTimeFundAssignment>());
+
+        async Task<TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity.IntrinsicTimeFundAssignment?> QualifyAsync(
+            TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity.IntrinsicTimeFundAssignment route)
+        {
+            var fundResult = await queries.GetFundAsync(route.PortfolioId, route.FundId, cancellationToken: token).ConfigureAwait(false);
+            if (!fundResult.Success)
+                throw new InvalidOperationException($"Development Fund cache read failed: {fundResult.ErrorMessage}");
+            if (fundResult.Value is not { OperatingState: FundOperatingState.Active } fund
+                || fund.EffectiveFromUtc > now || fund.EffectiveUntilUtc <= now
+                || fund.DecisionHorizon != route.Timeframe.ToString()
+                || !fund.UnderlyingUniverse.Contains(route.InstrumentRoot, StringComparer.Ordinal)
+                || !fund.PermittedTradeStrategyFamilies.Any(family => family.CatalogDeployment == route.Deployment))
+                return null;
+
+            var result = await queries.GetAssignmentsAsync(route.PortfolioId, route.FundId, fund.FundMandateVersion, token).ConfigureAwait(false);
+            if (!result.Success || result.Value is null)
+                throw new InvalidOperationException($"Development assignment cache read failed: {result.ErrorMessage}");
+            var assigned = result.Value.FirstOrDefault(value => value.IsEffectiveAt(now)
+                // The assignment remains tied to its fund mandate when another fund advances the parent Portfolio version.
+                && value.PortfolioId == fund.PortfolioId && value.FundId == fund.FundId
+                && value.FundMandateVersion == fund.FundMandateVersion && value.DecisionHorizon == fund.DecisionHorizon
+                && value.UnderlyingUniverse.Contains(route.InstrumentRoot, StringComparer.Ordinal)
+                && value.TradeStrategyFamily?.CatalogDeployment == route.Deployment);
+            if (assigned is null)
+                return null;
+            var effectiveUntil = new[] { fund.EffectiveUntilUtc, owner.EffectiveUntilUtc, assigned.EffectiveUntilUtc }.OfType<DateTime>().Select(static value => (DateTime?)value).Min();
+            return route with { FundName = fund.Name, MandateVersion = fund.FundMandateVersion, EffectiveUntilUtc = effectiveUntil };
+        }
     }
 
     async Task<(CatalogProduct Future, CatalogProduct Option)> ProductsAsync(CancellationToken token)
@@ -308,7 +367,12 @@ public sealed class DevelopmentTradingPortfolioProvisioner(DevelopmentTradingPor
             fund = matches.OrderByDescending(x => x.FundMandateVersion).First();
         if (!fund.PermittedTradeStrategyFamilies.Select(x => x.CatalogDeployment).SequenceEqual(deployments.Cast<CatalogKey?>()) || !fund.EligibleAssetTypes.SequenceEqual(horizon == TimeFrameType.Daily ? new[] { "Futures" } : new[] { "FuturesOption" }))
         {
-            if (!LegacyDeployments(fund.PermittedTradeStrategyFamilies.Select(x => x.CatalogDeployment), [horizon]))
+            var currentManifest = (horizon == TimeFrameType.Daily ? new[] { "Future" } : new[] { "Vertical", "IronCondor" })
+                .Select(family => new CatalogKey(StrategyCatalogKind.Deployment, StrategyCatalogExamples.StableId($"Development{horizon}{family}"),
+                    DevelopmentTradingPortfolioDefaults.DeploymentVersion(horizon)))
+                .ToHashSet();
+            if (!LegacyDeployments(fund.PermittedTradeStrategyFamilies.Select(x => x.CatalogDeployment), [horizon])
+                && !currentManifest.SetEquals(fund.PermittedTradeStrategyFamilies.Select(x => x.CatalogDeployment).OfType<CatalogKey>()))
                 throw new InvalidOperationException($"Existing {horizon} Development Fund contains unrelated permissions; cannot migrate automatically.");
             strategyPermissionsChanged = true;
             var approved = Fund(portfolio.PortfolioId, fund.FundId, code, horizon, deployments);

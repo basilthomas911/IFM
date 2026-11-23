@@ -7,4 +7,8 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.Trade.Shared.Futures.Position;
 
 [MessagePackObject]
-public sealed record FuturesPositionChangedEvent : PositionChangedEvent;
+public sealed record FuturesPositionChangedEvent : PositionChangedEvent
+{
+    [Key(9)] public StrategyPositionSnapshot? HistoricalEndOfDay { get; init; }
+    [Key(10)] public long HistoricalSourceEventId { get; init; }
+}

@@ -1,5 +1,7 @@
 ﻿using FluentAssertions;
 using TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Function.State;
+using MessagePack;
+using System.Buffers;
 using TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Model;
 using TomasAI.IFM.Domain.Trade.Futures.Option.Position.VerticalSpread.Plan.Model;
 using TomasAI.IFM.Domain.Trade.Futures.Position.Plan.Model;
@@ -213,6 +215,97 @@ public sealed class StrategyTradePlanAlgorithmTests
 
         FluentActions.Invoking(() => StrategyExitOrderCompositionModel.Compose(started, Now))
             .Should().Throw<InvalidOperationException>().WithMessage("EXIT.COMPOSITION.INVALID_PLAN");
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(-1)]
+    public void Futures_trail_is_ten_price_points_and_survives_snapshot_restore(int direction)
+    {
+        var algorithm = new FuturesTradePlanAlgorithm();
+        var entry = FuturePosition(5000m, direction);
+        var initial = algorithm.Calculate(entry, Parameters(), null, ValueDate, Now).Snapshot;
+        initial.FuturesTrailingExtremePrice.Should().Be(5000m);
+        initial.RequiresExit.Should().BeFalse();
+        var peakPosition = entry with { PositionSequence = 2, Legs = [entry.Legs[0] with { CurrentPrice = 5000m + direction * 20m }] };
+        var peak = algorithm.Calculate(peakPosition, Parameters(), initial, ValueDate, Now).Snapshot;
+        var restored = MessagePackSerializer.Deserialize<StrategyTradePlanSnapshot>(MessagePackSerializer.Serialize(peak));
+        restored.ContentHash.Should().Be(TradePlanContractIdentity.PlanHash(restored));
+        restored.FuturesTrailingExtremePrice.Should().Be(5000m + direction * 20m);
+        var nearStop = entry with { PositionSequence = 3, Legs = [entry.Legs[0] with { CurrentPrice = 5000m + direction * 10.25m }] };
+        var held = algorithm.Calculate(nearStop, Parameters(), restored, ValueDate, Now).Snapshot;
+        held.RequiresExit.Should().BeFalse();
+        held.FuturesTrailingExtremePrice.Should().Be(restored.FuturesTrailingExtremePrice);
+        var atStop = nearStop with { PositionSequence = 4, Legs = [nearStop.Legs[0] with { CurrentPrice = 5000m + direction * 10m }] };
+        var exit = algorithm.Calculate(atStop, Parameters(), held, ValueDate, Now).Snapshot;
+        exit.RequiresExit.Should().BeTrue();
+        exit.Action.Should().Be(TradePlanAction.ExitAtMarket);
+        exit.ReasonCode.Should().Be("PLAN.FUTURES.TRAILING_STOP");
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(-1)]
+    public void Futures_trail_protects_the_entry_immediately_and_uses_prices_not_cash_pnl(int direction)
+    {
+        var position = FuturePosition(5000m - direction * 10m, direction);
+        position.UnrealizedPnl.Should().Be(0);
+        var plan = new FuturesTradePlanAlgorithm().Calculate(position, Parameters(), null, ValueDate, Now).Snapshot;
+        plan.RequiresExit.Should().BeTrue();
+        plan.ReasonCode.Should().Be("PLAN.FUTURES.TRAILING_STOP");
+    }
+
+    [Fact]
+    public void Futures_stale_prices_do_not_advance_or_trigger_the_trail()
+    {
+        var entry = FuturePosition(5000m, 1);
+        var algorithm = new FuturesTradePlanAlgorithm();
+        var initial = algorithm.Calculate(entry, Parameters(), null, ValueDate, Now).Snapshot;
+        var staleHigh = entry with { Legs = [entry.Legs[0] with { CurrentPrice = 5100m, LastPriceAtUtc = Now.AddMinutes(-1) }] };
+        var plan = algorithm.Calculate(staleHigh, Parameters(), initial, ValueDate, Now).Snapshot;
+        plan.FuturesTrailingExtremePrice.Should().Be(5000m);
+        var staleLow = staleHigh with { Legs = [staleHigh.Legs[0] with { CurrentPrice = 4900m }] };
+        algorithm.Calculate(staleLow, Parameters(), plan, ValueDate, Now).Snapshot.RequiresExit.Should().BeFalse();
+    }
+
+    [Fact]
+    public void Futures_watermark_changes_are_material_and_part_of_the_plan_hash()
+    {
+        var position = FuturePosition(5000m, 1);
+        var plan = new FuturesTradePlanAlgorithm().Calculate(position, Parameters(), null, ValueDate, Now).Snapshot;
+        var changed = plan with { FuturesTrailingExtremePrice = 5010m };
+        TradePlanContractIdentity.PlanHash(changed).Should().NotBe(plan.ContentHash);
+        FuturesTradePlanComparisonModel.IsMaterial(plan, changed).Should().BeTrue();
+    }
+
+    [Fact]
+    public void Futures_legacy_snapshots_without_a_watermark_seed_from_the_fill_and_new_observation()
+    {
+        var position = FuturePosition(5000m, 1);
+        var algorithm = new FuturesTradePlanAlgorithm();
+        var legacy = algorithm.Calculate(position, Parameters(), null, ValueDate, Now).Snapshot with { FuturesTrailingExtremePrice = null };
+        legacy = legacy with { ContentHash = TradePlanContractIdentity.PlanHash(legacy) };
+        var reader = new MessagePackReader(MessagePackSerializer.Serialize(legacy));
+        reader.ReadArrayHeader().Should().Be(23);
+        var buffer = new ArrayBufferWriter<byte>();
+        var writer = new MessagePackWriter(buffer);
+        writer.WriteArrayHeader(20);
+        for (var field = 0; field < 20; field++)
+            writer.WriteRaw(reader.ReadRaw().ToArray());
+        writer.Flush();
+        legacy = MessagePackSerializer.Deserialize<StrategyTradePlanSnapshot>(buffer.WrittenMemory);
+        legacy.FuturesTrailingExtremePrice.Should().BeNull();
+        legacy.ContentHash.Should().Be(TradePlanContractIdentity.PlanHash(legacy));
+        var updated = position with { PositionSequence = 2, Legs = [position.Legs[0] with { CurrentPrice = 5015m }] };
+        var plan = algorithm.Calculate(updated, Parameters(), legacy, ValueDate, Now).Snapshot;
+        plan.FuturesTrailingExtremePrice.Should().Be(5015m);
+        plan.RequiresExit.Should().BeFalse();
+    }
+
+    static StrategyPositionSnapshot FuturePosition(decimal currentPrice, int direction)
+    {
+        var position = Position(TradeStrategyKind.FuturesOutright, 1);
+        return position with { Legs = [position.Legs[0] with { OpeningPrice = 5000m, CurrentPrice = currentPrice, SignedQuantity = direction * 3 }] };
     }
 
     static TradePlanParameters Parameters() => new()

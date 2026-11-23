@@ -9,7 +9,7 @@ public static class FuturesTradePlanValidation
         ArgumentNullException.ThrowIfNull(parameters);
         ArgumentNullException.ThrowIfNull(position);
         parameters.Validate();
-        if (!position.Id.IsValid || position.StrategyKind != TradeStrategyKind.FuturesOutright || position.Legs.Length != 1 || position.PositionSequence < 1 || position.RouteGeneration < 1 || valueDate == default || nowUtc.Kind != DateTimeKind.Utc || position.AsOfUtc.Kind != DateTimeKind.Utc || position.Legs.Any(static x => x.TradeLegId == Guid.Empty || x.SignedQuantity == 0 || string.IsNullOrWhiteSpace(x.ContractId) || x.CurrentPrice <= 0))
+        if (!position.Id.IsValid || position.StrategyKind != TradeStrategyKind.FuturesOutright || position.Legs.Length != 1 || position.PositionSequence < 1 || position.RouteGeneration < 1 || valueDate == default || nowUtc.Kind != DateTimeKind.Utc || position.AsOfUtc.Kind != DateTimeKind.Utc || position.Legs.Any(static x => x.TradeLegId == Guid.Empty || x.SignedQuantity == 0 || string.IsNullOrWhiteSpace(x.ContractId) || x.CurrentPrice <= 0 || x.OpeningPrice <= 0))
             throw new ArgumentException("A valid one-leg Futures position snapshot is required.",nameof(position));
     }
 }

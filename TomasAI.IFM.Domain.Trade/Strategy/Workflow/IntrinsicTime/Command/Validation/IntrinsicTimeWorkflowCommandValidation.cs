@@ -58,7 +58,7 @@ public static class IntrinsicTimeWorkflowCommandValidation
                 CompleteMarketConditionCommand value => value.Result,
                 CompleteTradeSelectionCommand value => value.Result,
                 CompleteOrderCompositionCommand value => value.Result,
-                CompleteRiskManagementCommand value when value.PortfolioDecision is null => value.Result,
+                CompleteRiskManagementCommand value when value.PortfolioDecision is null && value.EntryApproval is null && value.EntryCommit is null => value.Result,
                 _ => null
             };
             if (completionResult is not null)

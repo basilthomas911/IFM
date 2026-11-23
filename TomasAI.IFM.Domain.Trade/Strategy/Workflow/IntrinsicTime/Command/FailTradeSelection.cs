@@ -29,7 +29,7 @@ public static class FailTradeSelection
         public ServiceResult<GuidResult> Execute(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context, IntrinsicTimeStrategyWorkflowCommandState state)
         {
             ArgumentNullException.ThrowIfNull(state);
-            var preparation = new WorkflowSnapshotPreparation(state.WorkflowDefinition);
+            var preparation = new WorkflowSnapshotPreparation(state.DecisionView);
             var preparationResult = PrepareWorkflow(command, context, preparation);
             if (!preparationResult.Success)
                 return preparationResult;
@@ -60,7 +60,7 @@ public static class FailTradeSelection
             }
 
             var now = context.TimeProvider.GetUtcNow().UtcDateTime;
-            var timedOut = now >= current.ExpiresAtUtc || IsTimeout(command.Failure);
+            var timedOut = now >= Runtime.WorkflowCalculationRuntime.EffectiveDeadline(current) || IsTimeout(command.Failure);
             var updated = current with
             {
                 Status = timedOut ? WorkflowStrategyMachineStatus.TimedOut : WorkflowStrategyMachineStatus.Failed,

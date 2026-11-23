@@ -1,4 +1,6 @@
 using MessagePack;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
+using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
 using NATS.Client.Core;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -14,6 +16,14 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Queries;
 /// <summary>Complete state hydration and typed notify fixture; no live strategy or market feed starts.</summary>
 internal sealed class StrategyResponder {
  public string Mode{get;set;}="Normal";
+ static readonly IntrinsicTimeFundAssignment[] Assignments =
+ [
+     Assignment(TimeFrameType.Daily, 10, "Daily Futures Fund", "Future"),
+     Assignment(TimeFrameType.Weekly, 11, "Weekly Verticals Fund", "Vertical"),
+     Assignment(TimeFrameType.Monthly, 12, "Monthly Condors Fund", "IronCondor")
+ ];
+ static IntrinsicTimeFundAssignment Assignment(TimeFrameType frame, int id, string name, string family) =>
+     new(1, id, name, family, "ES", frame, new(StrategyCatalogKind.Deployment, Guid.NewGuid(), 1), 1, StrategyFixtures.At.AddDays(-1), null);
  IntrinsicTimeStrategyWorkflowView view=StrategyFixtures.View;
  public async Task<byte[]?> Handle(NatsConnection connection,string subject,byte[] bytes,CancellationToken token){
   var options=MessagePackBinarySerializer.Options;var verb=subject.Split('.')[2];byte[] Result<T>(T value)=>MessagePackSerializer.Serialize(new ServiceResult<T>{Success=true,ErrorMessage="",Value=value},options);
@@ -34,6 +44,25 @@ internal sealed class StrategyResponder {
    if (verb == "GetStrategyUpdatesGrid")
    {
        var q = MessagePackSerializer.Deserialize<GetIntrinsicTimeStrategyUpdatesGridQuery>(bytes, options);
+       if (q.QueueCatalog)
+           return Result(new IntrinsicTimeStrategyUpdatesGridPage([], 1, 0, 0)
+           {
+               Assignments = Mode == "AssignedQueues" ? Assignments : null,
+               Contracts = Mode == "AssignedQueues" ? ["ESH7"] : null
+           });
+       if (Mode == "AssignedQueues")
+       {
+           var assignment = Assignments.Single(item => item.Timeframe == q.TimePeriod);
+           if (q.AssignmentKey != assignment.QueueSuffix() || q.ContractId is not ("ESZ6" or "ESH7"))
+               throw new InvalidDataException("Incorrect assigned workflow scope");
+           var row = IntrinsicTimeStrategyUpdatesGridRow.FromView(view) with
+           {
+               Signal = StrategyFixtures.Signal with { ContractId = q.ContractId, TimePeriod = q.TimePeriod },
+               Outcome = "NoTrade",
+               SignalSequence = 5
+           };
+           return Result(new IntrinsicTimeStrategyUpdatesGridPage([row], q.PageNumber, 50, 0));
+       }
        if (q.Subject.ToString() != subject || q.Symbol != "ES" || q.PageSize != 50 || q.PageNumber <= 0
            || q.FromUtc.Kind != DateTimeKind.Utc || !DesktopFixtureMode.Clock(q.ToUtc, StrategyFixtures.At))
            throw new InvalidDataException("Incorrect Strategy Updates scope");

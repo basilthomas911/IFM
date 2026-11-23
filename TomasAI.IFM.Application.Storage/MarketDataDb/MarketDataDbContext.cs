@@ -291,7 +291,7 @@ public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbCo
     /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
     /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static FuturesItiSignalV2ReadModel MapToFuturesItiSignal<TDataRecord>(TDataRecord e)
-        where TDataRecord : IObjectDataRecord => new(contractId: e.GetString(0), valueDate: e.GetDateOnly(1), timePeriod: e.GetEnum<TimeFrameType>(2), sequenceId: e.GetLong(3), intrinsicTime: e.GetDateTime(4), intrinsicTimeGroupId: e.GetInt(5), intrinsicTimeLength: e.GetDouble(6), intrinsicPrice: e.GetDouble(7), intrinsicTimeTrend: e.GetEnum<IntrinsicTimeTrendType>(8), intrinsicTimeMode: e.GetEnum<IntrinsicTimeModeType>(9), trendPrice: e.GetDouble(10), trendExtreme: e.GetDouble(11), trendReversal: e.GetDouble(12), trendDelta: e.GetDouble(13), targetDelta: e.GetDouble(14), lambda: e.GetDouble(15), tradingDays: e.GetInt(16), threshold: e.GetDouble(17), upTrendTrigger: e.GetDouble(18), downTrendTrigger: e.GetDouble(19), tradeState: e.GetEnum<IntrinsicTimeTradeState>(20), bandLevel: e.GetDouble(21), reversalLevel: e.GetDouble(22));
+        where TDataRecord : IObjectDataRecord => new(contractId: e.GetString(0), valueDate: e.GetDateOnly(1), timePeriod: e.GetEnum<TimeFrameType>(2), sequenceId: e.GetLong(3), intrinsicTime: e.GetDateTime(4), intrinsicTimeGroupId: e.GetInt(5), intrinsicTimeLength: e.GetDouble(6), intrinsicPrice: e.GetDouble(7), intrinsicTimeTrend: e.GetEnum<IntrinsicTimeTrendType>(8), intrinsicTimeMode: e.GetEnum<IntrinsicTimeModeType>(9), trendPrice: e.GetDouble(10), trendExtreme: e.GetDouble(11), trendReversal: e.GetDouble(12), trendDelta: e.GetDouble(13), targetDelta: e.GetDouble(14), lambda: e.GetDouble(15), tradingDays: e.GetInt(16), threshold: e.GetDouble(17), upTrendTrigger: e.GetDouble(18), downTrendTrigger: e.GetDouble(19), tradeState: e.GetEnum<IntrinsicTimeTradeState>(20), bandLevel: e.GetDouble(21), reversalLevel: e.GetDouble(22), trendVelocity: e.IsNull(23) ? null : e.GetDouble(23));
     /// <summary>Maps selected market-data columns to the typed result.</summary>
     /// <param name="e">The e used by this operation.</param>
     /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
@@ -317,7 +317,7 @@ public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbCo
     /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
     /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static FuturesItiSignalV2ReadModel MapToFuturesItiTimeFrameState<TDataRecord>(TDataRecord e)
-        where TDataRecord : IObjectDataRecord => new(contractId: e.GetString(0), valueDate: e.GetDateOnly(1), timePeriod: e.GetEnum<TimeFrameType>(2), sequenceId: e.GetLong(3), intrinsicTime: e.GetDateTime(4), intrinsicTimeGroupId: e.GetInt(5), intrinsicTimeLength: e.GetDouble(6), intrinsicPrice: e.GetDouble(7), intrinsicTimeTrend: e.GetEnum<IntrinsicTimeTrendType>(8), intrinsicTimeMode: e.GetEnum<IntrinsicTimeModeType>(9), trendPrice: e.GetDouble(10), trendExtreme: e.GetDouble(11), trendReversal: e.GetDouble(12), trendDelta: e.GetDouble(13), targetDelta: e.GetDouble(14), lambda: e.GetDouble(15), tradingDays: e.GetInt(16), threshold: e.GetDouble(17), upTrendTrigger: e.GetDouble(18), downTrendTrigger: e.GetDouble(19), tradeState: e.GetEnum<IntrinsicTimeTradeState>(20), timeFrameStartValueDate: e.GetDateOnly(21), bandAnchorPrice: e.GetDouble(22), bandPercentage: e.GetDouble(23), bandSize: e.GetDouble(24), bandLevel: e.GetDouble(25), reversalLevel: e.GetDouble(26));
+        where TDataRecord : IObjectDataRecord => new(contractId: e.GetString(0), valueDate: e.GetDateOnly(1), timePeriod: e.GetEnum<TimeFrameType>(2), sequenceId: e.GetLong(3), intrinsicTime: e.GetDateTime(4), intrinsicTimeGroupId: e.GetInt(5), intrinsicTimeLength: e.GetDouble(6), intrinsicPrice: e.GetDouble(7), intrinsicTimeTrend: e.GetEnum<IntrinsicTimeTrendType>(8), intrinsicTimeMode: e.GetEnum<IntrinsicTimeModeType>(9), trendPrice: e.GetDouble(10), trendExtreme: e.GetDouble(11), trendReversal: e.GetDouble(12), trendDelta: e.GetDouble(13), targetDelta: e.GetDouble(14), lambda: e.GetDouble(15), tradingDays: e.GetInt(16), threshold: e.GetDouble(17), upTrendTrigger: e.GetDouble(18), downTrendTrigger: e.GetDouble(19), tradeState: e.GetEnum<IntrinsicTimeTradeState>(20), timeFrameStartValueDate: e.GetDateOnly(21), bandAnchorPrice: e.GetDouble(22), bandPercentage: e.GetDouble(23), bandSize: e.GetDouble(24), bandLevel: e.GetDouble(25), reversalLevel: e.GetDouble(26), trendVelocity: e.IsNull(27) ? null : e.GetDouble(27));
 
 
     /// <summary>Maps selected market-data columns to the typed result.</summary>
@@ -2724,6 +2724,7 @@ public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbCo
             .SetParameters(preparedParameters45)
             .ExecuteCommandAsync(cancellationToken)
             .ConfigureAwait(false);
+        if (outcome.Dataset == MarketDataDownloadDataset.EconomicCalendar) ReadCacheInvalidation.CalendarChanged();
     }
 
     /// <summary>Get Market Data Download Log using the MarketDataDb persistence.</summary>
@@ -3015,6 +3016,7 @@ public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbCo
                 .ExecuteOnceAsync(async (transaction,token) => { await MarketDataDbContextExtensions.ImportEconomicCalendarsAsync(transaction,batch,token)
             .ConfigureAwait(false); return true; })
             .ConfigureAwait(false);
+            ReadCacheInvalidation.CalendarChanged();
             return;
     }
 
@@ -3035,6 +3037,7 @@ public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbCo
                     return true;
                 })
             .ConfigureAwait(false);
+            ReadCacheInvalidation.CalendarChanged();
             return;
     }
 
@@ -3162,6 +3165,12 @@ public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbCo
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
     /// <returns>The typed result of the market-data query or mutation.</returns>
     public Task<FuturesEmaSignalReadModel?> GetLatestFuturesEmaSignalAsync(MarketSeriesIdentity seriesIdentity, DateOnly valueDate, CancellationToken cancellationToken = default) => this.ReadLatestAsync(seriesIdentity, valueDate, EmaConfigurationId, MarketDataDbSql.GetLatestFuturesEmaSignal, nameof(MarketDataDbSql.GetLatestFuturesEmaSignal), MapToFuturesEmaSignal, cancellationToken);
+
+    public async Task<FuturesEmaSignalReadModel?> GetLatestFuturesEmaSignalForTimeFrameAsync(MarketSeriesIdentity seriesIdentity, DateOnly valueDate, TimeFrameType timeFrame, CancellationToken cancellationToken = default)
+        => await this.ReadMonthAsync(seriesIdentity, valueDate, valueDate.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Utc), EmaConfigurationId,
+            MarketDataDbSql.GetLatestFuturesEmaSignal, nameof(MarketDataDbSql.GetLatestFuturesEmaSignal), MapToFuturesEmaSignal, cancellationToken, timeFrame).ConfigureAwait(false)
+            ?? await this.ReadMonthAsync(seriesIdentity, valueDate.AddMonths(-1), valueDate.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Utc), EmaConfigurationId,
+                MarketDataDbSql.GetLatestFuturesEmaSignal, nameof(MarketDataDbSql.GetLatestFuturesEmaSignal), MapToFuturesEmaSignal, cancellationToken, timeFrame).ConfigureAwait(false);
     /// <inheritdoc/>
     /// <summary>Get Latest Futures Bollinger Band Signal using the MarketDataDb persistence.</summary>
     /// <param name="seriesIdentity">The series identity used by this operation.</param>
@@ -3857,8 +3866,9 @@ public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbCo
 
     /// <inheritdoc />
     public Task<IReadOnlyList<FuturesTradeSessionBarReadModel>> GetQualifiedIndicatorSeedBarsAsync(string contractId,
-        TimeFrameType frame, DateOnly valueDate, DateTimeOffset[] intervalEndsUtc, string sourceVersion, CancellationToken cancellationToken)
-        => this.ReadQualifiedIndicatorSeedsCoreAsync(contractId, frame, valueDate, intervalEndsUtc, sourceVersion, cancellationToken);
+        TimeFrameType frame, DateOnly valueDate, DateTimeOffset[] intervalEndsUtc, string sourceVersion, CancellationToken cancellationToken,
+        MarketSeriesIdentity? seriesIdentity = null)
+        => this.ReadQualifiedIndicatorSeedsCoreAsync(contractId, frame, valueDate, intervalEndsUtc, sourceVersion, cancellationToken, seriesIdentity);
     /// <inheritdoc />
     public Task StoreQualifiedIndicatorSeedBarsAsync(string sourceVersion, FuturesTradeSessionBarReadModel[] bars, CancellationToken cancellationToken)
         => this.StoreQualifiedIndicatorSeedsCoreAsync(sourceVersion, bars, cancellationToken);

@@ -374,5 +374,77 @@ pub fn future(
             Value::Nil
         }
     }));
+    // Only publish qualified native economics. The provider's deliverable-count
+    // contract_multiplier is not the USD/point multiplier used for ES/MES.
+    if let Some(multiplier) = native_future_multiplier(row) {
+        let instant = |ns: u64| {
+            i64::try_from(ns / 100)
+                .ok()
+                .and_then(|ticks| codec::utc_offset(ticks).ok())
+        };
+        if let (Some(expiry), Some(observed)) =
+            (row.expiration.and_then(instant), instant(row.event_ns))
+        {
+            let digest = format!("{:x}", Sha256::digest(row.json.as_bytes()));
+            let evidence = format!(
+                "databento-definition:{}:{}:{}:{digest}",
+                row.dataset, row.publisher, row.instrument
+            );
+            fields[7] = multiplier.as_str().ok_or("InvalidFutureMultiplier")?.into();
+            fields[11] = 1.into();
+            fields[12] = 1.into(); // Draft native evidence, never invented Reviewed approval.
+            fields[13] = row.dataset.clone().into();
+            fields[14] = row.publisher.into();
+            fields[15] = row.instrument.into();
+            fields[16] = row.symbol.clone().into();
+            fields[17] = observed.clone();
+            fields[18] = digest.into();
+            fields[19] = evidence.clone().into();
+            fields[20] = expiry.clone();
+            fields[21] = expiry.clone();
+            fields[24] = multiplier;
+            fields[26] = codec::price(row.tick.ok_or("MissingFutureTick")?);
+            fields[28] = "DatabentoFutureDefinition/v1".into();
+            fields[29] = evidence.into();
+            fields[30] = observed;
+            fields[31] = expiry;
+        }
+    }
     Ok(Value::Array(fields))
+}
+
+fn native_future_multiplier(row: &Definition) -> Option<Value> {
+    if row.kind != 1
+        || row.deleted
+        || !matches!(row.asset.as_str(), "ES" | "MES")
+        || row.currency != "USD"
+        || row.unit != "IPNT"
+        || row.dataset != "GLBX.MDP3"
+        || row.publisher == 0
+    {
+        return None;
+    }
+    let source: serde_json::Value = serde_json::from_str(&row.json).ok()?;
+    let fixed = |name: &str| {
+        let value = source.get(name)?;
+        let n = value
+            .as_str()
+            .map(str::to_owned)
+            .unwrap_or_else(|| value.to_string())
+            .parse::<i64>()
+            .ok()?;
+        (n > 0 && n != i64::MAX).then_some(i128::from(n))
+    };
+    let quantity = fixed("unit_of_measure_qty")?;
+    let display = fixed("display_factor")?;
+    let tick = i128::from(row.tick.filter(|v| *v > 0)?);
+    let amount = i128::from(row.tick_amount.filter(|v| *v > 0)?);
+    // All operands retain source 1e-9 scaling. Checked integer equality avoids
+    // floating-point rounding or guessing a product-specific monetary constant.
+    if amount.checked_mul(1_000_000_000_000_000_000)?
+        != display.checked_mul(tick)?.checked_mul(quantity)?
+    {
+        return None;
+    }
+    Some(codec::price(i64::try_from(quantity).ok()?))
 }

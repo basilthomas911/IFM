@@ -5,7 +5,6 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.Query.Actor;
-using TomasAI.IFM.Application.Serialization;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.Query.Model;
 /// <summary>Provides shared authorization and exact-read calculations for Trade Selection queries.</summary>
@@ -30,9 +29,9 @@ internal static class TradeSelectionQueryModel
         var completed = await (services.DbFactory.TradeDb.GetTradeSelectionInvocationAsync(workflowId, invocationId, cancellationToken)).ConfigureAwait(false) ?? throw new KeyNotFoundException("Exact selector invocation not found.");
         var result = TradeSelectionContracts.ReadResult(completed.Result);
         await (AuthorizeAsync(services, access, result.PortfolioId, result.FundId, cancellationToken)).ConfigureAwait(false);
-        var workflow = await (services.DbFactory.TradeDb.GetIntrinsicTimeStrategyWorkflowAsync(workflowId, cancellationToken)).ConfigureAwait(false);
-        var view = workflow is null ? null : MessagePackBinarySerializer.Shared.Deserialize<IntrinsicTimeStrategyWorkflowView>(workflow.StatePayload);
-        var accepted = string.Equals(view?.TradeSelection.Result?.PayloadSha256, completed.Result.PayloadSha256, StringComparison.Ordinal) && view.TradeSelection.SourceEventId == completed.Id;
+        var view = await services.DbFactory.TradeDb.GetIntrinsicTimeStrategyWorkflowViewAsync(workflowId, cancellationToken).ConfigureAwait(false);
+        var accepted = view is not null && string.Equals(view.TradeSelection.Result?.PayloadSha256, completed.Result.PayloadSha256, StringComparison.Ordinal)
+            && view.TradeSelection.SourceEventId == completed.Id;
         return new(completed, accepted, view is null, !accepted && view is { Status: not WorkflowStrategyMachineStatus.Started });
     }
 }

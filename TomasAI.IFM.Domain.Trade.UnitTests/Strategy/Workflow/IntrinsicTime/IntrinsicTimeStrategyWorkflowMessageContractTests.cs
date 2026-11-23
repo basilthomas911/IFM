@@ -67,6 +67,7 @@ public sealed class IntrinsicTimeStrategyWorkflowMessageContractTests
 
     static readonly string[] ExpectedEventNames =
     [
+        nameof(IntrinsicTimeStrategySignalQueuedEvent),
         nameof(IntrinsicTimeStrategyWorkflowCompletedEvent),
         nameof(IntrinsicTimeStrategyWorkflowContinuedEvent),
         nameof(IntrinsicTimeStrategyWorkflowStartedEvent),
@@ -133,6 +134,13 @@ public sealed class IntrinsicTimeStrategyWorkflowMessageContractTests
         foreach (var type in CommandTypes.Concat(EventTypes))
         {
             var keyedProperties = GetKeyedProperties(type);
+            if (type == typeof(IntrinsicTimeStrategySignalQueuedEvent))
+            {
+                // This append-only event uses MessagePack's property-initialization contract.
+                type.GetConstructor(Type.EmptyTypes).Should().NotBeNull();
+                keyedProperties.Should().OnlyContain(property => property.Property.CanWrite);
+                continue;
+            }
             var constructor = type.GetConstructors().Single(candidate =>
                 candidate.GetCustomAttribute<SerializationConstructorAttribute>() is not null);
 
@@ -267,6 +275,13 @@ public sealed class IntrinsicTimeStrategyWorkflowMessageContractTests
 
     static object CreatePopulatedContract(Type type)
     {
+        if (type == typeof(IntrinsicTimeStrategySignalQueuedEvent))
+        {
+            var queued = new IntrinsicTimeStrategySignalQueuedEvent();
+            foreach (var (property, _) in GetKeyedProperties(type))
+                property.SetValue(queued, CreateSampleValue(property.PropertyType, LowerFirst(property.Name), false));
+            return queued;
+        }
         var constructor = type.GetConstructors().Single(candidate =>
             candidate.GetCustomAttribute<SerializationConstructorAttribute>() is not null);
         var isCommand = typeof(ICommand).IsAssignableFrom(type);
@@ -278,6 +293,8 @@ public sealed class IntrinsicTimeStrategyWorkflowMessageContractTests
 
     static object CreateSampleValue(Type type, string parameterName, bool isCommand)
     {
+        if (type == typeof(ExecuteIntrinsicTimeStrategyWorkflowCommand))
+            return CreatePopulatedContract(type);
         if (type == typeof(Guid) || type == typeof(Guid?))
             return Guid.Parse("0198E212-3C00-7000-8000-000000000011");
         if (type == typeof(ActorSubject))
@@ -400,6 +417,13 @@ public sealed class IntrinsicTimeStrategyWorkflowMessageContractTests
                 RejectedFundCount = 1,
                 PortfolioId = 7
             };
+        if (type == typeof(TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition.PortfolioEntryApproval))
+            return new TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition.PortfolioEntryApproval
+            { ProducedAtUtc = observedAt, ValidUntilUtc = observedAt.AddSeconds(2), DecisionSessionId = Guid.NewGuid() }.Seal();
+        if (type == typeof(WorkflowEntryCommitState))
+            return new WorkflowEntryCommitState((TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition.PortfolioEntryApproval)
+                CreateSampleValue(typeof(TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition.PortfolioEntryApproval), parameterName, isCommand),
+                WorkflowEntryCommitPhase.OutcomeUnknown, observedAt, "ENTRY.COMMIT.OUTCOME_UNKNOWN");
         throw new InvalidOperationException(
             $"No ITSW-3 contract-test value is defined for {type.FullName} ({parameterName}).");
     }

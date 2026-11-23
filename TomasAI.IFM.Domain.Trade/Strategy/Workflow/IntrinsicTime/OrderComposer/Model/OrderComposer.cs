@@ -13,6 +13,12 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer
     public sealed class OrderComposer(IFuturesOptionComposerPricer pricer) : IOrderComposer
 {
     public OrderCompositionResult Calculate(ExecuteOrderCompositionPipelineCommand request, CancellationToken token = default)
+        => CalculateCore(request, null, token);
+
+    public OrderCompositionResult CalculatePrepared(ExecuteOrderCompositionPipelineCommand request, PreparedCompositionConfiguration configuration,
+        CancellationToken token = default) => CalculateCore(request, configuration, token);
+
+    OrderCompositionResult CalculateCore(ExecuteOrderCompositionPipelineCommand request, PreparedCompositionConfiguration? configuration, CancellationToken token)
     {
         ArgumentNullException.ThrowIfNull(request);
         token.ThrowIfCancellationRequested();
@@ -55,7 +61,8 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer
         resolved = StrategyOptionChainCompositionPolicy.Apply(request, rule, resolved);
         var p = resolved.Values;
         ValidateSnapshot(snapshot, request, p);
-        CompositionBindingResolver.ValidateResolved(request, p, rule);
+        if (configuration is null) CompositionBindingResolver.ValidateResolved(request, p, rule);
+        else configuration.ValidateResolved(request, p);
         var session = selected.DecisionContext.AssessmentResultEnvelope.ReadAssessmentResult().Assessment.SessionState;
         Require(session != Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Model.MarketSessionStatus.Unknown, "OC.MARKET.REFERENCE_UNAVAILABLE");
         bool closed = session == Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Model.MarketSessionStatus.Closed;
@@ -251,8 +258,8 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer
         {
             RiskBound = "Unbounded",
             Notional = Math.Abs(limit) * multiplier,
-            PlannedLoss = p.FuturesPlannedDistance * multiplier + cost,
-            StressLoss = p.FuturesStressDistance * multiplier + cost
+            PlannedLoss = (c.WorkflowView.DailyFuturesEntry?.Threshold ?? p.FuturesPlannedDistance) * multiplier + cost,
+            StressLoss = Math.Max(c.WorkflowView.DailyFuturesEntry?.Threshold ?? 0, p.FuturesStressDistance) * multiplier + cost
         };
         if (option && (risk.MaximumLoss <= 0 || risk.MaximumProfit <= 0 || risk.PayoffRewardToRisk < p.MinimumRewardToRisk))
             return Reject("PAYOFF");

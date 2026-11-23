@@ -16,6 +16,26 @@ fn read(name: &str) -> Vec<u8> {
     .unwrap()
 }
 
+#[test]
+fn five_minute_direction_has_explicit_labels_and_colors_without_eod_fallback() {
+    use ifm_ui_egui::models::{trade_contracts::MarketOutlookReadModel, wire_types::FromBackend};
+    let wire = codec::decode(&read("outlook-1-True.msgpack")).unwrap();
+    let mut source = MarketOutlookReadModel::from_backend(&wire).unwrap();
+    for (state, label, foreground, background) in [
+        (Some("StronglyBullish"), "StronglyBullish", "DarkText", "Positive"),
+        (Some("RangeBound"), "RangeBound", "DarkText", "Caution"),
+        (Some("StronglyBearish"), "StronglyBearish", "DarkText", "Negative"),
+        (None, "Unavailable", "LightText", "DarkSurface"),
+    ] {
+        source.five_minute_ema_state = state.map(str::to_owned);
+        let actual = project(&source, true, chrono::Utc::now()).unwrap();
+        let direction = &actual.cells["marketDirection"];
+        assert_eq!(direction.value, label);
+        assert_eq!(direction.foreground, foreground);
+        assert_eq!(direction.background, background);
+    }
+}
+
 
 /// Verifies that native outlook matches unchanged hybrid cells colors warming and stale status.
 #[test]

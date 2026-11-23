@@ -29,7 +29,7 @@ public sealed record GetIntrinsicTimeStrategyUpdatesGridQuery
     /// <param name="pageNumber">The PageNumber field.</param>
     /// <param name="pageSize">The PageSize field.</param>
     [SerializationConstructor]
-    public GetIntrinsicTimeStrategyUpdatesGridQuery(ActorSubject subject, IActorEntityId entityId, string symbol, TimeFrameType timePeriod, DateTime fromUtc, DateTime toUtc, int pageNumber, int pageSize)
+    public GetIntrinsicTimeStrategyUpdatesGridQuery(ActorSubject subject, IActorEntityId entityId, string symbol, TimeFrameType timePeriod, DateTime fromUtc, DateTime toUtc, int pageNumber, int pageSize, string? contractId = null, string? assignmentKey = null, bool queueCatalog = false, DateTime? beforeSignalAtUtc = null, long beforeSignalSequence = 0, Guid beforeWorkflowId = default)
     {
         Subject = subject;
         EntityId = entityId;
@@ -39,6 +39,12 @@ public sealed record GetIntrinsicTimeStrategyUpdatesGridQuery
         ToUtc = toUtc;
         PageNumber = pageNumber;
         PageSize = pageSize;
+        ContractId = contractId;
+        AssignmentKey = assignmentKey;
+        QueueCatalog = queueCatalog;
+        BeforeSignalAtUtc = beforeSignalAtUtc;
+        BeforeSignalSequence = beforeSignalSequence;
+        BeforeWorkflowId = beforeWorkflowId;
     }
     [IgnoreMember] public const string Actor = GetIntrinsicTimeStrategyWorkflowByIdQuery.Actor;
     [IgnoreMember] public const string Verb = "GetStrategyUpdatesGrid";
@@ -53,4 +59,10 @@ public sealed record GetIntrinsicTimeStrategyUpdatesGridQuery
     [Key(5)] public DateTime ToUtc { get; init; }
     [Key(6)] public int PageNumber { get; init; } = 1;
     [Key(7)] public int PageSize { get; init; } = 50;
+    [Key(8)] public string? ContractId { get; init; }
+    [Key(9)] public string? AssignmentKey { get; init; }
+    [Key(10)] public bool QueueCatalog { get; init; }
+    [Key(11)] public DateTime? BeforeSignalAtUtc { get; init; }
+    [Key(12)] public long BeforeSignalSequence { get; init; }
+    [Key(13)] public Guid BeforeWorkflowId { get; init; }
 }

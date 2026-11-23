@@ -12,7 +12,9 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Command.Model
 public sealed class FuturesItiSignalCompute
 {
     internal const double DefaultBandPercentage = 0.20;
-    const double DailyUpTrendThreshold = 5.0;
+    const double DailyUpTrendThreshold = 10.0;
+    const double DailyDownTrendThreshold = 10.0;
+    const double NonDailyUpTrendBaseline = 5.0;
     const double FuturesPriceTick = 0.25;
 
     readonly GenerateFuturesItiSignalCommand _command;
@@ -47,6 +49,11 @@ public sealed class FuturesItiSignalCompute
 
     internal bool TryCompute(out FuturesItiSignalV2ReadModel signal)
     {
+        if (_command.TimePeriod == TimeFrameType.Daily && _command.RequireDailyAtr && _command.DailyAtr?.IsUsableAt(_command.ContractId, _command.Timestamp) != true
+            && (!IsCurrentFrame() || _current!.IntrinsicTimeTrend == IntrinsicTimeTrendType.UpTrend
+                && _command.FuturesPrice <= _current.DownTrendTrigger || IsCurrentFrame()
+                && _current!.IntrinsicTimeTrend == IntrinsicTimeTrendType.DownTrend && _command.FuturesPrice >= _current.UpTrendTrigger))
+        { signal = default!; return false; }
         if (!IsCurrentFrame())
         {
             signal = Enrich(CreateStartOfTimeFrameSignal());
@@ -70,6 +77,8 @@ public sealed class FuturesItiSignalCompute
                 signal = Enrich(CreateExtremeChangedSignal());
             else if (isOvershoot && price <= current.TrendReversal - bandSize)
                 signal = Enrich(CreateReversalChangedSignal());
+            else if (_command.TimePeriod == TimeFrameType.Daily && HasMovedOneBand(current, price, bandSize))
+                signal = Enrich(CreateTrendingSignal());
             else
             {
                 signal = default!;
@@ -84,10 +93,13 @@ public sealed class FuturesItiSignalCompute
                 signal = Enrich(CreateExtremeChangedSignal());
             else if (price >= current.TrendReversal + bandSize)
                 signal = Enrich(CreateReversalChangedSignal());
-            else if (HasMovedOneBand(current, price, bandSize))
-                signal = Enrich(price < current.TrendExtreme
-                    ? CreateExtremeChangedSignal()
-                    : CreateTrendingSignal());
+            else if (price < current.TrendExtreme && HasMovedOneBand(current, price, bandSize))
+                signal = Enrich(CreateExtremeChangedSignal());
+            // Plain Trending publication is disabled. Keep the structural new-low case above.
+            // else if (HasMovedOneBand(current, price, bandSize))
+            //     signal = Enrich(CreateTrendingSignal());
+            else if (_command.TimePeriod == TimeFrameType.Daily && HasMovedOneBand(current, price, bandSize))
+                signal = Enrich(CreateTrendingSignal());
             else
             {
                 signal = default!;
@@ -170,6 +182,7 @@ public sealed class FuturesItiSignalCompute
             trendReversal: _command.FuturesPrice,
             tradeState: _current.TradeState);
 
+    // Daily publishes band-qualified Trending; longer timeframes retain their structural-only cadence.
     FuturesItiSignalV2ReadModel CreateTrendingSignal()
         => CreateBaseSignal(
             groupId: _current!.IntrinsicTimeGroupId,
@@ -181,6 +194,7 @@ public sealed class FuturesItiSignalCompute
             tradeState: _current.TradeState == IntrinsicTimeTradeState.Closed
                 ? IntrinsicTimeTradeState.Ready
                 : _current.TradeState);
+
 
     FuturesItiSignalV2ReadModel CreateBaseSignal(
         int groupId,
@@ -217,13 +231,18 @@ public sealed class FuturesItiSignalCompute
             timeFrameStartValueDate: _command.TimeFrameStartValueDate,
             bandAnchorPrice: _command.FuturesPrice,
             bandPercentage: DefaultBandPercentage,
-            bandSize: 0);
+            bandSize: 0,
+            trendVelocity: _current is { } previous
+                && previous.TimePeriod == _command.TimePeriod
+                && StringComparer.Ordinal.Equals(previous.ContractId, _command.ContractId)
+                    ? previous.ElapsedMillisecondsTo(_command.Timestamp)
+                    : null);
 
     FuturesItiSignalV2ReadModel Enrich(FuturesItiSignalV2ReadModel signal)
     {
         var lambda = CalculateLambda(_command.VixFuturesPrice);
         var threshold = signal.IntrinsicTimeMode == IntrinsicTimeModeType.TrendDirectionChanged
-            ? CalculateDirectionThreshold(signal, lambda)
+            ? signal.TimePeriod == TimeFrameType.Daily && _command.DailyAtr is { } atr && atr.IsUsableAt(_command.ContractId, _command.Timestamp) ? atr.Value : CalculateDirectionThreshold(signal, lambda)
             : _current!.Threshold;
         var upTrendTrigger = signal.UpTrendTrigger;
         var downTrendTrigger = signal.DownTrendTrigger;
@@ -249,6 +268,8 @@ public sealed class FuturesItiSignalCompute
             IntrinsicTimeMode = ClassifyMode(signal.IntrinsicTimeMode, bandLevel),
             Lambda = lambda,
             Threshold = threshold,
+            DailyAtr = signal.TimePeriod == TimeFrameType.Daily
+                ? signal.IntrinsicTimeMode == IntrinsicTimeModeType.TrendDirectionChanged ? _command.DailyAtr : _current?.DailyAtr : null,
             BandLevel = bandLevel,
             ReversalLevel = CalculateReversalLevel(signal),
             BandAnchorPrice = _command.FuturesPrice,
@@ -319,8 +340,8 @@ public sealed class FuturesItiSignalCompute
     }
 
     /// <summary>
-    /// Sets the threshold for a new trend. Uptrends scale the Daily baseline
-    /// using the timeframe and Daily formulas evaluated at the same market inputs.
+    /// Sets fixed 10-point Daily thresholds. Other timeframes retain their calibrated
+    /// uptrend baseline and direction-adjusted volatility formulas.
     /// </summary>
     /// <param name="signal">The signal containing the current trend, price, and trading days.</param>
     /// <param name="lambda">The volatility adjustment used in the base threshold.</param>
@@ -329,14 +350,19 @@ public sealed class FuturesItiSignalCompute
         FuturesItiSignalV2ReadModel signal,
         double lambda)
     {
-        if (signal.IntrinsicTimeTrend == IntrinsicTimeTrendType.UpTrend && signal.TimePeriod == TimeFrameType.Daily)
-            return DailyUpTrendThreshold;
+        if (signal.TimePeriod == TimeFrameType.Daily)
+        {
+            // Previous Daily downtrend formula: CalculateBaseThreshold(signal.IntrinsicPrice * lambda, signal.TradingDays) * 1.15.
+            return signal.IntrinsicTimeTrend == IntrinsicTimeTrendType.UpTrend
+                ? DailyUpTrendThreshold
+                : DailyDownTrendThreshold;
+        }
 
         var volatilityPoints = signal.IntrinsicPrice * lambda;
         var baseThreshold = CalculateBaseThreshold(volatilityPoints, signal.TradingDays);
         return signal.IntrinsicTimeTrend == IntrinsicTimeTrendType.DownTrend
             ? baseThreshold * 1.15
-            : DailyUpTrendThreshold * baseThreshold / CalculateBaseThreshold(volatilityPoints, DefaultTradingDays(TimeFrameType.Daily));
+            : NonDailyUpTrendBaseline * baseThreshold / CalculateBaseThreshold(volatilityPoints, DefaultTradingDays(TimeFrameType.Daily));
     }
 
     static double CalculateBaseThreshold(double volatilityPoints, int tradingDays)

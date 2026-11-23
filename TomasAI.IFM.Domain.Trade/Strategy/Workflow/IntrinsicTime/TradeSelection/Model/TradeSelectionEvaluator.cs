@@ -1,4 +1,5 @@
 using System.Globalization;
+using TomasAI.IFM.Domain.Trade.Shared;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using TomasAI.IFM.Application.Serialization;
@@ -27,12 +28,26 @@ public sealed class TradeSelectionEvaluator : ITradeSelectionCalculator
     {
         ArgumentNullException.ThrowIfNull(command);
         var(policy, assessmentResult, regimeResult) = ValidateRequest(command);
+        return EvaluateCore(command, policy, assessmentResult, regimeResult, null);
+    }
+
+    public static TradeSelectionResult EvaluatePrepared(ExecuteTradeSelectionPipelineCommand command, PreparedTradeSelectionConfiguration prepared) =>
+        EvaluateCore(command, prepared.Policy, command.AssessmentResultEnvelope.AssessmentResult!, command.RegimeResultEnvelope.RegimeResult!, prepared);
+
+    static TradeSelectionResult EvaluateCore(ExecuteTradeSelectionPipelineCommand command, TradeSelectionParameterSet policy,
+        Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment.MarketConditionAssessmentResult assessmentResult,
+        Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.Model.RegimeDiscoveryResult regimeResult,
+        PreparedTradeSelectionConfiguration? prepared)
+    {
         var binding = command.SelectionBinding;
         var authority = binding.PortfolioSnapshot;
         var fund = authority.Fund;
         var portfolioNeutral = binding.SchemaVersion == 2;
         var regime = regimeResult.Decision;
         var assessment = assessmentResult.Assessment;
+        var dailyFutures = Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment.DailyFuturesGatePolicy.Applies(command.WorkflowEntityId, assessment);
+        var dailyFuturesPolicy = dailyFutures ? assessment.EvidenceItems.First(e => e.Feature == "Policy"
+            && Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment.DailyFuturesGatePolicy.IsSupported(e.SourceId)).SourceId : string.Empty;
         Require(regime.IsComplete && regime.Confidence is >= 0 and <= 1 && assessment.AssessmentConfidence is >= 0 and <= 1 && assessment.ConditionType.HasValue, "TS.UPSTREAM.INVALID", "Complete regime and assessment confidence are required.");
         var condition = assessment.ConditionType.Value;
         var directions = portfolioNeutral ? ["Bullish", "Bearish", "Neutral"] : fund.PermittedDirections.Select(NormalizeDirection).ToArray();
@@ -64,10 +79,20 @@ public sealed class TradeSelectionEvaluator : ITradeSelectionCalculator
         Member(globals, "G05", "Regime.Direction", regime.Direction, policy.AllowedRegimeDirections, "TS.REGIME.DIRECTION");
         Add(globals, "G06", "Regime.Confidence", regime.Confidence >= policy.MinimumRegimeConfidence, regime.Confidence, policy.MinimumRegimeConfidence, "TS.REGIME.CONFIDENCE");
         Member(globals, "G07", "Regime.Quality", regime.Quality, policy.AllowedRegimeQualities, "TS.REGIME.QUALITY");
+        if (!Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.Model.EmaStackRegimePolicy.Applies(regimeResult))
+        {
         Member(globals, "G08", "Regime.TrendPhase", regime.TrendPhase, policy.AllowedTrendPhases, "TS.REGIME.PHASE");
         Member(globals, "G09", "Regime.TrendStrength", regime.TrendStrength, policy.AllowedTrendStrengths, "TS.REGIME.STRENGTH");
         Member(globals, "G10", "Regime.VolatilityLevel", regime.VolatilityLevel, policy.AllowedRegimeVolatilityLevels, "TS.REGIME.VOLATILITY_LEVEL");
         Member(globals, "G11", "Regime.VolatilityChange", regime.VolatilityChange, policy.AllowedRegimeVolatilityChanges, "TS.REGIME.VOLATILITY_CHANGE");
+        }
+        else
+        {
+            NotApplicable(globals, "G08", "Regime.TrendPhase", "EmaStack.v1");
+            NotApplicable(globals, "G09", "Regime.TrendStrength", "EmaStack.v1");
+            NotApplicable(globals, "G10", "Regime.VolatilityLevel", "EmaStack.v1");
+            NotApplicable(globals, "G11", "Regime.VolatilityChange", "EmaStack.v1");
+        }
         Member(globals, "G12", "Regime.StructureClassification", regime.StructureClassification, policy.AllowedStructureClassifications, "TS.REGIME.STRUCTURE");
         Add(globals, "G13", "Assessment.Confidence", assessment.AssessmentConfidence >= policy.MinimumAssessmentConfidence, assessment.AssessmentConfidence, policy.MinimumAssessmentConfidence, "TS.ASSESSMENT.CONFIDENCE");
         Member(globals, "G14", "Assessment.Condition", condition, policy.AllowedAssessmentConditions, "TS.ASSESSMENT.CONDITION");
@@ -75,7 +100,8 @@ public sealed class TradeSelectionEvaluator : ITradeSelectionCalculator
         Member(globals, "G16", "Assessment.Session", assessment.SessionState, policy.AllowedSessions, "TS.ASSESSMENT.SESSION");
         Member(globals, "G17", "Assessment.EventRisk", assessment.EventRiskState, policy.AllowedEventRisk, "TS.ASSESSMENT.EVENT");
         Member(globals, "G18", "Assessment.Stress", assessment.StressState, policy.AllowedStress, "TS.ASSESSMENT.STRESS");
-        Member(globals, "G19", "Assessment.Volatility", assessment.VolatilityBehavior, policy.AllowedVolatilityBehavior, "TS.ASSESSMENT.VOLATILITY");
+        if (dailyFutures) NotApplicable(globals, "G19", "Assessment.Volatility", dailyFuturesPolicy);
+        else Member(globals, "G19", "Assessment.Volatility", assessment.VolatilityBehavior, policy.AllowedVolatilityBehavior, "TS.ASSESSMENT.VOLATILITY");
         Member(globals, "G20", "Assessment.TriggerAlignment", assessment.TriggerAlignment, policy.AllowedTriggerAlignment, "TS.ASSESSMENT.TRIGGER");
         Member(globals, "G21", "Assessment.DataQuality", assessment.DataQuality, policy.AllowedAssessmentDataQuality, "TS.ASSESSMENT.DATA_QUALITY");
         VolatilityWorkflowGateResult? volatilityGate = null;
@@ -86,22 +112,33 @@ public sealed class TradeSelectionEvaluator : ITradeSelectionCalculator
         }
 
         var blocker = globals.FirstOrDefault(x => x.Status == SelectionRuleStatus.Rejected)?.ReasonCode;
-        var nodes = binding.CatalogDefinitions.ToDictionary(x => x.Key);
+        if (command.WorkflowView.DailyFuturesEntry is not null)
+        {
+            var entryReason = DailyFuturesEntryRules.Rejection(command.WorkflowView, regime.Direction, command.EvaluatedAtUtc);
+            Add(globals, "G23", "DailyFutures.ITIEntry", entryReason is null, command.WorkflowView.DailyFuturesEntry,
+                "Strong EMA; armed DC; subsequent Trending beyond 0.25 ATR in the EMA direction; RTH", entryReason ?? "");
+            blocker ??= entryReason;
+        }
+        var nodes = prepared?.Nodes ?? binding.CatalogDefinitions.ToDictionary(x => x.Key);
         List<SelectionCandidateDecision> decisions = [];
         var candidates = binding.Candidates.OrderBy(CandidateIdentity, StringComparer.Ordinal).ToArray();
         foreach (var candidate in candidates)
         {
             var variant = nodes[candidate.VariantKey];
             var structure = nodes[candidate.StructureKey];
-            TradeSelectionCatalogCapabilities.ValidateVariant(variant, structure);
-            SelectionConstructionPolicy.Read(Policy(binding, candidate.CompositionPolicyReference).PayloadJson).ValidateCandidate(structure, variant);
+            if (prepared is null)
+            {
+                TradeSelectionCatalogCapabilities.ValidateVariant(variant, structure);
+                SelectionConstructionPolicy.Read(Policy(binding, candidate.CompositionPolicyReference).PayloadJson).ValidateCandidate(structure, variant);
+            }
             var builder = structure.Capabilities.Single(x => string.Equals(x.Role, "builder", StringComparison.Ordinal));
             var rules = policy.VariantRules;
             var specialized = candidate.SpecializedParameterBindings.Where(x => string.Equals(x.Role, "TradeSelectionVariants", StringComparison.Ordinal)).ToArray();
             Require(specialized.Length <= 1, "TS.CONFIG.INVALID", "Multiple specialized selector policies.");
-            if (specialized.Length == 1)
+            if (prepared is null && specialized.Length == 1)
                 rules = TradeSelectionPolicy.ReadSpecialized(nodes[specialized[0].ParameterSet].SettingsJson, policy).Rules;
-            var rule = rules.SingleOrDefault(x => string.Equals(x.BuilderCapabilityCode, builder.Code, StringComparison.Ordinal) && x.BuilderCapabilityVersion == builder.Version && string.Equals(x.Side, variant.Side, StringComparison.Ordinal) && string.Equals(x.Bias, variant.Bias, StringComparison.Ordinal) && string.Equals(x.PremiumMode, variant.PremiumMode, StringComparison.Ordinal)) ?? throw new TradeSelectionValidationException("TS.CONFIG.CAPABILITY_UNSUPPORTED", "No exact variant rule.");
+            var rule = prepared is not null ? prepared.Rules[candidate.CandidateHash]
+                : rules.SingleOrDefault(x => string.Equals(x.BuilderCapabilityCode, builder.Code, StringComparison.Ordinal) && x.BuilderCapabilityVersion == builder.Version && string.Equals(x.Side, variant.Side, StringComparison.Ordinal) && string.Equals(x.Bias, variant.Bias, StringComparison.Ordinal) && string.Equals(x.PremiumMode, variant.PremiumMode, StringComparison.Ordinal)) ?? throw new TradeSelectionValidationException("TS.CONFIG.CAPABILITY_UNSUPPORTED", "No exact variant rule.");
             var comparison = new SelectionComparisonTuple
             {
                 Priority = candidate.AssignmentPriority,
@@ -143,11 +180,20 @@ public sealed class TradeSelectionEvaluator : ITradeSelectionCalculator
             };
             Add(evidence, "C03", "Candidate.Bias", string.Equals(bias, accepted, StringComparison.Ordinal) && directions.Contains(bias, StringComparer.Ordinal), bias, new { Accepted = accepted, Permitted = directions }, portfolioNeutral ? "TS.VARIANT.DIRECTION" : "TS.PERMISSION.DIRECTION");
             Member(evidence, "C04", "Variant.Direction", regime.Direction, rule.AllowedRegimeDirections, "TS.VARIANT.DIRECTION");
+            if (!Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.Model.EmaStackRegimePolicy.Applies(regimeResult))
+            {
             Member(evidence, "C05", "Variant.TrendPhase", regime.TrendPhase, rule.AllowedTrendPhases, "TS.VARIANT.PHASE");
             Member(evidence, "C06", "Variant.TrendStrength", regime.TrendStrength, rule.AllowedTrendStrengths, "TS.VARIANT.STRENGTH");
+            }
+            else
+            {
+                NotApplicable(evidence, "C05", "Variant.TrendPhase", "EmaStack.v1");
+                NotApplicable(evidence, "C06", "Variant.TrendStrength", "EmaStack.v1");
+            }
             Member(evidence, "C07", "Variant.Structure", regime.StructureClassification, rule.AllowedStructureClassifications, "TS.VARIANT.STRUCTURE");
             Member(evidence, "C08", "Variant.Condition", condition, rule.AllowedAssessmentConditions, "TS.VARIANT.CONDITION");
-            Member(evidence, "C09", "Variant.Volatility", assessment.VolatilityBehavior, rule.AllowedVolatilityBehavior, "TS.VARIANT.VOLATILITY");
+            if (dailyFutures) NotApplicable(evidence, "C09", "Variant.Volatility", dailyFuturesPolicy);
+            else Member(evidence, "C09", "Variant.Volatility", assessment.VolatilityBehavior, rule.AllowedVolatilityBehavior, "TS.VARIANT.VOLATILITY");
             var rejected = evidence.Where(x => x.Status == SelectionRuleStatus.Rejected).Select(x => x.ReasonCode).ToArray();
             decisions.Add(new() { CandidateHash = candidate.CandidateHash, Comparison = comparison, RuleEvidence = [..evidence], ReasonCodes = rejected, Status = rejected.Length == 0 ? SelectionCandidateStatus.EligibleNotSelected : SelectionCandidateStatus.Ineligible });
         }
@@ -219,7 +265,8 @@ public sealed class TradeSelectionEvaluator : ITradeSelectionCalculator
                 command.EvaluatedAtUtc.AddSeconds(policy.ResultLifetimeSeconds),
                 assessment.ValidUntilUtc.Value,
                 binding.ValidUntilUtc,
-                command.WorkflowView.ExpiresAtUtc
+                command.WorkflowView.ExpiresAtUtc,
+                intent is not null && command.WorkflowView.DailyFuturesEntry is { } dailyEntry ? DailyFuturesSession.FlattenUtc(dailyEntry.ValueDate) : DateTime.MaxValue
             }.Min(),
             CommonPolicyReference = binding.CommonPolicy,
             AcceptedVolatilityEvidence = volatilityGate?.AllowsNewEntry == true && binding.VolatilityInput?.AcceptedEvidence is { } acceptedVolatility ? acceptedVolatility with
@@ -240,6 +287,9 @@ public sealed class TradeSelectionEvaluator : ITradeSelectionCalculator
         "Down" or "Short" or "Bearish" => "Bearish",
         "Neutral" => "Neutral",
         _ => throw new TradeSelectionValidationException("TS.CONFIG.PERMISSION", "Unknown Fund direction permission.")};
+    static void NotApplicable(List<SelectionRuleEvidence> rows, string id, string path, string policy)
+        => Add(rows, id, path, true, new { Applicability = "NotRequired", Policy = policy }, "Not required by the accepted versioned policy", "");
+
     static void Member<T>(List<SelectionRuleEvidence> rows, string id, string path, T actual, T[] allowed, string reason)
         where T : struct, Enum
     {

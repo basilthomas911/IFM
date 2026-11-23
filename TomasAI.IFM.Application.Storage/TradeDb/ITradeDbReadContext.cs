@@ -135,6 +135,8 @@ public interface ITradeDbReadContext
     /// <param name="token">Cancels the database operation.</param>
     /// <returns>The selected row, or null when no matching published row exists.</returns>
     Task<StrategyPositionSnapshot?> GetStrategyPositionAsync(StrategyPositionId id, CancellationToken token = default);
+    /// <summary>Reads a bounded keyset page of all open position owners, independently of routes and feed intent.</summary>
+    Task<StrategyPositionSnapshot[]> GetOpenPositionsForEndOfDayAsync(StrategyPositionId? after = null, int pageSize = 64, CancellationToken token = default);
     /// <summary>Get Strategy Position History through the typed trade persistence boundary.</summary>
     /// <param name="positionId">The position id supplied by the caller.</param>
     /// <param name="fromUtc">The from utc supplied by the caller.</param>
@@ -203,6 +205,17 @@ public interface ITradeDbReadContext
     /// <param name="cancellationToken">Cancels the database operation.</param>
     /// <returns>The selected row, or null when no matching published row exists.</returns>
     Task<IntrinsicTimeStrategyWorkflowReadModel?> GetIntrinsicTimeStrategyWorkflowAsync(StrategyWorkflowId workflowId, CancellationToken cancellationToken);
+
+    /// <summary>Reads and verifies workflow detail for callers that consume the decoded view.</summary>
+    Task<IntrinsicTimeStrategyWorkflowView?> GetIntrinsicTimeStrategyWorkflowViewAsync(StrategyWorkflowId workflowId, CancellationToken cancellationToken);
+
+    /// <summary>Reads the display fields for one Strategy Updates grid row.</summary>
+    Task<ICollection<string>> ListStrategyUpdatesContractsAsync(CancellationToken cancellationToken);
+    Task<ICollection<(Guid WorkflowId, long Revision, DateTime OrderAtUtc, long Sequence, bool LegacyUnassigned)>> ReadStrategyUpdatesQueueAsync(
+        string contractId, string timeframe, string assignmentKey, DateTime fromUtc, DateTime toUtc,
+        DateTime beforeSignalAtUtc, long beforeSignalSequence, Guid beforeWorkflowId, int limit, CancellationToken cancellationToken);
+    Task<IntrinsicTimeStrategyUpdatesGridRow?> GetIntrinsicTimeStrategyUpdatesGridRowAsync(StrategyWorkflowId workflowId, CancellationToken cancellationToken);
+
     /// <summary>Get Active Intrinsic Time Strategy Workflow through the typed trade persistence boundary.</summary>
     /// <param name="workflowEntityId">The workflow entity id supplied by the caller.</param>
     /// <returns>The selected row, or null when no matching published row exists.</returns>

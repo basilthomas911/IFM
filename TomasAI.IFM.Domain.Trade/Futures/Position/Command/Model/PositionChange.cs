@@ -5,4 +5,5 @@ namespace TomasAI.IFM.Domain.Trade.Futures.Position.Command.Model;
 internal sealed record PositionChange(bool Accepted, StrategyPositionSnapshot? PositionSnapshot, string RejectionCode, string RejectionReason)
 {
     internal StrategyPositionSnapshot? CaughtUpEndOfDay { get; init; }
+    internal StrategyPositionSnapshot? RecoveredEndOfDay { get; init; }
 }

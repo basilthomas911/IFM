@@ -24,6 +24,8 @@ public sealed record OrderExecutionChangedEvent : IEvent<OrderExecutionId>, IReq
     [Key(9)] public EstablishedTradeDefinition[] CreatedTrades { get; init; } = [];
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public trade model contract.")]
     [Key(10)] public PositionCloseExecution[] ClosedPositions { get; init; } = [];
+    /// <summary>Audited replacement of synthetic emulator prices; never redispatch execution/accounting.</summary>
+    [Key(11)] public Guid VerifiedPriceCorrectionId { get; init; }
     [IgnoreMember] public bool RequiresDurableProjection => true;
     [IgnoreMember] public DurableProjectionRequirement RequiredProjection => new("OrderExecutionCommandActor","OrderExecutionEventProjector",EventProjectorStageType.ApplyProjection);
     [IgnoreMember] public string UserName => string.Empty;

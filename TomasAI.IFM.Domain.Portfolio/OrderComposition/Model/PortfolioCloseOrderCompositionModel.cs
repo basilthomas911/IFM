@@ -64,6 +64,12 @@ public static class PortfolioCloseOrderCompositionModel
         PortfolioExecutionOrderInstruction openingOrder, PortfolioPositionSnapshot position, int orderId)
     {
         var candidate = request.Body;
+        var openingComponent=openingOrder.Components.Single(c=>c.ReservedTradeId==position.Id.TradeId);
+        var tick=openingComponent.TickIncrement is >0 ? openingComponent.TickIncrement.Value
+            : throw new InvalidOperationException("Closing order requires the approved opening component tick increment.");
+        var debit=candidate.Component.SignedNetDebitLimit
+            ?? throw new InvalidOperationException("Closing order requires a captured signed net debit.");
+        var component=candidate.Component with {SignedNetDebitLimit=debit,MinimumSignedNetDebitLimit=debit,MaximumSignedNetDebitLimit=debit,TickIncrement=tick};
         return new PortfolioExecutionOrderInstruction
         {
             Id = new(request.PortfolioId, position.Id.FundId, orderId),
@@ -75,7 +81,8 @@ public static class PortfolioCloseOrderCompositionModel
             ValidUntilUtc = candidate.ValidUntilUtc,
             Origin = candidate.Origin,
             SetupTrade = candidate.SetupTrade ?? openingOrder.SetupTrade,
-            Components = [candidate.Component with { Legs = [.. candidate.Component.Legs] }],
+            Components = [component with { Legs = component.Legs.Select(leg => leg with {
+                CashMultiplier=openingComponent.Legs.Single(original=>original.TradeLegId==leg.TradeLegId).CashMultiplier }).ToArray() }],
             DefinitionHash = candidate.EvidenceHash,
             BrokerAccountAlias = openingOrder.BrokerAccountAlias,
             BrokerEnvironment = openingOrder.BrokerEnvironment,
@@ -86,7 +93,7 @@ public static class PortfolioCloseOrderCompositionModel
             AccountPromotionApprovalReference = openingOrder.AccountPromotionApprovalReference,
             RequiredCapital = openingOrder.RequiredCapital,
             MaximumLoss = openingOrder.MaximumLoss,
-            BrokerOrderType = openingOrder.BrokerOrderType,
+            BrokerOrderType = candidate.Component.Legs.All(l=>l.LimitPrice is null) ? PortfolioBrokerOrderType.Market : PortfolioBrokerOrderType.Limit,
             BrokerAlgorithm = openingOrder.BrokerAlgorithm,
             TimeInForce = openingOrder.TimeInForce,
             AlgorithmPace = openingOrder.AlgorithmPace

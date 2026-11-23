@@ -22,11 +22,16 @@ public static class StrategyExitOrderCompositionModel
             StrategyKind = started.StrategyKind,
             ReservedTradeId = position.Id.Trade.TradeId,
             PermitBalancedPartialAcceptance = false,
-            Legs = position.Legs.Select(leg => new TradeLegDefinition { TradeLegId = leg.TradeLegId, ContractId = leg.ContractId, ContractKey = leg.ContractKey, AssetFamily = leg.AssetFamily, SignedQuantity = checked(-leg.SignedQuantity), LimitPrice = started.ExitPlan.Action == TradePlanAction.ExitAtLimit ? leg.CurrentPrice : null, Expiry = leg.Expiry, Strike = leg.Strike, PutCall = leg.PutCall }).ToArray()
+            Legs = position.Legs.Select(leg => new TradeLegDefinition { TradeLegId = leg.TradeLegId, ContractId = leg.ContractId, ContractKey = leg.ContractKey, AssetFamily = leg.AssetFamily, SignedQuantity = checked(-leg.SignedQuantity), LimitPrice = started.ExitPlan.Action == TradePlanAction.ExitAtLimit ?
+                (leg.SignedQuantity<0 ? StrategyPositionLegOptionData.Observe(leg).AskPrice : StrategyPositionLegOptionData.Observe(leg).BidPrice) ?? leg.CurrentPrice : null,
+                CashMultiplier = StrategyPositionLegOptionData.ContractMultiplier(leg) ?? position.ContractCashMultiplier ?? leg.CashMultiplier ?? 1m, Expiry = leg.Expiry, Strike = leg.Strike, PutCall = leg.PutCall }).ToArray()
         };
         if (component.Legs.Any(leg => leg.SignedQuantity == 0 || string.IsNullOrWhiteSpace(leg.ContractId)))
             throw new InvalidOperationException("EXIT.COMPOSITION.INVALID_REMAINING_LEG");
-        var hash = TomasAI.IFM.Domain.Portfolio.Shared.Financial.FinancialCanonicalHash.Compute(new { Workflow = started.EntityId.Format(), Position = position.Id.Format(), started.StrategyKind, started.ExitPlan.Action, Legs = component.Legs.Select(leg => new { leg.TradeLegId, leg.ContractId, leg.SignedQuantity, leg.LimitPrice }).ToArray() });
+        var quantity=component.Legs.Select(l=>Math.Abs(l.SignedQuantity)).Min();
+        var debit=component.Legs.Sum(l=>l.SignedQuantity*(l.LimitPrice ?? position.Legs.Single(p=>p.TradeLegId==l.TradeLegId).CurrentPrice))/quantity;
+        component=component with {SignedNetDebitLimit=debit,MinimumSignedNetDebitLimit=debit,MaximumSignedNetDebitLimit=debit};
+        var hash = TomasAI.IFM.Domain.Portfolio.Shared.Financial.FinancialCanonicalHash.Compute(new { Workflow = started.EntityId.Format(), Position = position.Id.Format(), started.StrategyKind, started.ExitPlan.Action, component.SignedNetDebitLimit, Legs = component.Legs.Select(leg => new { leg.TradeLegId, leg.ContractId, leg.SignedQuantity, leg.LimitPrice }).ToArray() });
         return new ExitOrderComposition
         {
             WorkflowId = started.EntityId,

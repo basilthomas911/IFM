@@ -16,6 +16,8 @@ public sealed class RegimeDiscoveryExecutionOptions
 
     /// <summary>Gets or sets the fixed maximum duration persisted by Strategy Workflow.</summary>
     public TimeSpan MaximumExecutionDuration { get; set; } = DefaultMaximumExecutionDuration;
+    /// <summary>Explicit policy for newly admitted executions; null retains the historical composite classifier.</summary>
+    public string? CalculationPolicy { get; set; }
 
     /// <summary>Default age at which an ITI trigger ends in No Trade.</summary>
     public int TriggerMaximumAgeSeconds { get; set; } = 30;
@@ -30,6 +32,8 @@ public sealed class RegimeDiscoveryExecutionOptions
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3928", Justification = "The error identifies the invalid configuration property on this self-validating options instance.")]
     public void Validate()
     {
+        if (CalculationPolicy is not null && CalculationPolicy != Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.Model.EmaStackRegimePolicy.Version)
+            throw new InvalidOperationException("Unsupported Regime Discovery calculation policy.");
         if (TriggerMaximumAgeSeconds <= 0 || TriggerMaximumAgeSecondsByTimeFrame.Any(entry =>
             !Enum.IsDefined(entry.Key) || entry.Key == TimeFrameType.None || entry.Value <= 0))
             throw new InvalidOperationException("Regime Discovery trigger age limits must be positive and use valid timeframes.");

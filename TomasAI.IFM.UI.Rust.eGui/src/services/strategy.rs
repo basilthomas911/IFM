@@ -13,10 +13,47 @@ use rmpv::Value;
 use std::collections::BTreeMap;
 
 /// A compact workflow grid row and the metadata needed to select and order it.
+#[derive(Clone)]
 pub struct GridWorkflow {
     pub row: WorkflowRow,
     pub revision: u64,
     pub occurred: DateTime<Utc>,
+    pub signal_sequence: i64,
+    pub history_order_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Clone, Debug)]
+pub struct QueueAssignment {
+    pub key: String,
+    pub fund: String,
+    pub family: String,
+    pub root: String,
+    pub frame: String,
+}
+
+impl QueueAssignment {
+    pub fn accepts(&self, contract: &str) -> bool {
+        let Some(suffix) = contract.strip_prefix(&self.root) else { return false; };
+        (suffix.len() == 8 && suffix.bytes().all(|byte| byte.is_ascii_digit()))
+            || ((2..=5).contains(&suffix.len())
+                && b"FGHJKMNQUVXZ".contains(&suffix.as_bytes()[0])
+                && suffix.as_bytes()[1..].iter().all(u8::is_ascii_digit))
+    }
+}
+
+pub fn assignment_key(value: &Value) -> Result<String, String> {
+    let fields = value.as_array().filter(|fields| fields.len() >= 6)
+        .ok_or("Invalid Strategy Updates assignment")?;
+    Ok(format!("~{}~{}~{}",
+        fields[0].as_u64().ok_or("Invalid assignment portfolio")?,
+        fields[1].as_u64().ok_or("Invalid assignment fund")?,
+        grid_text(&fields[3])?))
+}
+
+pub struct QueueScope<'a> {
+    pub contract: &'a str,
+    pub assignment: &'a str,
+    pub before: Option<&'a GridWorkflow>,
 }
 
 pub const ROOT: &str = "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime";
@@ -135,11 +172,30 @@ pub async fn workflow_page(
     page: u32,
     deadline: tokio::time::Instant,
 ) -> Result<(Vec<GridWorkflow>, usize), String> {
+    let (rows, total, _) = workflow_page_inner(backend, registry, symbol, frame, from, to, page, deadline, None).await?;
+    Ok((rows, total))
+}
+
+pub async fn workflow_queue_page(
+    backend: &Backend, registry: &Registry, symbol: &str, frame: &str,
+    from: DateTime<Utc>, to: DateTime<Utc>, page: u32, deadline: tokio::time::Instant,
+    scope: QueueScope<'_>,
+) -> Result<(Vec<GridWorkflow>, bool), String> {
+    let (rows, _, has_more) = workflow_page_inner(backend, registry, symbol, frame, from, to, page, deadline, Some(scope)).await?;
+    Ok((rows, has_more))
+}
+
+async fn workflow_page_inner(
+    backend: &Backend, registry: &Registry, symbol: &str, frame: &str,
+    from: DateTime<Utc>, to: DateTime<Utc>, page: u32, deadline: tokio::time::Instant,
+    scope: Option<QueueScope<'_>>,
+) -> Result<(Vec<GridWorkflow>, usize, bool), String> {
     if page == 0 || page > 2000 {
         return Err("Invalid strategy history page".into());
     }
     let entity_key = format!(
-        "{symbol}.{frame}.{}.{}.{page}",
+        "{}.{frame}.{}.{}.{page}",
+        scope.as_ref().map_or(symbol, |value| value.contract),
         from.format("%Y%m%d%H%M%S"),
         to.format("%Y%m%d%H%M%S")
     );
@@ -153,7 +209,7 @@ pub async fn workflow_page(
         "GetStrategyUpdatesGrid",
         &entity_key,
     );
-    let body = registry.encode(
+    let mut body = registry.encode(
         &query,
         &BTreeMap::from([
             ("Subject".into(), subject.wire()),
@@ -177,11 +233,20 @@ pub async fn workflow_page(
             ("PageSize".into(), 50.into()),
         ]),
     )?;
-    let reply = backend
-        .request_until(&subject, &body, deadline, None)
-        .await?;
-    let page_fields = fields::<4>(service_result(&reply)?)?;
-    let [items, page_number, page_size, total] = page_fields;
+    if let Some(scope) = &scope {
+        let mut parts = body.as_array().cloned().ok_or("Invalid strategy request layout")?;
+        parts.extend([scope.contract.into(), scope.assignment.into(), false.into()]);
+        if let Some(before) = scope.before {
+            parts.extend([timestamp_wire(before.history_order_at.unwrap_or(before.occurred)), before.signal_sequence.into(), before.row.id.as_str().into()]);
+        }
+        body = Value::Array(parts);
+    }
+    let reply = backend.request_until(&subject, &body, deadline, None).await?;
+    let page_fields = service_result(&reply)?.as_array().ok_or("Invalid Strategy Updates page")?;
+    let [items, page_number, page_size, total, ..] = page_fields.as_slice() else {
+        return Err("Invalid Strategy Updates page layout".into());
+    };
+    let has_more = page_fields.get(6).and_then(Value::as_bool).unwrap_or(false);
     if page_number.as_u64() != Some(page.into()) || page_size.as_u64() != Some(50) {
         return Err("Strategy grid page metadata mismatch".into());
     }
@@ -196,7 +261,11 @@ pub async fn workflow_page(
     let mut seen = std::collections::BTreeSet::new();
     let mut rows = Vec::with_capacity(items.len());
     for item in items {
-        let [id, revision, occurred, status, outcome, signal, stages] = fields::<7>(item)?;
+        let item = item.as_array().ok_or("Invalid Strategy Updates row")?;
+        let [id, revision, occurred, status, outcome, signal, stages, ..] = item.as_slice() else {
+            return Err("Invalid Strategy Updates row layout".into());
+        };
+        let signal_sequence = item.get(7).and_then(Value::as_i64).unwrap_or_default();
         let [id] = fields::<1>(id)?;
         let id = uuid::Uuid::parse_str(grid_text(id)?)
             .map_err(|_| "Invalid strategy grid workflow ID")?;
@@ -209,6 +278,11 @@ pub async fn workflow_page(
             .ok_or("Invalid strategy grid workflow revision")?;
         let occurred = timestamp(occurred)?;
         let signal = FuturesItiSignalV2ReadModel::from_backend(signal)?;
+        if let Some(scope) = &scope
+            && signal.contract_id.as_deref() != Some(scope.contract)
+        {
+            return Err("Strategy Updates row has a different signal contract".into());
+        }
         let stages = fields::<5>(stages)?
             .iter()
             .map(|stage| {
@@ -244,7 +318,7 @@ pub async fn workflow_page(
                 })
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let row = workflow_grid_row(
+        let mut row = workflow_grid_row(
             &id.simple().to_string(),
             0,
             occurred,
@@ -254,13 +328,57 @@ pub async fn workflow_page(
             &signal,
             &stages,
         )?;
+        row.legacy_unassigned = item.get(8).and_then(Value::as_bool).unwrap_or(false);
+        let history_order_at = item.get(9).filter(|value| !value.is_nil()).map(timestamp).transpose()?;
         rows.push(GridWorkflow {
             row,
             revision,
             occurred,
+            signal_sequence,
+            history_order_at,
         });
     }
-    Ok((rows, total))
+    Ok((rows, total, has_more))
+}
+
+pub async fn queue_catalog(
+    backend: &Backend, registry: &Registry, symbol: &str, deadline: tokio::time::Instant,
+) -> Result<Option<(Vec<QueueAssignment>, Vec<String>)>, String> {
+    let subject = ActorSubject::query("IntrinsicTimeStrategyWorkflowQuery", "GetStrategyUpdatesGrid", &format!("{symbol}.queues"));
+    let query = kind("Queries", "GetIntrinsicTimeStrategyWorkflowHistoryPageQuery");
+    let body = registry.encode(&query, &BTreeMap::from([
+        ("Subject".into(), subject.wire()),
+        ("EntityId".into(), Value::Array(vec![0.into(), Value::Array(vec![format!("{symbol}.queues").into()])])),
+        ("Symbol".into(), symbol.into()),
+        ("TimePeriod".into(), registry.enum_value("TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType", "Daily")?.into()),
+        ("FromUtc".into(), timestamp_wire(Utc::now())),
+        ("ToUtc".into(), timestamp_wire(Utc::now())),
+        ("PageNumber".into(), 1.into()),
+        ("PageSize".into(), 50.into()),
+    ]))?;
+    let mut parts = body.as_array().cloned().ok_or("Invalid strategy request layout")?;
+    parts.extend([Value::Nil, Value::Nil, true.into()]);
+    let reply = backend.request_until(&subject, &Value::Array(parts), deadline, None).await?;
+    let page = service_result(&reply)?.as_array().ok_or("Invalid Strategy Updates catalog")?;
+    let Some(assignments) = page.get(4).and_then(Value::as_array) else { return Ok(None); };
+    let timeframe = "TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType";
+    let names = ["Daily", "Weekly", "Monthly"].map(|name| {
+        registry.enum_value(timeframe, name).map(|value| (value as i64, name))
+    });
+    let names = names.into_iter().collect::<Result<BTreeMap<_, _>, _>>()?;
+    let assignments = assignments.iter().map(|value| {
+        let key = assignment_key(value)?;
+        let fields = value.as_array().unwrap();
+        Ok::<_, String>(QueueAssignment {
+            key, fund: grid_text(&fields[2])?.into(),
+            family: grid_text(&fields[3])?.into(), root: grid_text(&fields[4])?.into(),
+            frame: names.get(&fields[5].as_i64().ok_or("Invalid assignment timeframe")?)
+                .ok_or("Unsupported assignment timeframe")?.to_string(),
+        })
+    }).collect::<Result<Vec<_>, _>>()?;
+    let contracts = page.get(5).and_then(Value::as_array).ok_or("Missing Strategy Updates contracts")?
+        .iter().map(|value| grid_text(value).map(str::to_owned)).collect::<Result<Vec<_>, _>>()?;
+    Ok(Some((assignments, contracts)))
 }
 
 fn fields<const N: usize>(value: &Value) -> Result<&[Value; N], String> {

@@ -28,4 +28,4 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
-<ItemGroup><Using Include="TomasAI.IFM.Shared.OptionPricing" /></ItemGroup></Project>
+<ItemGroup><Using Include="TomasAI.IFM.Shared.OptionPricing" /><Compile Include="../test-support/ExpiryFixingTestScenario.cs" Link="Support/ExpiryFixingTestScenario.cs" /></ItemGroup></Project>

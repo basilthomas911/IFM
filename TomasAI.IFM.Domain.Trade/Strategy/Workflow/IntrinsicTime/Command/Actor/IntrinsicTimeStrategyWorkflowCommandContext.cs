@@ -28,6 +28,7 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandContext : CommandActorCo
         ExecutionOptions = IsArgumentNull.Set(executionOptions);
         WorkflowStartsEnabled = IsArgumentNull.Set(workflowOptions).Enabled;
         OpeningExecutionsEnabled = workflowOptions.ExecuteDevelopmentOpenings;
+        WorkflowOptions = workflowOptions;
         Logger = IsArgumentNull.Set(logger);
         _dbEventSource = ResolveOnce<IEventSourceActorDbContext>();
         _durableReplayQueue = ResolveOnce<IDurableReplayQueue>();
@@ -49,6 +50,8 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandContext : CommandActorCo
     public bool WorkflowStartsEnabled { get; }
     /// <summary>Whether this Development host may freeze a new emulator opening route.</summary>
     public bool OpeningExecutionsEnabled { get; }
+    public IntrinsicTimeStrategyWorkflowOptions WorkflowOptions { get; }
+    public Runtime.WorkflowCalculationRuntime DecisionRuntime => Container.Resolve<Runtime.WorkflowCalculationRuntime>();
     /// <inheritdoc/>
     public ILogger<IntrinsicTimeStrategyWorkflowCommandActor> Logger { get; }
     /// <inheritdoc/>

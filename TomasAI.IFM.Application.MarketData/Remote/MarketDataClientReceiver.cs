@@ -17,7 +17,8 @@ namespace TomasAI.IFM.Application.MarketData.Remote;
 public sealed class MarketDataClientReceiver(MarketDataHostConnection connection, IMarketDataApi api,
     MarketDataReadMirror mirror, MarketDataRemoteAdmission admissions, ITickAggregationEventPublisher publisher,
     IMarketDataOperationsRecorder recorder, IActorSupervisor supervisor,
-    ILogger<MarketDataClientReceiver> logger, Recovery.OptionFeedProcessingHealth? processingHealth = null) : BackgroundService
+    ILogger<MarketDataClientReceiver> logger, Recovery.OptionFeedProcessingHealth? processingHealth = null,
+    MarketDataRolloverProjection? rolloverProjection = null) : BackgroundService
 {
     readonly DatasetWorkerAdmissionRegistry futures = admissions.Futures;
     readonly DatasetWorkerAdmissionRegistry options = admissions.Options;
@@ -116,6 +117,17 @@ public sealed class MarketDataClientReceiver(MarketDataHostConnection connection
                         {
                             processingHealth?.Report(observation.ValueDate, observation.GenerationId, "OptionCatchUp", error, stoppingToken);
                             logger.LogWarning(error, "Option catch-up failed; retained value remains available for retry; Generation={Generation}", observation.GenerationId);
+                        }
+                    }
+                    if (rolloverProjection is not null)
+                    {
+                        using var projectionDeadline = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+                        projectionDeadline.CancelAfter(TimeSpan.FromSeconds(5));
+                        try { await rolloverProjection.ApplyAsync(snapshot, projectionDeadline.Token).ConfigureAwait(false); }
+                        catch (Exception error) when (!stoppingToken.IsCancellationRequested)
+                        {
+                            // Catalog projection retries independently; a read-model write failure is not a provider outage.
+                            logger.LogWarning(error, "Active native futures rollover projection will retry.");
                         }
                     }
                 }

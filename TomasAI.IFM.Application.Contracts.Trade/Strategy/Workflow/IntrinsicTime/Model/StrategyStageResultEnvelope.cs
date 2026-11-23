@@ -20,8 +20,27 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 /// Opaque buffers and typed result collections are defensively copied across actor boundaries.
 /// </remarks>
 [MessagePackObject(AllowPrivate = true)]
-public sealed record StrategyStageResultEnvelope
+public sealed record StrategyStageResultEnvelope : IMessagePackSerializationCallbackReceiver
 {
+    [ThreadStatic] static bool _deferGridFingerprints;
+
+    /// <summary>Decodes a view for grid projection, deferring Selection and Assessment fingerprints until requested.</summary>
+    /// <remarks>The deferral scope covers synchronous MessagePack decoding only.</remarks>
+    public static IntrinsicTimeStrategyWorkflowView? DecodeForGrid(ReadOnlyMemory<byte> payload, CancellationToken cancellationToken)
+    {
+        var previous = _deferGridFingerprints;
+        _deferGridFingerprints = true;
+        try
+        {
+            return MessagePackSerializer.Deserialize<IntrinsicTimeStrategyWorkflowView>(
+                payload, MessagePackBinarySerializer.Options, cancellationToken);
+        }
+        finally
+        {
+            _deferGridFingerprints = previous;
+        }
+    }
+
     [IgnoreMember, JsonIgnore] RiskAssessmentResult? _riskResult;
     [IgnoreMember, JsonIgnore] (string Hash, int Size) _riskFingerprint;
     public const string TypedRiskContentType = "application/vnd.ifm.risk-assessment.v1";
@@ -72,9 +91,20 @@ public sealed record StrategyStageResultEnvelope
     byte[] _payload = [];
     [IgnoreMember, JsonIgnore] RegimeDiscoveryResult? _regimeResult;
     [IgnoreMember, JsonIgnore] (string Hash, int Size) _regimeFingerprint;
+    [IgnoreMember, JsonIgnore] bool _regimeFingerprintIsV2;
 
     /// <summary>Identifies the typed Regime Discovery content and its v1 field-fingerprint format.</summary>
     public const string TypedRegimeContentType = "application/vnd.ifm.regime-result.v1";
+    /// <summary>Identifies the assignment-aware Regime Discovery fingerprint.</summary>
+    public const string TypedRegimeContentTypeV2 = "application/vnd.ifm.regime-result.v2";
+
+    (string Hash, int Size) CurrentRegimeFingerprint()
+    {
+        if (_regimeResult is null) return default;
+        var v2 = ContentType == TypedRegimeContentTypeV2;
+        return _regimeFingerprint.Hash is not null && v2 == _regimeFingerprintIsV2
+            ? _regimeFingerprint : RegimeDiscoveryResultContent.Fingerprint(_regimeResult, v2 ? 2 : 1);
+    }
 
     /// <summary>Gets a typed Regime Discovery result; new Regime events leave the legacy byte payload empty.</summary>
     /// <remarks>Key 8 is appended so persisted envelopes with keys 0 through 7 remain readable.</remarks>
@@ -87,12 +117,17 @@ public sealed record StrategyStageResultEnvelope
         init
         {
             _regimeResult = RegimeDiscoveryResultContent.Clone(value);
-            _regimeFingerprint = _regimeResult is null ? default : RegimeDiscoveryResultContent.Fingerprint(_regimeResult);
+            _regimeFingerprintIsV2 = ContentType == TypedRegimeContentTypeV2;
+            _regimeFingerprint = _regimeResult is null ? default : RegimeDiscoveryResultContent.Fingerprint(_regimeResult, _regimeFingerprintIsV2 ? 2 : 1);
         }
     }
 
     [IgnoreMember, JsonIgnore] MarketConditionAssessmentResult? _assessmentResult;
     [IgnoreMember, JsonIgnore] (string Hash, int Size) _assessmentFingerprint;
+
+    (string Hash, int Size) CurrentAssessmentFingerprint() => _assessmentFingerprint.Hash is not null
+        ? _assessmentFingerprint : _assessmentResult?.ContentFingerprint() ?? default;
+
     public const string TypedAssessmentContentType = "application/vnd.ifm.market-assessment.v1";
 
     /// <summary>Typed Market Condition content. New completions leave the legacy byte payload empty.</summary>
@@ -105,7 +140,7 @@ public sealed record StrategyStageResultEnvelope
         init
         {
             _assessmentResult = value?.CopyContent();
-            _assessmentFingerprint = _assessmentResult?.ContentFingerprint() ?? default;
+            _assessmentFingerprint = _deferGridFingerprints ? default : _assessmentResult?.ContentFingerprint() ?? default;
         }
     }
 
@@ -160,7 +195,47 @@ public sealed record StrategyStageResultEnvelope
 
     [IgnoreMember, JsonIgnore] TradeSelectionResult? _selectionResult;
     [IgnoreMember, JsonIgnore] (string Hash, int Size) _selectionFingerprint;
+    [IgnoreMember, JsonIgnore] bool _selectionFingerprintIsBinary;
+
+    (string Hash, int Size) CurrentSelectionFingerprint()
+    {
+        if (_selectionResult is null) return default;
+        bool binary = ContentType == BinarySelectionContentType;
+        if (_selectionFingerprint.Hash is not null && binary == _selectionFingerprintIsBinary)
+            return _selectionFingerprint;
+        return binary ? BinarySelectionFingerprint(_selectionResult) : _selectionResult.ContentFingerprint();
+    }
+
+    void IMessagePackSerializationCallbackReceiver.OnBeforeSerialize() { }
+    // MessagePack can assign the Selection field before its content type. Choose the algorithm after both are available.
+    void IMessagePackSerializationCallbackReceiver.OnAfterDeserialize()
+    {
+        if (_regimeResult is not null)
+        {
+            _regimeFingerprint = CurrentRegimeFingerprint();
+            _regimeFingerprintIsV2 = ContentType == TypedRegimeContentTypeV2;
+        }
+        if (_selectionResult is null || _deferGridFingerprints) return;
+        _selectionFingerprint = CurrentSelectionFingerprint();
+        _selectionFingerprintIsBinary = ContentType == BinarySelectionContentType;
+    }
+    /// <summary>Historical JSON-based fingerprint for typed Trade Selection content.</summary>
     public const string TypedSelectionContentType = "application/vnd.ifm.trade-selection.v1";
+    /// <summary>SHA-256 of a version tag followed by uncompressed MessagePack Selection content.</summary>
+    public const string BinarySelectionContentType = "application/vnd.ifm.trade-selection.v2-msgpack-sha256";
+
+    static (string Hash, int Size) BinarySelectionFingerprint(TradeSelectionResult result)
+    {
+        using var buffer = new SelectionFingerprintBuffer();
+        MessagePackSerializer.Serialize(buffer, result, MessagePackBinarySerializer.ContentOptions);
+        var bytes = buffer.Written;
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        hash.AppendData("ifm.trade-selection.v2\0"u8);
+        hash.AppendData(bytes);
+        Span<byte> digest = stackalloc byte[SHA256.HashSizeInBytes];
+        hash.GetHashAndReset(digest);
+        return (Convert.ToHexString(digest), bytes.Length);
+    }
 
     /// <summary>Typed selector content at the appended wire key; legacy payload bytes remain empty.</summary>
     [Key(10)]
@@ -172,7 +247,7 @@ public sealed record StrategyStageResultEnvelope
         init
         {
             _selectionResult = value?.CopyContent();
-            _selectionFingerprint = _selectionResult?.ContentFingerprint() ?? default;
+            _selectionFingerprint = default;
         }
     }
 
@@ -187,14 +262,20 @@ public sealed record StrategyStageResultEnvelope
             ResultId = result.ResultId,
             ResultType = nameof(TradeSelectionResult),
             SchemaVersion = result.SchemaVersion,
-            ContentType = TypedSelectionContentType,
+            ContentType = BinarySelectionContentType,
             SelectionResult = result,
             MarketDataAsOfUtc = result.DecisionContext.AssessmentResultEnvelope.MarketDataAsOfUtc,
             ProducedAtUtc = result.ProducedAtUtc
         };
-        if (envelope.ContentSize > maximumPayloadBytes)
+        var fingerprint = envelope.CurrentSelectionFingerprint();
+        if (fingerprint.Size > maximumPayloadBytes)
             throw new ArgumentOutOfRangeException(nameof(result), "Selection content exceeds its configured limit.");
-        return envelope with { PayloadSha256 = envelope._selectionFingerprint.Hash };
+        return envelope with
+        {
+            PayloadSha256 = fingerprint.Hash,
+            _selectionFingerprint = fingerprint,
+            _selectionFingerprintIsBinary = true
+        };
     }
 
     /// <summary>Reads typed selection content or historical MessagePack bytes after integrity checks.</summary>
@@ -226,7 +307,7 @@ public sealed record StrategyStageResultEnvelope
         };
         if (envelope.ContentSize > DefaultMaximumPayloadBytes)
             throw new ArgumentOutOfRangeException(nameof(result), "Assessment content exceeds the configured stage limit.");
-        return envelope with { PayloadSha256 = envelope._assessmentFingerprint.Hash };
+        return envelope with { PayloadSha256 = envelope.CurrentAssessmentFingerprint().Hash };
     }
 
     /// <summary>Reads typed assessment content, decoding bytes only for legacy persisted envelopes.</summary>
@@ -241,7 +322,7 @@ public sealed record StrategyStageResultEnvelope
     }
 
     /// <summary>Gets the canonical typed-content size or legacy encoded payload size used by the stage budget.</summary>
-    [IgnoreMember, JsonIgnore, System.Text.Json.Serialization.JsonIgnore] public int ContentSize => (_riskResult is not null) switch { true => _riskFingerprint.Size, false => (_compositionResult is not null) switch { true => _compositionFingerprint.Size, false => (_selectionResult is not null) switch { true => _selectionFingerprint.Size, false => (_assessmentResult is not null) switch { true => _assessmentFingerprint.Size, false => (_regimeResult is null) switch { true => _payload.Length, false => _regimeFingerprint.Size } } } } };
+    [IgnoreMember, JsonIgnore, System.Text.Json.Serialization.JsonIgnore] public int ContentSize => (_riskResult is not null) switch { true => _riskFingerprint.Size, false => (_compositionResult is not null) switch { true => _compositionFingerprint.Size, false => (_selectionResult is not null) switch { true => CurrentSelectionFingerprint().Size, false => (_assessmentResult is not null) switch { true => CurrentAssessmentFingerprint().Size, false => (_regimeResult is null) switch { true => _payload.Length, false => CurrentRegimeFingerprint().Size } } } } };
     /// <summary>Gets whether a supported result representation is populated.</summary>
     [IgnoreMember, JsonIgnore, System.Text.Json.Serialization.JsonIgnore] public bool HasContent => _riskResult is not null || _compositionResult is not null || _selectionResult is not null || _assessmentResult is not null || _regimeResult is not null || _payload.Length != 0;
 
@@ -258,7 +339,7 @@ public sealed record StrategyStageResultEnvelope
             ResultId = result.ResultId,
             ResultType = nameof(RegimeDiscoveryResult),
             SchemaVersion = result.SchemaVersion,
-            ContentType = TypedRegimeContentType,
+            ContentType = TypedRegimeContentTypeV2,
             RegimeResult = result,
             MarketDataAsOfUtc = result.MarketDataAsOfUtc,
             ProducedAtUtc = result.ProducedAtUtc
@@ -412,11 +493,11 @@ public sealed record StrategyStageResultEnvelope
         }
         if (_selectionResult is not null)
         {
-            if (_regimeResult is not null || _assessmentResult is not null || _payload.Length != 0 || !string.Equals(ContentType,TypedSelectionContentType,StringComparison.Ordinal) ||
+            if (_regimeResult is not null || _assessmentResult is not null || _payload.Length != 0 || ContentType is not (TypedSelectionContentType or BinarySelectionContentType) ||
                 !string.Equals(ResultType,nameof(TradeSelectionResult),StringComparison.Ordinal) || ResultId != _selectionResult.ResultId || SchemaVersion != _selectionResult.SchemaVersion ||
                 ProducedAtUtc != _selectionResult.ProducedAtUtc || MarketDataAsOfUtc != _selectionResult.DecisionContext.AssessmentResultEnvelope.MarketDataAsOfUtc)
                 return false;
-            return string.Equals(PayloadSha256, _selectionFingerprint.Hash, StringComparison.OrdinalIgnoreCase);
+            return string.Equals(PayloadSha256, CurrentSelectionFingerprint().Hash, StringComparison.OrdinalIgnoreCase);
         }
         if (_assessmentResult is not null)
         {
@@ -424,17 +505,17 @@ public sealed record StrategyStageResultEnvelope
                 !string.Equals(ResultType,nameof(MarketConditionAssessmentResult),StringComparison.Ordinal) || ResultId != _assessmentResult.ResultId ||
                 SchemaVersion != _assessmentResult.SchemaVersion || ProducedAtUtc != _assessmentResult.EvaluatedAtUtc ||
                 MarketDataAsOfUtc != _assessmentResult.EvaluatedAtUtc) return false;
-            return string.Equals(PayloadSha256, _assessmentFingerprint.Hash, StringComparison.OrdinalIgnoreCase);
+            return string.Equals(PayloadSha256, CurrentAssessmentFingerprint().Hash, StringComparison.OrdinalIgnoreCase);
         }
         if (_regimeResult is not null)
         {
-            if (_payload.Length != 0 || !string.Equals(ContentType,TypedRegimeContentType,StringComparison.Ordinal) || !string.Equals(ResultType,nameof(RegimeDiscoveryResult),StringComparison.Ordinal) ||
+            if (_payload.Length != 0 || ContentType is not (TypedRegimeContentType or TypedRegimeContentTypeV2) || !string.Equals(ResultType,nameof(RegimeDiscoveryResult),StringComparison.Ordinal) ||
                 ResultId != _regimeResult.ResultId || SchemaVersion != _regimeResult.SchemaVersion ||
                 ProducedAtUtc != _regimeResult.ProducedAtUtc || MarketDataAsOfUtc != _regimeResult.MarketDataAsOfUtc)
                 return false;
-            return string.Equals(PayloadSha256, _regimeFingerprint.Hash, StringComparison.OrdinalIgnoreCase);
+            return string.Equals(PayloadSha256, CurrentRegimeFingerprint().Hash, StringComparison.OrdinalIgnoreCase);
         }
-        if (ContentType is TypedRegimeContentType or TypedAssessmentContentType or TypedSelectionContentType or TypedCompositionContentType or TypedRiskContentType) return false;
+        if (ContentType is TypedRegimeContentType or TypedRegimeContentTypeV2 or TypedAssessmentContentType or TypedSelectionContentType or BinarySelectionContentType or TypedCompositionContentType or TypedRiskContentType) return false;
 
         try
         {

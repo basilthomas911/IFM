@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RiskManagement;
 
@@ -30,6 +31,17 @@ public static partial class StrategyWorkflowStageReasons
         var market = string.IsNullOrWhiteSpace(identity.ContractId)
             ? "this market"
             : $"{identity.TimePeriod} {identity.ContractId}";
+        if (stage == StrategyWorkflowStage.RiskManagement && view.EntryCommit is { } entry)
+            return entry.Phase switch
+            {
+                WorkflowEntryCommitPhase.Approved => $"Risk approved {market}. The decision is saved; entry commitment is pending. No order may be submitted until commitment is confirmed.",
+                WorkflowEntryCommitPhase.OutcomeUnknown => $"Risk approved {market}, but the entry commitment outcome is unconfirmed. The original operation is being reconciled; the decision will not be rerun.",
+                WorkflowEntryCommitPhase.Committed => $"Entry commitment confirmed for {market}. The original order intent and capital effects are saved.",
+                _ => $"No entry was committed for {market}: {entry.Reason}."
+            };
+        if (stage == StrategyWorkflowStage.MarketCondition && state.ProcessingStatus == StrategyActorProcessingStatus.Completed
+            && state.Result?.AssessmentResult is { } assessment)
+            return AssessmentDescription(view,assessment,market);
         var name = Words(stage);
         var sentence = state.ProcessingStatus switch
         {
@@ -58,6 +70,65 @@ public static partial class StrategyWorkflowStageReasons
                 sentence = $"{name} returned a result that did not match the accepted request for {market}";
         }
         return ShortSentence(sentence);
+    }
+
+    static string AssessmentDescription(IntrinsicTimeStrategyWorkflowView view, MarketConditionAssessmentResult result, string market)
+    {
+        var assessment = result.Assessment;
+        if (assessment.Availability == AssessmentAvailability.Available && MarketConditionObservationPolicy.HasOptionVeto(view,assessment))
+        {
+            var curve = assessment.EvidenceItems.Single(e=>e.SourceId == "VX.TermStructure" && e.Feature == "FrontSecondRatio");
+            return $"Market Condition: No Trade for {market}. VX futures are in backwardation: {curve.Reason}; front/second ratio {curve.Value:0.######} is greater than 1. Trade Selection did not start. [{MarketConditionObservationPolicy.BackwardationReason}]";
+        }
+        if (assessment.Availability == AssessmentAvailability.Available
+            && view.MarketCondition.ContinuationDecision == StrategyWorkflowContinuationDecision.Stop
+            && !MarketConditionObservationPolicy.Applies(assessment))
+        {
+            var codes = view.MarketCondition.ContinuationReasonCodes;
+            var legacyReason = codes.Contains("MC.ASSESSMENT.INHERITED_NO_NEW_TRADE",StringComparer.Ordinal)
+                ? "the legacy continuation policy enforced an inherited NoNewTrade restriction"
+                : string.Join("; ",codes.Select(code=>Cause(code) ?? code));
+            return $"Market Condition produced an available assessment for {market}, but this recorded legacy workflow stopped because {legacyReason} [{string.Join(", ",codes)}]. Trade Selection did not start.";
+        }
+        if (assessment.Availability == AssessmentAvailability.Available)
+            return $"Market Condition assessment available for {market}. Condition: {assessment.ConditionType}; liquidity: {assessment.LiquidityCondition}; session: {assessment.SessionState}; economic events: {assessment.EventRiskState}; stress: {assessment.StressState}; data quality: {assessment.DataQuality}. Trade Selection decides strategy eligibility; these classifications do not themselves authorize an order.";
+        var reasons = assessment.LimitationReasons.Concat(view.MarketCondition.ContinuationReasonCodes)
+            .Where(code => code != "MC.ASSESSMENT.UNAVAILABLE").Distinct(StringComparer.Ordinal).ToArray();
+        var details = reasons.Length == 0 ? "required observations could not be qualified" : string.Join("; ",reasons.Select(code => AssessmentCause(code,result)));
+        return $"Market Condition assessment unavailable for {market}. Failed required-input checks: {details}. Trade Selection did not start; no strategy was evaluated.";
+    }
+
+    static string AssessmentCause(string code, MarketConditionAssessmentResult result)
+    {
+        const string prefix = "MC.DAILY_FUTURES.";
+        var detail = code.StartsWith(prefix,StringComparison.Ordinal) ? code[prefix.Length..] switch
+        {
+            "SIGNAL_IDENTITY_MISMATCH" => "the signal contract does not match the assessment's reference contract",
+            "SIGNAL_STALE" => "the triggering ITI event exceeds the 30-second freshness limit or has an invalid timestamp",
+            "REGIME_STALE" => "the accepted EMA regime is stale or has an invalid source timestamp",
+            "ATR_NOT_READY" => "completed five-minute ATR(14) is missing, cold, invalid or non-positive",
+            "ATR_STALE" => "completed five-minute ATR(14) is stale",
+            "ATR_INCONSISTENT" => "the recorded legacy gate requires ATR, baseline and ratio from the same observation",
+            "QUOTE_UNAVAILABLE" => "the ES bid/ask observation is missing, stale or invalid",
+            "QUOTE_INVALID" => "the ES bid/ask prices are non-positive, crossed or not aligned to the tick size",
+            "TRADE_UNAVAILABLE" => "the ES trade observation is missing, stale, invalid or non-positive",
+            "FEED_UNAVAILABLE" => "the feed-health observation is missing, stale or invalid",
+            "CALENDAR_UNAVAILABLE" => "economic-calendar data or verified coverage is missing, stale or invalid",
+            "SESSION_UNAVAILABLE" => "the exchange-session calendar observation is missing, stale or invalid",
+            "NOT_DC_EVENT" => "the recorded legacy gate rejected this non-Direction-Change event; current assessments do not apply ITI entry rules",
+            "OUTSIDE_ENTRY_WINDOW" => "the recorded legacy gate applied its 09:30–15:55 ET entry window",
+            "DIRECTION_MISMATCH" => "the recorded legacy gate rejected ITI-to-EMA direction alignment; current assessments do not apply that entry rule",
+            "RANGEBOUND" => "the recorded legacy gate rejected RangeBound; current assessments pass this classification to Trade Selection",
+            "LIQUIDITY_POOR" => "the quote failed the recorded gate's liquidity limits; current assessments report liquidity for Trade Selection",
+            "EVENT_BLACKOUT" => "the recorded legacy gate blocked a configured economic-event window; current assessments report that window for Trade Selection",
+            "UPSTREAM_BLOCKED" => "the recorded legacy gate enforced an inherited trade restriction; current assessments pass that context to Trade Selection",
+            _ => Cause(code) ?? code
+        } : Cause(code) ?? code;
+        var source = code.EndsWith("ATR_STALE",StringComparison.Ordinal) || code.EndsWith("ATR_NOT_READY",StringComparison.Ordinal) ? "Atr14"
+            : code.Contains("QUOTE",StringComparison.Ordinal) ? "ReferenceQuote" : code.Contains("TRADE_UNAVAILABLE",StringComparison.Ordinal) ? "LastTrade" : null;
+        var observation = source is null ? null : result.Assessment.EvidenceItems.FirstOrDefault(e => e.SourceId == source && e.Feature == "SourceObservation");
+        var observed = observation is null ? "" : FormattableString.Invariant($" (source {observation.ObservedAtUtc:O}, age {observation.AgeSeconds:0.###} seconds)");
+        return $"{detail}{observed} [{code}]";
     }
 
     static string Waiting(IntrinsicTimeStrategyWorkflowView view, StrategyWorkflowStage stage, string name)
@@ -103,6 +174,8 @@ public static partial class StrategyWorkflowStageReasons
 
     static string Completed(IntrinsicTimeStrategyWorkflowView view, StrategyWorkflowStage stage, string market) => stage switch
     {
+        StrategyWorkflowStage.RegimeDiscovery when view.RegimeDiscovery.Result?.RegimeResult is { } simple
+            && Pipeline.RegimeDiscovery.Model.EmaStackRegimePolicy.Applies(simple) => simple.SummaryText,
         StrategyWorkflowStage.RegimeDiscovery when view.RegimeDiscovery.Result?.RegimeResult is { } regime =>
             $"Regime Discovery found {Direction(regime.Decision.Direction)} and {Words(regime.Volatility.Level).ToLowerInvariant()} volatility in {market}",
         StrategyWorkflowStage.MarketCondition when view.MarketCondition.Result?.AssessmentResult?.Assessment.ConditionType is { } condition =>
@@ -169,7 +242,7 @@ public static partial class StrategyWorkflowStageReasons
 
     static string? VolatilityRestriction(IntrinsicTimeStrategyWorkflowView view, VolatilityRegimeResult volatility)
     {
-        if (volatility.Evidence.Any(item => item.EvidenceId == "VX_TERM_STRUCTURE" && item.IsAvailable
+        if (view.EntityId.Assignment?.Family != "Future" && volatility.Evidence.Any(item => item.EvidenceId == "VX_TERM_STRUCTURE" && item.IsAvailable
             && item.Value >= view.RegimeDiscoveryParameterSet.Volatility.SevereBackwardationRatio))
             return "VX futures backwardation exceeded the entry limit";
         if (volatility.Reasons.Any(reason => reason.Code == "RD.VOL.EXTREME"))
@@ -230,6 +303,9 @@ public static partial class StrategyWorkflowStageReasons
             "MC.ASSESSMENT.QUOTE.LOCKED" => "the futures bid and ask were equal",
             "MC.ASSESSMENT.FEED.UNAVAILABLE" => "the market data feed was unavailable",
             "MC.ASSESSMENT.TRIGGER.STALE" => "the triggering ITI signal was stale",
+            "MC.OPTIONS.VX_CURVE_UNAVAILABLE" => "fresh, valid prices for the ordered front and second VX contracts were unavailable",
+            "MC.OPTIONS.VX_CURVE_STALE" => "the front or second VX price exceeded its configured freshness limit",
+            "MC.ASSESSMENT.SIGNAL.IDENTITY_MISMATCH" => "the assessment reference contract did not match the triggering signal",
             "TS.NO_AUTHORIZED_CANDIDATE" => "the Fund had no authorized strategy",
             "TS.NO_COMPATIBLE_CANDIDATE" => "no configured strategy matched the market conditions",
             "TS.ASSESSMENT.SESSION" or "OC.MARKET.SESSION_CLOSED" => "the session did not allow new entries",
@@ -251,6 +327,15 @@ public static partial class StrategyWorkflowStageReasons
             "TS.REGIME.PHASE" or "TS.VARIANT.PHASE" => "the trend phase did not match the entry rules",
             "TS.REGIME.STRENGTH" or "TS.VARIANT.STRENGTH" => "trend strength did not meet the entry rules",
             "TS.REGIME.STRUCTURE" or "TS.VARIANT.STRUCTURE" => "market structure did not match the entry rules",
+            "TS.DAILY.EMA_RANGEBOUND" => "the five-minute EMA stack is RangeBound; Daily futures require StronglyBullish or StronglyBearish",
+            "TS.DAILY.OUTSIDE_ENTRY_WINDOW" => "the signal is outside the 9:30–15:55 ET entry window",
+            "TS.DAILY.NOT_ARMED" => "no valid ATR-backed Daily direction-change event has armed entry",
+            "TS.DAILY.DC_CONSUMED" => "this direction-change event has already selected a trade",
+            "TS.DAILY.ARMED_WAIT" => "the direction-change event armed entry; a subsequent continuation step is required",
+            "TS.DAILY.NOT_TRENDING" => "this historical workflow required a literal Trending entry check",
+            "TS.DAILY.NOT_CONTINUATION" => "this ITI event is not a Trending, new-extreme or overshoot-extension entry check",
+            "TS.DAILY.ARM_IDENTITY" => "the signal does not match the armed contract, session or event sequence",
+            "TS.DAILY.ENTRY_DISTANCE" => "price has not moved more than one-quarter of the frozen ATR threshold from the DC price in the EMA trade direction",
             "TS.CONFIG.INVALID" => "the strategy configuration was invalid",
             "OC.CANDIDATE.NO_CONTRACT" => "no contract combination met the construction rules",
             "OC.MARKET.STALE" => "the candidate quotes were stale",

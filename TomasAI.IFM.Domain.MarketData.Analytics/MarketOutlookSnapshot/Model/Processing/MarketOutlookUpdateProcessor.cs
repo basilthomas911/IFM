@@ -16,6 +16,11 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using CacheComponentType = TomasAI.IFM.Application.MarketData.MarketOutlook.MarketOutlookComponentType;
+using TomasAI.IFM.Application.MarketData.Contracts.Historical;
+using TomasAI.IFM.Application.MarketData.Databento.Historical;
+using TomasAI.IFM.Application.MarketData.Historical;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
+using TomasAI.IFM.Domain.MarketData.Analytics.RegimeDiscovery;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Model.Processing;
 
@@ -31,10 +36,12 @@ public sealed class MarketOutlookUpdateProcessor(
     IMarketOutlookSnapshotPublisher publisher,
     MarketOutlookProcessorMetrics metrics,
     ILogger<MarketOutlookUpdateProcessor> logger,
-    IMarketDataOperationsRecorder? operationsRecorder = null, TimeProvider? timeProvider = null)
+    IMarketDataOperationsRecorder? operationsRecorder = null, TimeProvider? timeProvider = null,
+    IMarketSessionCalendar? calendar = null)
     : BackgroundService, IMarketOutlookOperations
 {
     readonly TimeProvider businessClock = timeProvider ?? TimeProvider.System;
+    readonly IMarketSessionCalendar sessionCalendar = calendar ?? new CmeFuturesMarketSessionCalendar();
     int processing;
 
     public bool IsReady => metrics.GetSnapshot(reader).IsProcessorReady;
@@ -488,7 +495,13 @@ public sealed class MarketOutlookUpdateProcessor(
             update.EntityId,
             components,
             merge,
-            state => MarketOutlookComposer.Compose(state, trigger, now));
+            state =>
+            {
+                RegimeDiscoverySignalCacheAdapter.TryGetLatestEma(state.EntityId.ContractId, TimeFrameType.FiveMinutes, out var ema);
+                var minimum = RsiHistoricalSeedWindowModel.Create(TimeFrameType.FiveMinutes, 1,
+                    new DateTimeOffset(DateTime.SpecifyKind(now, DateTimeKind.Utc)).AddSeconds(-30), sessionCalendar)[0].StartUtc.UtcDateTime;
+                return MarketOutlookComposer.Compose(state, trigger, now, fiveMinuteEma: ema, minimumFiveMinuteSourceUtc: minimum);
+            });
 
     static List<MarketOutlookComponentWrite> ItiComponents(
         FuturesItiSignalV2ReadModel signal,

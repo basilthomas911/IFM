@@ -204,6 +204,14 @@ pub struct Snapshot {
     /// Selected/published Daily, Weekly, or Monthly observation horizon.
     #[serde(default)]
     pub time_frame: String,
+    #[serde(default)]
+    pub strategy_contracts: Vec<WorkflowChoice>,
+    #[serde(default)]
+    pub strategy_timeframes: Vec<WorkflowChoice>,
+    #[serde(default)]
+    pub strategy_fund: String,
+    #[serde(default)]
+    pub strategy_family: String,
 }
 
 /// Versioned localized UI text shared with the managed bridge.

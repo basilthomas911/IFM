@@ -180,6 +180,7 @@ public static partial class CoreServiceRegistration
         services.AddSingleton<IMarketDataApi>(p => new MarketDataApiClient(p.GetRequiredService<MarketDataHostConnection>(), p.GetRequiredService<MarketDataReadMirror>()));
         services.AddSingleton<ITickAggregationEventPublisher, TickAggregationEventPublisher>();
         services.AddSingleton<FourHourDatabentoSeedReplay>();
+        services.AddSingleton<MarketDataRolloverProjection>();
         services.AddSingleton<MarketDataClientReceiver>();
         services.AddSingleton<MarketDataRemoteAdmission>();
         services.AddSingleton<IRealtimeSourceAdmission>(p => p.GetRequiredService<MarketDataRemoteAdmission>());
@@ -189,7 +190,10 @@ public static partial class CoreServiceRegistration
             // not own a remote Host subscription.
             services.AddHostedService(p => p.GetRequiredService<MarketDataClientReceiver>());
             services.AddSingleton<TomasAI.IFM.Application.Api.Server.Core.Startup.Application.StoredSessionIndicatorSeedReader>();
+            services.AddSingleton<ICompletedDailyObservationRepair>(p => p.GetRequiredService<TomasAI.IFM.Application.Api.Server.Core.Startup.Application.StoredSessionIndicatorSeedReader>());
             services.AddSingleton<TomasAI.IFM.Application.Api.Server.Core.Startup.Application.StoredSessionIndicatorWarmup>();
+            services.AddSingleton<TomasAI.IFM.Application.Api.Server.Core.HostedServices.EmaRegimeWarmupService>();
+            services.AddHostedService(p => p.GetRequiredService<TomasAI.IFM.Application.Api.Server.Core.HostedServices.EmaRegimeWarmupService>());
             services.AddHostedService<TomasAI.IFM.Application.Api.Server.Core.HostedServices.SessionAnalyticsStartupService>();
             services.AddSingleton<TomasAI.IFM.Application.Api.Server.Core.Startup.Application.IndicatorHealthReader>();
             services.AddSingleton<TomasAI.IFM.Application.Api.Server.Core.Startup.Application.IIndicatorHealthReader>(p => p.GetRequiredService<TomasAI.IFM.Application.Api.Server.Core.Startup.Application.IndicatorHealthReader>());
@@ -203,6 +207,36 @@ public static partial class CoreServiceRegistration
         services.AddSingleton<OptionPipelineRecoveryCoordinator>();
         services.AddSingleton<TomasAI.IFM.Application.Api.Server.Core.HostedServices.ApiRecoveryRestartEscalation>();
         services.AddSingleton<TomasAI.IFM.Application.Api.Server.Core.HostedServices.TradeFeedRecoveryStartupService>();
+        services.AddSingleton(_ => config.GetSection("AppSettings:TradeEndOfDay").Get<TomasAI.IFM.Application.MarketData.Recovery.OpenPositionEndOfDayOptions>() ?? new());
+        services.AddSingleton<TomasAI.IFM.Application.MarketData.Recovery.IPositionEndOfDayRecoveryStore>(p => p.GetRequiredService<IDbContextFactory>().TradeDb);
+        services.AddSingleton<TomasAI.IFM.Application.MarketData.Recovery.IPositionEndOfDayRecoveryQueue>(p => p.GetRequiredService<TomasAI.IFM.Application.MarketData.Recovery.IPositionEndOfDayRecoveryStore>());
+        services.AddSingleton(_ => config.GetSection("AppSettings:ClosingQuoteAcquisition").Get<TomasAI.IFM.Application.MarketData.Recovery.ClosingQuoteAcquisitionOptions>() ?? new());
+        services.AddSingleton<TomasAI.IFM.Application.MarketData.Recovery.IPositionClosingQuoteSource>(p => new TomasAI.IFM.Application.MarketData.Recovery.DatabentoPositionClosingQuoteSource(
+            // Historical range preparation can exceed 30 seconds. The recovery
+            // job still owns its original two-minute deadline and saves each
+            // qualified leg before continuing, so restart/retry resumes progress.
+            new HttpClient { Timeout=TimeSpan.FromSeconds(90) }, p.GetRequiredService<TomasAI.IFM.Application.MarketData.Recovery.ClosingQuoteAcquisitionOptions>()));
+        services.AddSingleton(p => new TomasAI.IFM.Application.MarketData.Recovery.PositionEndOfDayRecovery(
+            p.GetRequiredService<TomasAI.IFM.Application.MarketData.Recovery.IPositionEndOfDayRecoveryStore>(), p.GetRequiredService<IDbContextFactory>().TradeDb,
+            p.GetRequiredService<TomasAI.IFM.Application.MarketData.Recovery.IPositionClosingQuoteSource>(),
+            p.GetRequiredService<TomasAI.IFM.Domain.Trade.Shared.ServiceApi.IStrategyPositionCommandApi>(), p.GetRequiredService<TimeProvider>(),
+            p.GetRequiredService<TomasAI.IFM.Application.MarketData.Recovery.OpenPositionEndOfDayOptions>()));
+        services.AddSingleton<TomasAI.IFM.Application.Api.Server.Core.HostedServices.PositionEndOfDayRecoveryWorker>();
+        services.AddHostedService(p => p.GetRequiredService<TomasAI.IFM.Application.Api.Server.Core.HostedServices.PositionEndOfDayRecoveryWorker>());
+        services.AddHealthChecks().AddCheck<TomasAI.IFM.Application.Api.Server.Core.HostedServices.PositionEndOfDayRecoveryWorker>("position_eod_recovery", tags: ["ready"]);
+        services.AddSingleton(p => new TomasAI.IFM.Application.MarketData.Recovery.OpenPositionEndOfDaySweep(
+            p.GetRequiredService<IDbContextFactory>().TradeDb,
+            p.GetRequiredService<TomasAI.IFM.Domain.Trade.Shared.ServiceApi.IStrategyPositionCommandApi>(),
+            p.GetRequiredService<IMarketSessionCalendar>(), p.GetRequiredService<TimeProvider>(),
+            p.GetRequiredService<TomasAI.IFM.Application.MarketData.Recovery.OpenPositionEndOfDayOptions>(),
+            p.GetRequiredService<TomasAI.IFM.Application.MarketData.Recovery.IPositionEndOfDayRecoveryQueue>()));
+        services.AddSingleton<TomasAI.IFM.Domain.Trade.Persistence.IronCondorAutomaticExitDispatcher>();
+        services.AddSingleton<TomasAI.IFM.Domain.Trade.Persistence.IronCondorCloseProgress>();
+        services.AddHostedService<TomasAI.IFM.Application.Api.Server.Core.HostedServices.IronCondorAutomaticExitWorker>();
+        services.AddSingleton<TomasAI.IFM.Application.Api.Server.Core.HostedServices.OpenPositionEndOfDayMonitor>();
+        services.AddHostedService(p => p.GetRequiredService<TomasAI.IFM.Application.Api.Server.Core.HostedServices.OpenPositionEndOfDayMonitor>());
+        services.AddHealthChecks().AddCheck<TomasAI.IFM.Application.Api.Server.Core.HostedServices.OpenPositionEndOfDayMonitor>(
+            "open_position_end_of_day", tags: ["ready"]);
         services.AddHostedService(p => p.GetRequiredService<TomasAI.IFM.Application.Api.Server.Core.HostedServices.TradeFeedRecoveryStartupService>());
         services.AddHostedService<OptionRecoveryLiveVerificationService>();
         services.AddHostedService<TomasAI.IFM.Application.Api.Server.Core.HostedServices.OptionPipelineRecoveryHostedService>();

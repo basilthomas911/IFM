@@ -165,6 +165,102 @@ public sealed class PostgresTradeFlowTests(PostgresTradePlanFixture fixture)
         Assert.Equal(tick.EffectiveAtUtc, current.LastMarketObservationUtc);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Stored_closing_quotes_repair_stale_seal_preserving_live_marks_and_reject_tampering(bool nextSession)
+    {
+        await fixture.Transactions.ExecuteOnceAsync((db,ct)=>db.ExecuteAsync(TradeSchemaDb.CreateStatement + "CREATE SCHEMA IF NOT EXISTS market_data;" + TomasAI.IFM.Application.Storage.MarketDataDb.Schema.MarketDataSchemaSql.PositionEodQuoteEvidenceCreate,[],ct));
+        var context=new TradeDbContext(new DbConnectionSettings().Add(TradeDbContext.TradeDbConnection,fixture.Connection,"System.Data.Postgres"),Mock.Of<IDbContextFactory>(),Mock.Of<ISequenceIdGenerator>(),NullLogger<DbProvider>.Instance);
+        var source=Mock.Of<TomasAI.IFM.Application.Storage.IEventSourceActorDbContext>(v=>v.ProviderName=="System.Data.Postgres" && v.ConnectionString==fixture.Connection);
+        var date=new DateOnly(2026,11,17); var boundary=FuturesTradingValueDate.GetSessionEndUtc(date).UtcDateTime;
+        var id=StrategyPositionId.Create(new(Random.Shared.Next(60000000,70000000),1,1,1),TradeStrategyKind.IronCondor);
+        var original=new StrategyPositionSnapshot { Id=id,StrategyKind=TradeStrategyKind.IronCondor,IsOpen=true,Phase=StrategyPositionPhase.EndOfDay,
+            ValueDate=date,PositionSequence=10,HistoryPositionSequence=1,HistoryAsOfUtc=boundary.AddHours(-5),AsOfUtc=boundary,
+            CloseBoundaryUtc=boundary,LatestSealedValueDate=date,LastMarketObservationUtc=boundary.AddHours(-3),
+            ContractCashMultiplier=50,OpeningCommission=0,OpeningValueDate=date.AddDays(-1),UnrealizedPnl=2,DailyOpeningPnl=1,
+            Legs=[new() { TradeLegId=Guid.NewGuid(),ContractId="CLOSE-FIXTURE",SignedQuantity=1,OpeningPrice=10,CurrentPrice=12,CashMultiplier=50,LastPriceAtUtc=boundary.AddHours(-3) }] };
+        var current=nextSession ? original with { ValueDate=date.AddDays(1),Phase=StrategyPositionPhase.MarkToMarket,PositionSequence=11,HistoryPositionSequence=11,HistoryAsOfUtc=boundary.AddHours(4),AsOfUtc=boundary.AddHours(4),DailyOpeningPnl=2 } : original;
+        var quote=new StoredPositionClosingQuote { ContractId="CLOSE-FIXTURE",ValueDate=date,InstrumentId=42,SourceSequence=5,
+            EventTimestampNanoseconds=(boundary.AddMinutes(-1).Ticks-DateTime.UnixEpoch.Ticks)*100,ReceiveTimestampNanoseconds=(boundary.AddMinutes(-1).Ticks-DateTime.UnixEpoch.Ticks)*100,
+            Bid=13,Ask=15,BidSize=1,AskSize=1,SourceArchiveSha256=new string('A',64) };
+        quote=quote with { EvidenceId=Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(MessagePackBinarySerializer.Shared.Serialize(quote))) };
+        var command=new EndOfDayIronCondorPositionCommand { CommandId=Guid.NewGuid(),EntityId=id,ValueDate=date,EffectiveAtUtc=boundary,HistoricalSnapshot=original,HistoricalClosingQuotes=[quote],
+            Subject=new(ActorType.Command,"FuturesIronCondorTradePositionCommand",EndOfDayIronCondorPositionCommand.Verb,id.Format()) };
+        var originalFact=new IronCondorPositionChangedEvent { Id=Guid.NewGuid(),CommandId=Guid.NewGuid(),EntityId=id,PositionSnapshot=original,ReceivedOn=boundary };
+        await fixture.Transactions.ExecuteOnceAsync(async(db,ct)=> {
+            await db.AppendAsync(new EnlistedEventAppend(command.StreamId,originalFact.CommandId,originalFact,0),ct);
+            await context.ProjectPositionAsync(db,original,ct);
+            if(nextSession) await context.ProjectPositionAsync(db,current,ct);
+            await db.ExecuteAsync("INSERT INTO market_data.position_eod_quote_evidence(evidence_id,payload,source_archive_sha256) VALUES($1,$2,$3) ON CONFLICT DO NOTHING;",[quote.EvidenceId,MessagePackBinarySerializer.Shared.Serialize(quote),quote.SourceArchiveSha256],ct);return true;
+        });
+        command=command with { HistoricalSourceEventId=Convert.ToInt64(await fixture.Transactions.ExecuteOnceAsync((db,ct)=>db.ScalarAsync("SELECT e.eventversion FROM event_log e JOIN event_stream_id s USING(eventstreamid) WHERE s.eventstream=$1;",[command.StreamId],ct))) };
+        var recovered=TomasAI.IFM.Domain.Trade.Futures.Position.Model.StoredQuotePositionEndOfDayRecovery.Recover(original,current,date,boundary,[quote]);
+        var fact=new IronCondorPositionChangedEvent { CommandId=command.CommandId,EntityId=id,PositionSnapshot=recovered.Current,HistoricalEndOfDay=recovered.Seal,HistoricalSourceEventId=command.HistoricalSourceEventId };
+        async Task Commit(EndOfDayIronCondorPositionCommand intent)=>await TradeAtomicPersistence.CommitAsync(intent,new DomainEventCollection([fact]),1,source,context,fixture.Transactions);
+        await Assert.ThrowsAsync<InvalidOperationException>(()=>Commit(command with { HistoricalClosingQuotes=[quote with { Bid=999 }] }));
+        await Commit(command);
+        var saved=(await context.GetStrategyPositionAsync(id))!;
+        saved.IsOpen.Should().BeTrue(); saved.PositionSequence.Should().Be(current.PositionSequence+1);
+        if(nextSession) { saved.DailyOpeningPnl.Should().Be(4); saved.Legs[0].LastPriceAtUtc.Should().Be(current.Legs[0].LastPriceAtUtc); saved.AsOfUtc.Should().Be(current.AsOfUtc); }
+        else { saved.Legs[0].CurrentPrice.Should().Be(14); saved.LastMarketObservationUtc.Should().Be(boundary.AddMinutes(-1)); }
+        var history=await context.GetStrategyPositionHistoryAsync(id.PositionId,boundary.AddDays(-1),boundary.AddDays(1),100);
+        history.Items.Single(p=>p.ValueDate==date).Legs[0].CurrentPrice.Should().Be(14);
+        (await fixture.EventCountAsync(command.StreamId)).Should().Be(2);
+        // Exact projection guard prevents applying the same source correction twice.
+        await Assert.ThrowsAsync<TomasAI.IFM.Shared.Exceptions.ConcurrencyException>(()=>Commit(command with { CommandId=Guid.NewGuid() }));
+        (await fixture.EventCountAsync(command.StreamId)).Should().Be(2);
+        Assert.Throws<InvalidOperationException>(()=>TomasAI.IFM.Domain.Trade.Futures.Position.Model.StoredQuotePositionEndOfDayRecovery.Recover(original,current,date,boundary,[quote with { EventTimestampNanoseconds=quote.EventTimestampNanoseconds+120_000_000_000 }]));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Stored_closing_quotes_repair_vertical_spread_with_same_guards(bool nextSession)
+    {
+        await fixture.Transactions.ExecuteOnceAsync((db,ct)=>db.ExecuteAsync(TradeSchemaDb.CreateStatement + "CREATE SCHEMA IF NOT EXISTS market_data;" + TomasAI.IFM.Application.Storage.MarketDataDb.Schema.MarketDataSchemaSql.PositionEodQuoteEvidenceCreate,[],ct));
+        var context=new TradeDbContext(new DbConnectionSettings().Add(TradeDbContext.TradeDbConnection,fixture.Connection,"System.Data.Postgres"),Mock.Of<IDbContextFactory>(),Mock.Of<ISequenceIdGenerator>(),NullLogger<DbProvider>.Instance);
+        var source=Mock.Of<TomasAI.IFM.Application.Storage.IEventSourceActorDbContext>(v=>v.ProviderName=="System.Data.Postgres" && v.ConnectionString==fixture.Connection);
+        var date=new DateOnly(2026,11,17); var boundary=FuturesTradingValueDate.GetSessionEndUtc(date).UtcDateTime;
+        var id=StrategyPositionId.Create(new(Random.Shared.Next(60000000,70000000),1,1,1),TradeStrategyKind.VerticalSpread);
+        var original=new StrategyPositionSnapshot { Id=id,StrategyKind=TradeStrategyKind.VerticalSpread,IsOpen=true,Phase=StrategyPositionPhase.EndOfDay,
+            ValueDate=date,PositionSequence=10,HistoryPositionSequence=1,HistoryAsOfUtc=boundary.AddHours(-5),AsOfUtc=boundary,
+            CloseBoundaryUtc=boundary,LatestSealedValueDate=date,LastMarketObservationUtc=boundary.AddHours(-3),
+            ContractCashMultiplier=50,OpeningCommission=0,OpeningValueDate=date.AddDays(-1),UnrealizedPnl=2,DailyOpeningPnl=1,
+            Legs=[new() { TradeLegId=Guid.NewGuid(),ContractId="CLOSE-FIXTURE",SignedQuantity=1,OpeningPrice=10,CurrentPrice=12,CashMultiplier=50,LastPriceAtUtc=boundary.AddHours(-3) }] };
+        var current=nextSession ? original with { ValueDate=date.AddDays(1),Phase=StrategyPositionPhase.MarkToMarket,PositionSequence=11,HistoryPositionSequence=11,HistoryAsOfUtc=boundary.AddHours(4),AsOfUtc=boundary.AddHours(4),DailyOpeningPnl=2 } : original;
+        var quote=new StoredPositionClosingQuote { ContractId="CLOSE-FIXTURE",ValueDate=date,InstrumentId=42,SourceSequence=5,
+            EventTimestampNanoseconds=(boundary.AddMinutes(-1).Ticks-DateTime.UnixEpoch.Ticks)*100,ReceiveTimestampNanoseconds=(boundary.AddMinutes(-1).Ticks-DateTime.UnixEpoch.Ticks)*100,
+            Bid=13,Ask=15,BidSize=1,AskSize=1,SourceArchiveSha256=new string('A',64) };
+        quote=quote with { EvidenceId=Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(MessagePackBinarySerializer.Shared.Serialize(quote))) };
+        var command=new EndOfDayVerticalSpreadPositionCommand { CommandId=Guid.NewGuid(),EntityId=id,ValueDate=date,EffectiveAtUtc=boundary,HistoricalSnapshot=original,HistoricalClosingQuotes=[quote],
+            Subject=new(ActorType.Command,"FuturesVerticalSpreadTradePositionCommand",EndOfDayVerticalSpreadPositionCommand.Verb,id.Format()) };
+        var originalFact=new VerticalSpreadPositionChangedEvent { Id=Guid.NewGuid(),CommandId=Guid.NewGuid(),EntityId=id,PositionSnapshot=original,ReceivedOn=boundary };
+        await fixture.Transactions.ExecuteOnceAsync(async(db,ct)=> {
+            await db.AppendAsync(new EnlistedEventAppend(command.StreamId,originalFact.CommandId,originalFact,0),ct);
+            await context.ProjectPositionAsync(db,original,ct);
+            if(nextSession) await context.ProjectPositionAsync(db,current,ct);
+            await db.ExecuteAsync("INSERT INTO market_data.position_eod_quote_evidence(evidence_id,payload,source_archive_sha256) VALUES($1,$2,$3) ON CONFLICT DO NOTHING;",[quote.EvidenceId,MessagePackBinarySerializer.Shared.Serialize(quote),quote.SourceArchiveSha256],ct);return true;
+        });
+        command=command with { HistoricalSourceEventId=Convert.ToInt64(await fixture.Transactions.ExecuteOnceAsync((db,ct)=>db.ScalarAsync("SELECT e.eventversion FROM event_log e JOIN event_stream_id s USING(eventstreamid) WHERE s.eventstream=$1;",[command.StreamId],ct))) };
+        var recovered=TomasAI.IFM.Domain.Trade.Futures.Position.Model.StoredQuotePositionEndOfDayRecovery.Recover(original,current,date,boundary,[quote]);
+        var fact=new VerticalSpreadPositionChangedEvent { CommandId=command.CommandId,EntityId=id,PositionSnapshot=recovered.Current,HistoricalEndOfDay=recovered.Seal,HistoricalSourceEventId=command.HistoricalSourceEventId };
+        async Task Commit(EndOfDayVerticalSpreadPositionCommand intent)=>await TradeAtomicPersistence.CommitAsync(intent,new DomainEventCollection([fact]),1,source,context,fixture.Transactions);
+        await Assert.ThrowsAsync<InvalidOperationException>(()=>Commit(command with { HistoricalClosingQuotes=[quote with { Bid=999 }] }));
+        await Commit(command);
+        var saved=(await context.GetStrategyPositionAsync(id))!;
+        saved.IsOpen.Should().BeTrue(); saved.PositionSequence.Should().Be(current.PositionSequence+1);
+        if(nextSession) { saved.DailyOpeningPnl.Should().Be(4); saved.Legs[0].LastPriceAtUtc.Should().Be(current.Legs[0].LastPriceAtUtc); saved.AsOfUtc.Should().Be(current.AsOfUtc); }
+        else { saved.Legs[0].CurrentPrice.Should().Be(14); saved.LastMarketObservationUtc.Should().Be(boundary.AddMinutes(-1)); }
+        var history=await context.GetStrategyPositionHistoryAsync(id.PositionId,boundary.AddDays(-1),boundary.AddDays(1),100);
+        history.Items.Single(p=>p.ValueDate==date).Legs[0].CurrentPrice.Should().Be(14);
+        (await fixture.EventCountAsync(command.StreamId)).Should().Be(2);
+        // Exact projection guard prevents applying the same source correction twice.
+        await Assert.ThrowsAsync<TomasAI.IFM.Shared.Exceptions.ConcurrencyException>(()=>Commit(command with { CommandId=Guid.NewGuid() }));
+        (await fixture.EventCountAsync(command.StreamId)).Should().Be(2);
+        Assert.Throws<InvalidOperationException>(()=>TomasAI.IFM.Domain.Trade.Futures.Position.Model.StoredQuotePositionEndOfDayRecovery.Recover(original,current,date,boundary,[quote with { EventTimestampNanoseconds=quote.EventTimestampNanoseconds+120_000_000_000 }]));
+    }
+
     [Fact]
     public async Task Historical_eod_requires_committed_mark_and_preserves_closed_current_and_routes()
     {

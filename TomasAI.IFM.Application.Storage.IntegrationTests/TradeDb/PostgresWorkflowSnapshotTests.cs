@@ -29,12 +29,117 @@ using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Query.Actor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Options;
 using TomasAI.IFM.Shared.EventSourcing.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.ViewModels;
+using TomasAI.IFM.Framework.Serialization;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.TradeDb;
 
 [Collection("PostgreSQL plan atomicity")]
 public sealed class PostgresWorkflowSnapshotTests(PostgresTradePlanFixture fixture)
 {
+    [Fact]
+    public async Task Assigned_queue_pages_exact_contract_and_signal_order()
+    {
+        await fixture.Transactions.ExecuteOnceAsync((db, token) => db.ExecuteAsync(TradeSchemaDb.CreateStatement, [], token));
+        await fixture.Transactions.ExecuteOnceAsync((db, token) => db.ExecuteAsync(TradeSchemaDb.CreateStatement, [], token));
+        var at = new DateTime(2026, 11, 15, 14, 30, 0, DateTimeKind.Utc);
+        var settings = new DbConnectionSettings().Add("TradeDbConnection", fixture.Connection, "System.Data.Postgres");
+        var databases = Substitute.For<IDbContextFactory>();
+        var trade = new TradeDbContext(settings, databases, Substitute.For<TomasAI.IFM.Framework.SequenceId.ISequenceIdGenerator>(),
+            NullLogger<TomasAI.IFM.Framework.Storage.DbProvider>.Instance);
+        databases.TradeDb.Returns(trade);
+        var catalogKind = TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogKind.Deployment;
+        var routes = new IntrinsicTimeFundAssignment[]
+        {
+            new(1, 10, "Daily Futures", "Future", "ES", TimeFrameType.Daily, new(catalogKind, Guid.NewGuid(), 1), 1, at.AddDays(-1), null),
+            new(1, 11, "Weekly Verticals", "Vertical", "ES", TimeFrameType.Weekly, new(catalogKind, Guid.NewGuid(), 1), 1, at.AddDays(-1), null),
+            new(1, 12, "Monthly Condors", "IronCondor", "ES", TimeFrameType.Monthly, new(catalogKind, Guid.NewGuid(), 1), 1, at.AddDays(-1), null)
+        };
+        var queryContext = Substitute.For<IIntrinsicTimeStrategyWorkflowQueryContext>();
+        queryContext.DbFactory.Returns(databases);
+        queryContext.QueueAssignments.Returns(routes);
+
+        foreach (var route in routes)
+        {
+            var older = await Add("ES20261218", route, 10, at.AddMinutes(5));
+            var newer = await Add("ES20261218", route, 11, at.AddMinutes(1));
+            var other = await Add("ES20270319", route, 12, at.AddMinutes(2));
+            var legacy = await Add("ES20261218", route, 9, at.AddSeconds(-10), legacy: true);
+            await Add("ES20270618", route, 8, at.AddSeconds(-20), legacy: true);
+            await Add("ES20261218", route with { FundId = 999 }, 13, at.AddMinutes(2));
+            var request = new GetIntrinsicTimeStrategyUpdatesGridQuery
+            {
+                Symbol = "ES", TimePeriod = route.Timeframe, FromUtc = at.AddMinutes(-1), ToUtc = at.AddMinutes(10),
+                ContractId = "ES20261218", AssignmentKey = route.QueueSuffix(), PageSize = 1
+            };
+            var first = (await request.ExecuteAsync(queryContext, CancellationToken.None)).Value!;
+            var head = Assert.Single(first.Items);
+            Assert.Equal(newer, head.WorkflowId);
+            Assert.True(first.HasMore);
+            var next = request with { PageNumber = 2, BeforeSignalAtUtc = head.OccurredAtUtc,
+                BeforeSignalSequence = head.SignalSequence, BeforeWorkflowId = head.WorkflowId.Value };
+            var second = (await next.ExecuteAsync(queryContext, CancellationToken.None)).Value!;
+            var secondRow = Assert.Single(second.Items);
+            Assert.Equal(older, secondRow.WorkflowId);
+            Assert.False(secondRow.LegacyUnassigned);
+            Assert.True(second.HasMore);
+            var third = (await (next with { PageNumber = 3, BeforeSignalAtUtc = secondRow.OccurredAtUtc,
+                BeforeSignalSequence = secondRow.SignalSequence, BeforeWorkflowId = secondRow.WorkflowId.Value })
+                .ExecuteAsync(queryContext, CancellationToken.None)).Value!;
+            var legacyRow = Assert.Single(third.Items);
+            Assert.Equal(legacy, legacyRow.WorkflowId);
+            Assert.True(legacyRow.LegacyUnassigned);
+            Assert.Equal(at.AddSeconds(-10), legacyRow.HistoryOrderAtUtc);
+            Assert.Equal(at, legacyRow.OccurredAtUtc);
+            Assert.False(third.HasMore);
+            var afterLegacy = (await (next with { PageNumber = 4, BeforeSignalAtUtc = legacyRow.HistoryOrderAtUtc,
+                BeforeSignalSequence = legacyRow.SignalSequence, BeforeWorkflowId = legacyRow.WorkflowId.Value })
+                .ExecuteAsync(queryContext, CancellationToken.None)).Value!;
+            Assert.Empty(afterLegacy.Items);
+            Assert.Equal(other, Assert.Single((await (request with { ContractId = "ES20270319" })
+                .ExecuteAsync(queryContext, CancellationToken.None)).Value!.Items).WorkflowId);
+            Assert.Equal("NoTrade", head.Outcome);
+        }
+
+        var schema = new TradeSchemaDb(settings, NullLogger<TomasAI.IFM.Framework.Storage.DbProvider>.Instance);
+        await schema.CreateAsync(["intrinsic_time_strategy_updates_queue"]);
+        await schema.CreateAsync(["intrinsic_time_strategy_updates_queue"]);
+
+        var catalog = (await new GetIntrinsicTimeStrategyUpdatesGridQuery { QueueCatalog = true }
+            .ExecuteAsync(queryContext, CancellationToken.None)).Value!;
+        Assert.Equal(routes, catalog.Assignments);
+        Assert.Equal(new[] { "ES20261218", "ES20270319", "ES20270618" }, catalog.Contracts);
+
+        async Task<StrategyWorkflowId> Add(string contract, IntrinsicTimeFundAssignment assignment, long sequence, DateTime started, bool legacy = false)
+        {
+            var signalEntity = new FuturesItiSignalEntityId(contract, DateOnly.FromDateTime(at), assignment.Timeframe);
+            var entity = IntrinsicTimeStrategyWorkflowEntityId.Create(signalEntity) with { Assignment = legacy ? null : assignment };
+            var trigger = Guid.NewGuid();
+            var workflow = StrategyWorkflowId.ForTrigger(trigger, entity, at);
+            Assert.Equal(workflow, StrategyWorkflowId.ForTrigger(trigger, entity, at));
+            Assert.Equal(7, workflow.Value.Version);
+            var state = new IntrinsicTimeStrategyWorkflowView
+            {
+                EntityId = entity, WorkflowId = workflow, TriggerEventId = trigger, WorkflowRevision = 1,
+                TriggerEvent = new() { Id = trigger, EntityId = signalEntity, EventId = sequence, CreatedOn = at },
+                StartedAtUtc = started, UpdatedAtUtc = started, TerminalAtUtc = started,
+                Status = WorkflowStrategyMachineStatus.Completed, Outcome = StrategyWorkflowOutcome.NoTrade
+            };
+            var source = new WorkflowStrategyStateUpdatedEvent
+            {
+                Id = Guid.NewGuid(), EventId = sequence, WorkflowId = workflow, EntityId = entity, WorkflowRevision = 1,
+                WorkflowDefinition = state, UpdatedAtUtc = started
+            };
+            await fixture.Transactions.ExecuteOnceAsync(async (db, token) => { await trade.ProjectWorkflowAsync(db, source, token); return true; });
+            await fixture.Transactions.ExecuteOnceAsync(async (db, token) => { await trade.ProjectWorkflowAsync(db, source, token); return true; });
+            if (legacy)
+                await fixture.Transactions.ExecuteOnceAsync((db, token) => db.ExecuteAsync(
+                    "UPDATE trade.intrinsic_time_strategy_workflow SET signalatutc = NULL, signalsequence = 0 WHERE workflowid = $1",
+                    [workflow.Value], token));
+            return workflow;
+        }
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -44,6 +149,10 @@ public sealed class PostgresWorkflowSnapshotTests(PostgresTradePlanFixture fixtu
         var now = new DateTime(2026, 11, 13, 14, 30, 0, DateTimeKind.Utc);
         var symbol = recoverAfterDeadline ? "ZB" : "ZN";
         var entity = IntrinsicTimeStrategyWorkflowEntityId.Create(new(symbol + "Z26", DateOnly.FromDateTime(now), TimeFrameType.Daily));
+        if (recoverAfterDeadline)
+            entity = entity with { Assignment = new(1, 50, "Futures", "Future", symbol, TimeFrameType.Daily,
+                new(TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogKind.Deployment, Guid.NewGuid(), 1), 1,
+                now.AddDays(-1), null) };
         var clock = new QueueTestClock(now);
         var context = Substitute.For<IIntrinsicTimeStrategyWorkflowCommandContext>();
         context.Logger.Returns(NullLogger<IntrinsicTimeStrategyWorkflowCommandActor>.Instance);
@@ -132,6 +241,13 @@ public sealed class PostgresWorkflowSnapshotTests(PostgresTradePlanFixture fixtu
 
         var grid = await ReadGrid();
         Assert.Equal(3, grid.TotalCount);
+        foreach (var item in grid.Items)
+        {
+            var detail = await trade.GetIntrinsicTimeStrategyWorkflowViewAsync(item.WorkflowId, CancellationToken.None);
+            Assert.NotNull(detail);
+            Assert.Equal(MessagePackBinarySerializer.SerializeHistoricalContent(IntrinsicTimeStrategyUpdatesGridRow.FromView(detail)),
+                MessagePackBinarySerializer.SerializeHistoricalContent(item));
+        }
         Assert.Equal(new[] { first.ProposedWorkflowId, second.ProposedWorkflowId, third.ProposedWorkflowId }.OrderBy(id => id.Value),
             grid.Items.Select(item => item.WorkflowId).OrderBy(id => id.Value));
         var stale = Assert.Single(grid.Items, item => item.WorkflowId == second.ProposedWorkflowId);

@@ -791,7 +791,7 @@ public static class TradeDbContextExtensions
         /// <summary>Validates and persists the UpsertIntrinsicTimeStrategyWorkflowAsync operation.</summary>
         internal async Task UpsertIntrinsicTimeStrategyWorkflowAsyncCoreBinding(IntrinsicTimeStrategyWorkflowReadModel workflow, CancellationToken cancellationToken)
         {
-        var preparedParameters31 = new UpsertIntrinsicTimeStrategyWorkflow(workflow.WorkflowId.Value, workflow.WorkflowEntityId, workflow.WorkflowDefinitionId, workflow.WorkflowDefinitionVersion, workflow.ContractId, workflow.TimeFrameStartValueDate, workflow.TimePeriod.ToString(), workflow.TriggerEventId, workflow.CorrelationId, workflow.Status.ToString(), workflow.Outcome.ToString(), workflow.CurrentStage.ToString(), workflow.WorkflowRevision, workflow.LastEventId, workflow.StateSchemaVersion, workflow.StatePayload.ToArray(), workflow.StopReasonCode, workflow.StartedAtUtc, workflow.TerminalAtUtc, workflow.UpdatedAtUtc);
+        var preparedParameters31 = new UpsertIntrinsicTimeStrategyWorkflow(workflow.WorkflowId.Value, workflow.WorkflowEntityId, workflow.WorkflowDefinitionId, workflow.WorkflowDefinitionVersion, workflow.ContractId, workflow.TimeFrameStartValueDate, workflow.TimePeriod.ToString(), workflow.TriggerEventId, workflow.CorrelationId, workflow.Status.ToString(), workflow.Outcome.ToString(), workflow.CurrentStage.ToString(), workflow.WorkflowRevision, workflow.LastEventId, workflow.StateSchemaVersion, workflow.StatePayload.ToArray(), workflow.StopReasonCode, workflow.StartedAtUtc, workflow.TerminalAtUtc, workflow.UpdatedAtUtc, workflow.SignalAtUtc, workflow.SignalSequence, workflow.AssignmentKey);
             await context.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.UpsertIntrinsicTimeStrategyWorkflow)}", TradeDbSql.UpsertIntrinsicTimeStrategyWorkflow)
             .SetParameters(preparedParameters31)
             .ExecuteCommandAsync(cancellationToken)
@@ -1216,6 +1216,9 @@ public static class TradeDbContextExtensions
         public async Task TradeFlowProjectExecutionAsync(OrderExecutionDefinition execution, CancellationToken token = default)
         {
             ArgumentNullException.ThrowIfNull(db);
+            if (execution.VerifiedPriceCorrectionId != Guid.Empty)
+                await db.ExecuteAsync("DELETE FROM trade.order_execution_fill WHERE executionattemptid=$1 AND executionfillid=ANY($2);",
+                    [execution.ExecutionAttemptId, execution.Fills.Select(fill => fill.ExecutionFillId).ToArray()], token).ConfigureAwait(false);
             var id = execution.TradeOrderId;
             await (db.ExecuteAsync(TradeDbSql.HelperStatement12, [id.PortfolioId, id.FundId, id.OrderId, execution.ExecutionAttemptId, execution.Status.ToString(), execution.StartedAtUtc, execution.CompletedAtUtc, MessagePackBinarySerializer.Shared.Serialize(execution)], token))
             .ConfigureAwait(false);
@@ -1564,7 +1567,7 @@ public static class TradeDbContextExtensions
             var state = source.State;
             var entity = state.EntityId;
             var iti = entity.ItiSignalEntityId;
-            return await TradeDbContextExtensions.WorkflowUpsertAsync(db, "intrinsic_time_strategy_workflow", "workflowId,workflowEntityId,workflowDefinitionId,workflowDefinitionVersion,contractId,timeFrameStartValueDate,timePeriod,triggerEventId,correlationId,status,outcome,currentStage,workflowRevision,lastEventId,stateSchemaVersion,statePayload,stopReasonCode,startedAtUtc,terminalAtUtc,updatedAtUtc", "workflowId", [state.WorkflowId.Value, entity.Format(), entity.WorkflowDefinitionId, state.WorkflowDefinitionVersion, iti.ContractId, iti.TimeFrameStartValueDate, iti.TimePeriod.ToString(), state.TriggerEventId, state.CorrelationId, TradeProjectionFacts.Status(state).ToString(), TradeProjectionFacts.Outcome(state).ToString(), state.CurrentStage.ToString(), state.WorkflowRevision, source.EventId, 2, payload, state.StopReasonCode, state.StartedAtUtc, state.TerminalAtUtc, state.UpdatedAtUtc], token, "lastEventId")
+            return await TradeDbContextExtensions.WorkflowUpsertAsync(db, "intrinsic_time_strategy_workflow", "workflowId,workflowEntityId,workflowDefinitionId,workflowDefinitionVersion,contractId,timeFrameStartValueDate,timePeriod,triggerEventId,correlationId,status,outcome,currentStage,workflowRevision,lastEventId,stateSchemaVersion,statePayload,stopReasonCode,startedAtUtc,terminalAtUtc,updatedAtUtc,signalAtUtc,signalSequence,assignmentKey", "workflowId", [state.WorkflowId.Value, entity.Format(), entity.WorkflowDefinitionId, state.WorkflowDefinitionVersion, iti.ContractId, iti.TimeFrameStartValueDate, iti.TimePeriod.ToString(), state.TriggerEventId, state.CorrelationId, TradeProjectionFacts.Status(state).ToString(), TradeProjectionFacts.Outcome(state).ToString(), state.CurrentStage.ToString(), state.WorkflowRevision, source.EventId, 2, payload, state.StopReasonCode, state.StartedAtUtc, state.TerminalAtUtc, state.UpdatedAtUtc, IntrinsicTimeStrategyUpdatesGridRow.SignalTime(state), state.TriggerEvent.EventId, entity.Assignment?.QueueSuffix()], token, "lastEventId")
             .ConfigureAwait(false);
         }
 
@@ -1839,7 +1842,8 @@ public static class TradeDbContextExtensions
             .ConfigureAwait(false);
             if (accepted is null)
                 throw new InvalidDataException("Conflicting accepted Regime Discovery invocation.");
-            var bytes = string.Equals(source.Result.ContentType, StrategyStageResultEnvelope.TypedRegimeContentType, StringComparison.Ordinal) ? MessagePackSerializer.Serialize(result, cancellationToken: token) : source.Result.Payload.ToArray();
+            var bytes = source.Result.ContentType is StrategyStageResultEnvelope.TypedRegimeContentType or StrategyStageResultEnvelope.TypedRegimeContentTypeV2
+                ? MessagePackSerializer.Serialize(result, cancellationToken: token) : source.Result.Payload.ToArray();
             await TradeDbContextExtensions.RegimeUpsertAsync(transaction, new RegimeDiscoveryReadModel { WorkflowId = source.WorkflowId, WorkflowEntityId = source.EntityId.Format(), InputWorkflowRevision = source.InputWorkflowRevision, CommandId = source.CommandId, SourceEventId = source.Id, SourceEventSequence = source.EventId, Status = "Completed", ParameterPayloadSha256 = source.ParameterPayloadSha256, SignalSnapshotId = source.SignalSnapshotId, ResultPayload = bytes, ResultPayloadSha256 = StrategyStageResultEnvelope.ComputePayloadSha256(bytes), ReasonsPayload = MessagePackSerializer.Serialize(result.Reasons, cancellationToken: token), SchemaVersion = source.Result.SchemaVersion, TerminalAtUtc = source.CompletedAtUtc, UpdatedAtUtc = source.CompletedAtUtc }, token)
             .ConfigureAwait(false);
         }

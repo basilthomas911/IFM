@@ -22,6 +22,25 @@ namespace TomasAI.IFM.LivePipeline.IntegrationTests;
 public sealed class IndicatorHealthMonitorTests
 {
     [Fact]
+    public async Task Weekly_strategy_not_ready_is_visible_without_a_global_veto_on_other_horizons()
+    {
+        var clock = new ManualClock();
+        var reader = Substitute.For<IIndicatorHealthReader>();
+        reader.ReadAsync(Arg.Any<DateOnly>(), Arg.Any<CancellationToken>()).Returns(new[]
+        {
+            new IndicatorHealthEntry("ES", TimeFrameType.FiveMinutes, "ATR14", true, true, clock.GetUtcNow(), null, ""),
+            new IndicatorHealthEntry("ES", TimeFrameType.Weekly, "RegimeDiscovery inputs", false, false, null, null, "EMA200 unavailable")
+                { AffectsGlobalReadiness = false }
+        });
+        var console = Substitute.For<IStatusConsoleEventProducer>(); console.IsRunning.Returns(true);
+        using var monitor = Create(reader, console, clock);
+        await monitor.StartAsync(default);
+        await Until(() => Task.FromResult(reader.ReceivedCalls().Any()));
+        clock.Advance(TimeSpan.FromSeconds(5));
+        await Until(async () => (await Health(monitor)).Status == HealthStatus.Healthy);
+        await monitor.StopAsync(default);
+    }
+    [Fact]
     public async Task Incident_storage_failure_is_visible_without_stopping_independent_monitoring()
     {
         var blocked = Path.GetTempFileName();
@@ -43,28 +62,30 @@ public sealed class IndicatorHealthMonitorTests
         finally { File.Delete(blocked); }
     }
 
-    [Fact]
-    public async Task Persisted_same_observation_Bollinger_centerline_qualifies_without_a_volatile_EMA_cache()
+    [Theory]
+    [InlineData(TimeFrameType.FourHours)]
+    [InlineData(TimeFrameType.Daily)]
+    public async Task Persisted_same_observation_Bollinger_centerline_qualifies_without_a_volatile_EMA_cache(TimeFrameType frame)
     {
         var clock = new ManualClock();
         var date = new DateOnly(2026, 11, 9);
-        var contract = "TEST-" + Guid.NewGuid().ToString("N");
-        var series = MarketSeriesIdentity.ForContract(contract);
+        var contract = frame == TimeFrameType.Daily ? "ES20991218" : "TEST-" + Guid.NewGuid().ToString("N");
+        var series = StoredSessionIndicatorWarmup.LiveIndicatorSeries(contract);
         var market = Substitute.For<IMarketDataApi>();
         market.TryGetOnTheRunFuturesContract("ES", out Arg.Any<FuturesContractV3ReadModel>()).Returns(call =>
         { call[1] = new FuturesContractV3ReadModel { ContractId = contract }; return true; });
         var databases = Substitute.For<IDbContextFactory>();
-        databases.MarketDataDb.GetLatestFuturesBollingerBandSignalForTimeFrameAsync(series, date, TimeFrameType.FourHours, Arg.Any<CancellationToken>())
+        databases.MarketDataDb.GetLatestFuturesBollingerBandSignalForTimeFrameAsync(series, date, frame, Arg.Any<CancellationToken>())
             .Returns(new FuturesBbSignalReadModel
             {
-                Metadata = new() { ContractId = contract, SignalKey = new(series, MarketAnalyticsSignalKind.BollingerBand, TimeFrameType.FourHours, "test"),
+                Metadata = new() { ContractId = contract, SignalKey = new(series, MarketAnalyticsSignalKind.BollingerBand, frame, "test"),
                     MarketDataAsOfUtc = clock.GetUtcNow().AddMinutes(-1), IsValid = true },
                 Ema20Center = 100, Width20Ratio = 1, Width20 = 2, Position20 = .5m, IsWarm = true
             });
         var reader = new IndicatorHealthReader(databases, market, new CmeFuturesMarketSessionCalendar(), clock,
             Substitute.For<IRegimeDiscoveryMarketSignalSnapshotProvider>());
         var rows = await reader.ReadAsync(date, default);
-        Assert.True(Assert.Single(rows, row => row.TimeFrame == TimeFrameType.FourHours && row.Indicator == "Bollinger EMA20 centerline").Ready);
+        Assert.True(Assert.Single(rows, row => row.TimeFrame == frame && row.Indicator == "Bollinger EMA20 centerline").Ready);
         Assert.DoesNotContain(rows, row => row.TimeFrame == TimeFrameType.Daily && row.Indicator == "TDI");
     }
 

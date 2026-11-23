@@ -11,6 +11,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Trade.Position;
 [Union(0, typeof(IronCondorPositionChangedEvent))]
 [Union(1, typeof(VerticalSpreadPositionChangedEvent))]
 [Union(2, typeof(FuturesPositionChangedEvent))]
+[Union(3, typeof(FuturesPositionExitClockEvent))]
 public abstract record PositionChangedEvent : IEvent<StrategyPositionId>
 {
     public const string Verb = "StrategyPositionChanged";

@@ -14,11 +14,13 @@ public static class ActorHealthReadViews
         snapshot.ActorCount, snapshot.RunningActorCount, snapshot.ProcessingMailboxCount, snapshot.QueuedMessageCount,
         snapshot.Failures.Count, snapshot.Projectors.Count, snapshot.Workers?.Count ?? 0);
 
-    public static Page<SupervisorActorSnapshot> Actors(SupervisorRuntimeSnapshot snapshot, int offset, int limit)
+    public static Page<SupervisorActorSnapshot> Actors(SupervisorRuntimeSnapshot snapshot, int offset, int limit,
+        bool includeMailboxes = false)
     {
         ValidatePage(offset, limit);
+        var rows = snapshot.Actors.Skip(offset).Take(limit);
         return new(snapshot.ObservedUtc, offset, snapshot.Actors.Count,
-            snapshot.Actors.Skip(offset).Take(limit).Select(actor => actor with { Mailboxes = [] }).ToArray());
+            includeMailboxes ? rows.ToArray() : rows.Select(actor => actor with { Mailboxes = [] }).ToArray());
     }
 
     public static void ValidatePage(int offset, int limit)

@@ -7,19 +7,27 @@ using System.Text;
 namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.Model;
 
 /// <summary>Copies typed results and hashes their ordered fields without encoding an inner message payload.</summary>
-/// <remarks>Fingerprint v1 uses length-prefixed UTF-8 strings, little-endian integers, and ordered collections.
+/// <remarks>Fingerprints use length-prefixed UTF-8 strings, little-endian integers, and ordered collections.
+/// Version 2 includes the fund assignment; version 1 remains available for persisted envelopes.
 /// Every keyed result field is included. Update the field-coverage test when evolving the result contract.</remarks>
 public static class RegimeDiscoveryResultContent
 {
-    /// <summary>Computes the v1 content fingerprint and canonical content size without a serialized result buffer.</summary>
+    /// <summary>Computes the current assignment-aware content fingerprint.</summary>
+    /// <param name="result">The complete typed result.</param>
+    /// <returns>The SHA-256 fingerprint and canonical content size.</returns>
+    public static (string Hash, int Size) Fingerprint(RegimeDiscoveryResult result) => Fingerprint(result, 2);
+
+    /// <summary>Computes a versioned content fingerprint and size without a serialized result buffer.</summary>
     /// <param name="result">The complete typed result to fingerprint.</param>
+    /// <param name="version">Version 2 covers assignments; version 1 preserves historical hashes.</param>
     /// <returns>The SHA-256 fingerprint and number of canonical bytes examined.</returns>
-    public static (string Hash, int Size) Fingerprint(RegimeDiscoveryResult result)
+    public static (string Hash, int Size) Fingerprint(RegimeDiscoveryResult result, int version)
     {
         ArgumentNullException.ThrowIfNull(result);
+        if (version is not (1 or 2)) throw new ArgumentOutOfRangeException(nameof(version));
         using var writer = new FingerprintWriter();
-        writer.String("IFM.RegimeDiscoveryResult.Content.v1");
-        Append(writer, result);
+        writer.String(version == 1 ? "IFM.RegimeDiscoveryResult.Content.v1" : "IFM.RegimeDiscoveryResult.Content.v2");
+        Append(writer, result, version >= 2);
         return (writer.Finish(), writer.Size);
     }
 
@@ -126,7 +134,7 @@ public static class RegimeDiscoveryResultContent
     }
 
     // Fingerprint fields: RegimeDiscoveryResult: SchemaVersion, ResultId, WorkflowId, StrategyParameterSetId, StrategyParameterSetVersion, RegimeDiscoveryParameterSetId, RegimeDiscoveryParameterSetVersion, SignalSnapshotId, EntityId, TriggerEventId, MarketDataAsOfUtc, ProducedAtUtc, TargetHorizon, Trend, Volatility, MarketStructure, Decision, SupportingEvidence, OverallQuality, OverallConfidence, Reasons, SummaryText
-    static void Append(FingerprintWriter writer, RegimeDiscoveryResult? value)
+    static void Append(FingerprintWriter writer, RegimeDiscoveryResult? value, bool includeAssignment)
     {
         writer.Number(value is null ? 0 : 1);
         if (value is null) return;
@@ -145,6 +153,31 @@ public static class RegimeDiscoveryResultContent
             writer.String(signal.ContractId);
             writer.Number(signal.ValueDate.DayNumber);
             writer.Number((long)signal.TimePeriod);
+        }
+        if (includeAssignment)
+        {
+            var assignment = value.EntityId.Assignment;
+            writer.Number(assignment is null ? 0 : 1);
+            if (assignment is not null)
+            {
+                writer.Number(assignment.PortfolioId);
+                writer.Number(assignment.FundId);
+                writer.String(assignment.FundName);
+                writer.String(assignment.Family);
+                writer.String(assignment.InstrumentRoot);
+                writer.Number((long)assignment.Timeframe);
+                writer.Number(assignment.Deployment is null ? 0 : 1);
+                if (assignment.Deployment is { } deployment)
+                {
+                    writer.Number((long)deployment.Kind);
+                    writer.Guid(deployment.Id);
+                    writer.Number(deployment.Version);
+                }
+                writer.Number(assignment.MandateVersion);
+                writer.Number(assignment.EffectiveFromUtc.Ticks);
+                writer.Number(assignment.EffectiveUntilUtc.HasValue ? 1 : 0);
+                if (assignment.EffectiveUntilUtc is { } until) writer.Number(until.Ticks);
+            }
         }
         writer.Guid(value.TriggerEventId);
         writer.Number(value.MarketDataAsOfUtc.Ticks);

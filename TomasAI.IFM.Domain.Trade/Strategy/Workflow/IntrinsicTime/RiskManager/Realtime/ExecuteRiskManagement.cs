@@ -36,6 +36,12 @@ public static class ExecuteRiskManagement
             currentViewTrace?.Stop();
             if (view is not { Status: WorkflowStrategyMachineStatus.Started, CurrentStage: StrategyWorkflowStage.RiskManagement } || view.WorkflowId != snapshot.WorkflowId || view.WorkflowRevision != snapshot.WorkflowRevision)
                 return;
+            if (view.DecisionRuntimeVersion > 0)
+            {
+                if (view.EntryCommit is not null) await PreparedPortfolioRisk.CommitAsync(view, context).ConfigureAwait(false);
+                else await PreparedPortfolioRisk.EvaluateAsync(view, context).ConfigureAwait(false);
+                return;
+            }
             if (view.RiskManagement.ProcessingStatus == StrategyActorProcessingStatus.Completed)
             {
                 await view.ExecuteFinancialHandoffAsync(context).ConfigureAwait(false);
@@ -202,7 +208,7 @@ public static class ExecuteRiskManagement
         await context.SendAsync<CompleteRiskManagementCommand, IntrinsicTimeStrategyWorkflowEntityId>(command, command.EntityId).ConfigureAwait(false);
     }
 
-    static async ValueTask FailAsync(IntrinsicTimeStrategyWorkflowView view, IIntrinsicTimeStrategyWorkflowRealtimeContext context, string reasonCode, string details, DateTime failedAtUtc)
+    internal static async ValueTask FailAsync(IntrinsicTimeStrategyWorkflowView view, IIntrinsicTimeStrategyWorkflowRealtimeContext context, string reasonCode, string details, DateTime failedAtUtc)
     {
         var source = PortfolioOrderCompositionMapper.StableId(view.WorkflowId.Value, reasonCode + "/" + view.WorkflowRevision);
         var command = new FailRiskManagementCommand

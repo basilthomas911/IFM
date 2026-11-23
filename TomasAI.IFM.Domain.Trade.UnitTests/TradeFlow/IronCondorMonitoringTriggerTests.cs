@@ -65,15 +65,30 @@ public sealed class IronCondorMonitoringTriggerTests
         command.Position.Should().BeSameAs(changed.PositionSnapshot); command.SourceEventId.Should().Be(changed.Id);
         command.RequestedAtUtc.Should().Be(changed.ReceivedOn);
         await context.Received(1).PublishRealtimeAsync(changed.PositionSnapshot, complete.Completed!.Plan);
-        context.ReceivedCalls().Should().OnlyContain(call => new[] { "IsCurrentMonitoringPosition", "get_Parameters", "RequestFunctionAsync", "PublishRealtimeAsync" }.Contains(call.GetMethodInfo().Name));
+        await context.Received(1).IsClosingAsync(changed.PositionSnapshot.Id);
+        context.ReceivedCalls().Should().OnlyContain(call => new[] { "IsCurrentMonitoringPosition", "IsClosingAsync", "get_Parameters", "RequestFunctionAsync", "PublishRealtimeAsync" }.Contains(call.GetMethodInfo().Name));
         MessagePackSerializer.Deserialize<IronCondorMonitoringInputsChangedEvent>(MessagePackSerializer.Serialize(changed)).Should().BeEquivalentTo(changed);
+    }
+
+    [Fact]
+    public async Task Closing_position_does_not_request_a_plan_when_monitoring_inputs_arrive()
+    {
+        var context = Substitute.For<IIronCondorTradePositionRealtimeContext>();
+        var changed = Observation();
+        context.IsCurrentMonitoringPosition(changed.PositionSnapshot, changed.MonitoringGenerationId).Returns(true);
+        context.IsClosingAsync(changed.PositionSnapshot.Id).Returns(ValueTask.FromResult(true));
+
+        await changed.ExecuteAsync(context);
+
+        await context.Received(1).IsClosingAsync(changed.PositionSnapshot.Id);
+        context.ReceivedCalls().Should().NotContain(call => call.GetMethodInfo().Name == "RequestFunctionAsync");
     }
 
     static IronCondorMonitoringInputsChangedEvent Observation()
     {
         var id = StrategyPositionId.Create(new(1,2,3,4), TradeStrategyKind.IronCondor);
         return new() { Id = Guid.NewGuid(), EntityId = id, ValueDate = new(2026,10,7), MonitoringGenerationId = Guid.NewGuid(),
-            PositionSnapshot = new() { Id = id, PositionSequence = 3, RouteGeneration = 1,
+            PositionSnapshot = new() { Id = id, IsOpen = true, StrategyKind = TradeStrategyKind.IronCondor, PositionSequence = 3, RouteGeneration = 1,
                 AsOfUtc = new(2026,10,7,12,0,0,DateTimeKind.Utc) },
             IronCondorTradePlanInputs = new() { TradeDate = new(2026,10,1), MaturityDate = new(2026,11,20) }, ReceivedOn = new(2026,10,7,12,0,0,DateTimeKind.Utc) };
     }

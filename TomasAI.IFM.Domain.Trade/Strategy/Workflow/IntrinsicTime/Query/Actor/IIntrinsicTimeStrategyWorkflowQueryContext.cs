@@ -11,6 +11,7 @@ public interface IIntrinsicTimeStrategyWorkflowQueryContext : IQueryActorContext
 {
     /// <summary>Gets the application database-context factory.</summary>
     IDbContextFactory DbFactory { get; }
+    IEnumerable<TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity.IntrinsicTimeFundAssignment> QueueAssignments => [];
 
     /// <summary>Gets the monotonic active-workflow projection cache.</summary>
     IIntrinsicTimeStrategyWorkflowProjectionCache ProjectionCache { get; }

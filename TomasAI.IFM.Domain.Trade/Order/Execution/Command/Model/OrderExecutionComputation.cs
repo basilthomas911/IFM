@@ -135,6 +135,12 @@ internal static class OrderExecutionComputation
             var established = new EstablishedTradeDefinition { Id = id, AssetFamily = assetFamily, StrategyKind = component.StrategyKind, SourceComponentId = component.ComponentId, ExecutionAttemptId = orderExecutionDefinition.ExecutionAttemptId, Status = EstablishedTradeStatus.Open, Legs = legs, OriginalFills = componentFills, OpeningValue = componentFills.Sum(static value => value.Price * value.SignedQuantity), OpeningCommission = componentFills.Sum(static value => value.Commission), EstablishedAtUtc = completedAtUtc, EvidenceRevision = 1 };
             if (orderExecutionDefinition.Order.PortfolioApprovalId != Guid.Empty && established.StrategyKind == TradeStrategyKind.IronCondor)
                 established = established with { MonitoringLimits = TomasAI.IFM.Domain.Trade.Model.ApprovedTradeMonitoringLimits.Create(orderExecutionDefinition.Order, established) };
+            if (established.StrategyKind == TradeStrategyKind.FuturesOutright && orderExecutionDefinition.Order.DecisionEvidence is { IsValid: true } evidence
+                && evidence.Source == typeof(TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Commands.ExecuteOrderCompositionPipelineCommand).FullName)
+            {
+                var accepted = evidence.Read<TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Commands.ExecuteOrderCompositionPipelineCommand>();
+                established = established with { DailyFuturesEntry = accepted.WorkflowView.DailyFuturesEntry };
+            }
             trades.Add(established);
         }
 

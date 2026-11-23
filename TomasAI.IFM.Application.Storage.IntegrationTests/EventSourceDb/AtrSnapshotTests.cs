@@ -13,12 +13,71 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using Xunit;
 using Xunit.Abstractions;
+using TomasAI.IFM.Application.MarketData.Databento.Historical;
+using TomasAI.IFM.Application.MarketData.Historical;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Command;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.EventSourceDb;
 
 public sealed class AtrSnapshotTests(EventSourceActorSnapshotRangeFixture fixture, ITestOutputHelper output)
     : IClassFixture<EventSourceActorSnapshotRangeFixture>
 {
+    [Fact]
+    public async Task Overnight_seed_and_baseline_survive_database_restart_replay_and_catchup_without_reset()
+    {
+        var open = new DateTimeOffset(2026, 11, 19, 14, 30, 0, TimeSpan.Zero);
+        var contract = "ES-" + Guid.NewGuid().ToString("N");
+        var series = MarketSeriesIdentity.ForContract(contract);
+        var windows = RsiHistoricalSeedWindowModel.Create(TimeFrameType.FiveMinutes, 49, open, new CmeFuturesMarketSessionCalendar());
+        var bars = windows.Select((window, index) => new FuturesTradeSessionBarReadModel
+        {
+            ContractId = contract, MarketSeriesIdentity = series, ValueDate = window.ValueDate, TimeFrame = TimeFrameType.FiveMinutes,
+            ObservationId = FuturesTradeSessionBarId.Create(series, TimeFrameType.FiveMinutes, window.EndUtc, index + 1),
+            IntervalStartUtc = window.StartUtc, IntervalEndUtc = window.EndUtc,
+            FirstMarketEventUtc = window.StartUtc.AddSeconds(1), LastMarketEventUtc = window.EndUtc.AddSeconds(-1),
+            FirstSourceSequence = index + 1, LastSourceSequence = index + 1,
+            Open = 6000, High = 6005 + index % 7, Low = 5998, Close = 6001,
+            Volume = 100, TradeCount = 10, PriceVolumeSum = 600100,
+            IsComplete = true, IsValid = true, SchemaVersion = 1, CalculationVersion = "test-overnight", CalculatedAtUtc = window.EndUtc,
+            CalculationMethod = MarketSignalCalculationMethod.ClosedObservation
+        }).ToArray();
+        var entity = new FuturesAtrSignalEntityId(contract, new(2026, 11, 19), TimeFrameType.FiveMinutes, 14);
+        var subject = new ActorSubject(ActorType.Command, StartFuturesAtrSignalCommand.Actor, StartFuturesAtrSignalCommand.Verb, entity.Format());
+        var start = new StartFuturesAtrSignalCommand(entity) { Subject = subject, CommandId = Guid.NewGuid(), HistoricalSeed = bars[..48] };
+        var state = new FuturesAtrSignalCommandState();
+        Assert.True(start.Execute(state).Success);
+        Assert.True(state.AtrSignal!.AtrBaseline > 0);
+        var database = fixture.ActorEventDb;
+        var initialCount = state.Events.Count;
+        await database.SaveEventsAsync(start.StreamId, start.CommandId, new DomainEventCollection(state.Events), 0, CancellationToken.None);
+        var factory = Substitute.For<IEventSourceActorStateFactory>();
+        factory.CreateState<FuturesAtrSignalCommandState>().Returns(_ => new FuturesAtrSignalCommandState());
+        var repository = new FuturesAtrSignalStateRepository(factory, database, Substitute.For<IActorService>(), Substitute.For<IDbContextFactory>(),
+            Substitute.For<IEventProjector<FuturesAtrSignalCommandActor>>(), NullLogger<FuturesAtrSignalStateRepository>.Instance);
+        var recovered = await repository.LoadStateAsync(start);
+        Assert.Equal(state.AtrSignal.AtrValue, recovered.AtrSignal!.AtrValue);
+        Assert.Equal(state.AtrSignal.AtrBaseline, recovered.AtrSignal.AtrBaseline);
+        var retry = start with { CommandId = Guid.NewGuid(), HistoricalSeed = bars[1..] };
+        Assert.True(retry.Execute(recovered).Success);
+        Assert.False(Assert.Single(recovered.Events.OfType<FuturesAtrSignalStartedEvent>()).ResetForHistoricalSeed);
+        Assert.Single(recovered.Events.OfType<FuturesAtrSignalGeneratedEvent>());
+        Assert.Equal(49, recovered.FuturesAtrCheckpoint!.ObservationCount);
+        var expected = new FuturesAtrSignalCommandState();
+        Assert.True((start with { HistoricalSeed = bars }).Execute(expected).Success);
+        Assert.Equal(expected.AtrSignal!.AtrValue, recovered.AtrSignal.AtrValue);
+        Assert.Equal(expected.AtrSignal.AtrRatio, recovered.AtrSignal.AtrRatio);
+        await database.SaveEventsAsync(start.StreamId, retry.CommandId, new DomainEventCollection(recovered.Events), initialCount, CancellationToken.None);
+        var secondRestart = await repository.LoadStateAsync(start);
+        Assert.Equal(recovered.FuturesAtrCheckpoint.LastIntervalEndUtc, secondRestart.FuturesAtrCheckpoint!.LastIntervalEndUtc);
+        Assert.Equal(recovered.AtrSignal.AtrBaseline, secondRestart.AtrSignal!.AtrBaseline);
+        Assert.True((retry with { CommandId = Guid.NewGuid() }).Execute(secondRestart).Success);
+        Assert.Empty(secondRestart.Events.OfType<FuturesAtrSignalGeneratedEvent>());
+        Assert.Equal(49, secondRestart.FuturesAtrCheckpoint.ObservationCount);
+    }
+
     [Theory]
     [InlineData(false, false)]
     [InlineData(true, false)]

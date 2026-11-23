@@ -41,6 +41,7 @@ public interface IIntrinsicTimeStrategyWorkflowCommandContext : ICommandActorCon
 
     /// <summary>Gets the validated fixed workflow execution duration.</summary>
     RegimeDiscoveryExecutionOptions ExecutionOptions { get; }
+    Runtime.WorkflowCalculationRuntime? DecisionRuntime => null;
 
     /// <summary>Gets the command actor logger.</summary>
     ILogger<IntrinsicTimeStrategyWorkflowCommandActor> Logger { get; }

@@ -54,7 +54,7 @@ public sealed class ShortIndicatorRestartTests
         actors.RequestAsync<SeedFuturesEmaSignalsCommand, FuturesTradeSessionBarEntityId>(Arg.Any<SeedFuturesEmaSignalsCommand>(), Arg.Any<CancellationToken>()).Returns(accepted);
         actors.RequestAsync<SeedFuturesBbSignalsCommand, FuturesTradeSessionBarEntityId>(Arg.Any<SeedFuturesBbSignalsCommand>(), Arg.Any<CancellationToken>()).Returns(_ => { Bind(committed, includeBand: true); return accepted; });
         databases.TradeTickQuoteDb.GetRawFuturesTradeWindowAsync(Arg.Any<string>(), Arg.Any<DateOnly>(), Arg.Any<TimeOnly>(), Arg.Any<TimeOnly>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<IReadOnlyList<TomasAI.IFM.Application.Storage.TradeTickQuoteDb.BootstrapTradeRow>>([]));
+            .Returns(Task.FromResult<IReadOnlyList<BootstrapTradeRow>>([]));
         var reader = new StoredSessionIndicatorSeedReader(databases, calendar, clock, NullLogger<StoredSessionIndicatorSeedReader>.Instance, market);
         var warmup = new StoredSessionIndicatorWarmup(reader, actors, market, databases, calendar, clock, NullLogger<StoredSessionIndicatorWarmup>.Instance);
         Assert.True(await warmup.WarmShortFrameAsync(contract, date, frame, default));

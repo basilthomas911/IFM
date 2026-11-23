@@ -40,25 +40,19 @@ public sealed class IntrinsicTimeStrategyWorkflowGateQualificationTests
         var view = IntrinsicTimeStrategyWorkflowCommandStateTests.CreateStartedSnapshotForQualification().State;
         var entity = view.EntityId.Format();
         var store = Substitute.For<ITradeDbReadContext>();
-        var detail = new IntrinsicTimeStrategyWorkflowReadModel(
-            view.WorkflowId, entity, view.EntityId.WorkflowDefinitionId, view.WorkflowDefinitionVersion,
-            view.EntityId.ItiSignalEntityId.ContractId, view.EntityId.ItiSignalEntityId.TimeFrameStartValueDate,
-            view.EntityId.ItiSignalEntityId.TimePeriod, view.TriggerEventId, view.CorrelationId,
-            StrategyWorkflowStatus.Running, view.Outcome, view.CurrentStage, view.WorkflowRevision,
-            1, 2, MessagePackSerializer.Serialize(view), view.StopReasonCode, view.StartedAtUtc, null, view.UpdatedAtUtc);
         var history = new IntrinsicTimeStrategyWorkflowHistoryReadModel(
-            entity, view.StartedAtUtc, view.WorkflowId, detail.Status, detail.Outcome, view.CurrentStage,
+            entity, view.StartedAtUtc, view.WorkflowId, StrategyWorkflowStatus.Running, view.Outcome, view.CurrentStage,
             view.WorkflowRevision, null, view.StopReasonCode);
         var before = DateTime.SpecifyKind(DateTime.MaxValue, DateTimeKind.Utc);
         store.GetIntrinsicTimeStrategyWorkflowsByEntityAsync(entity, before, 1, CancellationToken.None)
             .Returns(Task.FromResult<ICollection<IntrinsicTimeStrategyWorkflowHistoryReadModel>>([history]));
-        store.GetIntrinsicTimeStrategyWorkflowAsync(view.WorkflowId, CancellationToken.None).Returns(detail);
+        store.GetIntrinsicTimeStrategyWorkflowViewAsync(view.WorkflowId, CancellationToken.None).Returns(view);
 
         var loaded = await ProjectedWorkflowView.ReadCurrentAsync(store, entity, CancellationToken.None);
 
         loaded.Should().BeEquivalentTo(view);
-        store.GetIntrinsicTimeStrategyWorkflowAsync(view.WorkflowId, CancellationToken.None)
-            .Returns(detail with { StatePayload = MessagePackSerializer.Serialize(view with { WorkflowRevision = view.WorkflowRevision + 1 }) });
+        store.GetIntrinsicTimeStrategyWorkflowViewAsync(view.WorkflowId, CancellationToken.None)
+            .Returns(view with { WorkflowRevision = view.WorkflowRevision - 1 });
         var inconsistent = async () => await ProjectedWorkflowView.ReadCurrentAsync(store, entity, CancellationToken.None);
         await inconsistent.Should().ThrowAsync<InvalidDataException>();
     }
@@ -275,7 +269,7 @@ public sealed class IntrinsicTimeStrategyWorkflowGateQualificationTests
     }
 
     [Fact]
-    public async Task Selection_activation_is_resolved_before_requesting_the_market_snapshot()
+    public async Task Market_assessment_does_not_resolve_selection_configuration_before_requesting_the_market_snapshot()
     {
         var command = MarketCondition.AssessmentFixture.Command();
         var snapshot = new WorkflowStrategyStateUpdatedEvent { Id = Guid.NewGuid(), State = command.WorkflowView };
@@ -291,8 +285,13 @@ public sealed class IntrinsicTimeStrategyWorkflowGateQualificationTests
         await IntrinsicTimeStrategyWorkflowRealtimeActor.ExecuteAssessmentAsync(context, snapshot);
 
         var calls = context.ReceivedCalls().Select(call => call.GetMethodInfo().Name).ToArray();
-        Array.IndexOf(calls, "get_Options").Should().BeGreaterThanOrEqualTo(0)
-            .And.BeLessThan(Array.IndexOf(calls, nameof(context.RequestFunctionAsync)));
+        calls.Should().Contain(nameof(context.RequestFunctionAsync));
+        calls.Should().NotContain(["get_Options", "get_ConfigurationDb", "get_CatalogDeployments"]);
+        await context.Received(1).RequestFunctionAsync<ExecuteMarketConditionAssessmentCommand, MarketConditionAssessmentExecutionId,
+            FunctionResult<MarketConditionAssessmentCompletedEvent, MarketConditionAssessmentFailedEvent>>(
+            Arg.Is<ExecuteMarketConditionAssessmentCommand>(request =>
+                request.WorkflowId == snapshot.State.WorkflowId && request.InputWorkflowRevision == snapshot.State.WorkflowRevision &&
+                request.WorkflowView.SelectionBinding == snapshot.State.SelectionBinding), Arg.Any<CancellationToken>());
     }
 
     /// <summary>Confirms the typed query contract survives the default MessagePack transport boundary.</summary>

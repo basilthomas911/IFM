@@ -1,4 +1,5 @@
 ﻿using TomasAI.IFM.Application.MarketData.Contracts.Historical;
+using NSubstitute;
 using TomasAI.IFM.Application.MarketData.Databento.Historical;
 using TomasAI.IFM.Application.MarketData.Historical;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
@@ -188,6 +189,28 @@ public sealed class HistoricalAnalyticsWarmupServiceTests
         Assert.True(result.ValidSessionCount >= 200);
         Assert.Equal(0, fixture.Api.AcquireCount);
         Assert.Equal(1, fixture.DailyReplay.PublishCount);
+    }
+
+    [Fact]
+    public async Task Completed_session_repair_runs_before_baseline_publication_and_avoids_provider_acquisition()
+    {
+        var fixture = new Fixture(enabled: true, seedCoverage: true);
+        var latest = fixture.ObservationStore.Raw.MaxBy(value => value.ValueDate)!;
+        fixture.ObservationStore.Raw.Remove(latest);
+        var repair = NSubstitute.Substitute.For<ICompletedDailyObservationRepair>();
+        repair.RepairAsync(Es, "ES-ACTIVE", latest.ValueDate, NSubstitute.Arg.Any<CancellationToken>())
+            .Returns(_ => { fixture.ObservationStore.Raw.Add(latest); return Task.CompletedTask; });
+        var loader = new HistoricalDataLoader(fixture.Api, new MemoryDataLoaderStore(), fixture.ObservationStore,
+            new NullHistoricalReplayPublisher(), fixture.Calendar, TimeProvider.System);
+        using var service = new HistoricalAnalyticsWarmupService(new() { Enabled = true }, loader, fixture.ObservationStore,
+            fixture.DailyReplay, fixture.Calendar, TimeProvider.System, completedDailyRepair: repair);
+
+        var result = await service.EnsureAsync(fixture.Request, default);
+
+        Assert.Equal(0, result.MissingSessionCount);
+        Assert.Equal(latest.ValueDate, service.BaselineValueDate);
+        Assert.Equal(latest.ValueDate, fixture.DailyReplay.LastObservations.Max(value => value.ValueDate));
+        Assert.Equal(0, fixture.Api.AcquireCount);
     }
 
     [Fact]

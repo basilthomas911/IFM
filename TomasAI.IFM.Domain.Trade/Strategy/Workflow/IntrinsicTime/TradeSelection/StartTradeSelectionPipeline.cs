@@ -21,12 +21,20 @@ public static class StartTradeSelectionPipeline
                 return PipelineStartResult<TradeSelectionPipelineInitialization>.Started(new(existing));
             }
 
+            if (context.PreparedConfiguration is not null)
+                return PipelineStartResult<TradeSelectionPipelineInitialization>.Failed("TS.INIT.CONFIGURATION_NOT_READY", "ConfigurationUnavailable", "Workflow admission did not acquire prepared selection configuration.");
             var horizon = view.TriggerEvent.EntityId.TimePeriod;
             var activationRef = context.Options.Activations.SingleOrDefault(value => value.Horizon == horizon);
             if (activationRef is null)
                 return PipelineStartResult<TradeSelectionPipelineInitialization>.Failed("TS.INIT.ACTIVATION_MISSING", "ConfigurationUnavailable", "No exact Trade Selection activation is pinned for the triggering horizon.");
             var activation = await context.ConfigurationDb.GetEffectiveTradeSelectionActivationAsync(activationRef.Id, activationRef.Version, activationRef.PayloadSha256, view.StartedAtUtc).ConfigureAwait(false);
             var nextRevision = view.WorkflowRevision + 1;
+            if (view.EntityId.Assignment is { } assignment)
+            {
+                if (!activation.DeploymentKeys.Contains(assignment.Deployment))
+                    return PipelineStartResult<TradeSelectionPipelineInitialization>.Failed("TS.CONFIG.ASSIGNMENT_DEPLOYMENT", "ConfigurationUnavailable", "The assigned deployment is absent from the workflow activation.");
+                activation = activation with { DeploymentKeys = [assignment.Deployment] };
+            }
             var binding = await new StrategySelectionUniverseResolver(context.ConfigurationDb, context.CatalogDeployments).ResolveAsync(activation, view.WorkflowId.Value, nextRevision, view.CorrelationId, view.StartedAtUtc, view.ExpiresAtUtc, DateOnly.FromDateTime(view.TriggerEvent.CreatedOn)).ConfigureAwait(false);
             TradeSelectionContracts.ValidateBinding(binding);
             return PipelineStartResult<TradeSelectionPipelineInitialization>.Started(new(binding));

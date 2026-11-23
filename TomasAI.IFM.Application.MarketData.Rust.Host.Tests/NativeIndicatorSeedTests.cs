@@ -22,6 +22,107 @@ namespace TomasAI.IFM.Application.MarketData.Rust.Host.Tests;
 public sealed class NativeIndicatorSeedTests(ITestOutputHelper output)
 {
     [Fact]
+    public async Task Ema200_history_uses_bounded_cache_batches_and_restart_does_not_download_again()
+    {
+        var (database, saved) = Cache();
+        var provider = Provider(0m);
+        provider.OpenRangeAsync(Arg.Any<HistoricalProviderRequest>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(call => new Reader(Minutes(call.Arg<HistoricalProviderRequest>()).Where((_, index) => index % 3 != 0).ToArray()));
+        var bars = await Create(provider, database).ReadEmaAsync(Contract, TimeFrameType.FourHours, 300, default);
+        Assert.Equal(300, bars.Length);
+        Assert.Equal(300, saved.Count);
+        Assert.All(bars, bar => { Assert.True(bar.IsComplete); Assert.True(bar.IsValid); Assert.Equal(100, bar.Close); });
+        Assert.All(database.MarketDataDb.ReceivedCalls().Where(call => call.GetMethodInfo().Name == "StoreQualifiedIndicatorSeedBarsAsync"),
+            call => Assert.InRange(((FuturesTradeSessionBarReadModel[])call.GetArguments()[1]!).Length, 1, 64));
+        var restoredProvider = Provider(0m);
+        Assert.Equal(bars, await Create(restoredProvider, database).ReadEmaAsync(Contract, TimeFrameType.FourHours, 300, default));
+        Assert.Empty(restoredProvider.ReceivedCalls());
+    }
+
+    [Fact]
+    public async Task Ema200_history_rejects_an_unfinished_source_without_caching_partial_coverage()
+    {
+        var (database, saved) = Cache();
+        var provider = Provider(0m);
+        provider.OpenRangeAsync(Arg.Any<HistoricalProviderRequest>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(call => new Reader(Minutes(call.Arg<HistoricalProviderRequest>()), complete: false));
+        await Assert.ThrowsAsync<InvalidDataException>(() => Create(provider, database).ReadEmaAsync(Contract, TimeFrameType.FourHours, 300, default));
+        Assert.Empty(saved);
+    }
+    [Theory]
+    [InlineData(TimeFrameType.FifteenSeconds)]
+    [InlineData(TimeFrameType.OneMinute)]
+    public async Task Sparse_vx_uses_real_nonempty_intervals_without_forward_filling(TimeFrameType frame)
+    {
+        var provider = Provider(0m);
+        provider.OpenRangeAsync(Arg.Any<HistoricalProviderRequest>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(call => new Reader(SparseTrades(call.Arg<HistoricalProviderRequest>())));
+        var result = await SparseVx(provider).ReadAsync("VX20270120", frame, default);
+        Assert.Equal(48, result.Length);
+        Assert.All(result, bar => { Assert.Equal(1, bar.TradeCount); Assert.Equal(2, bar.Volume); Assert.Equal(20m, bar.Close); });
+        Assert.True(result.Zip(result.Skip(1)).All(pair => pair.Second.IntervalStartUtc - pair.First.IntervalStartUtc == TimeSpan.FromMinutes(3)));
+        Assert.All(result, bar => Assert.Equal(bar.IntervalStartUtc.AddSeconds(1), bar.LastMarketEventUtc));
+    }
+
+    [Fact]
+    public async Task Sparse_vx_rejects_unfinished_source()
+    {
+        var provider = Provider(0m);
+        provider.OpenRangeAsync(Arg.Any<HistoricalProviderRequest>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(call => new Reader(SparseTrades(call.Arg<HistoricalProviderRequest>()), complete: false));
+        await Assert.ThrowsAsync<InvalidDataException>(() => SparseVx(provider).ReadAsync("VX20270120", TimeFrameType.OneMinute, default));
+    }
+
+    [Theory]
+    [InlineData(TimeFrameType.FifteenSeconds, 0)]
+    [InlineData(TimeFrameType.OneMinute, 0)]
+    [InlineData(TimeFrameType.FifteenSeconds, 1)]
+    [InlineData(TimeFrameType.OneMinute, 1)]
+    public async Task Sparse_january_vx_at_next_six_pm_rollover_preserves_previous_session_source_times(TimeFrameType frame, int minutesAfter)
+    {
+        var at = new DateTimeOffset(2026, 11, 18, 23, 0, 0, TimeSpan.Zero).AddMinutes(minutesAfter);
+        var provider = Provider(0m);
+        provider.OpenRangeAsync(Arg.Any<HistoricalProviderRequest>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(call => new Reader(SparseTrades(call.Arg<HistoricalProviderRequest>())));
+        var result = await SparseVx(provider, at).ReadAsync("VX20270120", frame, default);
+        Assert.Equal(48, result.Length);
+        Assert.All(result, bar =>
+        {
+            Assert.Equal(new DateOnly(2026, 11, 18), bar.ValueDate);
+            Assert.True(bar.IntervalEndUtc <= at);
+            Assert.Equal(bar.IntervalStartUtc.AddSeconds(1), bar.LastMarketEventUtc);
+        });
+    }
+
+    [Fact]
+    public async Task Sparse_vx_rejects_paid_history_before_opening_range()
+    {
+        var provider = Provider(0.01m);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => SparseVx(provider).ReadAsync("VX20270120", TimeFrameType.OneMinute, default));
+        await provider.DidNotReceive().OpenRangeAsync(Arg.Any<HistoricalProviderRequest>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+    }
+
+    static HistoricalProviderRecord[] SparseTrades(HistoricalProviderRequest request) => Enumerable.Range(0, 48)
+        .Select(index => new HistoricalProviderRecord
+        {
+            Kind = HistoricalProviderRecordKind.Trade, Symbol = "VX/F7", InstrumentId = "42", PublisherId = "105",
+            EventTimestampUtc = request.StartUtc.AddHours(1).AddMinutes(index * 3).AddSeconds(1),
+            CloseOrPrice = 20m, VolumeOrSize = 2, SourceSequence = index + 1
+        }).ToArray();
+
+    static NativeFuturesSeedReplay SparseVx(IMarketDataHistoricalProvider provider, DateTimeOffset? now = null)
+    {
+        var replay = Substitute.For<INativeSeedReplaySource>();
+        replay.Open(Arg.Any<DatabentoContractRegistration>(), Arg.Any<DateTimeOffset>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
+            .Returns(_ => new Reader([]));
+        return new(replay, new()
+        {
+            FeedOptions = DatabentoFeedOptions.ForProfile(FeedDeploymentProfile.Development, "GLBX.MDP3") with { DataSource = FeedDataSourceMode.DatabentoLive },
+            Contracts = [new() { DomainContractId = "VX20270120", ProviderContractName = "VX/F7", AssetTypeId = AssetTypeId.Futures, Dataset = "XCBF.PITCH" }]
+        }, new CmeFuturesMarketSessionCalendar(), new Clock(now ?? new(2026, 11, 17, 23, 30, 0, TimeSpan.Zero)), historical: provider);
+    }
+
+    [Fact]
     public async Task Cfe_history_uses_original_trades_from_both_publishers_instead_of_ambiguous_minute_bars()
     {
         var provider = Provider(0m);

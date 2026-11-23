@@ -19,7 +19,11 @@ public static class UpdateFuturesTradePlan
             ArgumentNullException.ThrowIfNull(dispatch);
             ArgumentNullException.ThrowIfNull(state);
             cancellationToken.ThrowIfCancellationRequested();
-            var calculated = context.Algorithm.Calculate(command.Position, command.Parameters, state.PreviousPlan, command.EntityId.ValueDate, context.TimeProvider.GetUtcNow().UtcDateTime).Snapshot;
+            // Clock notifications can race a newer committed market update.
+            // Never replace a newer observed position with the older clock copy.
+            var position = state.PreviousPlan is { } previous && previous.Position.Id == command.Position.Id
+                && previous.Position.PositionSequence > command.Position.PositionSequence ? previous.Position : command.Position;
+            var calculated = context.Algorithm.Calculate(position, command.Parameters, state.PreviousPlan, command.EntityId.ValueDate, context.TimeProvider.GetUtcNow().UtcDateTime).Snapshot;
             return ValueTask.FromResult(dispatch(new(typeof(FuturesTradePlanUpdatedEvent), command, calculated)));
         }
     }

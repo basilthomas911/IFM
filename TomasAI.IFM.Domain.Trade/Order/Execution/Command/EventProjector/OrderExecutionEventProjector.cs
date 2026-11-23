@@ -37,6 +37,7 @@ public sealed class OrderExecutionEventProjector : ConventionalEventProjector<Or
 
     async Task ProjectAsync(OrderExecutionChangedEvent changed)
     {
+        if (changed.VerifiedPriceCorrectionId != Guid.Empty) return;
         try
         {
             await ProjectCoreAsync(changed).ConfigureAwait(false);
@@ -57,6 +58,7 @@ public sealed class OrderExecutionEventProjector : ConventionalEventProjector<Or
 
     async Task ProjectCoreAsync(OrderExecutionChangedEvent changed)
     {
+        if (changed.VerifiedPriceCorrectionId != Guid.Empty) return;
         context.Logger.LogInformation("OrderSubmission ExecutionEvent OrderId={OrderId} ExecutionId={ExecutionId} SourceEventId={SourceEventId} Status={Status} FilledQuantity={FilledQuantity} FillCount={FillCount} WorkflowId={WorkflowId}", changed.OrderExecutionDefinition.TradeOrderId.Format(), changed.EntityId.Format(), changed.Id, changed.OrderExecutionDefinition.Status, changed.OrderExecutionDefinition.CumulativeFilledQuantity, changed.OrderExecutionDefinition.Fills.Length, changed.OrderExecutionDefinition.Order.StrategyWorkflowId);
         if (!string.Equals(context.DbFactory.TradeDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
             await context.DbFactory.TradeDb.UpsertOrderExecutionAsync(changed.OrderExecutionDefinition).ConfigureAwait(false);

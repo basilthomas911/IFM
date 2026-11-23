@@ -89,7 +89,8 @@ public sealed class FinancialBookPreparation(IPortfolioEventStore sources, IPort
         Rule(LedgerTransactionKind.TradeSettlement, "Asset", "Cash", true);
         Rule(LedgerTransactionKind.Commission, "Expense", "Cash", true);
         Rule(LedgerTransactionKind.Valuation, "Asset", "UnrealizedPnl");
-        Rule(LedgerTransactionKind.RealizedPnl, "Cash", "RealizedPnl", true, true);
+        // Fill settlements already move cash. Realization clears their residual asset basis.
+        Rule(LedgerTransactionKind.RealizedPnl, "Asset", "RealizedPnl", true, true);
         Rule(LedgerTransactionKind.Reversal, "Cash", "Equity");
         // Arbitrary adjustment remains excluded; it requires an explicit privileged mapping.
         return rules;

@@ -9,6 +9,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.Portfolio.Identity;
 using TomasAI.IFM.Domain.Portfolio.Projection;
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
+using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 using TomasAI.IFM.Domain.Portfolio.Shared.Identities;
 using TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
@@ -148,6 +149,47 @@ public sealed class DevelopmentTradingPortfolioTests
         allocations.Should().HaveCount(3);
         allocations.Sum().Should().Be(expected);
         allocations.Should().OnlyContain(x => x > 0);
+    }
+
+    [Fact]
+    public async Task Refresh_preserves_valid_assignment_after_parent_portfolio_version_advances()
+    {
+        var now = new DateTime(2026, 11, 17, 13, 24, 0, DateTimeKind.Utc);
+        var deployment = new TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.CatalogKey(
+            TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogKind.Deployment, Guid.NewGuid(), 2);
+        var workflow = new IntrinsicTimeStrategyWorkflowOptions();
+        workflow.ConfigureAssignments([new(101, 701, "Daily", "Future", "ES", TimeFrameType.Daily, deployment, 2, now.AddDays(-1), null)]);
+        var queries = Substitute.For<IPortfolioQueryApi>();
+        var fund = new FundMandateReadModel
+        {
+            PortfolioId = 101, FundId = 701, Name = "Daily", FundMandateVersion = 2, OperatingState = FundOperatingState.Active,
+            DecisionHorizon = "Daily", EffectiveFromUtc = now.AddDays(-1), UnderlyingUniverse = ["ES"],
+            PermittedTradeStrategyFamilies = [new(0, 0) { CatalogDeployment = deployment }]
+        };
+        queries.GetPortfolioAsync(101, null, CancellationToken.None).Returns(new TomasAI.IFM.Shared.EventSourcing.ServiceResult<PortfolioReadModel>(
+            new PortfolioReadModel { PortfolioId = 101, PortfolioVersion = 4, OperatingState = PortfolioOperatingState.Active, EffectiveFromUtc = now.AddDays(-1) }));
+        queries.GetFundAsync(101, 701, null, CancellationToken.None).Returns(new TomasAI.IFM.Shared.EventSourcing.ServiceResult<FundMandateReadModel>(fund));
+        queries.GetAssignmentsAsync(101, 701, 2, CancellationToken.None).Returns(new TomasAI.IFM.Shared.EventSourcing.ServiceResult<FundTradeTemplateAssignmentReadModel[]>(
+            [new() { PortfolioId = 101, PortfolioVersion = 3, FundId = 701, FundMandateVersion = 2, Enabled = true,
+                DecisionHorizon = "Daily", EffectiveFromUtc = now.AddDays(-1), UnderlyingUniverse = ["ES"],
+                TradeStrategyFamily = new(0, 0) { CatalogDeployment = deployment } }]));
+        var sut = new DevelopmentTradingPortfolioProvisioner(
+            new DevelopmentTradingPortfolioOptions { Enabled = true }, new FinancialDevelopmentPolicy(true),
+            Substitute.For<IConfigurationDbContext>(), Substitute.For<IMarketDataApi>(), Substitute.For<IPortfolioBusinessIdAllocator>(),
+            Substitute.For<IPortfolioCommandApi>(), Substitute.For<IPortfolioFundCommandApi>(), Substitute.For<IPortfolioFinancialPolicyCommandApi>(),
+            queries, Substitute.For<IPortfolioFinancialApi>(),
+            new DevelopmentTradingPortfolioIdentityRecovery(Substitute.For<IPortfolioDbReadContext>(),
+                Substitute.For<IPortfolioProjectionRebuilder>(), Substitute.For<ILogger<DevelopmentTradingPortfolioIdentityRecovery>>()),
+            workflow, Substitute.For<ILogger<DevelopmentTradingPortfolioProvisioner>>());
+        var signal = new FuturesItiSignalEntityId("ES20261218", DateOnly.FromDateTime(now), TimeFrameType.Daily);
+
+        await sut.RefreshAssignmentsAsync(now, CancellationToken.None);
+        workflow.ResolveAssignment(signal, now)?.FundId.Should().Be(701);
+
+        queries.GetFundAsync(101, 701, null, CancellationToken.None).Returns(
+            new TomasAI.IFM.Shared.EventSourcing.ServiceResult<FundMandateReadModel>(fund with { OperatingState = FundOperatingState.Paused }));
+        await sut.RefreshAssignmentsAsync(now, CancellationToken.None);
+        workflow.ResolveAssignment(signal, now).Should().BeNull();
     }
 
     [Fact]

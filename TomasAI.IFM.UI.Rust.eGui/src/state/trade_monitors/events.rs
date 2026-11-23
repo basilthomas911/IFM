@@ -140,6 +140,9 @@ impl Hub {
                     if state.incarnation != incarnation {
                         return Ok(false);
                     }
+                    if class == 3 && state.trade.status == Some(typed::EstablishedTradeStatus::Closed) {
+                        return Ok(false);
+                    }
                     if class == 0 {
                         let event = typed::TradeRealtimeSnapshotChangedEvent::from_backend(&value)?;
                         if event.entity_id.as_ref() != Some(&state.scope.typed_id()) {

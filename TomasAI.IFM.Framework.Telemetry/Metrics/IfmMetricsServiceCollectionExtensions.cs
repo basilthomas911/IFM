@@ -89,6 +89,7 @@ public static class IfmMetricsServiceCollectionExtensions
                     .AddMeter(PortfolioInstrumentationName)
                     .AddMeter(PortfolioFinancialInstrumentationName)
                     .AddMeter("TomasAI.IFM.RiskManagement")
+                    .AddMeter("TomasAI.IFM.Strategy.Decisions")
                     .AddMeter(ProcessGcStatisticsRecorder.MeterName)
                     .AddMeter("System.Runtime")
                     .AddMeter("Microsoft.AspNetCore.Hosting")

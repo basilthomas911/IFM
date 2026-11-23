@@ -32,7 +32,7 @@ public static class EndOfDayFuturesPosition
             {
                 _ when !positionChange.Accepted => command.UpdateFailed(ref errorMsg, $"{positionChange.RejectionCode};{positionChange.RejectionReason}"),
                 _ when positionChange.PositionSnapshot is null => command.UpdateFailed(ref errorMsg, "FuturesPosition: the computed position snapshot is missing."),
-                _ => state.Update(command.CreateFuturesPositionChangedEvent(positionChange.PositionSnapshot), command)
+                _ => state.Update(command.CreateFuturesPositionChangedEvent(positionChange.PositionSnapshot, positionChange.RecoveredEndOfDay), command)
             };
             return updated ? new ServiceOk<GuidResult>(new GuidResult(command.CommandId)) : command.UpdateFailed(errorMsg);
         }
@@ -59,13 +59,13 @@ public static class EndOfDayFuturesPosition
         ///
         /// <param name = "snapshot">The accepted position snapshot.</param>
         /// <returns>The private futures-position state-change event.</returns>
-        FuturesPositionChangedEvent CreateFuturesPositionChangedEvent(StrategyPositionSnapshot snapshot) => new()
+        FuturesPositionChangedEvent CreateFuturesPositionChangedEvent(StrategyPositionSnapshot snapshot, StrategyPositionSnapshot? recovered = null) => new()
         {
             CommandId = command.CommandId,
             Subject = new(ActorType.Event, "FuturesTradePositionEvent", FuturesPositionChangedEvent.Verb, command.EntityId.Format()),
 
             EntityId = command.EntityId,
-            PositionSnapshot = snapshot
+            PositionSnapshot = snapshot, HistoricalEndOfDay = recovered, HistoricalSourceEventId = command.HistoricalSourceEventId
         };
 
         /// <summary>Computes a position change in an isolated calculation workspace.</summary>
@@ -75,6 +75,22 @@ public static class EndOfDayFuturesPosition
         /// <returns>True when the position change is accepted.</returns>
         internal bool Compute(FuturesPositionCommandState state, out PositionChange positionChange)
         {
+            if (command.HistoricalClosingQuotes is { Length: > 0 })
+            {
+                try
+                {
+                    if (command.HistoricalSourceEventId <= 0 || command.HistoricalSnapshot is not { } source || state.PositionSnapshot is not { } current)
+                        throw new InvalidOperationException("POSITION.EOD_RECOVERY.INVALID_SOURCE");
+                    var recovered = StoredQuotePositionEndOfDayRecovery.Recover(source, current, command.ValueDate, command.EffectiveAtUtc, command.HistoricalClosingQuotes, command.PreviousEndOfDay);
+                    positionChange = new(true, recovered.Current, null, null) { RecoveredEndOfDay = recovered.Seal };
+                    return true;
+                }
+                catch (InvalidOperationException error)
+                {
+                    positionChange = new(false, null, "POSITION.EOD_RECOVERY.REJECTED", error.Message);
+                    return false;
+                }
+            }
             var stateMachine = CreateStateMachine(state);
             var positionDecision = command.ValueDate == default ? stateMachine.EndOfDay(command.EffectiveAtUtc) : stateMachine.EndOfDay(command.ValueDate, command.EffectiveAtUtc);
             positionChange = new(positionDecision.Accepted, positionDecision.Value, positionDecision.Code, positionDecision.Detail);

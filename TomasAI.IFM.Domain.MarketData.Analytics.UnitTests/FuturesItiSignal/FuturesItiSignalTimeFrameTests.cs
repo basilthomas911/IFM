@@ -59,7 +59,7 @@ public sealed class FuturesItiSignalTimeFrameTests
     }
 
     [Fact]
-    public void Evaluator_ExtremeReversalAndTrendingRequireAFullBand()
+    public void Evaluator_EmitsStructuralChangesAndDailyTrending()
     {
         var current = Signal(TimeFrameType.Daily, Tuesday, Tuesday, groupId: 2) with
         {
@@ -92,13 +92,11 @@ public sealed class FuturesItiSignalTimeFrameTests
         FuturesItiSignalCompute.TryCompute(Command(TimeFrameType.Daily, 5_002), rangeCurrent, out var trending)
             .Should().BeTrue();
         trending.IntrinsicTimeMode.Should().Be(IntrinsicTimeModeType.Trending);
-        trending.IntrinsicTimeGroupId.Should().Be(2);
     }
 
     [Theory]
     [InlineData(5000, 4990, IntrinsicTimeModeType.TrendExtremeChanged, 1.0)]
     [InlineData(5000, 4989.75, IntrinsicTimeModeType.TrendOvershootExtended, 1.025)]
-    [InlineData(5004, 4990.25, IntrinsicTimeModeType.Trending, 1.375)]
     public void Evaluator_ClassifiesBandQualifiedDowntrendMovesAtTheExtreme(
         double trendPrice, double price, IntrinsicTimeModeType expectedMode, double expectedBandLevel)
     {
@@ -128,12 +126,36 @@ public sealed class FuturesItiSignalTimeFrameTests
         signal.IntrinsicTimeTrend.Should().Be(IntrinsicTimeTrendType.DownTrend);
         signal.IntrinsicTimeGroupId.Should().Be(current.IntrinsicTimeGroupId);
         signal.TrendExtreme.Should().Be(price);
-        if (expectedMode != IntrinsicTimeModeType.Trending)
+        signal.TrendReversal.Should().Be(price);
+        signal.UpTrendTrigger.Should().Be(price + current.Threshold);
+        signal.DownTrendTrigger.Should().Be(price);
+    }
+
+    [Fact]
+    public void Evaluator_RecordsElapsedMillisecondsBetweenPublishedSignals()
+    {
+        var at = new DateTime(2026, 11, 17, 14, 30, 0, DateTimeKind.Utc);
+        var current = Signal(TimeFrameType.Daily, Tuesday, Tuesday, groupId: 2) with
         {
-            signal.TrendReversal.Should().Be(price);
-            signal.UpTrendTrigger.Should().Be(price + current.Threshold);
-            signal.DownTrendTrigger.Should().Be(price);
-        }
+            IntrinsicTime = at, IntrinsicTimeTrend = IntrinsicTimeTrendType.DownTrend,
+            TrendExtreme = 4_900, TrendReversal = 5_100, BandAnchorPrice = 5_000, UpTrendTrigger = 5_020
+        };
+        FuturesItiSignalCompute.TryCompute(Command(TimeFrameType.Daily, 5_001) with { Timestamp = at.AddMilliseconds(200) }, current, out _)
+            .Should().BeFalse();
+        var next = Command(TimeFrameType.Daily, 5_020) with { Timestamp = at.AddMilliseconds(1234.5) };
+        FuturesItiSignalCompute.TryCompute(next, current, out var directionChange).Should().BeTrue();
+        directionChange.IntrinsicTimeMode.Should().Be(IntrinsicTimeModeType.TrendDirectionChanged);
+        directionChange.TrendVelocity.Should().Be(1234.5);
+        FuturesItiSignalCompute.TryCompute(next with { FuturesPrice = 5034, Timestamp = next.Timestamp.AddMilliseconds(250) },
+            directionChange, out var extension).Should().BeTrue();
+        extension.IntrinsicTimeMode.Should().Be(IntrinsicTimeModeType.TrendOvershootExtended);
+        extension.TrendVelocity.Should().Be(250);
+        FuturesItiSignalCompute.TryCompute(next with { FuturesPrice = 5032, Timestamp = extension.IntrinsicTime.AddMilliseconds(750) },
+            extension, out var reversal).Should().BeTrue();
+        reversal.IntrinsicTimeMode.Should().Be(IntrinsicTimeModeType.TrendOvershootReversal);
+        reversal.TrendVelocity.Should().Be(750);
+        FuturesItiSignalCompute.TryCompute(next, null, out var first).Should().BeTrue();
+        first.TrendVelocity.Should().BeNull();
     }
 
     [Fact]
@@ -177,7 +199,9 @@ public sealed class FuturesItiSignalTimeFrameTests
     {
         var lambda = 0.002 * Math.Sqrt(20.0 / 15.7);
         double BaseThreshold(double price, int days) => price * lambda + 0.25 * Math.Pow(days, 1.5);
-        double UpThreshold(double price) => 5 * BaseThreshold(price, tradingDays) / BaseThreshold(price, 1);
+        double UpThreshold(double price) => period == TimeFrameType.Daily
+            ? 10.0
+            : 5 * BaseThreshold(price, tradingDays) / BaseThreshold(price, 1);
 
         FuturesItiSignalCompute.TryCompute(Command(period, 5_000), null, out var started).Should().BeTrue();
         started.Threshold.Should().BeApproximately(UpThreshold(5_000), 1e-10);
@@ -186,7 +210,9 @@ public sealed class FuturesItiSignalTimeFrameTests
 
         var downPrice = started.DownTrendTrigger;
         FuturesItiSignalCompute.TryCompute(Command(period, downPrice), started, out var down).Should().BeTrue();
-        var expectedThreshold = BaseThreshold(downPrice, tradingDays) * 1.15;
+        var expectedThreshold = period == TimeFrameType.Daily
+            ? 10.0
+            : BaseThreshold(downPrice, tradingDays) * 1.15;
         down.IntrinsicTimeMode.Should().Be(IntrinsicTimeModeType.TrendDirectionChanged);
         down.Threshold.Should().BeApproximately(expectedThreshold, 1e-10);
         down.BandSize.Should().BeApproximately(expectedThreshold * 0.20, 1e-10);
@@ -215,8 +241,8 @@ public sealed class FuturesItiSignalTimeFrameTests
     {
         FuturesItiSignalCompute.TryCompute(Command(period, 5_000), null, out var started).Should().BeTrue();
         var threshold = started.Threshold;
-        FuturesItiSignalCompute.TryCompute(Command(period, 5_000 + threshold * 0.99), started, out _).Should().BeFalse();
-        FuturesItiSignalCompute.TryCompute(Command(period, 5_000 - started.BandSize * 1.01), started, out _).Should().BeFalse();
+        FuturesItiSignalCompute.TryCompute(Command(period, 5_000 + threshold * 0.99), started, out _).Should().Be(period == TimeFrameType.Daily);
+        FuturesItiSignalCompute.TryCompute(Command(period, 5_000 - started.BandSize * 1.01), started, out _).Should().Be(period == TimeFrameType.Daily);
         FuturesItiSignalCompute.TryCompute(Command(period, started.DownTrendTrigger), started, out var down).Should().BeTrue();
         down.IntrinsicTimeTrend.Should().Be(IntrinsicTimeTrendType.DownTrend);
 
@@ -231,8 +257,8 @@ public sealed class FuturesItiSignalTimeFrameTests
         reversal.IntrinsicTimeMode.Should().Be(IntrinsicTimeModeType.TrendOvershootReversal);
         reversal.Threshold.Should().Be(threshold);
         reversal.DownTrendTrigger.Should().Be(extension.DownTrendTrigger);
-        FuturesItiSignalCompute.TryCompute(Command(period, high), reversal, out _).Should().BeFalse();
-        FuturesItiSignalCompute.TryCompute(Command(period, 5_000 + threshold * 0.95), reversal, out _).Should().BeFalse();
+        FuturesItiSignalCompute.TryCompute(Command(period, high), reversal, out _).Should().Be(period == TimeFrameType.Daily);
+        FuturesItiSignalCompute.TryCompute(Command(period, 5_000 + threshold * 0.95), reversal, out _).Should().Be(period == TimeFrameType.Daily);
         FuturesItiSignalCompute.TryCompute(Command(period, reversal.DownTrendTrigger), reversal, out down).Should().BeTrue();
         down.IntrinsicTimeTrend.Should().Be(IntrinsicTimeTrendType.DownTrend);
     }

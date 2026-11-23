@@ -38,6 +38,49 @@ use std::{
 use tokio::{sync::watch, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
 
+// A saturated output lane never reaches the idle select below. Consume pending
+// watch versions on every bounded pass so completed risk cannot wait for a quiet
+// provider interval. borrow_and_update leaves a concurrently arriving version
+// pending for the next pass; no notification or quote timestamp is invented.
+fn observe_update<T>(receiver: &mut watch::Receiver<T>, closed: &str) -> Result<bool, String> {
+    let changed = receiver.has_changed().map_err(|_| closed.to_owned())?;
+    if changed {
+        receiver.borrow_and_update();
+    }
+    Ok(changed)
+}
+
+#[cfg(test)]
+mod busy_publication_tests {
+    use super::*;
+
+    #[test]
+    fn saturated_output_passes_still_observe_completed_pricing_and_source_changes() {
+        let (source, mut sources) = watch::channel(0u64);
+        let (pricing, mut calculations) = watch::channel(0u64);
+        for pass in 1..=128 {
+            // Every pass has a full output batch and therefore skips idle select.
+            source.send_replace(pass);
+            pricing.send_replace(pass);
+            let mut dirty = false;
+            for update in [observe_update(&mut sources, "source").unwrap(),
+                observe_update(&mut calculations, "pricing").unwrap()] {
+                dirty |= update;
+            }
+            assert!(dirty, "completed risk must be observed during busy pass {pass}");
+            assert!(!observe_update(&mut calculations, "pricing").unwrap());
+        }
+        assert_eq!(*calculations.borrow(), 128);
+    }
+
+    #[test]
+    fn closed_pricing_watch_is_an_explicit_resource_failure() {
+        let (sender, mut receiver) = watch::channel(0u64);
+        drop(sender);
+        assert_eq!(observe_update(&mut receiver, "pricing closed").unwrap_err(), "pricing closed");
+    }
+}
+
 fn replay_monitored_quotes(
     plan: &mut SessionPlan,
     registrations: &[Registration],
@@ -1193,6 +1236,16 @@ impl Run {
         let processed:Result<(),String>=async {
             'worker: loop {
                 if stop.is_cancelled(){break;}
+                let updates = [
+                    observe_update(&mut source, "Native options source observation closed")?,
+                    observe_update(&mut calculations, "Native options calculation observation closed")?,
+                    observe_update(&mut reference_changes, "Native options reference observation closed")?,
+                    observe_update(&mut clocks, "Native options API clock observation closed")?,
+                ];
+                if updates.into_iter().any(|changed| changed) {
+                    dirty = true;
+                    cache_dirty = true;
+                }
                 let at=self.clock.utc_ticks().map_err(|_|"Native options API clock unavailable")?;
                 let transport=lifecycle.borrow_and_update().clone();let broker=publication.borrow_and_update().clone();let io=storage.borrow_and_update().clone();
                 let numerical=pricing.status()?;let reference=references.status()?;

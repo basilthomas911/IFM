@@ -17,6 +17,10 @@ public static class TradePlanContractIdentity
         public string Fingerprint()
         {
             ArgumentNullException.ThrowIfNull(command);
+            if (command.ClosingDecision is not null)
+                return Convert.ToHexString(SHA256.HashData(MessagePackSerializer.Serialize(new object[] {
+                    command.EntityId.Format(), command.Position, command.SourceEventId, command.ClosingDecision,
+                    command.ClosingProgress! })));
             if (command.UseForwardPriceFunction)
                 return Convert.ToHexString(SHA256.HashData(MessagePackSerializer.Serialize(new object[] {
                     command.EntityId.Format(), command.Position, command.Parameters, command.SourceEventId,
@@ -61,6 +65,10 @@ public static class TradePlanContractIdentity
         ArgumentNullException.ThrowIfNull(plan);
         var value = string.Create(CultureInfo.InvariantCulture,
             $"{plan.Position.Id.Format()}|{plan.Position.PositionSequence}|{plan.CurrentValue}|{plan.TotalPnl}|{plan.ForwardTradePrice}|{plan.ForwardPnl}|{plan.State}|{plan.Action}|{plan.ReasonCode}|{plan.Parameters.Version}");
+        if (plan.FuturesTrailingExtremePrice is { } extreme)
+            value += string.Create(CultureInfo.InvariantCulture, $"|futures-trail-v1|{extreme}");
+        if (plan.Position.DailyFuturesEntry is { } entry)
+            value += string.Create(CultureInfo.InvariantCulture, $"|{entry.Policy}|{entry.DcTriggerId:N}|{entry.Threshold}|{entry.DcPrice}|{plan.FuturesStopPrice}|{plan.FuturesTrailTightened}");
         var bytes = Encoding.UTF8.GetBytes(value);
         if (plan.IronCondorTradePlanSnapshot is not null)
             bytes = bytes.Concat(MessagePackSerializer.Serialize(plan.IronCondorTradePlanSnapshot)).ToArray();

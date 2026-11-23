@@ -85,5 +85,20 @@ public sealed record IntrinsicTimeStrategyWorkflowView
     [Key(38)] public PortfolioRiskDecision? PortfolioRiskDecision { get; init; }
     /// <summary>Explicit server-frozen Development emulator permission; absent on historical workflows.</summary>
     [Key(39)] public Execution.StrategyOpeningExecutionRoute? OpeningExecutionRoute { get; init; }
+    [Key(40)] [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public StrategyPipelineFailure? SelectionInitializationFailure { get; init; }
+    [Key(41)] [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public DailyFuturesEntryState? DailyFuturesEntry { get; init; }
+
+    /// <summary>Zero preserves historical dispatch; one uses the prepared local decision runtime.</summary>
+    [Key(42)] [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    [Newtonsoft.Json.JsonProperty(DefaultValueHandling = Newtonsoft.Json.DefaultValueHandling.Ignore)]
+    public int DecisionRuntimeVersion { get; init; }
+    [Key(43)] [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    [Newtonsoft.Json.JsonProperty(NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+    public WorkflowEntryCommitState? EntryCommit { get; init; }
+    [Key(44)] [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    [Newtonsoft.Json.JsonProperty(DefaultValueHandling = Newtonsoft.Json.DefaultValueHandling.Ignore)]
+    public Guid DecisionRuntimeSessionId { get; init; }
 
 }

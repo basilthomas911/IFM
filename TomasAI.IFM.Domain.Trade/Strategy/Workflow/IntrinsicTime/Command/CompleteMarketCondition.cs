@@ -35,7 +35,7 @@ public static class CompleteMarketCondition
         public ServiceResult<GuidResult> Execute(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context, IntrinsicTimeStrategyWorkflowCommandState state)
         {
             ArgumentNullException.ThrowIfNull(state);
-            var preparation = new WorkflowSnapshotPreparation(state.WorkflowDefinition);
+            var preparation = new WorkflowSnapshotPreparation(state.DecisionView);
             var preparationResult = PrepareWorkflow(command, context, preparation);
             if (!preparationResult.Success)
                 return preparationResult;
@@ -72,12 +72,14 @@ public static class CompleteMarketCondition
             {
                 AssessmentBinding = command.AssessmentBinding
             };
-            if (!TryReadContinuation(command, initialized, out var result, out var validationError))
+            var trusted = initialized.DecisionRuntimeVersion > 0 &&
+                (context as IIntrinsicTimeStrategyWorkflowCommandContext)?.DecisionRuntime?.MatchesResult(initialized, command.Result) == true;
+            if (!TryReadContinuation(command, initialized, trusted, out var result, out var validationError))
             {
                 return PrepareInvalidResult(command, state, current, now, validationError);
             }
 
-            if (now >= current.ExpiresAtUtc || now >= result.ValidUntilUtc)
+            if (now >= Runtime.WorkflowCalculationRuntime.EffectiveDeadline(current) || now >= result.ValidUntilUtc)
             {
                 return PrepareTimedOut(command, context, state, current, now, result);
             }
@@ -130,7 +132,7 @@ public static class CompleteMarketCondition
                     ParameterPayloadSha256 = (command.SelectionBinding ?? current.SelectionBinding)?.PayloadSha256 ?? string.Empty
                 }
             };
-            AppendSnapshot(state, command, current.Status, updated, now);
+            AppendSnapshot(state, command, current.Status, updated, now, (context as IIntrinsicTimeStrategyWorkflowCommandContext)?.DecisionRuntime);
             return Ok(command);
         }
     }
@@ -141,7 +143,8 @@ public static class CompleteMarketCondition
     /// <param name = "previousStatus">The lifecycle status before this transition.</param>
     /// <param name = "view">The immutable workflow snapshot.</param>
     /// <param name = "now">The observed UTC time used for deadline and lifecycle decisions.</param>
-    static void AppendSnapshot(WorkflowSnapshotPreparation state, CompleteMarketConditionCommand command, WorkflowStrategyMachineStatus previousStatus, IntrinsicTimeStrategyWorkflowView view, DateTime now)
+    static void AppendSnapshot(WorkflowSnapshotPreparation state, CompleteMarketConditionCommand command, WorkflowStrategyMachineStatus previousStatus, IntrinsicTimeStrategyWorkflowView view, DateTime now,
+        Runtime.WorkflowCalculationRuntime? runtime = null)
     {
         var snapshotId = Guid.CreateVersion7(new DateTimeOffset(now, TimeSpan.Zero));
         if (view.Status == WorkflowStrategyMachineStatus.Started && view.CurrentStage == StrategyWorkflowStage.TradeSelection)
@@ -150,7 +153,9 @@ public static class CompleteMarketCondition
             {
                 view = view with
                 {
-                    SelectionDispatch = TradeSelection.TradeSelectionDispatch.Create(view, snapshotId)
+                    SelectionDispatch = view.DecisionRuntimeVersion > 0
+                        ? (runtime ?? throw new InvalidOperationException("TS.RUNTIME.NOT_READY")).CreateSelectionDispatch(view, snapshotId)
+                        : TradeSelection.TradeSelectionDispatch.Create(view, snapshotId)
                 };
             }
             catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
@@ -198,29 +203,40 @@ public static class CompleteMarketCondition
     /// <param name = "result">The result business information.</param>
     /// <param name = "error">The error business information.</param>
     /// <returns>The prepared business result or command acceptance.</returns>
-    static bool TryReadContinuation(CompleteMarketConditionCommand command, IntrinsicTimeStrategyWorkflowView current, out Continuation result, out string error)
+    static bool TryReadContinuation(CompleteMarketConditionCommand command, IntrinsicTimeStrategyWorkflowView current, bool trusted, out Continuation result, out string error)
     {
         result = new(false, null, default, "", []);
         try
         {
             var r = MarketConditionAssessmentContracts.ReadResult(command.Result);
-            MarketConditionAssessmentContracts.ValidateAcceptance(r, current, command.InputWorkflowRevision);
+            if (current.DecisionRuntimeVersion > 0)
+            {
+                if (!trusted || r.WorkflowId != current.WorkflowId || r.EntityId != current.EntityId || r.InputWorkflowRevision != current.WorkflowRevision
+                    || r.RegimeResultId != current.RegimeDiscovery.Result?.ResultId || r.RegimePayloadSha256 != current.RegimeDiscovery.Result?.PayloadSha256)
+                    throw new ArgumentException("Missing or mismatched owner-produced assessment.", nameof(command));
+            }
+            else MarketConditionAssessmentContracts.ValidateAcceptance(r, current, command.InputWorkflowRevision);
             if (command.SourceEventId != r.ResultId)
                 throw new ArgumentException("Assessment terminal event identity mismatch.", nameof(command));
-            var noNewTrade = r.Assessment.InheritedRestrictions.Contains(RegimeRestriction.NoNewTrade);
+            var observationOnly = MarketConditionObservationPolicy.Applies(r.Assessment);
+            var noNewTrade = !observationOnly && r.Assessment.InheritedRestrictions.Contains(RegimeRestriction.NoNewTrade);
+            var optionVeto = MarketConditionObservationPolicy.HasOptionVeto(current,r.Assessment);
             var unavailable = r.Assessment.Availability == AssessmentAvailability.Unavailable;
             var reason = ((noNewTrade) switch
             {
                 true => "MC.ASSESSMENT.INHERITED_NO_NEW_TRADE",
                 _ => unavailable ? "MC.ASSESSMENT.UNAVAILABLE" : "MC.ASSESSMENT.AVAILABLE"
             });
-            result = new(noNewTrade || unavailable, r.Assessment.ValidUntilUtc, r.TargetHorizon, reason, [reason]);
+            var dailyGate = DailyFuturesGatePolicy.Applies(current.EntityId, r.Assessment);
+            var reasons = optionVeto ? [MarketConditionObservationPolicy.BackwardationReason] : (dailyGate || observationOnly) && unavailable ? r.Assessment.LimitationReasons : [reason];
+            if ((optionVeto || (dailyGate || observationOnly) && unavailable) && reasons.Length > 0) reason = reasons[0];
+            result = new(noNewTrade || optionVeto || unavailable, r.Assessment.ValidUntilUtc, r.TargetHorizon, reason, reasons);
             error = "";
             return true;
         }
         catch (Exception ex) when (ex is ArgumentException or MessagePackSerializationException or InvalidOperationException)
         {
-            error = "Assessment result conflicts with the accepted workflow invocation: " + ex.GetType().Name;
+            error = "Assessment result conflicts with the accepted workflow invocation: " + ex.GetType().Name + ": " + ex.Message;
             return false;
         }
     }

@@ -27,6 +27,8 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor
         binding.Validate();
         var id = new MarketConditionAssessmentExecutionId(view.EntityId, view.WorkflowId);
         var configuredDeadline = view.UpdatedAtUtc.AddMilliseconds(binding.Parameters.MaximumExecutionMilliseconds);
+        if (view.DecisionRuntimeVersion > 0 && Runtime.WorkflowCalculationRuntime.Deadline(view) < configuredDeadline)
+            configuredDeadline = Runtime.WorkflowCalculationRuntime.Deadline(view);
         var regime = view.RegimeDiscovery.Result ?? throw new ArgumentException("Missing accepted regime.",nameof(snapshot));
         var command = new ExecuteMarketConditionAssessmentCommand
         {
@@ -46,9 +48,12 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor
             RegimePayloadSha256 = regime.PayloadSha256,
             MarketProfileId = binding.Parameters.MarketProfileId,
             InstrumentRoot = binding.Parameters.InstrumentRoot,
-            TargetHorizon = binding.Parameters.TargetHorizon
+            TargetHorizon = binding.Parameters.TargetHorizon,
+            CalculationPolicy = DailyFuturesGatePolicy.Matches(view) ? DailyFuturesGatePolicy.Version
+                : MarketConditionObservationPolicy.Matches(view) ? MarketConditionObservationPolicy.IsOptionScope(view)
+                    ? MarketConditionObservationPolicy.OptionVxVersion : MarketConditionObservationPolicy.Version : null
         };
-        MarketConditionAssessmentContracts.ValidateRequest(command);
+        if (view.DecisionRuntimeVersion == 0) MarketConditionAssessmentContracts.ValidateRequest(command);
         return command;
     }
 
@@ -58,19 +63,37 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor
         var domain = RequireEventContext(context);
         var clock = domain.TimeProvider;
         var execute = CreateAssessmentExecute(snapshot);
-        // The catalog is frozen at workflow start and does not depend on the
-        // assessment. Resolve it before capturing the short-lived market quote.
-        var selectionStart = await StartTradeSelectionPipeline.StartPipelineAsync(
-            execute.WorkflowView, domain, execute.CommandId).ConfigureAwait(false);
+        // Configuration was frozen by workflow admission. This stage performs
+        // no catalog/policy reads and cannot delay the quote with selector setup.
         FunctionResult<MarketConditionAssessmentCompletedEvent, MarketConditionAssessmentFailedEvent> terminal;
         try
         {
+            if (execute.WorkflowView.DecisionRuntimeVersion > 0 && domain.DecisionRuntime is null)
+                throw new InvalidOperationException("MC.RUNTIME.NOT_READY");
+            if (execute.WorkflowView.DecisionRuntimeVersion > 0 && domain.DecisionRuntime is { } local)
+            {
+                var remaining = execute.ExpiresAtUtc - clock.GetUtcNow().UtcDateTime;
+                using var deadline = new CancellationTokenSource(remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero);
+                var provider = domain.PreparedMarketContext ?? throw new InvalidOperationException("MC.INPUT.CACHE_NOT_READY");
+                var at = clock.GetUtcNow().UtcDateTime;
+                var market = execute.CalculationPolicy == DailyFuturesGatePolicy.Version
+                    ? await provider.CaptureDailyFuturesMarketAsync(execute.ParameterSet, at, deadline.Token).ConfigureAwait(false)
+                    : execute.CalculationPolicy == MarketConditionObservationPolicy.OptionVxVersion
+                        ? await provider.CaptureOptionObservationAsync(execute.ParameterSet, at, deadline.Token).ConfigureAwait(false)
+                        : throw new InvalidOperationException("MC.INPUT.POLICY_NOT_PREPARED");
+                var calculated = await local.AssessmentAsync(execute, market, deadline.Token).ConfigureAwait(false);
+                terminal = MarketConditionFunctionActor.MapEvent(new(typeof(MarketConditionAssessmentCompletedEvent), execute,
+                    new MarketConditionExecutionCompleted(calculated, market)), clock);
+            }
+            else
+            {
             var remaining = execute.ExpiresAtUtc - clock.GetUtcNow().UtcDateTime;
             using var deadline = new CancellationTokenSource((remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero) + FunctionReplyGrace);
             var reply = await context.RequestFunctionAsync<ExecuteMarketConditionAssessmentCommand, MarketConditionAssessmentExecutionId,
                 FunctionResult<MarketConditionAssessmentCompletedEvent, MarketConditionAssessmentFailedEvent>>(execute, deadline.Token).ConfigureAwait(false);
             terminal = reply.Value ?? throw new InvalidOperationException("Assessment Function returned no terminal result.");
             if (!terminal.IsTerminal) throw new InvalidOperationException("Assessment Function returned an invalid terminal union.");
+            }
         }
         catch (Exception ex)
         {
@@ -82,25 +105,16 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor
         if (terminal.IsCompleted)
         {
             var completed = terminal.Completed!;
+            if (execute.WorkflowView.DecisionRuntimeVersion > 0) domain.DecisionRuntime?.RecordResult(snapshot.State, completed.Result);
             TradeSelectionPipelineInitialization? selection = null;
             StrategyPipelineFailure? selectionFailure = null;
             var assessment = MarketConditionAssessmentContracts.ReadResult(completed.Result).Assessment;
             if (assessment.Availability != AssessmentAvailability.Unavailable &&
                 !assessment.InheritedRestrictions.Contains(TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.Model.RegimeRestriction.NoNewTrade))
             {
-                if (selectionStart.Success) selection = selectionStart.Value;
-                else
-                {
-                    var error = selectionStart.Error!;
-                    selectionFailure = new StrategyPipelineFailure
-                    {
-                        ErrorCode = 23023,
-                        ErrorType = error.ErrorType,
-                        ErrorMessage = error.Message,
-                        ErrorData = string.Join(';', error.ReasonCodes.Concat(error.DiagnosticData.Select(pair => $"{pair.Key}={pair.Value}"))),
-                        FailedAtUtc = clock.GetUtcNow().UtcDateTime
-                    };
-                }
+                if (execute.WorkflowView.SelectionBinding is { } frozen) selection = new(frozen);
+                else selectionFailure = execute.WorkflowView.SelectionInitializationFailure ?? new StrategyPipelineFailure
+                { ErrorCode = 23023, ErrorType = "ConfigurationUnavailable", ErrorMessage = "TS.INIT.ADMISSION_CONFIGURATION_MISSING", FailedAtUtc = clock.GetUtcNow().UtcDateTime };
             }
             var complete = new CompleteMarketConditionCommand
             {

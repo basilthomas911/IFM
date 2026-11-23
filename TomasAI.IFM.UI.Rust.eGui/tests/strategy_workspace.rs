@@ -24,6 +24,69 @@ fn fixture(rows: usize) -> (Catalog, Snapshot) {
 }
 
 
+#[test]
+fn strategy_updates_dropdowns_select_one_exact_contract_without_all() {
+    use ifm_ui_egui::WorkflowChoice;
+    let (catalog, mut snapshot) = fixture(1);
+    snapshot.contract_id = "ESZ6".into();
+    snapshot.time_frame = "Daily".into();
+    snapshot.strategy_contracts = [
+        ("ESZ6", 0x2000_0000),
+        ("ESH7", 0x2000_0001),
+    ].into_iter().map(|(value, action)| WorkflowChoice {
+        id: value.into(), label: value.into(), action,
+    }).collect();
+    snapshot.strategy_timeframes = vec![WorkflowChoice {
+        id: "Daily".into(), label: "Daily".into(), action: 10,
+    }];
+    snapshot.strategy_fund = "Daily Futures Fund".into();
+    snapshot.strategy_family = "Futures".into();
+    snapshot.has_more = false;
+
+    let mut harness = Harness::new_state(
+        move |ctx, state: &mut State| {
+            if let Some(action) = state.workspace.draw(ctx, &snapshot, &catalog, &mut state.details) {
+                state.actions.push(action);
+            }
+        },
+        State { workspace: Default::default(), details: Default::default(), actions: vec![] },
+    );
+    harness.set_size(eframe::egui::vec2(1100.0, 800.0));
+    harness.run();
+    for label in ["ITI Signal Contract", "Timeframe", "Fund", "Trade Strategy Family"] {
+        assert!(harness.query_by_label(label).is_some(), "Missing {label}");
+    }
+    harness.get_by_label("ITI Signal Contract ESZ6").click();
+    harness.run();
+    assert!(harness.query_by_label("All").is_none());
+    harness.get_by_label("ESH7").click();
+    harness.run();
+    assert_eq!(harness.state().actions, vec![0x2000_0001]);
+}
+
+#[test]
+fn legacy_workflow_is_visible_as_unassigned_and_remains_selectable() {
+    let (catalog, mut snapshot) = fixture(1);
+    snapshot.has_more = false;
+    snapshot.rows[0].legacy_unassigned = true;
+    let caption = format!("Unassigned · {}", snapshot.rows[0].occurred_on);
+    let mut workspace = StrategyWorkspace::default();
+    workspace.tab = StrategyTab::Updates;
+    let mut harness = Harness::new_state(
+        move |ctx, state: &mut State| {
+            if let Some(action) = state.workspace.draw(ctx, &snapshot, &catalog, &mut state.details) {
+                state.actions.push(action);
+            }
+        },
+        State { workspace, details: Default::default(), actions: vec![] },
+    );
+    harness.set_size(eframe::egui::vec2(1100.0, 800.0));
+    harness.run();
+    harness.get_by_label(&caption).click();
+    harness.run();
+    assert_eq!(harness.state().actions, vec![1000]);
+}
+
 /// Verifies that tabs match winforms summary placeholder and emit one paging action.
 #[test]
 fn tabs_match_winforms_summary_placeholder_and_emit_one_paging_action() {

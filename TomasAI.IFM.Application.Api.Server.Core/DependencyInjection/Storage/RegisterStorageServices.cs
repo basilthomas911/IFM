@@ -277,7 +277,9 @@ public static partial class CoreServiceRegistration
         provider.GetRequiredService<RegimeDiscoveryMarketSignalSnapshotProvider>());
 
 
-        services.AddSingleton<IMarketConditionEventRiskAdapter, MarketConditionEventRiskAdapter>();
+        services.AddSingleton(provider => new MarketConditionEventRiskAdapter(provider.GetRequiredService<IDbContextFactory>(),
+            provider.GetRequiredService<IDownloadLogQueryApi>(), preparedOnly: true));
+        services.AddSingleton<IMarketConditionEventRiskAdapter>(provider => provider.GetRequiredService<MarketConditionEventRiskAdapter>());
         services.AddSingleton<IMarketConditionAssessmentSnapshotProvider, MarketConditionAssessmentSnapshotProvider>();
 
 

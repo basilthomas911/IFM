@@ -48,7 +48,8 @@ internal static class FinancialRepositorySupport
     }
 
     internal static async Task<(FinancialBookConfiguration Book, long Revision, string State)> LockAuthorityAsync(
-        EnlistedEventTransaction db, int portfolioId, long? expectedRevision, CancellationToken token, FinancialDevelopmentPolicy? developmentPolicy = null)
+        EnlistedEventTransaction db, int portfolioId, long? expectedRevision, CancellationToken token, FinancialDevelopmentPolicy? developmentPolicy = null,
+        bool invalidateDecisionState = true)
     {
         using var trace = FinancialTelemetry.ActivitySource.StartActivity("financial.authority.lock");
         var lockStarted = System.Diagnostics.Stopwatch.GetTimestamp();
@@ -57,6 +58,7 @@ internal static class FinancialRepositorySupport
         Require(rows.Count == 1, FinancialReasons.AuthorityDenied, "Financial authority is not configured.");
         var result = rows[0];
         Require(expectedRevision is null || result.Revision == expectedRevision, FinancialReasons.RevisionConflict, "Financial state changed; a new confirmed attempt must use current authority.");
+        if (invalidateDecisionState) TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition.FinancialDecisionStateInvalidation.Invalidate(portfolioId);
         var tradingBook = developmentPolicy?.TradingBook(result.Book) ?? result.Book;
         return (tradingBook, result.Revision, tradingBook.DevelopmentQualificationsExempt ? "Active" : result.State);
     }

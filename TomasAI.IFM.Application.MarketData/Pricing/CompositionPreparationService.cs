@@ -61,6 +61,16 @@ public sealed class CompositionPreparationService(ICompositionMarketDataApi mark
         ArgumentNullException.ThrowIfNull(cache);
         var existing = await store.ReadAsync(key, cancellationToken).ConfigureAwait(false);
         if (existing is not null) return Replay(existing);
+        var captured = CaptureCached(key, cache, request, clock);
+        if (captured.Preparation is not { } proposed) return captured;
+        return Replay(await store.CommitAsync(proposed, cancellationToken).ConfigureAwait(false));
+    }
+
+    /// <summary>Local decision input publication: no store, provider request, wait, or retry.</summary>
+    public static CompositionPreparationResult CaptureCached(CompositionPreparationKey key,
+        Contracts.IOptionChainCache cache, Contracts.OptionChainSnapshotRequest request, TimeProvider clock)
+    {
+        ValidateKey(key);
         var result = cache.TryGetSnapshot(request);
         if (!result.IsReady || result.Snapshot is not { } snapshot)
             return new(null, new(result.ReasonCode, "OptionChainCache", "", result.Outcome.ToString()));
@@ -75,7 +85,7 @@ public sealed class CompositionPreparationService(ICompositionMarketDataApi mark
         proposed = proposed with { Digest = PricingSemanticHash.Compute(proposed) };
         if (clock.GetUtcNow() >= snapshot.ValidUntilUtc) return Expired();
         Validate(proposed);
-        return Replay(await store.CommitAsync(proposed, cancellationToken).ConfigureAwait(false));
+        return new(proposed, null);
     }
 
     CompositionPreparationResult Replay(CompositionPreparation preparation)

@@ -137,6 +137,39 @@ fn authoritative_live_snapshot_replaces_saved_fallback() {
     assert!(!document(&state, "realtime").is_null());
 }
 
+#[test]
+fn settled_close_retains_final_plan_and_details_after_live_feed_stops() {
+    let mut state = stored();
+    state.live = true;
+    let mut snapshot: crate::models::trade_contracts::TradeRealtimeSnapshot = typed(fixture(
+        "monitor-realtime", "TomasAI.IFM.Domain.Trade.Shared.Trade.Realtime.TradeRealtimeSnapshot"));
+    let position = snapshot.position.as_mut().unwrap();
+    position.is_open = Some(false);
+    position.phase = Some(crate::models::trade_contracts::StrategyPositionPhase::Close);
+    if let Some(legs) = position.legs.as_mut() {
+        for leg in legs { leg.signed_quantity = Some(0); }
+    }
+    snapshot.plan = Some(Box::new(typed(fixture("monitor-plan",
+        "TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.StrategyTradePlanSnapshot"))));
+    let plan = snapshot.plan.as_mut().unwrap();
+    plan.position = Some(position.clone());
+    plan.state = Some(crate::models::trade_contracts::TradePlanState::Closed);
+    plan.explanation = Some("Short put delta stop; filled 1/1; settlement confirmed".into());
+    snapshot.status = Some("Closed — live feed stopped".into());
+    let mut late_mark = snapshot.clone();
+    late_mark.position.as_mut().unwrap().is_open = Some(true);
+    assert!(state.snapshot(snapshot));
+    assert!(!state.live);
+    assert!(!state.collecting);
+    assert!(!state.can_live());
+    assert_eq!(state.selected.as_ref().unwrap().is_open, Some(false));
+    assert!(!document(&state, "realtime").is_null());
+    assert!(!document(&state, "plan").is_null());
+    assert!(!document(&state, "position-details").is_null());
+    assert_eq!(state.status, "Closed — live feed stopped");
+    assert!(!state.snapshot(late_mark));
+}
+
 
 /// Verifies that unchanged monitor sections share payloads and chart changes invalidate only the
 /// chart.

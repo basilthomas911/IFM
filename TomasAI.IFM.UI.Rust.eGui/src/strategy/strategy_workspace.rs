@@ -27,6 +27,9 @@ const OVERSHOOT_RADIUS: f32 = 3.5;
 #[derive(Clone, Debug, Default, Deserialize, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkflowRow {
+    /// Historical workflow recorded before fund assignments were attached to workflows.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub legacy_unassigned: bool,
     /// Stable identity used to correlate selection, rows, or commands.
     pub id: String,
     /// Numeric bridge action used to open this workflow row.
@@ -120,7 +123,7 @@ pub struct StrategyWorkspace {
     /// Generation associated with the cached strategy chart points.
     cached_generation: u64,
     /// Timeframe associated with current chart zoom/cache; a switch resets plot bounds.
-    graph_time_frame: String,
+    graph_time_frame: (String, String),
     /// Cached ITI x/y points rebuilt only when the publication changes.
     prices: Vec<[f64; 2]>,
     /// Cached upward ITI signal marker points.
@@ -197,6 +200,33 @@ impl StrategyWorkspace {
                     _ => self.other.push(xy),
                 }
             }
+        }
+        if !snapshot.strategy_contracts.is_empty() {
+            ui.horizontal_wrapped(|ui| {
+                for (label, selected, choices) in [
+                    ("ITI Signal Contract", snapshot.contract_id.as_str(), snapshot.strategy_contracts.as_slice()),
+                    ("Timeframe", snapshot.time_frame.as_str(), snapshot.strategy_timeframes.as_slice()),
+                ] {
+                    ui.label(label);
+                    egui::ComboBox::from_id_salt(label).selected_text(selected).show_ui(ui, |ui| {
+                        for choice in choices {
+                            if ui.selectable_label(choice.id == selected, &choice.label).clicked() && choice.id != selected {
+                                action = Some(choice.action);
+                            }
+                        }
+                    }).response.widget_info(|| egui::WidgetInfo::labeled(
+                        egui::WidgetType::ComboBox, true, format!("{label} {selected}"),
+                    ));
+                }
+                for (label, value) in [("Fund", &snapshot.strategy_fund), ("Trade Strategy Family", &snapshot.strategy_family)] {
+                    ui.label(label);
+                    egui::ComboBox::from_id_salt(label).selected_text(value).show_ui(ui, |ui| {
+                        let _ = ui.selectable_label(true, value);
+                    }).response.widget_info(|| egui::WidgetInfo::labeled(
+                        egui::WidgetType::ComboBox, true, format!("{label} {value}"),
+                    ));
+                }
+            });
         }
         egui::TopBottomPanel::top("strategy_graph")
             .show_separator_line(false)
@@ -339,8 +369,9 @@ impl StrategyWorkspace {
                         .height(ui.available_height().max(40.0));
                     // A timeframe switch must discard the previous timeframe's zoom/pan.
                     // Ordinary live updates preserve the user's current viewport.
-                    if self.graph_time_frame != snapshot.time_frame {
-                        self.graph_time_frame.clone_from(&snapshot.time_frame);
+                    if self.graph_time_frame.0 != snapshot.time_frame || self.graph_time_frame.1 != snapshot.contract_id {
+                        self.graph_time_frame.0.clone_from(&snapshot.time_frame);
+                        self.graph_time_frame.1.clone_from(&snapshot.contract_id);
                         plot = plot.reset();
                     }
                     if snapshot.graph_start_utc < snapshot.graph_end_utc {
@@ -592,13 +623,13 @@ impl StrategyWorkspace {
                                             let row = &snapshot.rows[table_row.index()];
                                             table_row.set_selected(snapshot.workflow_id == row.id);
                                             table_row.col(|ui| {
-                                                if ui
-                                                    .selectable_label(
-                                                        snapshot.workflow_id == row.id,
-                                                        &row.occurred_on,
-                                                    )
-                                                    .clicked()
-                                                {
+                                                let response = if row.legacy_unassigned {
+                                                    ui.selectable_label(snapshot.workflow_id == row.id, format!("Unassigned · {}", row.occurred_on))
+                                                        .on_hover_text(format!("{}\nHistorical workflow with no recorded fund or strategy family.", row.occurred_on))
+                                                } else {
+                                                    ui.selectable_label(snapshot.workflow_id == row.id, &row.occurred_on)
+                                                };
+                                                if response.clicked() {
                                                     action = Some(row.action);
                                                 }
                                             });

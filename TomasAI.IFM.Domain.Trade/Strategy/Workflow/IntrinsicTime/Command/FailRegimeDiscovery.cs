@@ -30,7 +30,7 @@ public static class FailRegimeDiscovery
         public ServiceResult<GuidResult> Execute(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context, IntrinsicTimeStrategyWorkflowCommandState state)
         {
             ArgumentNullException.ThrowIfNull(state);
-            var preparation = new WorkflowSnapshotPreparation(state.WorkflowDefinition);
+            var preparation = new WorkflowSnapshotPreparation(state.DecisionView);
             var preparationResult = PrepareWorkflow(command, context, preparation);
             if (!preparationResult.Success)
                 return preparationResult;
@@ -68,7 +68,7 @@ public static class FailRegimeDiscovery
                     AppendSnapshot(state, command, current.Status, stale, now);
                 return Ok(command);
             }
-            var timedOut = now >= current.ExpiresAtUtc || IsTimeout(command.Failure);
+            var timedOut = now >= Runtime.WorkflowCalculationRuntime.EffectiveDeadline(current) || IsTimeout(command.Failure);
             var updated = current with
             {
                 Status = timedOut ? WorkflowStrategyMachineStatus.TimedOut : WorkflowStrategyMachineStatus.Failed,

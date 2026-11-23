@@ -14,7 +14,7 @@ internal static class OutlookFixtures
     {
         var date=new DateOnly(2026,10,26);var now=new DateTime(2026,10,26,12,30,0,DateTimeKind.Utc);
         var cold=new MarketOutlookReadModel{ContractId="ESZ6",ValueDate=date,UpdatedAtUtc=now,MissingInputs="EMA, ITI"};
-        var hot=cold with{MissingInputs="",FuturesEodData=new(){ContractId="ESZ6",ValueDate=date,OpenPrice=6050.125m,HighPrice=6060.225m,LowPrice=6040.335m,ClosePrice=6055.445m,Volume=123456,DailyPercentChange=0.012345,MarketDirection=MarketDirectionType.Up,PriceDirection=PriceDirectionType.Rising},
+        var hot=cold with{FiveMinuteEmaState="StronglyBullish",MissingInputs="",FuturesEodData=new(){ContractId="ESZ6",ValueDate=date,OpenPrice=6050.125m,HighPrice=6060.225m,LowPrice=6040.335m,ClosePrice=6055.445m,Volume=123456,DailyPercentChange=0.012345,MarketDirection=MarketDirectionType.Up,PriceDirection=PriceDirectionType.Rising},
             FuturesTradeSignal=new(){ContractId="ESZ6",ValueDate=date,TrendType=FuturesTrendType.UpTrend,TrendStrength=FuturesTrendStrengthType.High,ExitTrigger=6040.125},
             FuturesEmaSignal=new(){IsWarm=true,Ema50=6040.125m,Ema200=6020.125m,BaselineValueDate=date.AddDays(-1)},
             FuturesBbSignal=new(){IsWarm=true,StandardDeviation20=10.125m,Ema20Center=6050.125m,Upper20=6070.125m,Lower20=6030.125m,BaselineValueDate=date.AddDays(-1)},

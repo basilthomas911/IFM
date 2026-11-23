@@ -22,12 +22,20 @@ public static class StartMarketConditionPipeline
             {
                 if (view.AssessmentBinding is { } existing)
                 {
-                    existing.Validate();
+                    if (context.PreparedConfiguration is null) existing.Validate();
                     return PipelineStartResult<WorkflowStrategyStateUpdatedEvent>.Started(snapshot);
                 }
 
                 if (context.TimeProvider.GetUtcNow().UtcDateTime >= view.ExpiresAtUtc)
                     return PipelineStartResult<WorkflowStrategyStateUpdatedEvent>.Failed("MC.INIT.DEADLINE", "InitializationTimeout", "Market Condition initialization reached the workflow deadline.");
+                if (context.PreparedConfiguration is { } ready)
+                {
+                    if (!ready.TryAcquire(context.Options.MarketConditionAssessmentProfileId, view.TriggerEvent.EntityId.TimePeriod,
+                        context.TimeProvider.GetUtcNow().UtcDateTime, out var prepared))
+                        return PipelineStartResult<WorkflowStrategyStateUpdatedEvent>.Failed("MC.INIT.CONFIGURATION_NOT_READY", "ConfigurationUnavailable", "Market Condition configuration has not been prepared. No load is attempted by this workflow.");
+                    return PipelineStartResult<WorkflowStrategyStateUpdatedEvent>.Started(global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(snapshot,
+                        snapshot with { State = view with { AssessmentBinding = prepared } }));
+                }
                 var resolved = await context.ConfigurationDb.GetEffectiveMarketConditionAssessmentAsync(view.StartedAtUtc, context.Options.MarketConditionAssessmentProfileId, "ES", view.TriggerEvent.EntityId.TimePeriod).ConfigureAwait(false);
                 if (resolved is null)
                     return PipelineStartResult<WorkflowStrategyStateUpdatedEvent>.Failed("MC.INIT.CONFIGURATION_MISSING", "ConfigurationUnavailable", "No published Market Condition assessment profile is effective for the workflow.");

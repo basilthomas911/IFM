@@ -41,7 +41,7 @@ namespace TomasAI.IFM.Application.Storage.TradeDb;
 /// <param name = "sequenceIdGenerator">The technical sequence allocator.</param>
 /// <param name = "logger">The storage logger.</param>
 /// <param name="timeProvider">The business clock used for caller-visible timestamps.</param>
-public sealed class TradeDbContext(IDbConnectionSettings connectionSettings, IDbContextFactory dbFactory, ISequenceIdGenerator sequenceIdGenerator, ILogger<DbProvider> logger, TimeProvider? timeProvider = null) : ObjectDataRepository<TradeDbContext>(connectionSettings[TradeDbConnection], logger), ITradeDbContext
+public sealed partial class TradeDbContext(IDbConnectionSettings connectionSettings, IDbContextFactory dbFactory, ISequenceIdGenerator sequenceIdGenerator, ILogger<DbProvider> logger, TimeProvider? timeProvider = null) : ObjectDataRepository<TradeDbContext>(connectionSettings[TradeDbConnection], logger), ITradeDbContext
 {
     internal static EventLogReadModel MapToStrategyHandoffAuthorization(System.Data.Common.DbDataReader row)
         => new(row.GetInt64(0), row.GetString(1), row.GetString(2), row.GetInt64(3),
@@ -1011,6 +1011,21 @@ public sealed class TradeDbContext(IDbConnectionSettings connectionSettings, IDb
     }
 
     /// <inheritdoc/>
+    public Task<ICollection<string>> ListStrategyUpdatesContractsAsync(CancellationToken cancellationToken) =>
+        this.Use(nameof(TradeDbSql.ListStrategyUpdatesContracts), TradeDbSql.ListStrategyUpdatesContracts)
+            .SetParameters(new TradeDbValues(Values()))
+            .ExecuteQueryAsync(row => row.GetString(0), cancellationToken);
+
+    /// <inheritdoc/>
+    public Task<ICollection<(Guid WorkflowId, long Revision, DateTime OrderAtUtc, long Sequence, bool LegacyUnassigned)>> ReadStrategyUpdatesQueueAsync(
+        string contractId, string timeframe, string assignmentKey, DateTime fromUtc, DateTime toUtc,
+        DateTime beforeSignalAtUtc, long beforeSignalSequence, Guid beforeWorkflowId, int limit, CancellationToken cancellationToken) =>
+        this.Use(nameof(TradeDbSql.ReadStrategyUpdatesQueue), TradeDbSql.ReadStrategyUpdatesQueue)
+            .SetParameters(new TradeDbValues(Values(Text(contractId), Text(timeframe), Text(assignmentKey), TimestampTz(fromUtc),
+                TimestampTz(toUtc), TimestampTz(beforeSignalAtUtc), Bigint(beforeSignalSequence), Uuid(beforeWorkflowId), Integer(limit))))
+            .ExecuteQueryAsync(row => (row.GetGuid(0), row.GetLong(1), row.GetDateTime(2), row.GetLong(3), row.GetBool(4)), cancellationToken);
+
+    /// <inheritdoc/>
     public Task<IntrinsicTimeStrategyWorkflowReadModel?> GetIntrinsicTimeStrategyWorkflowAsync(StrategyWorkflowId workflowId) => GetIntrinsicTimeStrategyWorkflowAsync(workflowId, CancellationToken.None);
     /// <inheritdoc/>
     public Task<IntrinsicTimeStrategyWorkflowReadModel?> GetIntrinsicTimeStrategyWorkflowAsync(StrategyWorkflowId workflowId, CancellationToken cancellationToken) => this.Use($"{nameof(TradeDbSql)}.{nameof(TradeDbSql.GetIntrinsicTimeStrategyWorkflow)}", (TradeDbSql.NativeGetIntrinsicTimeStrategyWorkflow))
@@ -1355,6 +1370,39 @@ public sealed class TradeDbContext(IDbConnectionSettings connectionSettings, IDb
 
     /// <inheritdoc/>
     public Task ReplaceOpenPositionRoutesAsync(StrategyPositionSnapshot position, CancellationToken token = default) => this.ReplaceOpenPositionRoutesAsyncCoreBinding(position, token);
+    Task<StrategyPositionSnapshot[]> TomasAI.IFM.Application.MarketData.Recovery.IOpenPositionEndOfDayStore.ReadOpenAsync(StrategyPositionId? after, int pageSize, CancellationToken token)
+        => GetOpenPositionsForEndOfDayAsync(after, pageSize, token);
+    Task<StrategyPositionSnapshot?> TomasAI.IFM.Application.MarketData.Recovery.IOpenPositionEndOfDayStore.LoadPositionAsync(StrategyPositionId id, CancellationToken token)
+        => GetStrategyPositionAsync(id, token);
+    Task<EstablishedTradeDefinition?> TomasAI.IFM.Application.MarketData.Recovery.IOpenPositionEndOfDayStore.LoadTradeAsync(TradeEntityId id, CancellationToken token)
+        => GetEstablishedTradeAsync(id, token);
+    async Task<StrategyPositionSnapshot?> TomasAI.IFM.Application.MarketData.Recovery.IOpenPositionEndOfDayStore.ReadSealAsync(StrategyPositionId id, DateOnly valueDate, DateTime fromUtc, DateTime toUtc, CancellationToken token)
+    {
+        byte[]? cursor = null;
+        do
+        {
+            var page = await GetStrategyPositionHistoryAsync(id.PositionId, fromUtc, toUtc, 64, cursor, token).ConfigureAwait(false);
+            var matches = page.Items.Where(row => row.ValueDate == valueDate && row.Phase == StrategyPositionPhase.EndOfDay).ToArray();
+            if (matches.Length > 1) throw new InvalidDataException("Multiple EOD position rows for one session.");
+            if (matches.Length == 1) return matches[0];
+            cursor = page.PagingState;
+        } while (cursor is not null);
+        return null;
+    }
+    /// <inheritdoc/>
+    public async Task<StrategyPositionSnapshot[]> GetOpenPositionsForEndOfDayAsync(StrategyPositionId? after = null, int pageSize = 64, CancellationToken token = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(pageSize, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(pageSize, 256);
+        if (after is { IsValid: false }) throw new ArgumentException("Invalid open-position cursor.", nameof(after));
+        object?[] values = after is { } last
+            ? [last.Trade.PortfolioId,last.Trade.FundId,last.Trade.OrderId,last.Trade.TradeId,last.PositionId,pageSize]
+            : [pageSize];
+        var rows = await this.NativeTransaction().ExecuteOnceAsync((db, ct) => db.QueryAsync(
+            after is null ? TradeDbSql.ReadOpenPositionsForEndOfDay : TradeDbSql.ReadOpenPositionsForEndOfDayAfter,
+            values, row => MessagePackBinarySerializer.Shared.Deserialize<StrategyPositionSnapshot>(row.GetFieldValue<byte[]>(0)), ct), token).ConfigureAwait(false);
+        return rows.ToArray();
+    }
     /// <inheritdoc/>
     public Task<ICollection<OpenPositionRouteReadModel>> GetOpenPositionRoutesAsync(string contractId, CancellationToken token = default) => this.GetOpenPositionRoutesAsyncCoreBinding(contractId, token);
     /// <inheritdoc/>

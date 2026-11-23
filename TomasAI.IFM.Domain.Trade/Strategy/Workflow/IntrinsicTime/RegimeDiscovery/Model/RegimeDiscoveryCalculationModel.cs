@@ -17,6 +17,8 @@ public sealed class RegimeDiscoveryCalculationModel(TrendRegimeCalculationModel?
     {
         ArgumentNullException.ThrowIfNull(input);
         cancellationToken.ThrowIfCancellationRequested();
+        if (input.CalculationPolicy == EmaStackRegimePolicy.Version)
+            return EmaStackRegimeCalculationModel.Calculate(input);
         TrendRegimeResult trendResult;
         VolatilityRegimeResult volatilityResult;
         MarketStructureRegimeResult structureResult;

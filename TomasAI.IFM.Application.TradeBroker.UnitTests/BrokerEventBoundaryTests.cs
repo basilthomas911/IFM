@@ -69,8 +69,9 @@ public sealed class BrokerEventBoundaryTests
         AssertMapCount(typeof(BrokerOrderQueryActor), "_parseMap", 2);
         AssertMapCount(typeof(BrokerOrderQueryActor), "_receiveMap", 2);
         AssertMapCount(typeof(BrokerOrderQueryActor), "_exceptionMap", 2);
-        AssertMapCount(typeof(BrokerOrderRealtimeActor), "_parseMap", 1);
-        AssertMapCount(typeof(BrokerOrderRealtimeActor), "_receiveMap", 1);
+        // Futures quotes and native option quote observations have distinct feed envelopes.
+        AssertMapCount(typeof(BrokerOrderRealtimeActor), "_parseMap", 2);
+        AssertMapCount(typeof(BrokerOrderRealtimeActor), "_receiveMap", 2);
 
         foreach (var handler in new[]
         {
