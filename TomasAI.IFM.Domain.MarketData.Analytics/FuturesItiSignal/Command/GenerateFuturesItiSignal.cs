@@ -77,11 +77,14 @@ public static class GenerateFuturesItiSignal
         /// <returns>The event or ordered event collection to apply through actor state and persist before projection.</returns>
         internal FuturesItiSignalGeneratedEvent CreateFuturesItiSignalGeneratedEvent(FuturesItiSignalV2ReadModel futuresItiSignal) => new()
         {
+            Id = command.SourceCursor is null ? Guid.Empty : command.CommandId,
             CommandId = command.CommandId,
             Subject = new ActorSubject(ActorType.Event, FuturesItiSignalGeneratedEvent.Actor, FuturesItiSignalGeneratedEvent.Verb, command.EntityId.Format()),
             EntityId = command.EntityId,
             FuturesItiSignal = futuresItiSignal,
             VixFuturesPrice = command.VixFuturesPrice,
+            SourceCursor = command.SourceCursor,
+            JournalSequence = command.JournalSequence,
             DeriveLongerPeriods = false,
             CreatedOn = command.OriginatedOn,
             CreatedBy = command.OriginatedBy

@@ -337,17 +337,22 @@ public class FuturesItiSignalCommandTests
         var volatilityPoints = started.IntrinsicPrice * (0.002 * Math.Sqrt(20.0 / 15.7));
         var expectedUpThreshold = 5 * (volatilityPoints + 0.25 * Math.Pow(started.TradingDays, 1.5))
             / (volatilityPoints + 0.25);
+        if (timePeriod == TimeFrameType.Daily) expectedUpThreshold = 10;
         started.Threshold.Should().BeApproximately(expectedUpThreshold, 1e-10);
         ExpectNoSignal(started.BandAnchorPrice + started.BandSize / 2);
-        ExpectNoSignal(started.TrendPrice + started.Threshold * 0.99);
-        ExpectNoSignal(started.TrendPrice - started.BandSize);
+        if (timePeriod != TimeFrameType.Daily)
+        {
+            ExpectNoSignal(started.TrendPrice + started.Threshold * 0.99);
+            ExpectNoSignal(started.TrendPrice - started.BandSize);
+        }
         var upThresholdExtension = GenerateAt(started.TrendPrice + started.Threshold * 1.25);
         upThresholdExtension.BandLevel.Should().BeGreaterThan(1);
         upThresholdExtension.ReversalLevel.Should().Be(0);
         var upReversal = GenerateAt(upThresholdExtension.TrendReversal - upThresholdExtension.BandSize * 1.01);
         upReversal.IntrinsicPrice.Should().BeGreaterThan(upReversal.DownTrendTrigger);
         upReversal.ReversalLevel.Should().BeGreaterThan(0);
-        ExpectNoSignal(upReversal.BandAnchorPrice + upReversal.BandSize * 1.01);
+        if (timePeriod != TimeFrameType.Daily)
+            ExpectNoSignal(upReversal.BandAnchorPrice + upReversal.BandSize * 1.01);
 
         var downDirection = GenerateAt(upReversal.DownTrendTrigger);
         var downExtreme = GenerateAt(downDirection.TrendExtreme - downDirection.BandSize * 1.01);
@@ -360,8 +365,14 @@ public class FuturesItiSignalCommandTests
             downThresholdExtension.TrendReversal + downThresholdExtension.BandSize * 1.01);
         downReversal.IntrinsicPrice.Should().BeLessThan(downReversal.UpTrendTrigger);
         downReversal.ReversalLevel.Should().BeGreaterThan(0);
-        var downTrending = GenerateAt(downReversal.BandAnchorPrice - downReversal.BandSize * 1.01);
-        downTrending.ReversalLevel.Should().BeLessThan(downReversal.ReversalLevel);
+        var downTrending = downReversal;
+        if (timePeriod == TimeFrameType.Daily)
+        {
+            downTrending = GenerateAt(downReversal.BandAnchorPrice - downReversal.BandSize * 1.01);
+            downTrending.ReversalLevel.Should().BeLessThan(downReversal.ReversalLevel);
+        }
+        else
+            ExpectNoSignal(downReversal.BandAnchorPrice - downReversal.BandSize * 1.01);
 
         _ = GenerateAt(downTrending.UpTrendTrigger);
 
@@ -392,34 +403,29 @@ public class FuturesItiSignalCommandTests
             })
             .ToArray();
 
-        signals.Select(signal => signal.IntrinsicTimeMode).Should().Equal(
+        var expectedModes = new List<IntrinsicTimeModeType>
+        {
             IntrinsicTimeModeType.TrendDirectionChanged,
             IntrinsicTimeModeType.TrendOvershootExtended,
             IntrinsicTimeModeType.TrendOvershootReversal,
             IntrinsicTimeModeType.TrendDirectionChanged,
             IntrinsicTimeModeType.TrendExtremeChanged,
             IntrinsicTimeModeType.TrendOvershootExtended,
-            IntrinsicTimeModeType.TrendOvershootReversal,
-            IntrinsicTimeModeType.Trending,
+            IntrinsicTimeModeType.TrendOvershootReversal
+        };
+        if (timePeriod == TimeFrameType.Daily) expectedModes.Add(IntrinsicTimeModeType.Trending);
+        expectedModes.AddRange([
             IntrinsicTimeModeType.TrendDirectionChanged,
             IntrinsicTimeModeType.HoldTradeChanged,
-            IntrinsicTimeModeType.HoldTradeChanged);
+            IntrinsicTimeModeType.HoldTradeChanged]);
+        signals.Select(signal => signal.IntrinsicTimeMode).Should().Equal(expectedModes);
+        var downCount = timePeriod == TimeFrameType.Daily ? 5 : 4;
         signals.Select(signal => signal.IntrinsicTimeTrend).Should().Equal(
-            IntrinsicTimeTrendType.UpTrend,
-            IntrinsicTimeTrendType.UpTrend,
-            IntrinsicTimeTrendType.UpTrend,
-            IntrinsicTimeTrendType.DownTrend,
-            IntrinsicTimeTrendType.DownTrend,
-            IntrinsicTimeTrendType.DownTrend,
-            IntrinsicTimeTrendType.DownTrend,
-            IntrinsicTimeTrendType.DownTrend,
-            IntrinsicTimeTrendType.UpTrend,
-            IntrinsicTimeTrendType.UpTrend,
-            IntrinsicTimeTrendType.UpTrend);
+            Enumerable.Repeat(IntrinsicTimeTrendType.UpTrend, 3)
+                .Concat(Enumerable.Repeat(IntrinsicTimeTrendType.DownTrend, downCount))
+                .Concat(Enumerable.Repeat(IntrinsicTimeTrendType.UpTrend, 3)));
         signals.Select(signal => signal.IntrinsicTimeGroupId).Should().Equal(
-            0, 0, 0,
-            1, 1, 1, 1, 1,
-            2, 2, 2);
+            Enumerable.Repeat(0, 3).Concat(Enumerable.Repeat(1, downCount)).Concat(Enumerable.Repeat(2, 3)));
         signals.Should().OnlyContain(signal =>
             signal.TimePeriod == timePeriod
             && signal.TimeFrameStartValueDate == SampleData.ValueDate

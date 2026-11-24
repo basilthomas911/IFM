@@ -27,6 +27,24 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Realtime;
 /// </summary>
 public static class FuturesTickTradeDataInserted
 {
+    internal static async ValueTask<bool> ExecuteCumulativeAsync(FuturesTickTradeDataInsertedEvent source, decimal high, decimal low,
+        IEventActorContext context, IMarketDataApi api, IRealtimeProjector<FuturesEodDataRealtimeActor> projector, ILogger logger)
+    {
+        var contract = await api.GetFuturesContractAsync(source.EntityId.ContractId).ConfigureAwait(false);
+        if (contract is null) return true;
+        var tick = ToFuturesTickData(source);
+        if (contract.Id.IsVxContract) return await ProjectVxTradeAsync(source, tick, api, projector, logger).ConfigureAwait(false);
+        var projected = await CreateFuturesInsertedEventAsync(source, context, api, contract, tick, logger, null).ConfigureAwait(false);
+        if (projected is null)
+        {
+            var current = await context.GetFuturesEodDataAsync(source.EntityId.ContractId, source.EntityId.ValueDate).ConfigureAwait(false);
+            if (current is null || current.HighPrice >= high && current.LowPrice <= low) return true;
+            projected = CreateInsertedEvent(source, source.EntityId.ContractId, source.EntityId.ValueDate, current);
+        }
+        projected = projected with { FuturesEodData = projected.FuturesEodData with
+        { HighPrice = Math.Max(projected.FuturesEodData.HighPrice, high), LowPrice = Math.Min(projected.FuturesEodData.LowPrice, low) } };
+        return await projector.ProcessRealtimeEventAsync(projected).ConfigureAwait(false);
+    }
     static readonly string ServiceId = $"{LogSourceType.FuturesTickTradeDataInserted}";
 
     extension(FuturesTickTradeDataInsertedEvent source)

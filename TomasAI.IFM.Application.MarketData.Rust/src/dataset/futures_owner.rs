@@ -171,7 +171,8 @@ impl Factory for FuturesFactory {
                 parent.owner().clone(),
             )
             .map_err(|e| format!("{e:?}"))?
-            .with_diagnostics(self.diagnostics.clone(), worker)?,
+            .with_diagnostics(self.diagnostics.clone(), worker)?
+            .with_raw_capture(intent.definition),
         );
         *self.publication.lock().map_err(|_| "Native publication diagnostics interrupted")? = None;
         let (status, observed) = watch::channel(Readiness::default());

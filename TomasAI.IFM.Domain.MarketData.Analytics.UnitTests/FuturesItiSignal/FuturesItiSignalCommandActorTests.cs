@@ -42,10 +42,10 @@ public class FuturesItiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
             => await OnStartup(context);
 
         public async ValueTask<IActorState> InvokeOnLoadStateAsync(ICommandActorContext<FuturesItiSignalCommandActor> context, ActorThreadId threadId, ICommand cmd)
-            => await OnLoadStateAsync(context, threadId, cmd);
+            => await LoadStateFromStoreAsync(context, threadId, cmd, CancellationToken.None);
 
         public async ValueTask InvokeOnSaveStateAsync(ICommandActorContext<FuturesItiSignalCommandActor> context, ActorThreadId threadId, IActorState state, ICommand cmd)
-            => await OnSaveStateAsync(context, threadId, state, cmd);
+            => await SaveStateToStoreAsync(context, threadId, (FuturesItiSignalCommandState)state, cmd, CancellationToken.None);
 
         public async ValueTask<ServiceResult<GuidResult>> InvokeOnExceptionAsync(ICommandActorContext<FuturesItiSignalCommandActor> context, ActorThreadId threadId, ICommand cmd, Exception ex)
             => await OnExceptionAsync(context, threadId, cmd, ex);
@@ -972,7 +972,7 @@ public class FuturesItiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         var expectedState = new FuturesItiSignalCommandState { Id = threadId };
 
         var repo = Substitute.For<IEventSourceActorStateRepository<FuturesItiSignalCommandState>>();
-        repo.LoadStateAsync(cmd).Returns(ValueTask.FromResult(expectedState));
+        repo.LoadStateAsync(cmd, CancellationToken.None).Returns(ValueTask.FromResult(expectedState));
 
         var container = Substitute.For<IContainerInstance>();
         container.Resolve<IEventSourceActorStateRepository<FuturesItiSignalCommandState>>().Returns(repo);
@@ -988,7 +988,7 @@ public class FuturesItiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         // Assert
         result.Should().NotBeNull();
         result.Should().BeSameAs(expectedState);
-        await repo.Received(1).LoadStateAsync(cmd);
+        await repo.Received(1).LoadStateAsync(cmd, CancellationToken.None);
     }
 
     [Theory]
@@ -1012,7 +1012,7 @@ public class FuturesItiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         var expectedState = new FuturesItiSignalCommandState { Id = threadId };
 
         var repo = Substitute.For<IEventSourceActorStateRepository<FuturesItiSignalCommandState>>();
-        repo.LoadStateAsync(cmd).Returns(ValueTask.FromResult(expectedState));
+        repo.LoadStateAsync(cmd, CancellationToken.None).Returns(ValueTask.FromResult(expectedState));
 
         var container = Substitute.For<IContainerInstance>();
         container.Resolve<IEventSourceActorStateRepository<FuturesItiSignalCommandState>>().Returns(repo);
@@ -1027,7 +1027,7 @@ public class FuturesItiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
 
         // Assert
         result.Should().BeSameAs(expectedState);
-        await repo.Received(1).LoadStateAsync(cmd);
+        await repo.Received(1).LoadStateAsync(cmd, CancellationToken.None);
     }
 
     #endregion
@@ -1124,7 +1124,7 @@ public class FuturesItiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         await actor.InvokeOnSaveStateAsync(context, threadId, state, cmd);
 
         // Assert
-        await repo.Received(1).SaveStateAsync(context, state, cmd);
+        await repo.Received(1).SaveStateAsync(context, state, cmd, CancellationToken.None);
     }
 
     [Theory]
@@ -1163,7 +1163,7 @@ public class FuturesItiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         await actor.InvokeOnSaveStateAsync(context, threadId, state, cmd);
 
         // Assert
-        await repo.Received(1).SaveStateAsync(context, state, cmd);
+        await repo.Received(1).SaveStateAsync(context, state, cmd, CancellationToken.None);
     }
 
     #endregion

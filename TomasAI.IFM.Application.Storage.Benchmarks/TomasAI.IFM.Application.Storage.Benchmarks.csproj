@@ -9,6 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="../test-support/RawFuturesJournalFixture.cs" Link="Support/RawFuturesJournalFixture.cs" />
     <PackageReference Include="BenchmarkDotNet" Version="0.15.8" />
   </ItemGroup>
 

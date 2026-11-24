@@ -144,6 +144,8 @@ pub enum Failure {
 /// deciding readiness; receiving session metadata alone does not establish it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Event {
+    /// Native group-commit pulse, never a market observation or provider acknowledgement.
+    Flush,
     /// Market input copied out of the borrowed decode buffer.
     Market(Observation),
     /// Symbol-to-instrument mapping, scoped to the current lane generation.

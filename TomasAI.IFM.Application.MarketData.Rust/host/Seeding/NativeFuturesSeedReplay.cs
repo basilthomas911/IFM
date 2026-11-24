@@ -31,9 +31,9 @@ public sealed class NativeFuturesSeedReplay(
     public Task<FuturesTradeSessionBarReadModel[]> ReadAsync(string contractId, CancellationToken cancellationToken)
         => ReadCoreAsync(contractId, TimeFrameType.FiveMinutes, 0.10m, cancellationToken);
 
-    /// <summary>Repairs intraday seed coverage without authorizing a paid historical acquisition.</summary>
+    /// <summary>Repairs intraday or completed Daily seed coverage without authorizing a paid historical acquisition.</summary>
     public Task<FuturesTradeSessionBarReadModel[]> ReadAsync(string contractId, TimeFrameType timeFrame, CancellationToken cancellationToken)
-        => ReadCoreAsync(contractId, timeFrame, 0m, cancellationToken);
+        => ReadCoreAsync(contractId, timeFrame, 0m, cancellationToken, emaBootstrap: timeFrame == TimeFrameType.Daily);
 
     /// <summary>Independent EMA200 bootstrap; ordinary indicator recovery retains its 48-bar bound.</summary>
     public Task<FuturesTradeSessionBarReadModel[]> ReadEmaAsync(string contractId, TimeFrameType frame, int count, CancellationToken token)
@@ -265,7 +265,7 @@ public sealed class NativeFuturesSeedReplay(
         var result = new List<FuturesTradeSessionBarReadModel>(windows.Length);
         var validation = new FuturesTradeSessionBarReadModelValidationRules();
         var remainingBudget = maximumCostUsd;
-        foreach (var selected in ContiguousRanges(windows))
+        foreach (var selected in HistoricalMinuteRanges(windows, timeFrame))
         {
             var start = selected[0].StartUtc;
             var end = selected[^1].EndUtc;
@@ -432,6 +432,33 @@ public sealed class NativeFuturesSeedReplay(
             bars.AddRange(qualified);
         }
         return bars.ToArray();
+    }
+
+    // Daily recovery must not pay one provider roundtrip per session. Bound each
+    // request to five bars and eight calendar days; calendar windows and original
+    // minute timestamps still determine each bar independently.
+    static IEnumerable<MarketSessionBounds[]> HistoricalMinuteRanges(MarketSessionBounds[] windows, TimeFrameType frame)
+    {
+        if (frame != TimeFrameType.Daily)
+        {
+            foreach (var range in ContiguousRanges(windows)) yield return range;
+            yield break;
+        }
+        var start = 0;
+        var covered = windows.Length == 0 ? TimeSpan.Zero : windows[0].EndUtc - windows[0].StartUtc;
+        for (var index = 1; index <= windows.Length; index++)
+        {
+            if (index < windows.Length && index - start < 5
+                && windows[index].EndUtc - windows[start].StartUtc <= TimeSpan.FromDays(8)
+                && windows[index].EndUtc - windows[start].StartUtc <= (covered + (windows[index].EndUtc - windows[index].StartUtc)) * 2)
+            {
+                covered += windows[index].EndUtc - windows[index].StartUtc;
+                continue;
+            }
+            yield return windows[start..index];
+            start = index;
+            if (index < windows.Length) covered = windows[index].EndUtc - windows[index].StartUtc;
+        }
     }
 
     static IEnumerable<MarketSessionBounds[]> ContiguousRanges(MarketSessionBounds[] windows)

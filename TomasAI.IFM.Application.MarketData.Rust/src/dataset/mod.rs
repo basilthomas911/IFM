@@ -10,6 +10,7 @@ pub mod lanes;
 pub mod live;
 pub mod counters;
 mod output;
+pub mod raw_capture;
 pub mod records;
 pub mod transport;
 

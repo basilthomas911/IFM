@@ -618,7 +618,10 @@ async fn run_lane<P>(
             .map(|s| s.schema as u16)
             .collect();
         let mut workload_ready = false;
+        let mut group_commit = tokio::time::interval(std::time::Duration::from_millis(10));
+        group_commit.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         let immediate_reset = loop {
+            let received = {
             let event = session.next(
                 stop,
                 replay.contains(&(databento::dbn::Schema::Statistics as u16)),
@@ -634,11 +637,21 @@ async fn run_lane<P>(
                     event.await
                 }
             };
-            let received = tokio::select! { biased;
-                () = stop.cancelled() => { drop(session); status.send_modify(|s| s.phase = Phase::Stopped); return; }
-                _ = reset.changed() => Err(Failure::Provider(reset.borrow().reason.as_ref().map_or_else(
-                    ||"Explicit session reset requested".into(),|reason|format!("Native asynchronous processing failed: {reason}")))),
-                result = read => result,
+            // Keep the same provider read future alive across timer pulses. Cancelling an
+            // incremental SDK frame read on every pulse could corrupt source framing.
+            tokio::pin!(read);
+            loop {
+                tokio::select! { biased;
+                    () = stop.cancelled() => { status.send_modify(|s| s.phase = Phase::Stopped); return; }
+                    _ = reset.changed() => break Err(Failure::Provider(reset.borrow().reason.as_ref().map_or_else(
+                        ||"Explicit session reset requested".into(),|reason|format!("Native asynchronous processing failed: {reason}")))),
+                    _ = group_commit.tick() => match processor(generation, &Event::Flush) {
+                        Ok(ready) => workload_ready = ready,
+                        Err(error) => break Err(Failure::Provider(format!("Raw storage group commit: {error}"))),
+                    },
+                    result = &mut read => break result,
+                }
+            }
             };
             let error = match received {
                 Ok(Some(event)) => {

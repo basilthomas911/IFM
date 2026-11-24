@@ -7,6 +7,8 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../test-support/RawFuturesJournalFixture.cs" Link="Support/RawFuturesJournalFixture.cs" />
+    <ProjectReference Include="../TomasAI.IFM.IntegrationTesting/TomasAI.IFM.IntegrationTesting.csproj" />
     <ProjectReference Include="../test-support/EventIdentityRelocation/Relocated/Relocated.csproj" />
     <None Include="../test-support/EventTypeCompatibilityFixtures/manifest.json" Link="EventTypeCompatibilityFixtures/manifest.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../test-support/LayeringContractFixtures/framework-contracts.json" Link="LayeringContractFixtures/framework-contracts.json" CopyToOutputDirectory="PreserveNewest" />

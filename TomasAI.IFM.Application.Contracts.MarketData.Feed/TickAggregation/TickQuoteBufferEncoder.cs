@@ -78,7 +78,7 @@ public static class TickQuoteBufferEncoder
     static int ItemSize(in FuturesTickQuoteData quote)
         => FixedItemSize + DecimalSize(quote.BidPrice) + DecimalSize(quote.AskPrice);
 
-    static int DecimalSize(decimal? value)
+    internal static int DecimalSize(decimal? value)
     {
         if (value is null)
             return 0;
@@ -86,21 +86,21 @@ public static class TickQuoteBufferEncoder
         return sizeof(int) + WriteUnscaled(value.Value, unscaled);
     }
 
-    static void WriteLong(Span<byte> output, ref int offset, long value)
+    internal static void WriteLong(Span<byte> output, ref int offset, long value)
     {
         WriteInt32(output, ref offset, sizeof(long));
         BinaryPrimitives.WriteInt64BigEndian(output.Slice(offset, sizeof(long)), value);
         offset += sizeof(long);
     }
 
-    static void WriteShort(Span<byte> output, ref int offset, short value)
+    internal static void WriteShort(Span<byte> output, ref int offset, short value)
     {
         WriteInt32(output, ref offset, sizeof(short));
         BinaryPrimitives.WriteInt16BigEndian(output.Slice(offset, sizeof(short)), value);
         offset += sizeof(short);
     }
 
-    static void WriteDecimal(Span<byte> output, ref int offset, decimal? value)
+    internal static void WriteDecimal(Span<byte> output, ref int offset, decimal? value)
     {
         if (value is null)
         {
@@ -150,7 +150,7 @@ public static class TickQuoteBufferEncoder
         return length;
     }
 
-    static void WriteInt32(Span<byte> output, ref int offset, int value)
+    internal static void WriteInt32(Span<byte> output, ref int offset, int value)
     {
         BinaryPrimitives.WriteInt32BigEndian(output.Slice(offset, sizeof(int)), value);
         offset += sizeof(int);

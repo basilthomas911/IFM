@@ -59,6 +59,14 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
         }
     }
 
+    /// <summary>Shares the existing canonical session with bounded specialist ingestion writers.</summary>
+    public static async Task<ISession> GetSharedSessionAsync(IObjectRepositoryContext context, ILogger<DbProvider> logger,
+        CancellationToken token = default)
+    {
+        var provider = (ScyllaDbObjectDataRepositoryProvider)CreateProvider(context, logger);
+        return await provider._conn.CreateSessionAsync().WaitAsync(token).ConfigureAwait(false);
+    }
+
     /// <summary>
     /// create scylladb object data repository provider 
     /// </summary>

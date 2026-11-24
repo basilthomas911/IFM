@@ -209,13 +209,16 @@ public sealed class LivePipelineProbe(MarketDataRuntimeHealthCheck feedCheck,
         }
         if (market.TryGetOnTheRunFuturesContract("ES", out var es))
         {
-            if (supervisor is not null)
+            var iti = itiTelemetry.GetSnapshot();
+            if (iti.OrderedIntakeEnabled)
+                Add("ITI route", "ES", true,
+                    $"Fenced local ordered intake; pending={iti.OrderedPending}; captured={iti.OrderedCaptured}; processed={iti.OrderedProcessed}; batches={iti.OrderedBatches}; epoch={iti.SourceEpoch}; ordinal={iti.SourceOrdinal}.");
+            else if (supervisor is not null)
                 Add("ITI route", "ES", supervisor.GetRealtimeRoutes(PriceRoute).Any(x => x.Destination == ItiMailbox),
                     "Current realtime routing table must contain the thin ITI Daily-command consumer.");
             else
                 checks.Add(new("ITI route", "ES", "Unknown", "ITI realtime router attachment is unverified.", now));
 
-            var iti = itiTelemetry.GetSnapshot();
             var lastMarketTrade = market.TryGetLastTickPrice(es.ContractId, out var itiPrice)
                 ? itiPrice.Trade?.EventTimestamp.UtcDateTime
                 : null;
@@ -470,6 +473,9 @@ public sealed class LivePipelineHealthCheck(LivePipelineMonitor monitor) : IHeal
 {
     public Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
     {
+        if (!TomasAI.IFM.Shared.MarketData.Contracts.TickAggregation.FuturesItiOrderedIngress.AllowsEntries)
+            return Task.FromResult(HealthCheckResult.Unhealthy("ITI ordered source is unavailable: "
+                + TomasAI.IFM.Shared.MarketData.Contracts.TickAggregation.FuturesItiOrderedIngress.StatusReason));
         return Task.FromResult(Evaluate(monitor.Current));
     }
 

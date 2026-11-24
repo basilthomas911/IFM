@@ -10,7 +10,7 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 /// Represents a domain event indicating that a Futures ITI signal has been generated.
 /// </summary>
 [MessagePackObject(AllowPrivate = true)]
-public record FuturesItiSignalGeneratedEvent : IEvent<FuturesItiSignalEntityId>
+public record FuturesItiSignalGeneratedEvent : IEvent<FuturesItiSignalEntityId>, IRequireDurableProjection
 {
     [IgnoreMember] public const string Actor = "FuturesItiSignalEvent";
     [IgnoreMember] public const string Verb = "Generated";
@@ -37,6 +37,11 @@ public record FuturesItiSignalGeneratedEvent : IEvent<FuturesItiSignalEntityId>
     [Key(11)] public double VixFuturesPrice { get; init; }
     /// <summary>Deprecated compatibility field. New generation events always set this to false.</summary>
     [Key(12)] public bool DeriveLongerPeriods { get; init; }
+    [Key(13)] public FuturesItiSourceCursor? SourceCursor { get; init; }
+    [Key(14)] public long JournalSequence { get; init; }
+    [IgnoreMember] public DurableProjectionRequirement RequiredProjection => new(
+        "FuturesItiSignalCommandActor", "FuturesItiSignalEventProjector",
+        TomasAI.IFM.Shared.EventProjector.EventProjectorStageType.ApplyProjection);
 
     [IgnoreMember] public string UserName => $"{Environment.UserDomainName}\\{Environment.UserName}";
     [IgnoreMember] public string EventName => GetType().Name;

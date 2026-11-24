@@ -39,6 +39,12 @@ public static class IndicatorHealthRegistry
     public static DateTimeOffset MinimumSourceTime(TimeFrameType frame, DateTimeOffset now, IMarketSessionCalendar calendar)
         => RsiHistoricalSeedWindowModel.Create(frame, 1, now.AddSeconds(-30), calendar)[0].StartUtc;
 
+    /// <summary>Daily outputs belong to the last completed exchange session, never an unfinished current day.</summary>
+    public static DateOnly ObservationDate(TimeFrameType frame, DateOnly activeDate, DateTimeOffset now, IMarketSessionCalendar calendar)
+        => frame == TimeFrameType.Daily
+            ? RsiHistoricalSeedWindowModel.Create(frame, 1, now.AddSeconds(-30), calendar)[0].ValueDate
+            : activeDate;
+
     /// <summary>Builds an explicit failure rather than treating a missing projection as a warm indicator.</summary>
     public static IndicatorHealthEntry Evaluate(string contract, TimeFrameType frame, string indicator,
         bool warm, bool valid, DateTimeOffset? source, DateTimeOffset? expected)

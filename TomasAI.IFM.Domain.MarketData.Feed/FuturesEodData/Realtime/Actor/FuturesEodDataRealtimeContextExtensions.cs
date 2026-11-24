@@ -22,6 +22,22 @@ public static class FuturesEodDataRealtimeContextExtensions
 
     extension(IFuturesEodDataRealtimeContext context)
     {
+        public async ValueTask ReceiveCumulativeAsync(IEventActorContext<FuturesEodDataRealtimeActor> actorContext,
+            FuturesEodTradeBatchRealtimeEvent source)
+        {
+            if (source.Last.EntityId.ContractId != source.EntityId.ContractId || source.Last.EntityId.ValueDate != source.EntityId.ValueDate
+                || source.Low <= 0 || source.Low > source.Last.TradeData.Price || source.High < source.Last.TradeData.Price)
+                throw new InvalidOperationException("Cumulative EOD source identity or extrema are invalid.");
+            var worker = context.GetOrCreateTradeWorker(actorContext, source.EntityId.ContractId);
+            await worker.EnqueueOperationAsync(async () =>
+            {
+                var trade = global::TomasAI.IFM.Domain.MarketData.Feed.TickAggregation.Realtime.TickAggregationRealtimeEvents.ToInsertedEvent(source.Last);
+                if (!await FuturesTickTradeDataInserted.ExecuteCumulativeAsync(trade, source.High, source.Low,
+                    actorContext, context.MarketDataApi, context.Projector, context.Logger).ConfigureAwait(false))
+                    throw new InvalidOperationException("Cumulative EOD projection failed.");
+                context.TradeDispatch.ReadCache.Invalidate(source.EntityId);
+            }).ConfigureAwait(false);
+        }
         /// <summary>Starts the optional per-contract trade workers.</summary>
         public void StartTradeWorkers()
         {

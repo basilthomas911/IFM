@@ -16,6 +16,9 @@ public sealed class TradeTickQuoteSchemaDb(IDbConnectionSettings settings, ILogg
     [
         new("ifm_recovery_probe", TradeTickQuoteSchemaSql.CreateRecoveryProbeTable, TradeTickQuoteSchemaSql.DropRecoveryProbeTable),
         new("tick_quote_item", TradeTickQuoteSchemaSql.CreateTickQuoteItemType, TradeTickQuoteSchemaSql.DropTickQuoteItemType),
+        new("tick_trade_item_v1", TradeBatchScyllaSchema.CreateItem, "DROP TYPE IF EXISTS tick_trade_item_v1;"),
+        new("tick_trade_batch_manifest_v1", TradeBatchScyllaSchema.CreateManifest, "DROP TABLE IF EXISTS tick_trade_batch_manifest_v1;"),
+        new("tick_trade_batch_data_v1", TradeBatchScyllaSchema.CreateChunks, "DROP TABLE IF EXISTS tick_trade_batch_data_v1;"),
         new("tick_trade_data", TradeTickQuoteSchemaSql.CreateTickTradeDataTable, TradeTickQuoteSchemaSql.DropTickTradeDataTable),
         new("tick_quote_data", TradeTickQuoteSchemaSql.CreateTickQuoteDataTable, TradeTickQuoteSchemaSql.DropTickQuoteDataTable),
         new("futures_tick_data", TradeTickQuoteSchemaSql.CreateFuturesTickDataTable, TradeTickQuoteSchemaSql.DropFuturesTickDataTable),

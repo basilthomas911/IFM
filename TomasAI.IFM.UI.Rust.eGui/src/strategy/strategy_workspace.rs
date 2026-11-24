@@ -13,7 +13,7 @@ use crate::{Catalog, DetailsView, Snapshot, strings};
 use eframe::egui;
 use serde::Deserialize;
 
-/// Other ITI events use the same magenta in every timeframe's legend and plot.
+/// Other ITI events use magenta in the Weekly and Monthly charts.
 const OTHER_ITI_EVENT_COLOR: egui::Color32 = egui::Color32::from_rgb(255, 0, 255);
 
 /// Overshoot colors shared by the plotted events and bottom legend.
@@ -260,6 +260,9 @@ impl StrategyWorkspace {
                                     ("Overshoot Extended", "circle", OVERSHOOT_EXTENDED_COLOR),
                                     ("Overshoot Reversal", "circle", OVERSHOOT_REVERSAL_COLOR),
                                 ] {
+                                    if snapshot.time_frame == "Daily" && label == "Other ITI Event" {
+                                        continue;
+                                    }
                                     // Wrap each marker and caption as one legend entry.
                                     let caption_width = ui
                                         .painter()

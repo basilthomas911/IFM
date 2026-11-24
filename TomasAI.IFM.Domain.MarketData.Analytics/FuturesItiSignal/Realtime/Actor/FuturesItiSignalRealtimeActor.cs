@@ -8,12 +8,15 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Realtime.Acto
 
 /// <summary>Routes eligible realtime ES trade prices to durable Daily Futures ITI command processing.</summary>
 public class FuturesItiSignalRealtimeActor(
-    IRealtimeActorContext<FuturesItiSignalRealtimeActor> actorContext)
+    IRealtimeActorContext<FuturesItiSignalRealtimeActor> actorContext,
+    ResidentActorPilotOptions? residency = null)
     : BaseEventActor<FuturesItiSignalRealtimeActor>(actorContext,
         ((IFuturesItiSignalRealtimeContext)actorContext).Logger)
 {
     /// <summary>Identifies the singleton Futures ITI realtime ingress mailbox.</summary>
     public const string ActorName = "FuturesItiSignalRealtime";
+    FuturesItiOrderedRuntime? orderedRuntime;
+    public object? OrderedIntakeSnapshot => orderedRuntime?.Snapshot;
 
     static readonly ActorTypeId MarketPriceRoute = new(
         ActorType.Realtime,
@@ -37,21 +40,28 @@ public class FuturesItiSignalRealtimeActor(
     IFuturesItiSignalRealtimeContext TypedContext { get; } = IsArgumentNull.Named(actorContext as IFuturesItiSignalRealtimeContext, nameof(actorContext))!;
 
     /// <inheritdoc />
-    protected override ValueTask OnStartup(IEventActorContext<FuturesItiSignalRealtimeActor> context)
+    protected override async ValueTask OnStartup(IEventActorContext<FuturesItiSignalRealtimeActor> context)
     {
         ArgumentNullException.ThrowIfNull(context);
-        context.AddRealtimeRouter(MarketPriceRoute, Id);
+        if (residency?.FuturesItiOrderedIntakeEnabled == true)
+        {
+            // Managed actors start concurrently. The supervisor's per-actor lifecycle gate
+            // joins an in-progress start and propagates owner recovery failure before intake opens.
+            await context.Container.Resolve<IActorSupervisor>().StartAsync(new(ActorType.Command,
+                Command.Actor.FuturesItiSignalCommandActor.ActorName)).ConfigureAwait(false);
+            orderedRuntime = await FuturesItiOrderedRuntime.StartAsync(TypedContext, residency.FuturesItiJournalDirectory).ConfigureAwait(false);
+        }
+        else context.AddRealtimeRouter(MarketPriceRoute, Id);
         TypedContext.Telemetry.RecordRouteAttached();
-        return ValueTask.CompletedTask;
     }
 
     /// <inheritdoc />
-    protected override ValueTask OnShutdown(IEventActorContext<FuturesItiSignalRealtimeActor> context)
+    protected override async ValueTask OnShutdown(IEventActorContext<FuturesItiSignalRealtimeActor> context)
     {
         ArgumentNullException.ThrowIfNull(context);
         context.RemoveRealtimeRouter(MarketPriceRoute, Id);
+        if (orderedRuntime is not null) await orderedRuntime.DisposeAsync().ConfigureAwait(false);
         TypedContext.Telemetry.RecordRouteDetached();
-        return ValueTask.CompletedTask;
     }
 
     /// <inheritdoc />

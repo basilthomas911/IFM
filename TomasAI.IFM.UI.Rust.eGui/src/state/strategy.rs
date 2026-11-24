@@ -617,6 +617,7 @@ impl StrategyController {
                 match mode.as_str() {
                     "TrendOvershootExtended" => "OvershootExtended",
                     "TrendOvershootReversal" => "OvershootReversal",
+                    _ if frame == "Daily" => continue,
                     _ => "Other",
                 }
             };
@@ -760,17 +761,37 @@ mod typed_state_tests {
             snapshot.graph_end_utc,
             signal_at.max(header.occurred()).timestamp_millis() as f64 / 1000.0
         );
-        // Preserve event-mode identity through the real controller projection;
-        // overshoots must not fall into the ordinary navy event series.
-        for (mode, marker) in [
-            (crate::models::trade_contracts::IntrinsicTimeModeType::TrendOvershootExtended, "OvershootExtended"),
-            (crate::models::trade_contracts::IntrinsicTimeModeType::TrendOvershootReversal, "OvershootReversal"),
-            (crate::models::trade_contracts::IntrinsicTimeModeType::TrendExtremeChanged, "Other"),
-        ] {
-            state.signals.values_mut().next().unwrap().intrinsic_time_mode = Some(mode);
-            let snapshot = state.snapshot(&registry).unwrap();
-            assert_eq!(snapshot.signals[0].direction, marker);
-            assert_eq!(snapshot.signals[0].price, state.signals.values().next().unwrap().intrinsic_price.unwrap());
+        // Filter only Daily chart points; keep every event in the other timeframes.
+        use crate::models::trade_contracts::{IntrinsicTimeModeType as Mode, TimeFrameType};
+        for (frame, period) in [(0, TimeFrameType::Daily), (1, TimeFrameType::Weekly), (2, TimeFrameType::Monthly)] {
+            state.frame = frame;
+            state.signals.values_mut().next().unwrap().time_period = Some(period);
+            for (mode, marker) in [
+                (Mode::TrendDirectionChanged, None),
+                (Mode::TrendOvershootExtended, Some("OvershootExtended")),
+                (Mode::TrendOvershootReversal, Some("OvershootReversal")),
+                (Mode::Trending, Some("Other")),
+                (Mode::TrendExtremeChanged, Some("Other")),
+                (Mode::TrendReversalChanged, Some("Other")),
+                (Mode::PredictedIntervalChanged, Some("Other")),
+                (Mode::HoldTradeChanged, Some("Other")),
+                (Mode::InTradeChanged, Some("Other")),
+            ] {
+                state.signals.values_mut().next().unwrap().intrinsic_time_mode = Some(mode);
+                let snapshot = state.snapshot(&registry).unwrap();
+                if frame == 0 && marker == Some("Other") {
+                    assert!(snapshot.signals.is_empty());
+                    assert_eq!(snapshot.rows.len(), 1, "Chart filtering must preserve workflow rows");
+                } else {
+                    assert_eq!(snapshot.signals.len(), 1);
+                    if let Some(marker) = marker {
+                        assert_eq!(snapshot.signals[0].direction, marker);
+                    } else {
+                        assert!(matches!(snapshot.signals[0].direction.as_str(), "Up" | "Down"));
+                    }
+                    assert_eq!(snapshot.signals[0].price, state.signals.values().next().unwrap().intrinsic_price.unwrap());
+                }
+            }
         }
     }
 }

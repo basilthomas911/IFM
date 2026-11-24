@@ -112,12 +112,17 @@ public sealed partial class MarketConditionAssessmentSnapshotProvider(IMarketDat
             var stillHasContract = marketData.TryGetOnTheRunFuturesContract(parameters.InstrumentRoot, out var latestContract);
             if (hasContract != stillHasContract || hasContract && !string.Equals(latestContract.ContractId, contract.ContractId, StringComparison.Ordinal) || before.ValueDate != after.ValueDate || before.Running != after.Running || !string.Equals(before.Generation, after.Generation, StringComparison.Ordinal))
                 continue;
-            var healthy = after.Running && after.Healthy && (observationOnly || pipelineHealth is null || pipelineHealth.AllowsNewDecisions);
+            var healthy = after.Running && after.Healthy
+                && TomasAI.IFM.Shared.MarketData.Contracts.TickAggregation.FuturesItiOrderedIngress.AllowsEntries
+                && (observationOnly || pipelineHealth is null || pipelineHealth.AllowsNewDecisions);
             observations["FeedHealth"] = Observed("FeedHealth", after.ObservedAtUtc, after.ObservedAtUtc, after.Sequence)with
             {
                 Availability = observationOnly || healthy ? MarketSourceAvailability.Available : MarketSourceAvailability.Unavailable,
                 Value = observationOnly ? healthy ? 1 : 0 : null,
-                Reason = healthy ? "Feed and latest-value cache operational: " + after.Generation : "MC.ASSESSMENT.FEED.UNAVAILABLE"
+                Reason = healthy ? "Feed and latest-value cache operational: " + after.Generation
+                    : !TomasAI.IFM.Shared.MarketData.Contracts.TickAggregation.FuturesItiOrderedIngress.AllowsEntries
+                        ? "MC.ASSESSMENT.ITI_SOURCE.UNAVAILABLE: " + TomasAI.IFM.Shared.MarketData.Contracts.TickAggregation.FuturesItiOrderedIngress.StatusReason
+                        : "MC.ASSESSMENT.FEED.UNAVAILABLE"
             };
             // Invalid optional market observations are excluded at the source
             // boundary. Required observations retain strict calculator validation.

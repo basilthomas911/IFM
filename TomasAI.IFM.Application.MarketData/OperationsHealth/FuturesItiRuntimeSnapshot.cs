@@ -22,4 +22,11 @@ public readonly record struct FuturesItiRuntimeSnapshot(
     DateTime? LastCompletionHandledUtc,
     DateTime? LastWorkflowRequestedUtc,
     FuturesItiRuntimeOutcome LastOutcome,
-    string LastReason);
+    string LastReason,
+    bool OrderedIntakeEnabled = false,
+    int OrderedPending = 0,
+    long OrderedCaptured = 0,
+    long OrderedProcessed = 0,
+    long OrderedBatches = 0,
+    string SourceEpoch = "",
+    long SourceOrdinal = 0);

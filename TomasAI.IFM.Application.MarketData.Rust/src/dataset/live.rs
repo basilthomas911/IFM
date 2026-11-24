@@ -506,6 +506,8 @@ pub struct Output {
     /// Source-time option trade inputs, retained independently of later quote
     /// or reference changes. Replay contributes statistics without enrichment.
     pub trade: Option<crate::option_chain::trade::Captured>,
+    /// Journal identity; its monotonic row ID is not the ITI trade ordinal.
+    pub raw: Option<super::raw_capture::Stamp>,
 }
 /// Native data-plane owner for exactly one API ValueDate/instance. Full output
 /// publication and risk calculation remain distinct owners using these snapshots.
@@ -526,6 +528,7 @@ pub struct LiveData {
     output: Arc<Mutex<BTreeMap<Lane, super::output::LaneOutput>>>,
     option_pricing: Option<Arc<crate::option_chain::coalesced::Coalesced>>,
     option_statistics: crate::option_chain::statistics::Bank,
+    raw_capture: Option<(std::path::PathBuf, time::Date)>,
 }
 struct Startup {
     stop: CancellationToken,
@@ -567,6 +570,7 @@ impl LiveData {
             diagnostic_scope: None,
             diagnostic_worker: [0; 16],
             option_pricing: None,
+            raw_capture: None,
             option_statistics: Arc::new(Mutex::new(BTreeMap::new())),
             output: Arc::new(Mutex::new(
                 [Lane::FuturesGlbx, Lane::FuturesXcbf, Lane::OptionsGlbx]
@@ -575,6 +579,12 @@ impl LiveData {
                     .collect(),
             )),
         })
+    }
+    /// Shares the runtime-owned bounded diagnostic sink across physical scopes.
+    pub fn with_raw_capture(mut self, definition: time::Date) -> Self {
+        self.raw_capture = std::env::var_os("IFM_RAW_FUTURES_STORAGE_ROOT")
+            .filter(|root| !root.is_empty()).map(|root| (root.into(), definition));
+        self
     }
     /// Shares the runtime-owned bounded diagnostic sink across physical scopes.
     pub(crate) fn diagnostic_sink(&self) -> DiagnosticSink {
@@ -993,9 +1003,14 @@ impl LiveData {
             .collect();
         let retirement = BookRetirement(retired.clone(), pricing.clone());
         let registration_count = registrations.len();
+        let mut raw_capture = match &self.raw_capture {
+            Some((root, definition)) if lane != Lane::OptionsGlbx => Some(super::raw_capture::RawCapture::open(
+                root, lane, self.date, *definition, &registrations)?),
+            _ => None,
+        };
         let counters = Arc::new(super::counters::Counters::default());
         let processing_counters = counters.clone();
-        let processor = move |attempt, event: &Event| {
+        let process_one = move |attempt, event: &Event, raw: Option<super::raw_capture::Stamp>| {
             processing_counters.measure(event, || {
             let _retirement = &retirement;
             let mut state = state
@@ -1118,7 +1133,7 @@ impl LiveData {
                         generation,
                         source: OutputSource::ReplayComplete(*instrument),
                         state,
-                        trade: None,
+                        trade: None, raw: None,
                     })?;
                 }
                 updates.send_modify(|version| *version = version.saturating_add(1));
@@ -1142,7 +1157,7 @@ impl LiveData {
                                 session: Some(statistics),
                                 ..Default::default()
                             },
-                            trade: None,
+                            trade: None, raw: None,
                         })?;
                     }
                 }
@@ -1256,7 +1271,7 @@ impl LiveData {
                         generation,
                         source: OutputSource::Observation(*record),
                         state,
-                        trade,
+                        trade, raw,
                     })?;
                 }
                 if was_ready {
@@ -1312,6 +1327,33 @@ impl LiveData {
             capture_signal.notify(None);
             Ok(true)
             })
+        };
+        let capture_clock = self.clock.clone();
+        let mut pending = Vec::<(u64, Event, Option<super::raw_capture::Stamp>)>::with_capacity(64);
+        let mut last_ready = false;
+        let processor = move |attempt: u64, event: &Event| -> Result<bool, String> {
+            let buffered = match event {
+                Event::Market(super::records::Observation::Trade(trade)) => trade.header.flags & 2 == 0,
+                Event::Market(super::records::Observation::Quote(quote)) => quote.header.flags & 2 == 0,
+                _ => false,
+            };
+            if let Some(capture) = &mut raw_capture {
+                if let Event::Market(record) = event && buffered {
+                    let observed = capture_clock.utc_ticks().map_err(|e| format!("{e:?}"))?;
+                    let stamp = capture.append(u128::from(attempt), observed, *record)?;
+                    pending.push((attempt, event.clone(), stamp));
+                    if pending.len() < 64 { return Ok(last_ready); }
+                }
+                if !pending.is_empty() {
+                    capture.flush()?;
+                    for (accepted_attempt, accepted, stamp) in pending.drain(..) {
+                        last_ready = process_one(accepted_attempt, &accepted, stamp)?;
+                    }
+                }
+                if buffered || matches!(event, Event::Flush) { return Ok(last_ready); }
+            } else if matches!(event, Event::Flush) { return Ok(last_ready); }
+            last_ready = process_one(attempt, event, None)?;
+            Ok(last_ready)
         };
         let mut status = if let Some(parent) = parent {
             lanes.start_nested_with_quote_replay(

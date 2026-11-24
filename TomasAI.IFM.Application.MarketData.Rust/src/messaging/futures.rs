@@ -134,7 +134,7 @@ impl Futures {
         else {
             return Ok(());
         };
-        if state.last_vwap != 0 && source.observed.saturating_sub(state.last_vwap) < 20_000_000 {
+        if !emit_vwap_checkpoint(cp.ordinal, state.last_vwap, source.observed) {
             return Ok(());
         }
         output.push(Event {
@@ -260,10 +260,12 @@ impl Futures {
                 // loses volume; the query/display cache retains its own filter.
                 {
                     let next = Self::next(state)?;
+                    let (identity, stored_sequence) = source.raw.map_or_else(
+                        || (Identity::fresh(source.observed), next), |stamp| (stamp.identity, stamp.sequence));
                     let trade =
                         state
                             .instrument
-                            .trade(trade, Identity::fresh(source.observed), next)?;
+                            .trade(trade, identity, stored_sequence)?;
                     output.push(Event {
                         kind: 3,
                         value: state.instrument.market(
@@ -313,5 +315,24 @@ impl Futures {
             state.sequence = 0;
             state.last_vwap = 0;
         }
+    }
+}
+
+// The completed replay/first execution is an ownership boundary, not a periodic
+// display update. ITI intake must see it before the first trade of a new epoch.
+fn emit_vwap_checkpoint(ordinal: i64, last: i64, now: i64) -> bool {
+    ordinal <= 1 || last == 0 || now.saturating_sub(last) >= 20_000_000
+}
+
+#[cfg(test)]
+mod checkpoint_boundary_tests {
+    use super::emit_vwap_checkpoint;
+
+    #[test]
+    fn first_live_execution_is_not_hidden_by_recent_replay_checkpoint() {
+        assert!(emit_vwap_checkpoint(0, 0, 100));
+        assert!(emit_vwap_checkpoint(1, 100, 101));
+        assert!(!emit_vwap_checkpoint(2, 101, 102));
+        assert!(emit_vwap_checkpoint(2, 101, 20_000_101));
     }
 }

@@ -18,7 +18,7 @@ public sealed class MarketDataClientReceiver(MarketDataHostConnection connection
     MarketDataReadMirror mirror, MarketDataRemoteAdmission admissions, ITickAggregationEventPublisher publisher,
     IMarketDataOperationsRecorder recorder, IActorSupervisor supervisor,
     ILogger<MarketDataClientReceiver> logger, Recovery.OptionFeedProcessingHealth? processingHealth = null,
-    MarketDataRolloverProjection? rolloverProjection = null) : BackgroundService
+    MarketDataRolloverProjection? rolloverProjection = null, Storage.IRawFuturesEodSink? rawEod = null) : BackgroundService
 {
     readonly DatasetWorkerAdmissionRegistry futures = admissions.Futures;
     readonly DatasetWorkerAdmissionRegistry options = admissions.Options;
@@ -30,7 +30,7 @@ public sealed class MarketDataClientReceiver(MarketDataHostConnection connection
         // Hosted infrastructure starts before actor registration; never resolve an actor producer early.
         while (!supervisor.IsReady) await Task.Delay(TimeSpan.FromMilliseconds(50), stoppingToken).ConfigureAwait(false);
         await publisher.StartAsync(stoppingToken).ConfigureAwait(false);
-        var futureIngress = new DatasetPublicationIngress(futures, publisher, recorder, evidencePersistedByHost: true);
+        var futureIngress = new DatasetPublicationIngress(futures, publisher, recorder, evidencePersistedByHost: true, rawEod: rawEod);
         var optionIngress = new DatasetPublicationIngress(options, publisher, recorder, evidencePersistedByHost: true);
         try { await Task.WhenAll(ReceiveAsync(), ReceiveOptionCacheAsync(), ReconcileAsync()).ConfigureAwait(false); }
         finally
@@ -42,9 +42,14 @@ public sealed class MarketDataClientReceiver(MarketDataHostConnection connection
 
         async Task ReceiveAsync()
         {
-            var client = await connection.GetClientAsync(stoppingToken).ConfigureAwait(false);
-            await foreach (var message in client.Connection.SubscribeAsync<DatasetPublicationEnvelope>(connection.Scope + ".publications.>",
-                serializer: NatsMessagePackSerializer<DatasetPublicationEnvelope>.Default, cancellationToken: stoppingToken).ConfigureAwait(false))
+            await using var client = await connection.OpenPublicationClientAsync(stoppingToken).ConfigureAwait(false);
+            await using var subscription = await client.Connection.SubscribeCoreAsync<DatasetPublicationEnvelope>(connection.Scope + ".publications.>",
+                serializer: NatsMessagePackSerializer<DatasetPublicationEnvelope>.Default,
+                opts: new NatsSubOpts { ChannelOpts = new NatsSubChannelOpts { Capacity = 32768,
+                    FullMode = System.Threading.Channels.BoundedChannelFullMode.Wait } }, cancellationToken: stoppingToken).ConfigureAwait(false);
+            await client.PingAsync(stoppingToken).ConfigureAwait(false);
+            admissions.MarkPublicationsReady();
+            await foreach (var message in subscription.Msgs.ReadAllAsync(stoppingToken).ConfigureAwait(false))
             {
                 if (message.Data is not { } frame) continue;
                 TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Restore(frame,
@@ -52,7 +57,13 @@ public sealed class MarketDataClientReceiver(MarketDataHostConnection connection
                 var isOption = message.Subject.StartsWith(connection.Scope + ".publications.Options.", StringComparison.Ordinal);
                 try
                 {
-                    if (!isOption && !mirror.Accept(frame)) continue;
+                    if (!isOption)
+                    {
+                        // Preserve the ordered startup prefix while reconciliation installs its manifest.
+                        // This is a source admission barrier, outside all trading decisions.
+                        await admissions.WaitForFuturesAsync(frame, stoppingToken).ConfigureAwait(false);
+                        if (!mirror.Accept(frame)) continue;
+                    }
                     var accepted = await (isOption ? optionIngress : futureIngress).AcceptAsync(frame, stoppingToken).ConfigureAwait(false);
                     if (isOption && !accepted && frame.Kind == DatasetPublicationKind.OptionQuoteObservation)
                     {
@@ -99,6 +110,7 @@ public sealed class MarketDataClientReceiver(MarketDataHostConnection connection
                     var snapshot = await api.GetBackendReadSnapshotAsync(deadline.Token).ConfigureAwait(false);
                     if (!mirror.Apply(snapshot)) continue;
                     Sync(futures, activeFutures, snapshot, "Futures");
+                    admissions.NotifyFuturesChanged();
                     Sync(options, activeOptions, snapshot, "Options");
                     // Live delivery and catch-up share ingress serialization and per-contract ordering.
                     // Repeated snapshots are harmless and never rewrite exchange/calculation timestamps.

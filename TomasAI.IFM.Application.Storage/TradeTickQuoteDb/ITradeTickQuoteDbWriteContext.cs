@@ -10,6 +10,7 @@ namespace TomasAI.IFM.Application.Storage.TradeTickQuoteDb;
 /// <summary>Direct ingestion persistence; these observations do not append business event-log entries.</summary>
 public interface ITradeTickQuoteDbWriteContext
 {
+    Task InsertRawFuturesBatchAsync(TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.RawFuturesStorageBatch batch, CancellationToken token = default);
     /// <summary>Directly writes one raw Databento trade observation without appending a business event.</summary>
     /// <param name="value">The accepted observation to store.</param>
     /// <returns>A task representing the direct persistence operation.</returns>

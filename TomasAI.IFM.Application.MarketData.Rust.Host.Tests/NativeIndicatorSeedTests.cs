@@ -22,6 +22,66 @@ namespace TomasAI.IFM.Application.MarketData.Rust.Host.Tests;
 public sealed class NativeIndicatorSeedTests(ITestOutputHelper output)
 {
     [Fact]
+    public async Task Daily_completed_history_restores_from_cache_across_six_pm_value_date_rollover()
+    {
+        var (database, saved) = Cache();
+        var provider = Provider(0m);
+        provider.OpenRangeAsync(Arg.Any<HistoricalProviderRequest>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(call => new Reader(Minutes(call.Arg<HistoricalProviderRequest>())));
+        var completed = await Create(provider, database, now: new(2026, 11, 23, 22, 1, 0, TimeSpan.Zero))
+            .ReadAsync(Contract, TimeFrameType.Daily, default);
+        Assert.Equal(48, completed.Length);
+        Assert.Equal(new DateOnly(2026, 11, 23), completed[^1].ValueDate);
+        Assert.Equal(48, saved.Count);
+        var restoredProvider = Provider(0m);
+        var restored = await Create(restoredProvider, database, now: new(2026, 11, 23, 23, 1, 0, TimeSpan.Zero))
+            .ReadAsync(Contract, TimeFrameType.Daily, default);
+        Assert.Equal(completed, restored);
+        Assert.Empty(restoredProvider.ReceivedCalls());
+    }
+
+    [Fact]
+    public async Task Daily_oscillator_history_uses_48_completed_sessions_and_survives_restart()
+    {
+        var (database, saved) = Cache();
+        var provider = Provider(0m);
+        provider.OpenRangeAsync(Arg.Any<HistoricalProviderRequest>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(call => new Reader(Minutes(call.Arg<HistoricalProviderRequest>()).Where((_, index) => index % 3 != 0).ToArray()));
+        var bars = await Create(provider, database).ReadAsync(Contract, TimeFrameType.Daily, default);
+        Assert.Equal(48, bars.Length);
+        Assert.Equal(48, saved.Count);
+        var requests = provider.ReceivedCalls().Where(call => call.GetMethodInfo().Name == "OpenRangeAsync")
+            .Select(call => (HistoricalProviderRequest)call.GetArguments()[0]!).ToArray();
+        Assert.InRange(requests.Length, 10, 16);
+        Assert.All(requests, request => Assert.True(request.EndUtc - request.StartUtc <= TimeSpan.FromDays(8)));
+        Assert.All(bars, bar =>
+        {
+            Assert.Equal(TimeFrameType.Daily, bar.TimeFrame);
+            Assert.True(bar.IsComplete && bar.IsValid);
+            Assert.Equal("databento-historical-minute-seed-v1", bar.CalculationVersion);
+            Assert.Empty(new FuturesTradeSessionBarReadModelValidationRules().Execute(bar));
+            Assert.True(bar.LastMarketEventUtc < bar.IntervalEndUtc);
+        });
+        var restored = Provider(0m);
+        Assert.Equal(bars, await Create(restored, database).ReadAsync(Contract, TimeFrameType.Daily, default));
+        Assert.Empty(restored.ReceivedCalls());
+    }
+
+    [Fact]
+    public async Task Daily_oscillator_history_rejects_unfinished_source_and_paid_acquisition()
+    {
+        var (database, saved) = Cache();
+        var provider = Provider(0m);
+        provider.OpenRangeAsync(Arg.Any<HistoricalProviderRequest>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(call => new Reader(Minutes(call.Arg<HistoricalProviderRequest>()), complete: false));
+        await Assert.ThrowsAsync<InvalidDataException>(() => Create(provider, database).ReadAsync(Contract, TimeFrameType.Daily, default));
+        Assert.Empty(saved);
+        var paid = Provider(0.01m);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => Create(paid, database).ReadAsync(Contract, TimeFrameType.Daily, default));
+        await paid.DidNotReceive().OpenRangeAsync(Arg.Any<HistoricalProviderRequest>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task Ema200_history_uses_bounded_cache_batches_and_restart_does_not_download_again()
     {
         var (database, saved) = Cache();

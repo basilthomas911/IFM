@@ -201,7 +201,7 @@ mod tests {
                 OutputSource::ReplayComplete(sequence)
             },
             state: PublicationState::default(),
-            trade: None,
+            trade: None, raw: None,
         }
     }
     #[test]

@@ -80,109 +80,173 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandActor(ICommandActorConte
         [typeof(AdvanceRiskFinancialHandoffCommand)] = static command =>
         {
             var typed = (AdvanceRiskFinancialHandoffCommand)command;
-            return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName).ValidateWorkflowEntityId(typed.EntityId).ValidateWorkflowCommand(typed);
+            return new List<ValidationError>()
+                .ValidateCommandId(typed.CommandId, typed.CommandName)
+                .ValidateWorkflowEntityId(typed.EntityId)
+                .ValidateWorkflowCommand(typed);
         },
         [typeof(PrepareRiskManagementCommand)] = static command =>
         {
             var typed = (PrepareRiskManagementCommand)command;
-            return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName).ValidateWorkflowEntityId(typed.EntityId).ValidateWorkflowCommand(typed);
+            return new List<ValidationError>()
+                .ValidateCommandId(typed.CommandId, typed.CommandName)
+                .ValidateWorkflowEntityId(typed.EntityId)
+                .ValidateWorkflowCommand(typed);
         },
         [typeof(AcceptOrderCompositionPreparationCommand)] = static command =>
         {
             var typed = (AcceptOrderCompositionPreparationCommand)command;
-            return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName).ValidateWorkflowEntityId(typed.EntityId).ValidateWorkflowCommand(typed);
+            return new List<ValidationError>()
+                .ValidateCommandId(typed.CommandId, typed.CommandName)
+                .ValidateWorkflowEntityId(typed.EntityId)
+                .ValidateWorkflowCommand(typed);
         },
         [typeof(ExecuteIntrinsicTimeStrategyWorkflowCommand)] = static command =>
         {
             var typed = (ExecuteIntrinsicTimeStrategyWorkflowCommand)command;
-            return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName).ValidateWorkflowEntityId(typed.EntityId).ValidateWorkflowCommand(typed);
+            return new List<ValidationError>()
+                .ValidateCommandId(typed.CommandId, typed.CommandName)
+                .ValidateWorkflowEntityId(typed.EntityId)
+                .ValidateWorkflowCommand(typed);
         },
         [typeof(CompleteRegimeDiscoveryCommand)] = static command =>
         {
             var typed = (CompleteRegimeDiscoveryCommand)command;
-            return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName).ValidateWorkflowEntityId(typed.EntityId).ValidateWorkflowCommand(typed);
+            return new List<ValidationError>()
+                .ValidateCommandId(typed.CommandId, typed.CommandName)
+                .ValidateWorkflowEntityId(typed.EntityId)
+                .ValidateWorkflowCommand(typed);
         },
         [typeof(CompleteMarketConditionCommand)] = static command =>
         {
             var typed = (CompleteMarketConditionCommand)command;
-            return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName).ValidateWorkflowEntityId(typed.EntityId).ValidateWorkflowCommand(typed);
+            return new List<ValidationError>()
+                .ValidateCommandId(typed.CommandId, typed.CommandName)
+                .ValidateWorkflowEntityId(typed.EntityId)
+                .ValidateWorkflowCommand(typed);
         },
         [typeof(RedispatchCurrentStrategyPipelineCommand)] = static command =>
         {
             var typed = (RedispatchCurrentStrategyPipelineCommand)command;
-            return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName).ValidateWorkflowEntityId(typed.EntityId).ValidateWorkflowCommand(typed);
+            return new List<ValidationError>()
+                .ValidateCommandId(typed.CommandId, typed.CommandName)
+                .ValidateWorkflowEntityId(typed.EntityId)
+                .ValidateWorkflowCommand(typed);
         },
         [typeof(CompleteTradeSelectionReservationCommand)] = static command =>
         {
             var typed = (CompleteTradeSelectionReservationCommand)command;
-            return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName).ValidateWorkflowEntityId(typed.EntityId).ValidateWorkflowCommand(typed);
+            return new List<ValidationError>()
+                .ValidateCommandId(typed.CommandId, typed.CommandName)
+                .ValidateWorkflowEntityId(typed.EntityId)
+                .ValidateWorkflowCommand(typed);
         },
         [typeof(CompleteTradeSelectionCommand)] = static command =>
         {
             var typed = (CompleteTradeSelectionCommand)command;
-            return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName).ValidateWorkflowEntityId(typed.EntityId).ValidateWorkflowCommand(typed);
+            return new List<ValidationError>()
+                .ValidateCommandId(typed.CommandId, typed.CommandName)
+                .ValidateWorkflowEntityId(typed.EntityId)
+                .ValidateWorkflowCommand(typed);
         },
         [typeof(CompleteOrderCompositionCommand)] = static command =>
         {
             var typed = (CompleteOrderCompositionCommand)command;
-            return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName).ValidateWorkflowEntityId(typed.EntityId).ValidateWorkflowCommand(typed);
+            return new List<ValidationError>()
+                .ValidateCommandId(typed.CommandId, typed.CommandName)
+                .ValidateWorkflowEntityId(typed.EntityId)
+                .ValidateWorkflowCommand(typed);
         },
         [typeof(CompleteRiskManagementCommand)] = static command =>
         {
             var typed = (CompleteRiskManagementCommand)command;
-            return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName).ValidateWorkflowEntityId(typed.EntityId).ValidateWorkflowCommand(typed);
+            return new List<ValidationError>()
+                .ValidateCommandId(typed.CommandId, typed.CommandName)
+                .ValidateWorkflowEntityId(typed.EntityId)
+                .ValidateWorkflowCommand(typed);
         },
         [typeof(FailRegimeDiscoveryCommand)] = static command =>
         {
             var typed = (FailRegimeDiscoveryCommand)command;
-            return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName).ValidateWorkflowEntityId(typed.EntityId).ValidateWorkflowCommand(typed);
+            return new List<ValidationError>()
+                .ValidateCommandId(typed.CommandId, typed.CommandName)
+                .ValidateWorkflowEntityId(typed.EntityId)
+                .ValidateWorkflowCommand(typed);
         },
         [typeof(FailMarketConditionCommand)] = static command =>
         {
             var typed = (FailMarketConditionCommand)command;
-            return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName).ValidateWorkflowEntityId(typed.EntityId).ValidateWorkflowCommand(typed);
+            return new List<ValidationError>()
+                .ValidateCommandId(typed.CommandId, typed.CommandName)
+                .ValidateWorkflowEntityId(typed.EntityId)
+                .ValidateWorkflowCommand(typed);
         },
         [typeof(FailTradeSelectionCommand)] = static command =>
         {
             var typed = (FailTradeSelectionCommand)command;
-            return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName).ValidateWorkflowEntityId(typed.EntityId).ValidateWorkflowCommand(typed);
+            return new List<ValidationError>()
+                .ValidateCommandId(typed.CommandId, typed.CommandName)
+                .ValidateWorkflowEntityId(typed.EntityId)
+                .ValidateWorkflowCommand(typed);
         },
         [typeof(FailOrderCompositionCommand)] = static command =>
         {
             var typed = (FailOrderCompositionCommand)command;
-            return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName).ValidateWorkflowEntityId(typed.EntityId).ValidateWorkflowCommand(typed);
+            return new List<ValidationError>()
+                .ValidateCommandId(typed.CommandId, typed.CommandName)
+                .ValidateWorkflowEntityId(typed.EntityId)
+                .ValidateWorkflowCommand(typed);
         },
         [typeof(FailRiskManagementCommand)] = static command =>
         {
             var typed = (FailRiskManagementCommand)command;
-            return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName).ValidateWorkflowEntityId(typed.EntityId).ValidateWorkflowCommand(typed);
+            return new List<ValidationError>()
+                .ValidateCommandId(typed.CommandId, typed.CommandName)
+                .ValidateWorkflowEntityId(typed.EntityId)
+                .ValidateWorkflowCommand(typed);
         },
         [typeof(TimeoutMarketConditionCommand)] = static command =>
         {
             var typed = (TimeoutMarketConditionCommand)command;
-            return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName).ValidateWorkflowEntityId(typed.EntityId).ValidateWorkflowCommand(typed);
+            return new List<ValidationError>()
+                .ValidateCommandId(typed.CommandId, typed.CommandName)
+                .ValidateWorkflowEntityId(typed.EntityId)
+                .ValidateWorkflowCommand(typed);
         },
         [typeof(TimeoutTradeSelectionCommand)] = static command =>
         {
             var typed = (TimeoutTradeSelectionCommand)command;
-            return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName).ValidateWorkflowEntityId(typed.EntityId).ValidateWorkflowCommand(typed);
+            return new List<ValidationError>()
+                .ValidateCommandId(typed.CommandId, typed.CommandName)
+                .ValidateWorkflowEntityId(typed.EntityId)
+                .ValidateWorkflowCommand(typed);
         },
         [typeof(TimeoutOrderCompositionCommand)] = static command =>
         {
             var typed = (TimeoutOrderCompositionCommand)command;
-            return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName).ValidateWorkflowEntityId(typed.EntityId).ValidateWorkflowCommand(typed);
+            return new List<ValidationError>()
+                .ValidateCommandId(typed.CommandId, typed.CommandName)
+                .ValidateWorkflowEntityId(typed.EntityId)
+                .ValidateWorkflowCommand(typed);
         },
         [typeof(TimeoutRiskManagementCommand)] = static command =>
         {
             var typed = (TimeoutRiskManagementCommand)command;
-            return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName).ValidateWorkflowEntityId(typed.EntityId).ValidateWorkflowCommand(typed);
+            return new List<ValidationError>()
+                .ValidateCommandId(typed.CommandId, typed.CommandName)
+                .ValidateWorkflowEntityId(typed.EntityId)
+                .ValidateWorkflowCommand(typed);
         },
         [typeof(CancelIntrinsicTimeStrategyWorkflowCommand)] = static command =>
         {
             var typed = (CancelIntrinsicTimeStrategyWorkflowCommand)command;
-            return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName).ValidateWorkflowEntityId(typed.EntityId).ValidateWorkflowCommand(typed);
+            return new List<ValidationError>()
+                .ValidateCommandId(typed.CommandId, typed.CommandName)
+                .ValidateWorkflowEntityId(typed.EntityId)
+                .ValidateWorkflowCommand(typed);
         },
     };
+
     static readonly IReadOnlyDictionary<Type, Func<ICommand, ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor>, IntrinsicTimeStrategyWorkflowCommandState, ValueTask<ServiceResult<GuidResult>>>> _receiveMap = new Dictionary<Type, Func<ICommand, ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor>, IntrinsicTimeStrategyWorkflowCommandState, ValueTask<ServiceResult<GuidResult>>>>()
     {
         [typeof(AdvanceRiskFinancialHandoffCommand)] = static (command, context, state) => ((AdvanceRiskFinancialHandoffCommand)command).ExecuteAsync(context, state),

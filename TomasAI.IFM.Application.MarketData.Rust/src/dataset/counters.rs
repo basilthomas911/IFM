@@ -22,6 +22,7 @@ pub struct Counters {
 impl Counters {
     /// Measures one normalized provider event, including failed processing.
     pub fn measure<T, E>(&self, event: &Event, process: impl FnOnce() -> Result<T, E>) -> Result<T, E> {
+        if matches!(event, Event::Flush) { return process(); }
         self.received.fetch_add(1, Ordering::Relaxed);
         let kind = match event {
             Event::Market(Observation::Trade(_)) => &self.trades,
@@ -31,7 +32,7 @@ impl Counters {
             Event::Mapping { .. } => &self.mappings,
             Event::System { .. } => &self.system,
             Event::Error { .. } => &self.provider_errors,
-            Event::Other { .. } => &self.other,
+            Event::Other { .. } | Event::Flush => &self.other,
         };
         kind.fetch_add(1, Ordering::Relaxed);
         let mut guard = Processing { counters: self, completed: false };

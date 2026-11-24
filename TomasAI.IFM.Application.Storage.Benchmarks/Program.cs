@@ -9,6 +9,26 @@ internal static class Program
 {
     public static async Task Main(string[] args)
     {
+        if (args.FirstOrDefault() == "--raw-futures-buffer")
+        {
+            var config = ManualConfig.Create(DefaultConfig.Instance).AddJob(Job.Default
+                .WithId("RawFuturesRows").WithToolchain(InProcessNoEmitToolchain.Instance)
+                .WithWarmupCount(3).WithIterationCount(8).WithInvocationCount(32).WithUnrollFactor(1));
+            var result = BenchmarkRunner.Run<RawFuturesRowBufferBenchmarks>(config: config, args: args.Skip(1).ToArray());
+            if (result.Reports.Count() != 8 || result.Reports.Any(report => report.ResultStatistics is null))
+                throw new InvalidOperationException("All eight raw futures row-buffer measurements must pass.");
+            return;
+        }
+        if (args.FirstOrDefault() == "--trade-buffer")
+        {
+            var configuration = ManualConfig.Create(DefaultConfig.Instance).AddJob(Job.Default
+                .WithId("TradeBuffer").WithToolchain(InProcessNoEmitToolchain.Instance)
+                .WithWarmupCount(3).WithIterationCount(8).WithInvocationCount(64).WithUnrollFactor(1));
+            var summary = BenchmarkRunner.Run<TradeBufferScyllaBenchmarks>(config: configuration, args: args.Skip(1).ToArray());
+            if (summary.Reports.Any(report => report.ResultStatistics is null))
+                throw new InvalidOperationException("Every trade buffering benchmark must complete.");
+            return;
+        }
         if (args.FirstOrDefault() is "--sequence-context" or "--sequence-block-warm")
         {
             var focused = args[0] == "--sequence-block-warm";

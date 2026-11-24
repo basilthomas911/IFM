@@ -176,9 +176,13 @@ public sealed class ResidentActorCacheTests
         var options = new ResidentActorPilotOptions().Validate();
         Assert.False(options.Vwap.Enabled);
         Assert.False(options.IronCondorTradePlan.Enabled);
+        Assert.False(options.FuturesItiSignal.Enabled);
         options.Vwap.Enabled = true;
         Assert.False(options.MarketOutlook.Enabled);
         options.FuturesTradePlan.MaximumResidentStreams = 0;
+        Assert.Throws<ArgumentOutOfRangeException>(() => options.Validate());
+        options.FuturesTradePlan.MaximumResidentStreams = 256;
+        options.FuturesItiSignal.IdleTimeout = TimeSpan.Zero;
         Assert.Throws<ArgumentOutOfRangeException>(() => options.Validate());
     }
 

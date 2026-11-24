@@ -177,8 +177,24 @@ public static partial class CoreServiceRegistration
         services.AddSingleton(p => new MarketDataHostConnection(p.GetRequiredService<NatsConnectionManager>(),
             config["MarketDataHost:NatsUrl"] ?? p.GetService<INatsProducerOptions>()?.Url ?? "nats://localhost:4222", config["MarketDataHost:Scope"] ?? "development",
             p.GetRequiredService<TimeProvider>(), p.GetRequiredService<TomasAI.IFM.Shared.Time.PhysicalTime>()));
-        services.AddSingleton<IMarketDataApi>(p => new MarketDataApiClient(p.GetRequiredService<MarketDataHostConnection>(), p.GetRequiredService<MarketDataReadMirror>()));
+        services.AddSingleton<IMarketDataApi>(p => new MarketDataApiClient(p.GetRequiredService<MarketDataHostConnection>(), p.GetRequiredService<MarketDataReadMirror>(), p.GetRequiredService<MarketDataRemoteAdmission>()));
         services.AddSingleton<ITickAggregationEventPublisher, TickAggregationEventPublisher>();
+        var rawStorage = config.GetSection("RawFuturesStorage").Get<TomasAI.IFM.Application.MarketData.Storage.RawFuturesStorageOptions>() ?? new();
+        AppContext.SetSwitch("IFM.RawFuturesDurableStorage", rawStorage.Enabled && !focusedActorIntegration);
+        services.AddSingleton(rawStorage with { NatsUrl = config["MarketDataHost:NatsUrl"] ?? "nats://localhost:4222" });
+        services.AddSingleton<TomasAI.IFM.Application.MarketData.Storage.RawFuturesStorageTransport>();
+        services.AddSingleton<TomasAI.IFM.Application.Api.Server.Core.HostedServices.RawFuturesStorageConsumer>();
+        if (!focusedActorIntegration)
+        {
+            services.AddHostedService(p => p.GetRequiredService<TomasAI.IFM.Application.Api.Server.Core.HostedServices.RawFuturesStorageConsumer>());
+            services.AddHealthChecks().AddCheck<TomasAI.IFM.Application.Api.Server.Core.HostedServices.RawFuturesStorageConsumer>("raw_futures_storage", tags: ["application", "ready"]);
+        }
+        if (rawStorage.Enabled && !focusedActorIntegration)
+        {
+            services.AddSingleton<TomasAI.IFM.Application.Api.Server.Core.HostedServices.RawFuturesEodCoalescer>();
+            services.AddSingleton<TomasAI.IFM.Application.MarketData.Storage.IRawFuturesEodSink>(p => p.GetRequiredService<TomasAI.IFM.Application.Api.Server.Core.HostedServices.RawFuturesEodCoalescer>());
+            services.AddHostedService(p => p.GetRequiredService<TomasAI.IFM.Application.Api.Server.Core.HostedServices.RawFuturesEodCoalescer>());
+        }
         services.AddSingleton<FourHourDatabentoSeedReplay>();
         services.AddSingleton<MarketDataRolloverProjection>();
         services.AddSingleton<MarketDataClientReceiver>();

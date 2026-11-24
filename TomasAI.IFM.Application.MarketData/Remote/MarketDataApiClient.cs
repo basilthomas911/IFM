@@ -11,7 +11,8 @@ using TomasAI.IFM.Application.MarketData.Databento.Workers;
 namespace TomasAI.IFM.Application.MarketData.Remote;
 
 /// <summary>Preserves the public API while forwarding asynchronous backend work through NATS.</summary>
-public partial class MarketDataApiClient(MarketDataHostConnection connection, IMarketDataApi readMirror) : IMarketDataApi
+public partial class MarketDataApiClient(MarketDataHostConnection connection, IMarketDataApi readMirror,
+    MarketDataRemoteAdmission? publicationAdmission = null) : IMarketDataApi
 {
     public IOptionChainCache OptionChainCache => readMirror.OptionChainCache;
     public bool CoreFuturesRoutesAreRuntimeOwned => readMirror.CoreFuturesRoutesAreRuntimeOwned;
@@ -57,6 +58,8 @@ public partial class MarketDataApiClient(MarketDataHostConnection connection, IM
     {
         try
         {
+            if (publicationAdmission is not null)
+                await publicationAdmission.WaitForPublicationsAsync(cancellationToken).ConfigureAwait(false);
             await CallAsync(nameof(StartAsync), [typeof(DateOnly), typeof(Func<Guid, int, string, Task>), typeof(CancellationToken)], [valueDate, null, null], cancellationToken).ConfigureAwait(false);
             await SynchronizeReadMirrorAsync(cancellationToken).ConfigureAwait(false);
         }

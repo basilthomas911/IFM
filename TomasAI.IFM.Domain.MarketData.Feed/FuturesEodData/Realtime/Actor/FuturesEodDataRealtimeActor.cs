@@ -51,6 +51,7 @@ public class FuturesEodDataRealtimeActor(IRealtimeActorContext<FuturesEodDataRea
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap =
         new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
         {
+            [FuturesEodTradeBatchRealtimeEvent.Verb] = message => message.AsEvent<FuturesEodTradeBatchRealtimeEvent>()!,
             [FuturesTickTradeDataInsertedEvent.Verb] =
             message => message.AsEvent<FuturesTickTradeDataInsertedEvent>()!,
             [FuturesMarketPriceUpdatedRealtimeEvent.Verb] =
@@ -78,6 +79,8 @@ public class FuturesEodDataRealtimeActor(IRealtimeActorContext<FuturesEodDataRea
         new Dictionary<Type, Func<IEvent, IFuturesEodDataRealtimeContext, IEventActorContext<FuturesEodDataRealtimeActor>,
             FuturesEodDataEventParameters, ValueTask>>
         {
+            [typeof(FuturesEodTradeBatchRealtimeEvent)] = static (@event, context, actorContext, _) =>
+                context.ReceiveCumulativeAsync(actorContext, (FuturesEodTradeBatchRealtimeEvent)@event),
             [typeof(FuturesMarketPriceUpdatedRealtimeEvent)] = static (@event, context, _, _) =>
                 ((FuturesMarketPriceUpdatedRealtimeEvent)@event).ExecuteAsync(context),
             [typeof(FuturesTickTradeDataInsertedEvent)] = static (@event, context, actorContext, _) =>

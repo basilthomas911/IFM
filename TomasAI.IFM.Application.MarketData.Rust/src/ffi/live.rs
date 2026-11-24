@@ -898,7 +898,7 @@ pub(super) fn empty_output() -> crate::dataset::live::Output {
         lane: Lane::FuturesGlbx,
         generation: 0,
         state: Default::default(),
-        trade: None,
+        trade: None, raw: None,
         source: OutputSource::Observation(Observation::Quote(Quote {
             header: Header {
                 instrument: 0,

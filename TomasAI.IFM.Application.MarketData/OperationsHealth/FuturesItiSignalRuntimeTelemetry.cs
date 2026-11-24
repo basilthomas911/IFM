@@ -27,6 +27,21 @@ public sealed class FuturesItiSignalRuntimeTelemetry(TimeProvider timeProvider)
     int lastOutcome;
     int inputUnavailableActive;
     string lastReason = string.Empty;
+    int orderedEnabled, orderedPending;
+    long orderedCaptured, orderedProcessed, orderedBatches, orderedOrdinal;
+    string orderedEpoch = string.Empty;
+
+    public void RecordOrderedProgress(int pending, long captured, long processed, long batches, Guid epoch, long ordinal)
+    {
+        Interlocked.Exchange(ref orderedEnabled, 1);
+        Interlocked.Exchange(ref orderedPending, pending);
+        Interlocked.Exchange(ref orderedCaptured, captured);
+        Interlocked.Exchange(ref orderedProcessed, processed);
+        Interlocked.Exchange(ref orderedBatches, batches);
+        Interlocked.Exchange(ref orderedOrdinal, ordinal);
+        var text = epoch.ToString("N");
+        if (!string.Equals(Volatile.Read(ref orderedEpoch), text, StringComparison.Ordinal)) Volatile.Write(ref orderedEpoch, text);
+    }
 
     /// <summary>Records successful realtime route attachment.</summary>
     public void RecordRouteAttached() => SetOutcome(FuturesItiRuntimeOutcome.RouteAttached, "Market-price route attached.");
@@ -166,7 +181,10 @@ public sealed class FuturesItiSignalRuntimeTelemetry(TimeProvider timeProvider)
         ReadTime(Volatile.Read(ref lastCompletionHandledTicks)),
         ReadTime(Volatile.Read(ref lastWorkflowRequestedTicks)),
         (FuturesItiRuntimeOutcome)Volatile.Read(ref lastOutcome),
-        Volatile.Read(ref lastReason));
+        Volatile.Read(ref lastReason),
+        Volatile.Read(ref orderedEnabled) != 0, Volatile.Read(ref orderedPending),
+        Interlocked.Read(ref orderedCaptured), Interlocked.Read(ref orderedProcessed), Interlocked.Read(ref orderedBatches),
+        Volatile.Read(ref orderedEpoch), Interlocked.Read(ref orderedOrdinal));
 
     void SetOutcome(FuturesItiRuntimeOutcome outcome, string reason)
     {

@@ -36,6 +36,14 @@ public sealed class MarketDataHostConnection : IAsyncDisposable
         Scope = $"ifm.{scope}.marketdata.v1";
     }
     public ValueTask<NatsClient> GetClientAsync(CancellationToken token) => connections.GetClientAsync(url, token);
+    /// <summary>One owned data-plane connection: bounded publication backpressure cannot block control replies.</summary>
+    internal async ValueTask<NatsClient> OpenPublicationClientAsync(CancellationToken token)
+    {
+        var client = new NatsClient(new NatsOpts { Url = url, Name = "TomasAI.IFM.MarketData.Publications",
+            DrainSubscriptionsOnDispose = false });
+        try { await client.ConnectAsync().AsTask().WaitAsync(token).ConfigureAwait(false); return client; }
+        catch { await client.DisposeAsync().ConfigureAwait(false); throw; }
+    }
     public string ControlSubject(string path) => path is "ready" or "api/GetBackendStatusAsync" or "api/GetBackendReadSnapshotAsync"
         ? Scope + ".observe" : Scope + (path.EndsWith("/stop", StringComparison.Ordinal)
         || path is "api/RecoverMarketDataAsync" or "api/StopAsync" ? ".stop" : ".control");

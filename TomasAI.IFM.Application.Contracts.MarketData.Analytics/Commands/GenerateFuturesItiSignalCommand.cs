@@ -20,6 +20,15 @@ public record GenerateFuturesItiSignalCommand : ICommand<FuturesItiSignalEntityI
     public const int ErrorId = 20011;
     [Key(13)] public DailyItiAtrThreshold? DailyAtr { get; init; }
     [Key(14)] public bool RequireDailyAtr { get; init; }
+    [Key(15)] public FuturesItiSourceCursor? SourceCursor { get; init; }
+    [Key(16)] public bool InputsFrozen { get; init; }
+    [Key(17)] public string? InputUnavailableReason { get; init; }
+    [Key(18)] public bool VerifiedEpochStart { get; init; }
+    // Local capabilities never survive a network round trip or deserialization.
+    [IgnoreMember] public object? ResidentAdmission { get; init; }
+    [IgnoreMember] public long JournalSequence { get; init; }
+    [IgnoreMember] public byte[]? JournalPayload { get; init; }
+    [IgnoreMember] public GenerateFuturesItiSignalCommand[]? ResidentBatch { get; init; }
 
     // Base command members (keys 0..5)
     [Key(0)] public Guid CommandId { get; init; }

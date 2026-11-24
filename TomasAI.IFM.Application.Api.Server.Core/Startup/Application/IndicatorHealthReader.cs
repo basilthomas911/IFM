@@ -39,22 +39,22 @@ public sealed class IndicatorHealthReader(IDbContextFactory databases, IMarketDa
             new ParallelOptions { MaxDegreeOfParallelism = 3, CancellationToken = token }, async (frame, ct) =>
             {
                 var expected = IndicatorHealthRegistry.MinimumSourceTime(frame, now, calendar);
+                var observationDate = IndicatorHealthRegistry.ObservationDate(frame, date, now, calendar);
                 var db = databases.MarketDataDb;
                 // Sequential reads inside three independent frames bound the connection count.
-                var adx = await db.GetLastFuturesAdxSignalAsync(contract.ContractId, date, frame, 14, ct).ConfigureAwait(false);
+                var adx = await db.GetLastFuturesAdxSignalAsync(contract.ContractId, observationDate, frame, 14, ct).ConfigureAwait(false);
                 if (adx is { IsWarm: true, Metadata.IsValid: true }) RegimeDiscoverySignalCacheAdapter.Publish(adx);
                 Add("ADX14/DI", adx?.IsWarm == true, adx?.Metadata?.IsValid == true, adx?.Metadata?.MarketDataAsOfUtc);
-                var atrDate = frame == TimeFrameType.Daily ? RsiHistoricalSeedWindowModel.Create(frame, 1, now.AddSeconds(-30), calendar)[0].ValueDate : date;
-                var atr = await db.GetLastFuturesAtrSignalAsync(contract.ContractId, atrDate, frame, 14, ct).ConfigureAwait(false);
+                var atr = await db.GetLastFuturesAtrSignalAsync(contract.ContractId, observationDate, frame, 14, ct).ConfigureAwait(false);
                 if (atr is { IsWarm: true, AtrValue: > 0, AtrBaseline: > 0, AtrRatio: > 0, Metadata.IsValid: true }) RegimeDiscoverySignalCacheAdapter.Publish(atr);
                 Add("ATR14/Baseline", atr?.IsWarm == true,
                     atr is { AtrValue: > 0, AtrBaseline: > 0, AtrRatio: > 0, Metadata.IsValid: true }, atr?.Metadata?.MarketDataAsOfUtc);
-                var macd = await db.GetLastFuturesMacdSignalAsync(contract.ContractId, date, frame, 9, 12, 26, ct).ConfigureAwait(false);
+                var macd = await db.GetLastFuturesMacdSignalAsync(contract.ContractId, observationDate, frame, 9, 12, 26, ct).ConfigureAwait(false);
                 if (macd is { IsWarm: true, Metadata.IsValid: true }) RegimeDiscoverySignalCacheAdapter.Publish(macd);
                 Add("MACD9/12/26", macd?.IsWarm == true, macd?.Metadata?.IsValid == true, macd?.Metadata?.MarketDataAsOfUtc);
                 foreach (var period in new[] { 13, 14 })
                 {
-                    var rsi = await db.GetLastFuturesRsiSignalAsync(contract.ContractId, date, frame, period, ct).ConfigureAwait(false);
+                    var rsi = await db.GetLastFuturesRsiSignalAsync(contract.ContractId, observationDate, frame, period, ct).ConfigureAwait(false);
                     if (rsi is { IsWarm: true, Metadata.IsValid: true }) RegimeDiscoverySignalCacheAdapter.Publish(rsi);
                     Add("RSI" + period, rsi?.IsWarm == true, rsi?.Metadata?.IsValid == true, rsi?.Metadata?.MarketDataAsOfUtc);
                 }

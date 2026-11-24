@@ -1,6 +1,6 @@
 namespace TomasAI.IFM.Shared.EventModelActor;
 
-/// <summary>Independently enables the first five committed-state residency pilots.</summary>
+/// <summary>Independently enables committed-state residency for qualified actor paths.</summary>
 public sealed class ResidentActorPilotOptions
 {
     public const string SectionName = "ResidentActorPilots";
@@ -10,6 +10,10 @@ public sealed class ResidentActorPilotOptions
     public ResidentActorPolicy FuturesTradePlan { get; set; } = new();
     public ResidentActorPolicy VerticalSpreadTradePlan { get; set; } = new();
     public ResidentActorPolicy IronCondorTradePlan { get; set; } = new();
+    public ResidentActorPolicy FuturesItiSignal { get; set; } = new();
+    public bool FuturesItiOrderedIntakeEnabled { get; set; }
+    public string FuturesItiJournalDirectory { get; set; } = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "IFM", "FuturesItiJournal");
 
     /// <summary>Rejects invalid bounds before actors are started.</summary>
     public ResidentActorPilotOptions Validate()
@@ -19,6 +23,9 @@ public sealed class ResidentActorPilotOptions
         FuturesTradePlan.Validate();
         VerticalSpreadTradePlan.Validate();
         IronCondorTradePlan.Validate();
+        FuturesItiSignal.Validate();
+        if (FuturesItiOrderedIntakeEnabled && !FuturesItiSignal.Enabled)
+            throw new InvalidOperationException("Ordered ITI intake requires resident state.");
         return this;
     }
 }

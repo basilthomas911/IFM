@@ -16,7 +16,8 @@ public sealed class DatasetPublicationIngress(
     DatasetWorkerAdmissionRegistry admissions,
     ITickAggregationEventPublisher publisher,
     IMarketDataOperationsRecorder recorder,
-    DatasetWorkerCurrentValues? currentValues = null, Pricing.IOptionTradeEvidenceWriter? optionTrades = null, bool evidencePersistedByHost = false)
+    DatasetWorkerCurrentValues? currentValues = null, Pricing.IOptionTradeEvidenceWriter? optionTrades = null, bool evidencePersistedByHost = false,
+    Storage.IRawFuturesEodSink? rawEod = null)
 {
     /// <summary>Creates an independent admission boundary for option-only worker output.</summary>
     public DatasetPublicationIngress ForOptions(DatasetWorkerAdmissionRegistry optionAdmissions)
@@ -233,6 +234,7 @@ public sealed class DatasetPublicationIngress(
                         generationCancellation).ConfigureAwait(false);
                     break;
                 case DatasetPublicationKind.Quote:
+                    if (AppContext.TryGetSwitch("IFM.RawFuturesDurableStorage", out var rawStorage) && rawStorage) break;
                     var quote = MessagePackSerializer.Deserialize<FuturesTickQuoteDataChangedEvent>(envelope.Payload,cancellationToken:cancellationToken) with
                     { SourceDataset = envelope.Dataset, SourceGenerationId = envelope.GenerationId };
                     TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(envelope, quote);
@@ -241,9 +243,12 @@ public sealed class DatasetPublicationIngress(
                         generationCancellation).ConfigureAwait(false);
                     break;
                 case DatasetPublicationKind.MarketPrice:
+                    var price = TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(envelope,
+                        MessagePackSerializer.Deserialize<FuturesMarketPriceUpdatedRealtimeEvent>(envelope.Payload, cancellationToken: cancellationToken) with
+                        { SourceDataset = envelope.Dataset, SourceGenerationId = envelope.GenerationId });
+                    rawEod?.Observe(price);
                     await publisher.PublishAsync(
-                        TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(envelope, MessagePackSerializer.Deserialize<FuturesMarketPriceUpdatedRealtimeEvent>(envelope.Payload,cancellationToken:cancellationToken) with
-                        { SourceDataset = envelope.Dataset, SourceGenerationId = envelope.GenerationId }),
+                        price,
                         generationCancellation).ConfigureAwait(false);
                     break;
                 case DatasetPublicationKind.TradeReplayBatch:
@@ -253,6 +258,13 @@ public sealed class DatasetPublicationIngress(
                         generationCancellation).ConfigureAwait(false);
                     break;
                 case DatasetPublicationKind.SessionStatistics:
+                    if (rawEod is not null)
+                    {
+                        rawEod.Observe(TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(envelope,
+                            MessagePackSerializer.Deserialize<FuturesSessionStatisticsUpdatedRealtimeEvent>(envelope.Payload, cancellationToken: cancellationToken) with
+                            { SourceDataset = envelope.Dataset, SourceGenerationId = envelope.GenerationId }));
+                        break;
+                    }
                     await publisher.PublishAsync(
                         TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(envelope, MessagePackSerializer.Deserialize<FuturesSessionStatisticsUpdatedRealtimeEvent>(envelope.Payload,cancellationToken:cancellationToken) with
                         { SourceDataset = envelope.Dataset, SourceGenerationId = envelope.GenerationId }),

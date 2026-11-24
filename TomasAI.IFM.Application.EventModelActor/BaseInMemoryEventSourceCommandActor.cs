@@ -32,6 +32,17 @@ public abstract class BaseInMemoryEventSourceCommandActor<TActor, TState>(
     /// <summary>Reports the independent committed-only pilot policy without exposing Command state to queries.</summary>
     public ResidentActorCacheStatistics CommittedCacheStatistics => committedCache?.Statistics ?? default;
 
+    /// <summary>Cold hydration at durable intake, before a verified input enters the decision path.</summary>
+    protected async ValueTask PrimeCommittedStateAsync(ICommand command, CancellationToken token)
+    {
+        if (committedCache is null || committedStatePolicy?.Enabled != true || !IsResidentCommand(command))
+            throw new InvalidOperationException("Committed owner is not enabled for this input.");
+        using var lease = await committedCache.AcquireAsync(command.Subject.ThreadId, true, token).ConfigureAwait(false)
+            ?? throw new InvalidOperationException("Resident owner capacity is exhausted; intake must wait for recovery rather than fall back to storage.");
+        if (lease.Value is null)
+            lease.Value = await LoadStateFromStoreAsync(Context, command.Subject.ThreadId, command, token).ConfigureAwait(false);
+    }
+
     /// <summary>Checks optimistic ownership when a cached transition produced no event to validate its version.</summary>
     protected virtual ValueTask ValidateResidentNoChangeAsync(ICommandActorContext<TActor> context,
         TState state, ICommand command, CancellationToken cancellationToken)
@@ -40,6 +51,9 @@ public abstract class BaseInMemoryEventSourceCommandActor<TActor, TState>(
     protected int ResidentStateCount => _resident.Count;
 
     protected abstract bool IsResidentCommand(ICommand command);
+    /// <summary>Optional actor-owned serialization shared by local intake and transport/control commands.</summary>
+    protected virtual ValueTask<IAsyncDisposable?> AcquireCommittedCommandScopeAsync(CancellationToken token)
+        => ValueTask.FromResult<IAsyncDisposable?>(null);
     protected abstract bool IsResidentMessage(ActorSubject subject);
     protected sealed override bool AuditIsCommittedWithState(ICommand command)
         => PersistsCommandAuditAtomically(command)
@@ -66,12 +80,15 @@ public abstract class BaseInMemoryEventSourceCommandActor<TActor, TState>(
         => ValueTask.CompletedTask;
     protected virtual ValueTask OnInMemoryShutdownAsync(ICommandActorContext<TActor> context)
         => ValueTask.CompletedTask;
+    protected virtual ValueTask OnInMemoryStoppingAsync(ICommandActorContext<TActor> context)
+        => ValueTask.CompletedTask;
 
     protected sealed override ValueTask OnStartup(ICommandActorContext<TActor> context)
         => OnInMemoryStartupAsync(context);
 
     protected sealed override async ValueTask OnShutdown(ICommandActorContext<TActor> context)
     {
+        await OnInMemoryStoppingAsync(context).ConfigureAwait(false);
         if (committedCache is not null) await committedCache.DrainAsync().ConfigureAwait(false);
         await BarrierAllAsync().ConfigureAwait(false);
         if (!_resident.IsEmpty)
@@ -91,6 +108,7 @@ public abstract class BaseInMemoryEventSourceCommandActor<TActor, TState>(
         ArgumentNullException.ThrowIfNull(message);
         if (committedCache is not null)
         {
+            await using var commandScope = await AcquireCommittedCommandScopeAsync(cancellationToken).ConfigureAwait(false);
             try { await base.HandleMessageAsync(message, threadId, cancellationToken).ConfigureAwait(false); }
             catch
             {

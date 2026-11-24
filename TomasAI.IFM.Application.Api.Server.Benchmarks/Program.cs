@@ -1,5 +1,48 @@
 using BenchmarkDotNet.Running;
 
+if (args.Contains("--verify-iti-prefix", StringComparer.Ordinal))
+{
+    var fixture = new TomasAI.IFM.Application.Api.Server.Benchmarks.FuturesItiStorageBaselineBenchmarks { Mode = "Fast" };
+    try { await fixture.Setup(); await fixture.VerifyRecoveredPrefixAsync(args[^1]); }
+    finally { await fixture.Cleanup(); }
+    return;
+}
+
+if (args.Contains("--verify-iti-ingress", StringComparer.Ordinal))
+{
+    var fixture = new TomasAI.IFM.Application.Api.Server.Benchmarks.FuturesItiStorageBaselineBenchmarks { Mode = "Fast" };
+    try { await fixture.Setup(); await fixture.VerifyOrderedIngressAsync(); }
+    finally { await fixture.Cleanup(); }
+    return;
+}
+
+if (args.Contains("--verify-iti-fast", StringComparer.Ordinal))
+{
+    foreach (var frame in new[] { TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType.Daily,
+        TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType.Weekly,
+        TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType.Monthly })
+    {
+        var fixture = new TomasAI.IFM.Application.Api.Server.Benchmarks.FuturesItiStorageBaselineBenchmarks { Mode = "Fast", Frame = frame };
+        try { await fixture.Setup(); await fixture.VerifyFastAsync(); }
+        finally { await fixture.Cleanup(); }
+    }
+    return;
+}
+
+if (args.Contains("--verify-iti-residency", StringComparer.Ordinal))
+{
+    foreach (var frame in new[] { TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType.Daily,
+        TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType.Weekly,
+        TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType.Monthly })
+    foreach (var resident in new[] { false, true })
+    {
+        var fixture = new TomasAI.IFM.Application.Api.Server.Benchmarks.FuturesItiStorageBaselineBenchmarks { Resident = resident, Frame = frame };
+        try { await fixture.Setup(); await fixture.VerifyLifecycleAsync(); }
+        finally { await fixture.Cleanup(); }
+    }
+    return;
+}
+
 if (args.Contains("--verify-api-performance-warmup", StringComparer.Ordinal))
 {
     foreach (var scenario in new[] { "Stale", "Retry", "Independent", "SameKey" })

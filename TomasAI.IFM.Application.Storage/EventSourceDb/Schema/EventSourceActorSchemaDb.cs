@@ -59,5 +59,7 @@ public sealed class EventSourceSchemaDb
         new("event_projector_outbox_v2", CreateEventProjectorOutboxV2, DropEventProjectorOutboxV2),
         new("event_stream_version_projector_checkpoint_v3", CreateEventStreamVersionAndProjectorCheckpointV3, DropEventStreamVersionAndProjectorCheckpointV3),
         new("message_origin_metadata_v1", AddMessageOriginMetadata, DropMessageOriginMetadata),
+        new("futures_iti_input_journal_v1", FuturesItiResidentStore.CreateStatement,
+            "DROP TABLE IF EXISTS futures_iti_epoch_bridge; DROP TABLE IF EXISTS futures_iti_epoch_seal; DROP TABLE IF EXISTS futures_iti_input_checkpoint; DROP TABLE IF EXISTS futures_iti_input_journal; DROP TABLE IF EXISTS futures_iti_journal_root;"),
     ];
 }

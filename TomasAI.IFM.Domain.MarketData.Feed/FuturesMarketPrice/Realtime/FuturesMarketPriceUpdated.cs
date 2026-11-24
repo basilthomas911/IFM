@@ -47,7 +47,8 @@ public static class FuturesMarketPriceUpdated
             {
                 IsArgumentNull.Check(@event);
                 IsArgumentNull.Check(context);
-                if (@event.UpdateSource == FuturesMarketPriceUpdateSource.Trade
+                if (!(AppContext.TryGetSwitch("IFM.RawFuturesDurableStorage", out var rawStorage) && rawStorage)
+                    && @event.UpdateSource == FuturesMarketPriceUpdateSource.Trade
                     && @event.VwapCheckpoint is null
                     && string.Equals(@event.Subject.Name, FuturesMarketPriceUpdatedRealtimeEvent.Actor, StringComparison.Ordinal)
                     && @event.SourceTrade is { } trade)

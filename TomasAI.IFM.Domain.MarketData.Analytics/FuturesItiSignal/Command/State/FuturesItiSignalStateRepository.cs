@@ -1,9 +1,12 @@
 using TomasAI.IFM.Application.EventSourcing.Projections.MarketData;
 using TomasAI.IFM.Application.EventSourcing.Repository;
+using TomasAI.IFM.Application.EventSourcing.Persistence.Command;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
+using TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit;
 using TomasAI.IFM.Application.Identity;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -35,8 +38,36 @@ public class FuturesItiSignalStateRepository(
     IDbContextFactory dbFactory,
     IEventProjector<FuturesItiSignalCommandActor> eventProjector,
     ILogger<FuturesItiSignalStateRepository> logger)
-    : BaseEventSourceActorRepository(aggregateFactory, dbEventSource, actorService, logger), IEventSourceActorStateRepository<FuturesItiSignalCommandState>
+    : BaseEventSourceActorRepository(aggregateFactory, dbEventSource, actorService, logger), IFuturesItiResidentRepository
 {
+    ICommandActorContext? residentContext;
+    readonly Dictionary<string, long> processed = new(StringComparer.Ordinal);
+    static readonly CommandAuditMessagePackCodec auditCodec = new();
+    public FuturesItiResidentStore? ResidentStore { get; private set; }
+    public async ValueTask OpenResidentWriterAsync(ICommandActorContext context, CancellationToken token)
+    {
+        if (ResidentStore is not null) throw new InvalidOperationException("ITI writer already registered.");
+        var source = EventSourceDb as EventSourceActorDbContext
+            ?? throw new InvalidOperationException("Resident ITI requires PostgreSQL event storage.");
+        ResidentStore = await FuturesItiResidentStore.OpenAsync(source, token).ConfigureAwait(false);
+        residentContext = context;
+        _ = await ResidentStore.ExecuteAsync((transaction, ct) => transaction.ExecuteAsync(FuturesItiResidentStore.CreateStatement, [], ct), token).ConfigureAwait(false);
+    }
+    public async ValueTask CloseResidentWriterAsync()
+    {
+        if (ResidentStore is not null) await ResidentStore.DisposeAsync().ConfigureAwait(false);
+        ResidentStore = null;
+        residentContext = null;
+        processed.Clear();
+    }
+    public void AdvanceProcessed(string stream, long sequence) => processed[stream] = sequence;
+    /// <summary>Rejects cached no-change acknowledgement if another writer advanced this stream.</summary>
+    public async ValueTask ValidateNoChangeAsync(FuturesItiSignalCommandState state, ICommand command, CancellationToken cancellationToken)
+    {
+        if (await EventSourceDb.GetCommittedStreamVersionAsync(command.StreamId, cancellationToken).ConfigureAwait(false)
+            != state.CommittedStreamVersion)
+            throw new TomasAI.IFM.Shared.Exceptions.ConcurrencyException("Resident ITI stream advanced; reload committed state.");
+    }
     /// <summary>
     /// Asynchronously loads the state associated with the specified command.
     /// </summary>
@@ -77,16 +108,40 @@ public class FuturesItiSignalStateRepository(
             throw new InvalidOperationException("Analytic source events and MarketDataDb must share one PostgreSQL database/security identity.");
         var owner = context.Container.Resolve<IPostgresEventTransaction>();
         var pending = new DomainEventCollection(state.Events);
-        await owner.ExecuteAsync(async (transaction,token) =>
+        var admission = command is GenerateFuturesItiSignalCommand generate
+            && generate.ResidentAdmission is FuturesItiDurableAdmission candidate && candidate.Matches(generate) ? candidate : null;
+        async Task<bool> PersistAsync(EnlistedEventTransaction transaction, CancellationToken token)
         {
+            if (ResidentStore is null)
+            {
+                if (await transaction.ScalarAsync("SELECT pg_try_advisory_xact_lock($1)", [FuturesItiResidentStore.Fence], token).ConfigureAwait(false) is not true)
+                    throw new InvalidOperationException("ITI stream is owned by another resident writer.");
+            }
+            else if (!ReferenceEquals(context, residentContext))
+                throw new InvalidOperationException("ITI write did not originate from its fenced actor context.");
             var version = state.CommittedStreamVersion;
             foreach (var source in pending)
             {
-                await transaction.AppendAsync(new EnlistedEventAppend(command.StreamId,command.CommandId,source,version++),token).ConfigureAwait(false);
+                if (admission is not null)
+                {
+                    var input = admission.Inputs.Single(item => item.CommandId == source.CommandId);
+                    var outcome = await transaction.ReserveCommandAuditAsync(CommandAuditPreparation.Create(input, auditCodec), token).ConfigureAwait(false);
+                    if (outcome == TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit.CommandAuditReservationOutcome.PayloadConflict)
+                        throw new InvalidOperationException("ITI journal command conflicts with its audit reservation.");
+                    if (outcome != TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit.CommandAuditReservationOutcome.Accepted
+                        && await transaction.HasCommittedCommandEventsAsync(input.CommandId, input.StreamId, token).ConfigureAwait(false))
+                        throw new InvalidOperationException("Committed ITI input must be reconciled from its checkpoint, never reapplied.");
+                }
+                await transaction.AppendAsync(new EnlistedEventAppend(command.StreamId,source.CommandId,source,version++),token).ConfigureAwait(false);
                 _ = await AcceptedMarketSignalProjection.TryProjectAsync(transaction,source,token).ConfigureAwait(false);
             }
+            var sequence = admission?.Inputs[^1].JournalSequence ?? processed.GetValueOrDefault(command.StreamId);
+            if (ResidentStore is not null && sequence > 0)
+                await FuturesItiResidentStore.CheckpointAsync(transaction, command.StreamId, sequence, version, token).ConfigureAwait(false);
             return true;
-        },cancellationToken).ConfigureAwait(false);
+        }
+        if (ResidentStore is { } store) _ = await store.ExecuteAsync(PersistAsync, cancellationToken).ConfigureAwait(false);
+        else _ = await owner.ExecuteAsync(PersistAsync, cancellationToken).ConfigureAwait(false);
         state.AcceptChanges();
         await DenormalizeEventsAsync(context,pending).ConfigureAwait(false);
     }

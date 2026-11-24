@@ -21,6 +21,84 @@ namespace TomasAI.IFM.LivePipeline.IntegrationTests;
 public sealed class StoredSessionIndicatorSeedTests
 {
     [Theory]
+    [InlineData("valid")]
+    [InlineData("missing")]
+    [InlineData("duplicate")]
+    [InlineData("partial-live")]
+    [InlineData("invalid")]
+    [InlineData("incomplete")]
+    public void Daily_qualified_seed_requires_exact_complete_provider_windows(string scenario)
+    {
+        const string contract = "ES20261218";
+        var calendar = new CmeFuturesMarketSessionCalendar();
+        var windows = RsiHistoricalSeedWindowModel.Create(TimeFrameType.Daily, 48, Start, calendar);
+        var source = windows.Select((window, index) => new FuturesTradeSessionBarReadModel
+        {
+            MarketSeriesIdentity = MarketSeriesIdentity.ForContract(contract), ContractId = contract,
+            TimeFrame = TimeFrameType.Daily, ValueDate = window.ValueDate,
+            IntervalStartUtc = window.StartUtc, IntervalEndUtc = window.EndUtc,
+            ObservationId = FuturesTradeSessionBarId.Create(MarketSeriesIdentity.ForContract(contract), TimeFrameType.Daily, window.EndUtc, index + 1),
+            Open = 100, High = 102, Low = 99, Close = 101, Volume = 100,
+            FirstSourceSequence = index + 1, LastSourceSequence = index + 1,
+            FirstMarketEventUtc = window.StartUtc, LastMarketEventUtc = window.EndUtc.AddMinutes(-1),
+            CalculatedAtUtc = Start, IsComplete = true, IsValid = true, SchemaVersion = 1,
+            CalculationVersion = "databento-historical-minute-seed-v1",
+            CalculationMethod = MarketSignalCalculationMethod.NormalizedHistoricalAggregate
+        }).ToArray();
+        if (scenario == "missing") source = source[..^1];
+        if (scenario == "duplicate") source = [..source, source[^1]];
+        if (scenario == "partial-live") source[^1] = source[^1] with { CalculationVersion = "trade-session-bar-v1" };
+        if (scenario == "invalid") source[^1] = source[^1] with { IsValid = false };
+        if (scenario == "incomplete") source[^1] = source[^1] with { IsComplete = false };
+        var selected = StoredSessionIndicatorSeedReader.SelectQualifiedDaily(contract, windows, source);
+        if (scenario != "valid") { Assert.Empty(selected); return; }
+        Assert.Equal(48, selected.Length);
+        Assert.Equal(source.Select(bar => bar.LastMarketEventUtc), selected.Select(bar => bar.LastMarketEventUtc));
+        Assert.Equal(source.Select(bar => bar.Close), selected.Select(bar => bar.Close));
+        Assert.All(selected, bar => Assert.Equal(StoredSessionIndicatorWarmup.LiveIndicatorSeries(contract), bar.MarketSeriesIdentity));
+        Assert.All(source, bar => Assert.Equal(MarketSeriesIdentity.ForContract(contract), bar.MarketSeriesIdentity));
+    }
+
+    [Theory]
+    [InlineData(23, 15, 20)]
+    [InlineData(20, 21, 19)]
+    [InlineData(20, 23, 20)]
+    [InlineData(23, 23, 23)]
+    [InlineData(24, 0, 23)]
+    public void Daily_health_uses_the_last_completed_session(int day, int hour, int expectedDay)
+    {
+        var now = new DateTimeOffset(2026, 11, day, hour, 0, 0, TimeSpan.Zero);
+        var calendar = new CmeFuturesMarketSessionCalendar();
+        var active = calendar.GetValueDate(now);
+        Assert.Equal(new DateOnly(2026, 11, expectedDay), IndicatorHealthRegistry.ObservationDate(TimeFrameType.Daily, active, now, calendar));
+        Assert.Equal(active, IndicatorHealthRegistry.ObservationDate(TimeFrameType.FiveMinutes, active, now, calendar));
+        Assert.False(IndicatorHealthRegistry.Evaluate("ES20261218", TimeFrameType.Daily, "ATR", true, true,
+            null, IndicatorHealthRegistry.MinimumSourceTime(TimeFrameType.Daily, now, calendar)).Ready);
+    }
+
+    [Theory]
+    [InlineData("2026-11-23T22:59:59Z")]
+    [InlineData("2026-11-23T23:00:00Z")]
+    [InlineData("2026-11-23T23:05:00Z")]
+    public void Six_pm_rollover_requires_the_completed_Monday_projection_without_accepting_Friday(string instant)
+    {
+        var now = DateTimeOffset.Parse(instant, System.Globalization.CultureInfo.InvariantCulture);
+        var calendar = new CmeFuturesMarketSessionCalendar();
+        var minimum = IndicatorHealthRegistry.MinimumSourceTime(TimeFrameType.Daily, now, calendar);
+        Assert.Equal(new DateTimeOffset(2026, 11, 22, 23, 0, 0, TimeSpan.Zero), minimum);
+        Assert.Equal(new DateOnly(2026, 11, 23), IndicatorHealthRegistry.ObservationDate(TimeFrameType.Daily, calendar.GetValueDate(now), now, calendar));
+        foreach (var indicator in new[] { "ADX14", "ATR14/Baseline", "MACD9/12/26", "RSI13", "RSI14" })
+        {
+            var fresh = new DateTimeOffset(2026, 11, 23, 21, 59, 0, TimeSpan.Zero);
+            var stale = fresh.AddDays(-3);
+            Assert.True(IndicatorHealthRegistry.Evaluate("ES20261218", TimeFrameType.Daily, indicator, true, true, fresh, minimum).Ready);
+            Assert.False(IndicatorHealthRegistry.Evaluate("ES20261218", TimeFrameType.Daily, indicator, true, true, stale, minimum).Ready);
+            Assert.False(IndicatorHealthRegistry.Evaluate("ES20261218", TimeFrameType.Daily, indicator, false, true, fresh, minimum).Ready);
+            Assert.False(IndicatorHealthRegistry.Evaluate("ES20261218", TimeFrameType.Daily, indicator, true, false, fresh, minimum).Ready);
+        }
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task Daily_oscillators_require_every_original_baseline_session(bool omitLastSession)

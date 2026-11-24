@@ -16,6 +16,7 @@ namespace TomasAI.IFM.Application.Storage.TradeTickQuoteDb;
 public sealed class TradeTickQuoteDbContext(IDbConnectionSettings settings, ILogger<DbProvider> logger)
     : ObjectDataRepository<TradeTickQuoteDbContext>(settings[TradeTickQuoteDbConnection], logger), ITradeTickQuoteDbContext
 {
+    readonly ILogger<DbProvider> rawLogger = logger;
     /// <summary>The named ScyllaDB connection setting.</summary>
     public const string TradeTickQuoteDbConnection = "TradeTickQuoteDbConnection";
     /// <summary>The concrete raw tick persistence context.</summary>
@@ -24,6 +25,15 @@ public sealed class TradeTickQuoteDbContext(IDbConnectionSettings settings, ILog
     public ITradeTickQuoteDbReadContext DbReader => this;
     /// <summary>The typed ingestion mutation capability.</summary>
     public ITradeTickQuoteDbWriteContext DbWriter => this;
+    public async Task InsertRawFuturesBatchAsync(TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.RawFuturesStorageBatch batch,
+        CancellationToken token = default)
+    {
+        using var context = this.Use("RawFuturesBatch", TradeTickQuoteDbSql.InsertTickTradeData);
+        var session = await TomasAI.IFM.Framework.Storage.ScyllaDb.ScyllaDbObjectDataRepositoryProvider
+            .GetSharedSessionAsync(context, rawLogger, token).ConfigureAwait(false);
+        var writer = await RawFuturesRowBatchStore.GetAsync(session).ConfigureAwait(false);
+        await writer.WriteAsync(batch, token).ConfigureAwait(false);
+    }
     /// <inheritdoc />
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]

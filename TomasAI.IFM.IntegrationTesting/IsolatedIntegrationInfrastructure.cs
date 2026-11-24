@@ -172,6 +172,15 @@ public sealed class IsolatedIntegrationInfrastructure : IAsyncDisposable
         ValidateCqlIdentifier(keyspace);
         await (CqlAsync($"CREATE KEYSPACE IF NOT EXISTS {keyspace} WITH replication = {{'class':'SimpleStrategy','replication_factor':1}};")).ConfigureAwait(false);
     }
+    /// <summary>Restarts only this fixture's broker while retaining its file-backed stream storage.</summary>
+    public async Task RestartNatsAsync()
+    {
+        if (!started) throw new InvalidOperationException("Fixture is not running.");
+        await DockerAsync(["restart", NatsContainer]).ConfigureAwait(false);
+        var port = await MappedPortAsync(NatsContainer, "4222/tcp").ConfigureAwait(false);
+        NatsUrl = $"nats://127.0.0.1:{port}";
+        await WaitForTcpAsync(port, "restarted NATS").ConfigureAwait(false);
+    }
 
     static void ValidateCqlIdentifier(string value)
     {

@@ -26,7 +26,7 @@ pub struct Instrument {
 
 /// Explicit per-event identities and source processing time. Native production
 /// callers generate identities; fixture callers inject the C# oracle identities.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct Identity {
     /// Event Guid in .NET ToByteArray order.
     pub event: [u8; 16],

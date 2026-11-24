@@ -16,7 +16,7 @@ using TomasAI.IFM.Framework.MarketData.DataBento;
 
 namespace TomasAI.IFM.Application.Api.Server.Core.Startup.Application;
 
-/// <summary>Reconstructs complete indicator seed bars from local original trades; no provider acquisition or fabricated OHLC is permitted.</summary>
+/// <summary>Restores complete indicator seed bars from qualified original trades or provider history; never fabricates OHLC.</summary>
 public sealed class StoredSessionIndicatorSeedReader(IDbContextFactory databases, IMarketSessionCalendar calendar,
     TimeProvider clock, ILogger<StoredSessionIndicatorSeedReader> logger, IMarketDataApi? market = null,
     DatabentoMarketDataRuntimeOptions? sourceOptions = null, MarketDataReadMirror? remote = null,
@@ -103,6 +103,11 @@ public sealed class StoredSessionIndicatorSeedReader(IDbContextFactory databases
             return await FallbackAsync().ConfigureAwait(false);
         if (frame == TimeFrameType.Daily)
         {
+            // A live EOD aggregate may contain only the tail observed after a restart.
+            // Qualified provider coverage, shared with EMA initialization, proves the
+            // complete requested session without depending on incomplete local ticks.
+            if (sourceVersion is not null)
+                return await ReadQualifiedDailyAsync(contractId, windows, sourceVersion, allowProvider, token).ConfigureAwait(false);
             var series = MarketSeriesIdentity.ForFuturesSeries(new("ES", "calendar-front", "unadjusted", 1));
             var daily = await ((IHistoricalObservationStore)databases.MarketDataDb).GetRawEodRangeAsync(series, windows[0].ValueDate, windows[^1].ValueDate, token).ConfigureAwait(false);
             var result = new List<FuturesTradeSessionBarReadModel>(count);
@@ -235,6 +240,53 @@ public sealed class StoredSessionIndicatorSeedReader(IDbContextFactory databases
             var acquired = await market.ReadIndicatorSeedBarsAsync(contractId, frame, token).ConfigureAwait(false);
             return acquired.Length >= count ? acquired : [];
         }
+    }
+
+    async Task<FuturesTradeSessionBarReadModel[]> ReadQualifiedDailyAsync(string contractId,
+        MarketSessionBounds[] windows, string sourceVersion, bool allowProvider, CancellationToken token)
+    {
+        var stored = new List<FuturesTradeSessionBarReadModel>(windows.Length);
+        foreach (var group in windows.GroupBy(window => window.ValueDate))
+        {
+            var ends = group.Select(window => window.EndUtc).ToArray();
+            IndicatorSeedRequestQualification.RequireSelection(sourceVersion, ends);
+            stored.AddRange(await databases.MarketDataDb.GetQualifiedIndicatorSeedBarsAsync(contractId,
+                TimeFrameType.Daily, group.Key, ends, sourceVersion, token).ConfigureAwait(false));
+        }
+        var bars = SelectQualifiedDaily(contractId, windows, stored);
+        if (bars.Length == 0 && allowProvider && market is not null)
+            bars = SelectQualifiedDaily(contractId, windows,
+                await market.ReadIndicatorSeedBarsAsync(contractId, TimeFrameType.Daily, token).ConfigureAwait(false));
+        if (bars.Length == 0)
+            logger.LogWarning("Daily indicator seed unavailable for {ContractId}: complete provider-qualified coverage is required for all {Count} sessions.", contractId, windows.Length);
+        else
+            logger.LogInformation("Qualified Daily baseline supplied {Count} completed original session bars for {ContractId} through {Through}.", bars.Length, contractId, bars[^1].LastMarketEventUtc);
+        return bars;
+    }
+
+    /// <summary>Only exact completed calendar windows with immutable provider lineage can seed Daily oscillators.</summary>
+    internal static FuturesTradeSessionBarReadModel[] SelectQualifiedDaily(string contractId,
+        MarketSessionBounds[] windows, IReadOnlyList<FuturesTradeSessionBarReadModel> source)
+    {
+        var validation = new FuturesTradeSessionBarReadModelValidationRules();
+        var series = LiveDailySeries();
+        var result = new List<FuturesTradeSessionBarReadModel>(windows.Length);
+        foreach (var window in windows)
+        {
+            var matches = source.Where(bar => bar.ContractId == contractId && bar.TimeFrame == TimeFrameType.Daily
+                && bar.ValueDate == window.ValueDate && bar.IntervalStartUtc == window.StartUtc && bar.IntervalEndUtc == window.EndUtc
+                && bar.IsComplete && bar.IsValid && validation.Execute(bar).Length == 0
+                && bar.CalculationMethod == MarketSignalCalculationMethod.NormalizedHistoricalAggregate
+                && bar.CalculationVersion == "databento-historical-minute-seed-v1"
+                && bar.FirstMarketEventUtc >= window.StartUtc && bar.LastMarketEventUtc < window.EndUtc).ToArray();
+            if (matches.Length != 1) return [];
+            var bar = matches[0];
+            result.Add(bar with { MarketSeriesIdentity = series,
+                ObservationId = FuturesTradeSessionBarId.Create(series, TimeFrameType.Daily, window.EndUtc, bar.LastSourceSequence) });
+        }
+        return result.ToArray();
+
+        static MarketSeriesIdentity LiveDailySeries() => MarketSeriesIdentity.ForFuturesSeries(new("ES", "calendar-front", "unadjusted", 1));
     }
 
     async Task<string?> ResolveSourceVersionAsync(string contractId, CancellationToken token)

@@ -106,15 +106,24 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
     /// <param name="event">The market data event to publish.</param>
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
     /// <returns>An awaitable that completes when the event is admitted; downstream delivery and processing occur separately.</returns>
-    public ValueTask PublishAsync(
+    public async ValueTask PublishAsync(
         FuturesMarketPriceUpdatedRealtimeEvent @event,
         CancellationToken cancellationToken)
     {
-        if (_bounded is not null) return _bounded.PublishAsync(@event, null, cancellationToken);
-        EnsureRunning();
-        ArgumentNullException.ThrowIfNull(@event);
-        return EnqueueAsync(
-            new Publication(@event, null, cancellationToken), cancellationToken);
+        Exception? itiFailure = null;
+        try { await FuturesItiOrderedIngress.DeliverAsync(@event, cancellationToken).ConfigureAwait(false); }
+        catch (Exception error) when (!cancellationToken.IsCancellationRequested) { itiFailure = error; }
+        if (_bounded is not null)
+        {
+            await _bounded.PublishAsync(@event, null, cancellationToken).ConfigureAwait(false);
+        }
+        else
+        {
+            EnsureRunning();
+            ArgumentNullException.ThrowIfNull(@event);
+            await EnqueueAsync(new Publication(@event, null, cancellationToken), cancellationToken).ConfigureAwait(false);
+        }
+        if (itiFailure is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(itiFailure).Throw();
     }
 
     /// <summary>Admits the supplied event to the publication queue; completion does not imply downstream processing has finished.</summary>
@@ -127,14 +136,21 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
     /// <param name="event">The market data event to publish.</param>
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
     /// <returns>An awaitable that completes when the event is admitted; downstream delivery and processing occur separately.</returns>
-    public ValueTask PublishAsync(
+    public async ValueTask PublishAsync(
         FuturesTradeReplayBatchRealtimeEvent @event,
         CancellationToken cancellationToken)
     {
-        if (_bounded is not null) return _bounded.PublishAsync(@event, null, cancellationToken);
-        EnsureRunning();
-        ArgumentNullException.ThrowIfNull(@event);
-        return EnqueueAsync(new Publication(@event, null, cancellationToken), cancellationToken);
+        Exception? itiFailure = null;
+        try { await FuturesItiOrderedIngress.DeliverReplayAsync(@event, cancellationToken).ConfigureAwait(false); }
+        catch (Exception error) when (!cancellationToken.IsCancellationRequested) { itiFailure = error; }
+        if (_bounded is not null) await _bounded.PublishAsync(@event, null, cancellationToken).ConfigureAwait(false);
+        else
+        {
+            EnsureRunning();
+            ArgumentNullException.ThrowIfNull(@event);
+            await EnqueueAsync(new Publication(@event, null, cancellationToken), cancellationToken).ConfigureAwait(false);
+        }
+        if (itiFailure is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(itiFailure).Throw();
     }
 
     /// <summary>Admits the supplied event to the publication queue; completion does not imply downstream processing has finished.</summary>

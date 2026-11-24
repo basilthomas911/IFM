@@ -98,9 +98,8 @@ public sealed class StoredSessionIndicatorWarmup(StoredSessionIndicatorSeedReade
         // still sends its own indicator commands in order.
         TimeFrameType[] frames = [TimeFrameType.FiveMinutes, TimeFrameType.FifteenMinutes, TimeFrameType.OneHour, TimeFrameType.Daily, TimeFrameType.FourHours];
         var cutoff = clock.GetUtcNow().AddSeconds(-30);
-        var pending = frames.Select(frame => (Frame: frame, Through: frame is TimeFrameType.FiveMinutes or TimeFrameType.FifteenMinutes or TimeFrameType.OneHour or TimeFrameType.FourHours
-                ? RsiHistoricalSeedWindowModel.Create(frame, 1, cutoff, calendar).LastOrDefault().EndUtc
-                : DateTimeOffset.MinValue))
+        var pending = frames.Select(frame => (Frame: frame,
+                Through: RsiHistoricalSeedWindowModel.Create(frame, 1, cutoff, calendar)[0].EndUtc))
             .Where(target => !completed.TryGetValue((date, contract.ContractId, target.Frame), out var through)
                 || target.Through > through).ToArray();
         var fastFrames = Task.WhenAll(
@@ -261,8 +260,9 @@ public sealed class StoredSessionIndicatorWarmup(StoredSessionIndicatorSeedReade
         var revision = SeedRevision(bars);
         var progress = seedProgress.AddOrUpdate((date, contractId, frame), _ => new(revision),
             (_, previous) => previous.Revision == revision ? previous : new(revision));
-        var activation = new FuturesIntradaySignalActivation(frame, new(contractId, date, frame, 13),
-            new(contractId, date, frame, 14), new(contractId, date, frame, 14), new(contractId, date, frame));
+        var observationDate = frame == TimeFrameType.Daily ? bars[^1].ValueDate : date;
+        var activation = new FuturesIntradaySignalActivation(frame, new(contractId, observationDate, frame, 13),
+            new(contractId, observationDate, frame, 14), new(contractId, observationDate, frame, 14), new(contractId, observationDate, frame));
         var work = new List<Task>();
         foreach (var period in new[] { 13, 14 })
         {
@@ -412,6 +412,7 @@ public sealed class StoredSessionIndicatorWarmup(StoredSessionIndicatorSeedReade
         DateOnly date, TimeFrameType frame, CancellationToken token)
     {
         var db = databases.MarketDataDb;
+        date = IndicatorHealthRegistry.ObservationDate(frame, date, clock.GetUtcNow(), calendar);
         // Each method creates an independent command context/connection. Each frame has
         // two permits so a stalled frame cannot starve another; four ordinary frames admit at most eight reads.
         using var restoreReads = new SemaphoreSlim(2, 2);
