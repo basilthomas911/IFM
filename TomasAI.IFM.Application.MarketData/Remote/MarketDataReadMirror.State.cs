@@ -13,7 +13,7 @@ public sealed partial class MarketDataReadMirror
     readonly object gate = new();
     readonly DatabentoContractRegistrationRegistry registry = new([], new()
         { FeedOptions = DatabentoFeedOptions.ForProfile(FeedDeploymentProfile.Development, "GLBX.MDP3"), Contracts = [] });
-    readonly DatasetWorkerCurrentValues values = new();
+    readonly DatasetWorkerCurrentValues values = new(clock: clock);
     MarketDataBackendStatus status = new(false, null, []);
     bool ownershipKnown;
     bool optionSubscriptionsVerified;
@@ -41,7 +41,7 @@ public sealed partial class MarketDataReadMirror
             ownershipKnown = true;
             var failure = status.Datasets.FirstOrDefault(x => x.Role == "Options" && x.Lifecycle is "StoppedError" or "CleanupUnconfirmed");
             if (failure is null) { optionFailureUtc = null; failedOptionGeneration = Guid.Empty; }
-            else if (failedOptionGeneration != failure.GenerationId) { failedOptionGeneration = failure.GenerationId; optionFailureUtc = failure.ChangedAtUtc == default ? DateTime.UtcNow : failure.ChangedAtUtc.UtcDateTime; }
+            else if (failedOptionGeneration != failure.GenerationId) { failedOptionGeneration = failure.GenerationId; optionFailureUtc = failure.ChangedAtUtc == default ? (clock ?? TimeProvider.System).GetUtcNow().UtcDateTime : failure.ChangedAtUtc.UtcDateTime; }
             foreach (var root in snapshot.Contracts.GroupBy(contract => contract.Symbol, StringComparer.OrdinalIgnoreCase))
                 registry.ReplaceFuturesRolloverSet(root.Key, root.ToArray());
             foreach (var pair in identities.ToArray())

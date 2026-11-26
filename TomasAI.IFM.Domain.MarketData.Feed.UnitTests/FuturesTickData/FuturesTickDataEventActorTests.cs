@@ -377,7 +377,7 @@ public sealed class FuturesTickDataEventActorTests : IClassFixture<MarketDataFee
     }
 
     [Fact]
-    public async Task Experimental_eod_worker_releases_mailbox_before_slow_projection_finishes()
+    public async Task Eod_worker_holds_delivery_until_slow_projection_finishes()
     {
         var projector = CreateProjector();
         var projectionStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -399,9 +399,11 @@ public sealed class FuturesTickDataEventActorTests : IClassFixture<MarketDataFee
         await actor.Start(context);
         try
         {
-            await actor.Receive(context, CreateTrade());
+            var delivery = actor.Receive(context, CreateTrade()).AsTask();
             await projectionStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
-            releaseProjection.Task.IsCompleted.Should().BeFalse();
+            delivery.IsCompleted.Should().BeFalse();
+            releaseProjection.TrySetResult(true);
+            await delivery.WaitAsync(TimeSpan.FromSeconds(5));
         }
         finally
         {
@@ -435,14 +437,14 @@ public sealed class FuturesTickDataEventActorTests : IClassFixture<MarketDataFee
 
         try
         {
-            await worker.EnqueueAsync(first);
+            var firstWork = worker.EnqueueAsync(first).AsTask();
             await firstStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
-            await worker.EnqueueAsync(second);
+            var secondWork = worker.EnqueueAsync(second).AsTask();
             var blocked = worker.EnqueueAsync(third).AsTask();
             blocked.IsCompleted.Should().BeFalse();
 
             releaseFirst.TrySetResult();
-            await blocked.WaitAsync(TimeSpan.FromSeconds(5));
+            await Task.WhenAll(firstWork, secondWork, blocked).WaitAsync(TimeSpan.FromSeconds(5));
             await worker.DrainAsync();
             processed.Should().Equal(first.Id, second.Id, third.Id);
             worker.Pending.Should().Be(0);
@@ -455,7 +457,7 @@ public sealed class FuturesTickDataEventActorTests : IClassFixture<MarketDataFee
     }
 
     [Fact]
-    public async Task Experimental_eod_workers_isolate_contracts_and_do_not_drain_on_update()
+    public async Task Eod_workers_isolate_contracts_and_order_invalidation_after_pending_projection()
     {
         const string otherContract = "VX20261021";
         var blockedStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -488,10 +490,11 @@ public sealed class FuturesTickDataEventActorTests : IClassFixture<MarketDataFee
         await actor.Start(context);
         try
         {
-            await actor.Receive(context, CreateTrade());
+            var firstWork = actor.Receive(context, CreateTrade()).AsTask();
             await blockedStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
             var updateId = new FuturesEodDataId(ContractId, ValueDate);
-            await actor.Receive(context, new FuturesEodDataUpdatedEvent { EntityId = updateId });
+            var invalidation = actor.Receive(context, new FuturesEodDataUpdatedEvent { EntityId = updateId }).AsTask();
+            invalidation.IsCompleted.Should().BeFalse();
             await actor.Receive(context, CreateTrade() with
             {
                 EntityId = new TickDataEntityId(otherContract, ValueDate, AssetTypeId.Futures),
@@ -499,6 +502,8 @@ public sealed class FuturesTickDataEventActorTests : IClassFixture<MarketDataFee
             });
             await otherCompleted.Task.WaitAsync(TimeSpan.FromSeconds(5));
             releaseBlocked.Task.IsCompleted.Should().BeFalse();
+            releaseBlocked.TrySetResult(true);
+            await Task.WhenAll(firstWork, invalidation).WaitAsync(TimeSpan.FromSeconds(5));
         }
         finally
         {

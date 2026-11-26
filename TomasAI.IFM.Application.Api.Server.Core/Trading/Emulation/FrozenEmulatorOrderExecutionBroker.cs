@@ -13,6 +13,9 @@ public sealed class FrozenEmulatorOrderExecutionBroker(
 {
     public string AccountAlias => inner.AccountAlias;
     public long Generation => inner.Generation;
+    public bool HasRecoverableOrderObservations => inner.HasRecoverableOrderObservations;
+    public ValueTask AcknowledgeOrderObservationAsync(Guid observationId, CancellationToken cancellationToken = default)
+        => inner.AcknowledgeOrderObservationAsync(observationId, cancellationToken);
 
     public async ValueTask<FrameworkDispatchReceipt> PlaceAsync(FrameworkOrderRequest request,
         CancellationToken cancellationToken = default)

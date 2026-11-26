@@ -63,11 +63,16 @@ mod busy_publication_tests {
             source.send_replace(pass);
             pricing.send_replace(pass);
             let mut dirty = false;
-            for update in [observe_update(&mut sources, "source").unwrap(),
-                observe_update(&mut calculations, "pricing").unwrap()] {
+            for update in [
+                observe_update(&mut sources, "source").unwrap(),
+                observe_update(&mut calculations, "pricing").unwrap(),
+            ] {
                 dirty |= update;
             }
-            assert!(dirty, "completed risk must be observed during busy pass {pass}");
+            assert!(
+                dirty,
+                "completed risk must be observed during busy pass {pass}"
+            );
             assert!(!observe_update(&mut calculations, "pricing").unwrap());
         }
         assert_eq!(*calculations.borrow(), 128);
@@ -77,7 +82,10 @@ mod busy_publication_tests {
     fn closed_pricing_watch_is_an_explicit_resource_failure() {
         let (sender, mut receiver) = watch::channel(0u64);
         drop(sender);
-        assert_eq!(observe_update(&mut receiver, "pricing closed").unwrap_err(), "pricing closed");
+        assert_eq!(
+            observe_update(&mut receiver, "pricing closed").unwrap_err(),
+            "pricing closed"
+        );
     }
 }
 
@@ -121,7 +129,8 @@ fn replay_monitored_quotes(
         .iter()
         .cloned()
         .partition(|symbol| requested.contains(symbol.as_str()));
-    if monitored_symbols.is_empty() || (!live_symbols.is_empty() && plan.subscriptions.len() == 64) {
+    if monitored_symbols.is_empty() || (!live_symbols.is_empty() && plan.subscriptions.len() == 64)
+    {
         return false;
     }
 
@@ -254,7 +263,11 @@ fn cache_can_defer(code: &str) -> bool {
 // A live setup retains its original deadline. Once component setup has
 // completed, optional cache work cannot borrow a spent publication deadline.
 fn cache_capture_budget(setup: Option<Deadline>, components_ready: bool) -> Deadline {
-    if components_ready { Deadline::recovery() } else { setup.unwrap_or_else(Deadline::recovery) }
+    if components_ready {
+        Deadline::recovery()
+    } else {
+        setup.unwrap_or_else(Deadline::recovery)
+    }
 }
 // No eligible spread is a valid business result only when the complete captured
 // scope was actually valued. Missing/invalid inputs remain unavailable and are
@@ -382,13 +395,26 @@ impl View {
         let mut values = self.queries.counters()?;
         values.extend(self.publication.counters().map_err(String::from)?);
         let (observations, selections, solves) = self.pricing.counters().map_err(String::from)?;
-        for (name, value) in [("Pricing observations", observations), ("Pricing selections", selections), ("IV solves", solves)] {
+        for (name, value) in [
+            ("Pricing observations", observations),
+            ("Pricing selections", selections),
+            ("IV solves", solves),
+        ] {
             values.insert(name.into(), value.min(i64::MAX as u64) as i64);
         }
         values.extend(self.evidence.counters().map_err(String::from)?);
         values.insert("Monitored instruments".into(), self.monitored.len() as i64);
-        values.insert("Background cache scopes".into(), self.cache_scopes.len() as i64);
-        values.insert("Cached chain publications".into(), self.caches.lock().map_err(|_| "Cache diagnostics interrupted")?.len() as i64);
+        values.insert(
+            "Background cache scopes".into(),
+            self.cache_scopes.len() as i64,
+        );
+        values.insert(
+            "Cached chain publications".into(),
+            self.caches
+                .lock()
+                .map_err(|_| "Cache diagnostics interrupted")?
+                .len() as i64,
+        );
         Ok(values)
     }
     /// One-way cancellation observation; no cancellation authority is exported.
@@ -405,7 +431,7 @@ pub struct OptionsFactory {
     view: Arc<Mutex<Option<Arc<View>>>>,
     retired: Arc<Mutex<crate::messaging::retired_evidence::Archive>>,
     diagnostics: Arc<Diagnostics>,
-    identity: Mutex<Option<Header>>,
+    identity: Arc<Mutex<Option<Header>>>,
     statistics: Arc<Mutex<LogicalStatistics>>,
     // Detached qualified source recipe only. Never retain View/LiveData/tasks.
     realized: Arc<Mutex<Option<Recipe>>>,
@@ -445,7 +471,7 @@ impl OptionsFactory {
             view: Arc::new(Mutex::new(None)),
             retired: Arc::default(),
             diagnostics: Arc::default(),
-            identity: Mutex::new(None),
+            identity: Arc::new(Mutex::new(None)),
             statistics: Arc::default(),
             realized: Arc::default(),
         }
@@ -507,6 +533,9 @@ struct Run {
     generation: [u8; 16],
     statistics: Arc<Mutex<LogicalStatistics>>,
     realized: Arc<Mutex<Option<Recipe>>>,
+    retired_checkpoint: Arc<Mutex<crate::messaging::retired_evidence::Archive>>,
+    retained_source:Option<Arc<crate::messaging::source_outbox::Sink>>,
+    identity:Arc<Mutex<Option<Header>>>,
 }
 impl LogicalStatistics {
     fn retain(
@@ -575,6 +604,10 @@ impl Factory for OptionsFactory {
         parent: Arc<Child>,
         deadline: Deadline,
     ) -> Result<Box<dyn Resources>, String> {
+        let original_checkpoint=crate::checkpoint::staged_owner(&intent.scope,"options-3")?;
+        let imported_read_only=crate::checkpoint::replay_import_only();
+        if imported_read_only&&original_checkpoint.is_none(){return Err("Replay import-only options requires its original staged owner".into());}
+        let retained_source=if imported_read_only{None}else{crate::messaging::source_outbox::lookup(&intent.scope).map_err(str::to_owned)?};
         if intent.source.plan.lane != Lane::OptionsGlbx
             || intent.revision <= 0
             || intent.source.registrations.len() > crate::option_chain::MAX_OPTION_REGISTRATIONS
@@ -626,9 +659,11 @@ impl Factory for OptionsFactory {
         }
         let (health, observed) = watch::channel(Readiness::default());
         let retirement = Arc::new(Mutex::new(None));
-        let worker = rand::random::<u128>().max(1).to_le_bytes();
-        let generation = rand::random::<u128>().max(1).to_le_bytes();
-        if let Some(background) = &intent.background {
+        let original_header=original_checkpoint.as_ref().map(checkpoint_state::original_header).transpose()?;
+        if original_header.as_ref().is_some_and(|h|h.value_date!=intent.date.to_julian_day()-1721426||h.revision!=intent.revision){return Err("Original options checkpoint date/revision mismatch".into());}
+        let worker = original_header.as_ref().map_or_else(||rand::random::<u128>().max(1).to_le_bytes(),|h|h.worker);
+        let generation = original_header.as_ref().map_or_else(||rand::random::<u128>().max(1).to_le_bytes(),|h|h.generation);
+        if !imported_read_only{if let Some(background) = &intent.background {
             background.bind_browser_generation(generation, reset_window_iv)?;
             background.bind_setup_diagnostics(
                 &self.diagnostics,
@@ -636,18 +671,8 @@ impl Factory for OptionsFactory {
                 generation,
                 intent.revision as u64,
             )?;
-        }
+        }}
 
-        *self
-            .identity
-            .lock()
-            .map_err(|_| "Native options identity directory interrupted")? = Some(Header {
-            lane: Lane::OptionsGlbx,
-            value_date: intent.date.to_julian_day() - 1721426,
-            worker,
-            generation,
-            revision: intent.revision,
-        });
         let run = Run {
             parent: parent.clone(),
             intent,
@@ -659,8 +684,11 @@ impl Factory for OptionsFactory {
             diagnostics: self.diagnostics.clone(),
             statistics: self.statistics.clone(),
             realized: self.realized.clone(),
+            retired_checkpoint: self.retired.clone(),
             worker,
             generation,
+            retained_source,
+            identity:self.identity.clone(),
         };
         let task = parent
             .spawn_joined(move |stop| Box::pin(run.execute(stop)))
@@ -692,6 +720,16 @@ impl Run {
     }
     async fn execute(self, stop: CancellationToken) {
         let mut setup = Some(self.initial);
+        if let Some(source)=&self.retained_source{
+            if let Err(error)=source.wait_drained(Lane::OptionsGlbx,&stop,self.initial).await{
+                self.health.send_modify(|state|{state.failure=Some(error);state.setup_complete=false;state.proofs.clear();state.deadline=Some(self.initial);});return;
+            }
+        }
+        match self.identity.lock(){Ok(mut identity)=>*identity=Some(Header{lane:Lane::OptionsGlbx,value_date:self.intent.date.to_julian_day()-1721426,worker:self.worker,generation:self.generation,revision:self.intent.revision}),Err(_)=>{self.health.send_modify(|state|state.failure=Some("Native options identity directory interrupted".into()));return;}}
+        if crate::checkpoint::replay_import_only(){
+            let(_status,logs)=watch::channel(diagnostic_delivery::Status::default());let mut stage=String::from("importing original read-only options owner");
+            if let Err(error)=self.run(&stop,&mut setup,logs,&mut stage).await{self.health.send_modify(|state|{state.failure=Some(error);state.setup_complete=false;state.proofs.clear();state.deadline=None;});}return;
+        }
         // Logging starts before discovery. An unavailable sink never gates the
         // resource task; its own copied queue and cancellation remain bounded.
         let mut delivery = match diagnostic_delivery::Delivery::start(
@@ -750,6 +788,8 @@ impl Run {
         mut logs: watch::Receiver<diagnostic_delivery::Status>,
         stage: &mut String,
     ) -> Result<(), String> {
+        let original_checkpoint=crate::checkpoint::staged_owner(&self.intent.scope,"options-3")?;
+        let original_recipe=original_checkpoint.as_ref().map(|image|{let f=crate::checkpoint::fields(image,11)?;recipe_checkpoint::restore(&f[10],&self.intent)}).transpose()?;
         let retained = self
             .realized
             .lock()
@@ -760,7 +800,7 @@ impl Run {
         // Reopen the exact qualified membership before background replanning.
         // The recipe contains no quotes or physical generation; every task,
         // subscription, reference context and output is recreated below.
-        let wanted = if let Some(retained) = retained {
+        let wanted = if let Some(original)=original_recipe {original} else if let Some(retained) = retained {
             self.stage(
                 stage,
                 "Reopening retained qualified subscriptions before background discovery",
@@ -868,7 +908,9 @@ impl Run {
         }
         *setup = Some(initial);
         self.stage(stage, "Validating option source registrations")?;
-        wanted.source.validate(crate::option_chain::MAX_OPTION_REGISTRATIONS)?;
+        wanted
+            .source
+            .validate(crate::option_chain::MAX_OPTION_REGISTRATIONS)?;
         if let Some(background) = &self.intent.background {
             // A proposed refresh cannot evict the recipe for the active feed.
             background.remember_reference_recipe(&wanted)?;
@@ -887,6 +929,7 @@ impl Run {
             .intent
             .background
             .as_ref()
+            .filter(|_|original_checkpoint.is_none())
             .map(|background| {
                 background.start_refresh(
                     self.intent.clone(),
@@ -926,6 +969,10 @@ impl Run {
             wanted.clone()
         };
         self.stage(stage, "Preparing new-generation pricing contexts")?;
+        let (configuration,engine,selection_ms,risk_ms,seeds)=if let Some(image)=&original_checkpoint{
+            let f=crate::checkpoint::fields(image,11)?;
+            (Arc::new(Mutex::new(crate::checkpoint::string(&f[7],512)?)),Arc::new(Coalesced::from_checkpoint(&f[3])?),intent.reviewed.selection_ms,intent.reviewed.risk_ms,Vec::new())
+        }else{
         let prepared = Box::pin(intent.reviewed.prepare(
             &intent.source.registrations,
             u128::from_le_bytes(self.generation),
@@ -956,6 +1003,8 @@ impl Run {
                 engine.attach_manifest(option.instrument, option.context.identity, manifest)?;
             }
         }
+            (configuration,engine,config.selection_ms,config.risk_ms,config.statistics)
+        };
         let bank = {
             let mut statistics = self
                 .statistics
@@ -994,7 +1043,7 @@ impl Run {
                 data.seed_option_statistics(id, seed)?;
             }
         }
-        for (id, seed) in config.statistics {
+        for (id, seed) in seeds {
             data.seed_option_statistics(id, seed)?;
         }
         data = data
@@ -1040,8 +1089,8 @@ impl Run {
                 }
             }
         }
-        source.evidence = Evidence::ControlOnly;
-        if !intent.monitored.is_empty() {
+        if original_checkpoint.is_none(){source.evidence = Evidence::ControlOnly;}
+        if original_checkpoint.is_none() && !intent.monitored.is_empty() {
             // Reopening a realized recipe also takes this path. Its resolved
             // membership no longer carries the background configuration.
             let session_start = super::futures_bootstrap::session_start(intent.date)?;
@@ -1061,12 +1110,113 @@ impl Run {
                 source.evidence = Evidence::ControlOnlyWithOptionalQuoteReplay;
             }
         }
+        let imported_read_only=crate::checkpoint::replay_import_only();
+        let mut actor = if imported_read_only{None}else{Some(Publisher::start_owned(
+            intent.broker.clone(),
+            intent.scope.clone(),
+            256,
+            4 * 1024 * 1024,
+            initial,
+            &self.parent,
+        )?)};
+        let mut cache_writer = if imported_read_only{None}else{match cache_delivery::Delivery::start(
+            intent.broker.clone(),
+            intent.scope.clone(),
+            &self.parent,
+            initial,
+        ) {
+            Ok(writer) => Some(writer),
+            Err(error) => {
+                let _ = self.stage(
+                    stage,
+                    &format!("Optional cache delivery unavailable: {error}"),
+                );
+                None
+            }
+        }};
+        let cache_port = cache_writer.as_ref().map(cache_delivery::Delivery::port);
+        let mut cache_status = cache_writer.as_ref().map(cache_delivery::Delivery::changes);
+        let mut reported_delivery_error = None;
+        let cache_directory = Arc::new(Mutex::new(std::collections::BTreeMap::<
+            String,
+            Arc<CachePublication>,
+        >::new()));
+        let mut cache_version = 0i64;
+        let mut cache_dirty = true;
+        let mut cache_cadence = crate::option_chain::cadence::Cadence::new();
+        // Cache membership depends on the immutable generation intent, not
+        // on incoming quotes or refreshed pricing context.
+        let mut cache_memberships = None;
+        let mut cache_results = cache_delivery::Batch::new();
+        let mut reported_cache_errors = BTreeMap::new();
+        let header = Header {
+            lane: Lane::OptionsGlbx,
+            value_date: intent.date.to_julian_day() - 1721426,
+            worker: self.worker,
+            generation: self.generation,
+            revision: intent.revision,
+        };
+        let ordered = Ordered::new_with_clock(actor.as_ref().map(Publisher::port).unwrap_or_else(||crate::messaging::publisher::Port::imported_read_only(&intent.scope)), header.clone(), self.clock.clone())?;
+        let outbox = Arc::new(Outbox::new(2048, 16 * 1024 * 1024)?);
+        let ingress = Ingress::new(
+            intent.date,
+            self.generation,
+            intent.source.registrations.clone(),
+        )?;
+        let monitored = intent
+            .source
+            .registrations
+            .iter()
+            .filter(|r| intent.monitored.contains(&r.instrument))
+            .cloned()
+            .collect();
+        let observations = Arc::new(Mutex::new(Options::new(
+            intent.date,
+            intent.definition,
+            monitored,
+            Arc::new(Revisions::default()),
+        )?));
+        let ids: Vec<_> = observations.lock().map_err(|_|"Options mapper interrupted")?.instruments().collect();
+        let checkpoint_enabled=crate::checkpoint::enabled();
+        let checkpoint_busy=Arc::new(std::sync::atomic::AtomicBool::new(true));
+        let checkpoint_runtime=Arc::new(Mutex::new(checkpoint_state::RuntimeState{versions:[*data.updates().borrow(),*engine.updates().borrow(),*engine.reference_updates().borrow(),*self.clock.changes().borrow()],cache_version,cache_dirty,cadence:cache_cadence,cache_results:cache_results.clone(),cursor:0,dirty:true,threshold:0,published:BTreeSet::new(),qualified:None}));
+        let checkpoint_owner=Arc::new(checkpoint_state::OptionsCheckpoint{clock:self.clock.clone(),data:data.clone(),engine:engine.clone(),mapper:observations.clone(),ordered:ordered.clone(),outbox:outbox.clone(),configuration:configuration.clone(),runtime:checkpoint_runtime.clone(),busy:checkpoint_busy.clone(),statistics:self.statistics.clone(),retired:self.retired_checkpoint.clone(),recipe:Arc::new(Intent{source:source.clone(),..(*intent).clone()})});
+        let _checkpoint_registration=if checkpoint_enabled{Some(crate::checkpoint::register(&intent.scope,"options-3",checkpoint_owner)?)}else{None};
+        if original_checkpoint.is_some(){let state=checkpoint_runtime.lock().map_err(|_|"Options checkpoint runtime interrupted")?;cache_version=state.cache_version;cache_dirty=state.cache_dirty;cache_cadence=state.cadence;cache_results=state.cache_results.clone();*cache_directory.lock().map_err(|_|"Options cache directory interrupted")?=cache_results.clone();}
+        if imported_read_only{
+        *self
+            .directory
+            .lock()
+            .map_err(|_| "Native options query directory interrupted")? = Some(Arc::new(View {
+            publication: ordered.clone(),
+            header:header.clone(),
+            current: ordered.current(),
+            pricing: engine.clone(),
+            evidence: outbox.clone(),
+            queries: data
+                .queries(Lane::OptionsGlbx)?
+                .ok_or("Native option queries unavailable")?,
+            registrations: Arc::new(intent.source.registrations.clone()),
+            definitions: Arc::new(intent.reviewed.definitions.clone()),
+            policy_version: intent.reviewed.policy_version.clone(),
+            iv_ms: intent.reviewed.iv_ms,
+            configuration: configuration.clone(),
+            cancellation: self.parent.cancellation(),
+            caches: cache_directory.clone(),
+            cache_scopes: Arc::new(intent.caches.clone()),
+            monitored: Arc::new(intent.monitored.clone()),
+        }));
+            self.health.send_replace(Readiness{setup_complete:false,proofs:Vec::new(),failure:None,deadline:None});
+            *setup=None;checkpoint_busy.store(false,std::sync::atomic::Ordering::Release);
+            stop.cancelled().await;data.cancel_lane(Lane::OptionsGlbx)?;return Ok(());
+        }
         self.stage(
             stage,
             "Opening final option subscriptions and awaiting acknowledgements",
         )?;
         data.start_in_parent(source, stop, initial, &self.parent)
             .await?;
+        if let Some(registration)=&_checkpoint_registration{registration.source_started()?;}
         // Subscription setup is complete. Quotes do not own a recovery timer.
         *setup = None;
         let next_configuration = configuration.clone();
@@ -1090,51 +1240,10 @@ impl Run {
             engine.clone(),
             self.clock.clone(),
             u128::from_le_bytes(self.generation),
-            config.selection_ms,
-            config.risk_ms,
+            selection_ms,
+            risk_ms,
             &self.parent,
         )?;
-        let mut actor = Publisher::start_owned(
-            intent.broker.clone(),
-            intent.scope.clone(),
-            256,
-            4 * 1024 * 1024,
-            initial,
-            &self.parent,
-        )?;
-        let mut cache_writer = match cache_delivery::Delivery::start(
-            intent.broker.clone(), intent.scope.clone(), &self.parent, initial,
-        ) {
-            Ok(writer) => Some(writer),
-            Err(error) => {
-                let _ = self.stage(stage, &format!("Optional cache delivery unavailable: {error}"));
-                None
-            }
-        };
-        let cache_port = cache_writer.as_ref().map(cache_delivery::Delivery::port);
-        let mut cache_status = cache_writer.as_ref().map(cache_delivery::Delivery::changes);
-        let mut reported_delivery_error = None;
-        let cache_directory = Arc::new(Mutex::new(std::collections::BTreeMap::<
-            String,
-            Arc<CachePublication>,
-        >::new()));
-        let mut cache_version = 0i64;
-        let mut cache_dirty = true;
-        let mut cache_cadence = crate::option_chain::cadence::Cadence::new();
-        // Cache membership depends on the immutable generation intent, not
-        // on incoming quotes or refreshed pricing context.
-        let mut cache_memberships = None;
-        let mut cache_results = cache_delivery::Batch::new();
-        let mut reported_cache_errors = BTreeMap::new();
-        let header = Header {
-            lane: Lane::OptionsGlbx,
-            value_date: intent.date.to_julian_day() - 1721426,
-            worker: self.worker,
-            generation: self.generation,
-            revision: intent.revision,
-        };
-        let ordered = Ordered::new_with_clock(actor.port(), header.clone(), self.clock.clone())?;
-        let outbox = Arc::new(Outbox::new(2048, 16 * 1024 * 1024)?);
         let mut evidence = evidence_delivery::Delivery::start(
             outbox.clone(),
             evidence_delivery::Configuration {
@@ -1147,25 +1256,6 @@ impl Run {
             self.parent.clone(),
             initial,
         )?;
-        let ingress = Ingress::new(
-            intent.date,
-            self.generation,
-            intent.source.registrations.clone(),
-        )?;
-        let monitored = intent
-            .source
-            .registrations
-            .iter()
-            .filter(|r| intent.monitored.contains(&r.instrument))
-            .cloned()
-            .collect();
-        let mut observations = Options::new(
-            intent.date,
-            intent.definition,
-            monitored,
-            Arc::new(Revisions::default()),
-        )?;
-        let ids: Vec<_> = observations.instruments().collect();
         *self
             .directory
             .lock()
@@ -1218,6 +1308,8 @@ impl Run {
         let mut threshold = 0;
         let mut published_instruments = BTreeSet::new();
         let mut qualified_threshold = None;
+        if original_checkpoint.is_some(){let state=checkpoint_runtime.lock().map_err(|_|"Options checkpoint runtime interrupted")?;cursor=state.cursor;dirty=state.dirty;threshold=state.threshold;published_instruments=state.published.clone();qualified_threshold=state.qualified;if cursor>ids.len(){return Err("Original options cursor exceeds monitored registration".into());}}
+
         // Report each distinct pending-proof set once per generation, so quiet
         // market data is diagnosable without logging on every observation.
         let mut reported_readiness = BTreeSet::new();
@@ -1235,12 +1327,21 @@ impl Run {
             .collect();
         let processed:Result<(),String>=async {
             'worker: loop {
+                // A held production boundary parks new option work, while the
+                // independent durable source relay continues draining.
+                let production = match crate::messaging::source_production::enter_accepted(stop).await {
+                    Ok(permit) => permit,
+                    Err(_) if stop.is_cancelled() => break,
+                    Err(error) => return Err(error),
+                };
+                let production_paused = crate::messaging::source_production::ifm_market_data_source_production_lease_v1() != 0;
+                if checkpoint_enabled{let _transaction=crate::checkpoint::transaction()?;checkpoint_busy.store(true,std::sync::atomic::Ordering::Release);}
                 if stop.is_cancelled(){break;}
                 let updates = [
                     observe_update(&mut source, "Native options source observation closed")?,
                     observe_update(&mut calculations, "Native options calculation observation closed")?,
                     observe_update(&mut reference_changes, "Native options reference observation closed")?,
-                    observe_update(&mut clocks, "Native options API clock observation closed")?,
+                    observe_update(&mut clocks, "Native options API clock observation closed")? && !production_paused,
                 ];
                 if updates.into_iter().any(|changed| changed) {
                     dirty = true;
@@ -1308,7 +1409,7 @@ impl Run {
                 if dirty && broker.connected && let Some(physical)=data.generation(Lane::OptionsGlbx)?{
                         let end=(cursor+64).min(ids.len());
                         for id in &ids[cursor..end]{
-                            if let Some(event)=observations.quote(&engine,*id,physical,at,true,Identity::fresh(at))?{
+                            if let Some(event)=observations.lock().map_err(|_|"Options mapper interrupted")?.quote(&engine,*id,physical,at,true,Identity::fresh(at))?{
                                 let contract=intent.source.registrations.iter().find(|r|r.instrument==*id).ok_or("Native monitored option disappeared")?;
                                 threshold=ordered.submit(event.kind,codec::encode(&event.value)?,self.generation,Some(&contract.contract))?;
                                 published_instruments.insert(*id);
@@ -1318,7 +1419,7 @@ impl Run {
                             if qualified_threshold.is_none() && threshold>0 && published_instruments.len()==ids.len(){qualified_threshold=Some(threshold);}
                         }
                 }
-                let cache_eligible=cache_broker.connected && !intent.caches.is_empty()
+                let cache_eligible=!production_paused && cache_broker.connected && !intent.caches.is_empty()
                     && transport.phase==super::lanes::Phase::Running && engine.reference_window(at)?.0;
                 if cache_dirty && cache_eligible && cache_cadence.ready() {
                     cache_cadence.attempted();
@@ -1501,6 +1602,11 @@ impl Run {
                         ids.len(), published_instruments.len()))?;
                 }
                 self.health.send_replace(Readiness{setup_complete,proofs,failure:None,deadline:published_deadline});
+                if checkpoint_enabled{let _transaction=crate::checkpoint::transaction()?;
+                 *checkpoint_runtime.lock().map_err(|_|"Options checkpoint runtime interrupted")?=checkpoint_state::RuntimeState{versions:[*data.updates().borrow(),*engine.updates().borrow(),*engine.reference_updates().borrow(),*self.clock.changes().borrow()],cache_version,cache_dirty,cadence:cache_cadence,cache_results:cache_results.clone(),cursor,dirty,threshold,published:published_instruments.clone(),qualified:qualified_threshold};
+                 checkpoint_busy.store(false,std::sync::atomic::Ordering::Release);
+                }
+                drop(production);
                 if drained==64 || dirty&&cursor!=0 {tokio::task::yield_now().await;continue;}
                 tokio::select!{biased;()=stop.cancelled()=>break,
                     ()=crate::runtime::availability::Availability::pending(validity_wakeup)=>{},
@@ -1518,7 +1624,7 @@ impl Run {
                     result=publication.changed()=>{result.map_err(|_|"Native options publication observation closed")?;},
                     result=storage.changed()=>{result.map_err(|_|"Native options persistence observation closed")?;},
                     result=persisted.changed()=>{result.map_err(|_|"Native options outbox observation closed")?;},
-                    result=clocks.changed()=>{result.map_err(|_|"Native options API clock observation closed")?;dirty=true;cache_dirty=true;},
+                    result=clocks.changed()=>{result.map_err(|_|"Native options API clock observation closed")?;if crate::messaging::source_production::ifm_market_data_source_production_lease_v1()==0{dirty=true;cache_dirty=true;}},
                 }
             }
             Ok(())
@@ -1561,11 +1667,13 @@ impl Run {
         let cleanup_token = CancellationToken::new();
         let (a, b, c, e, f) = tokio::join!(
             evidence.shutdown(cleanup),
-            actor.shutdown(cleanup),
-            async { match cache_writer.as_mut() {
-                Some(writer) => writer.shutdown(cleanup).await,
-                None => Ok(()),
-            } },
+            async {match actor.as_mut(){Some(actor)=>actor.shutdown(cleanup).await,None=>Ok(())}},
+            async {
+                match cache_writer.as_mut() {
+                    Some(writer) => writer.shutdown(cleanup).await,
+                    None => Ok(()),
+                }
+            },
             references.stop(&cleanup_token, cleanup),
             pricing.stop(&cleanup_token, cleanup)
         );
@@ -1784,9 +1892,19 @@ mod failure_budget_tests {
     async fn optional_cache_has_its_own_budget_but_setup_never_renews() {
         let setup = Deadline::recovery();
         tokio::time::advance(std::time::Duration::from_secs(121)).await;
-        assert!(cache_capture_budget(Some(setup),false).remaining().is_zero());
-        assert_eq!(cache_capture_budget(Some(setup),true).remaining(), std::time::Duration::from_secs(120));
-        assert_eq!(cache_capture_budget(None,true).remaining(), std::time::Duration::from_secs(120));
+        assert!(
+            cache_capture_budget(Some(setup), false)
+                .remaining()
+                .is_zero()
+        );
+        assert_eq!(
+            cache_capture_budget(Some(setup), true).remaining(),
+            std::time::Duration::from_secs(120)
+        );
+        assert_eq!(
+            cache_capture_budget(None, true).remaining(),
+            std::time::Duration::from_secs(120)
+        );
     }
     #[test]
     fn known_pending_market_inputs_do_not_hide_structural_or_component_failures() {
@@ -1814,7 +1932,9 @@ mod failure_budget_tests {
     #[test]
     fn monthly_capture_and_candidate_timeouts_defer_to_the_next_sweep() {
         assert!(cache_can_defer("SnapshotTimeout"));
-        assert!(cache_can_defer("Candidate selection original deadline expired"));
+        assert!(cache_can_defer(
+            "Candidate selection original deadline expired"
+        ));
     }
     #[tokio::test(start_paused = true)]
     async fn unrelated_expired_output_does_not_expire_a_new_policy_fault() {
@@ -1853,4 +1973,18 @@ mod failure_budget_tests {
         .unwrap();
         assert!(budget.remaining().is_zero());
     }
+}
+
+#[path="options_checkpoint.rs"]
+mod checkpoint_state;
+
+#[path="options_recipe_checkpoint.rs"]
+mod recipe_checkpoint;
+
+/// Validates a complete detached original options image before staging; no provider or task is started.
+pub(crate) fn validate_checkpoint_image(value:&rmpv::Value)->Result<(),String>{checkpoint_state::validate_image(value)}
+
+/// Binds a typed detached options image to its exact outer source scope before staging.
+pub(crate) fn validate_checkpoint_image_for_scope(value:&rmpv::Value,scope:&str)->Result<(),String>{
+    let fields=crate::checkpoint::fields(value,11)?;let recipe=crate::checkpoint::fields(&fields[10],21)?;if crate::checkpoint::string(&recipe[1],128)?!=scope{return Err("Original option checkpoint outer scope differs from resolved recipe".into());}validate_checkpoint_image(value)
 }

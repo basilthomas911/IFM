@@ -197,6 +197,11 @@ public static partial class CoreServiceRegistration
         .AddCheck<ProcessLivenessHealthCheck>("process_liveness", tags: ["live"])
         .AddCheck<DeploymentIdentityHealthCheck>("deployment_identity", tags: ["bootstrap", "launch", "ready"])
         .AddCheck<PortfolioOperationalHealthCheck>("portfolio_operations", tags: ["bootstrap", "launch", "ready"]);
+        healthChecks.Add(new HealthCheckRegistration("realtime_durability", provider => new TomasAI.IFM.Application.Api.Server.Core.Observability.HealthChecks.RealtimeDurabilityHealthCheck(
+            provider.GetRequiredService<TomasAI.IFM.Framework.Messaging.NatsJetStream.RealtimeMailboxes.DurableRealtimeMailboxHub>(),
+            provider.GetRequiredService<TomasAI.IFM.Domain.Trade.Persistence.Realtime.PositionRealtimeIntents>(),
+            siContainer.GetInstance<TomasAI.IFM.Domain.BrokerAccount.Realtime.BrokerAccountObservationBridge>()),
+            failureStatus: null, tags: ["application", "ready"]));
         healthChecks
         .AddCheck<ActorRuntimeHealthCheck>("actor_runtime", tags: ["actor", "bootstrap", "launch", "ready"])
         .AddCheck<FmpConfigurationHealthCheck>("fmp_configuration", tags: ["application", "ready"])
@@ -228,7 +233,7 @@ public static partial class CoreServiceRegistration
         sp => sp.GetRequiredService<TomasAI.IFM.Framework.MarketData.ReferenceData.UsTreasuryCurve>()));
         services.AddSingleton(TomasAI.IFM.Framework.MarketData.ReferenceData.UsTreasuryCurve.ConversionPolicy);
         services.AddSingleton(TomasAI.IFM.Application.MarketData.Pricing.UsTreasuryPublicationCalendar.Default2026);
-        if (EventLogQualification.Active is null && !focusedActorIntegration)
+        if (EventLogQualification.Active is null && HistoricalSessionReplay.Active is null && !focusedActorIntegration)
         services.AddHostedService<UsTreasuryRefreshHostedService>();
         services.AddFmpMarketDataImport(options =>
         options.MaximumRangeDays = config.GetValue("AppSettings:Fmp:MaximumImportRangeDays", 366));

@@ -11,11 +11,12 @@ using System.Threading.Tasks;
 namespace TomasAI.IFM.Application.ServerManager;
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1515",Justification="Preserve the existing public host, configuration and reflection contracts used by external test assemblies.")]
 
-public sealed class ManagedProcessSupervisor : IAsyncDisposable
+public sealed partial class ManagedProcessSupervisor : IAsyncDisposable
 {
     private readonly object _sync = new();
     private readonly object _notificationSync = new();
     private readonly SemaphoreSlim _lifecycle = new(1, 1);
+    private readonly CancellationTokenSource _startupStop = new();
     private readonly IReadOnlyList<ManagedProcessDefinition> _definitions;
     private readonly TimeSpan _shutdownTimeout;
     private readonly Action<ManagedProcessLogEntry> _writeLog;
@@ -71,9 +72,12 @@ public sealed class ManagedProcessSupervisor : IAsyncDisposable
     public async Task StartAllAsync(CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        using var startup=CancellationTokenSource.CreateLinkedTokenSource(cancellationToken,_startupStop.Token);
+        cancellationToken=startup.Token;
         await _lifecycle.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            ThrowIfCaptureHeld();
             await StartConfiguredProcessesAsync(cancellationToken).ConfigureAwait(false);
         }
         finally
@@ -88,6 +92,7 @@ public sealed class ManagedProcessSupervisor : IAsyncDisposable
         await _lifecycle.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            ThrowIfCaptureHeld();
             await StopAllCoreAsync(cancellationToken).ConfigureAwait(false);
             await StartConfiguredProcessesAsync(cancellationToken).ConfigureAwait(false);
         }
@@ -99,6 +104,8 @@ public sealed class ManagedProcessSupervisor : IAsyncDisposable
 
     private async Task StartConfiguredProcessesAsync(CancellationToken cancellationToken)
     {
+        using var startup=CancellationTokenSource.CreateLinkedTokenSource(cancellationToken,_startupStop.Token);
+        cancellationToken=startup.Token;
         var attempts = new Dictionary<string, Task<Exception?>>(StringComparer.OrdinalIgnoreCase);
         foreach (var definition in _definitions)
         {
@@ -149,7 +156,7 @@ public sealed class ManagedProcessSupervisor : IAsyncDisposable
     public async Task<int> RestartApiAsync(int expectedProcessId, DateTime expectedStartedUtc, CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        await _lifecycle.WaitAsync(cancellationToken).ConfigureAwait(false);
+        await EnterRecoveryLifecycleAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             OwnedProcess? owned;
@@ -222,6 +229,9 @@ public sealed class ManagedProcessSupervisor : IAsyncDisposable
 
         try
         {
+            // Startup owns the lifecycle semaphore while awaiting child readiness.
+            // Withdraw that owned wait before trying to acquire the shutdown lifecycle.
+            await _startupStop.CancelAsync().ConfigureAwait(false);
             await StopAllAsync().ConfigureAwait(false);
         }
         finally
@@ -229,6 +239,7 @@ public sealed class ManagedProcessSupervisor : IAsyncDisposable
             _developmentJob?.Dispose();
             _disposed = true;
             _lifecycle.Dispose();
+            _startupStop.Dispose();
         }
     }
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1031",Justification="This process/UI boundary reports failures through its existing logging or error result while completing cleanup.")]
@@ -403,6 +414,8 @@ public sealed class ManagedProcessSupervisor : IAsyncDisposable
         ManagedProcessDefinition definition,
         CancellationToken cancellationToken, bool inheritDeadline = false)
     {
+        using var startup=CancellationTokenSource.CreateLinkedTokenSource(cancellationToken,_startupStop.Token);
+        cancellationToken=startup.Token;
         if (!string.IsNullOrWhiteSpace(definition.ReadinessPipeName))
         {
             using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -502,7 +515,9 @@ public sealed class ManagedProcessSupervisor : IAsyncDisposable
         OwnedProcess[] processes;
         lock (_sync)
         {
-            processes = _running.Values.OrderByDescending(value => value.Definition.StartOrder).ToArray();
+            var captureOnly=Environment.GetEnvironmentVariable("IFM_SESSION_CAPTURE_BOUNDARY_ENABLED")=="1";
+            processes = _running.Values.OrderBy(value=>captureOnly?value.Definition.Key switch{"ui"=>0,"scheduler"=>1,"market-data"=>2,"api"=>3,_=>4}:0)
+                .ThenByDescending(value=>value.Definition.StartOrder).ToArray();
         }
 
         foreach (var owned in processes)
@@ -521,20 +536,21 @@ public sealed class ManagedProcessSupervisor : IAsyncDisposable
         }
 
         var gracefulRequested = TryRequestGracefulShutdown(owned);
+        var shutdownTimeout=owned.Definition.Key=="market-data"&&Environment.GetEnvironmentVariable("IFM_SESSION_CAPTURE_BOUNDARY_ENABLED")=="1"?CaptureGracefulBudget:_shutdownTimeout;
         if (gracefulRequested)
         {
             WriteLifecycle(owned.Definition, "Graceful shutdown requested.");
             try
             {
                 await owned.Process.WaitForExitAsync(cancellationToken)
-                    .WaitAsync(_shutdownTimeout, cancellationToken)
+                    .WaitAsync(shutdownTimeout, cancellationToken)
                     .ConfigureAwait(false);
             }
             catch (TimeoutException)
             {
                 WriteLifecycle(
                     owned.Definition,
-                    $"Graceful shutdown exceeded {_shutdownTimeout.TotalSeconds:0.###} seconds; forcing process-tree termination.");
+                    $"Graceful shutdown exceeded {shutdownTimeout.TotalSeconds:0.###} seconds; forcing process-tree termination.");
             }
         }
         else

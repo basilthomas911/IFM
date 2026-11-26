@@ -243,6 +243,40 @@ public sealed class FuturesTradeSessionBarSignalContractTests
     }
 
     /// <summary>A failed projection terminates the bar path without a downstream realtime event.</summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public async Task PublishedComplete_retry_retains_original_time_origin_and_strict_capture_hash(int originMode)
+    {
+        var command = CreateCommand();
+        var source = new FuturesTradeSessionBarPublishedCompleteEvent { Id = Guid.NewGuid(), EntityId = command.EntityId,
+            CommandId = command.CommandId, ReceivedOn = command.Bar.CalculatedAtUtc.UtcDateTime, Bar = command.Bar };
+        MessageOrigin? origin = originMode == 2 ? new MessageOrigin(new DateTimeOffset(source.ReceivedOn), "bar-retry") : null;
+        if (originMode > 0) MessageOrigins.Restore(source, origin);
+        var context = Substitute.For<IFuturesTradeSessionBarSignalEventContext>();
+        var root = Path.Combine(Path.GetTempPath(), "ifm-bar-strict-retry", Guid.NewGuid().ToString("N"));
+        await using var capture = new TomasAI.IFM.TestSupport.StrictRealtimeCaptureFixture(root);
+        var receipts = new List<RealtimeCaptureReceipt>();
+        var emitted = new List<FuturesTradeSessionBarClosedRealtimeEvent>();
+        async ValueTask SendAsync(FuturesTradeSessionBarClosedRealtimeEvent value)
+        {
+            emitted.Add(value); receipts.Add(await capture.CaptureAsync(value));
+            if (receipts.Count == 1) throw new IOException("Accepted capture reply was lost.");
+        }
+        context.SendAsync<FuturesTradeSessionBarClosedRealtimeEvent, FuturesTradeSessionBarEntityId>(Arg.Any<FuturesTradeSessionBarClosedRealtimeEvent>())
+            .Returns(call => SendAsync(call.Arg<FuturesTradeSessionBarClosedRealtimeEvent>()));
+        var logger = Substitute.For<ILogger<FuturesTradeSessionBarSignalEventActor>>();
+        context.TimeProvider.Returns(new FixedTimeProvider(command.Bar.CalculatedAtUtc));
+        await Assert.ThrowsAsync<IOException>(async () => await source.ExecuteAsync(context, logger));
+        context.TimeProvider.Returns(new FixedTimeProvider(command.Bar.CalculatedAtUtc.AddHours(1)));
+        Assert.True(await source.ExecuteAsync(context, logger));
+        Assert.False(receipts[0].AlreadyCaptured); Assert.True(receipts[1].AlreadyCaptured);
+        Assert.Equal(receipts[0].SourceSha256, receipts[1].SourceSha256);
+        Assert.All(emitted, value => { Assert.Equal(source.ReceivedOn, value.ReceivedOn); Assert.Equal(origin, MessageOrigins.Get(value)); });
+    }
+
+    /// <summary>A failed projection terminates the bar path without a downstream realtime event.</summary>
     [Fact]
     public async Task PublishedFail_DoesNotForwardClosedBar()
     {

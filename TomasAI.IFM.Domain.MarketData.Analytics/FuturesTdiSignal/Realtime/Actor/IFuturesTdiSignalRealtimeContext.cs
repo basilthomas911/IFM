@@ -17,6 +17,8 @@ public interface IFuturesTdiSignalRealtimeContext : IRealtimeActorContext<Future
     IRealtimeProjector<FuturesTdiSignalRealtimeActor> Projector { get; }
     /// <summary>Gets storage used to seed restart-safe TDI cross continuity.</summary>
     IDbContextFactory DbFactory { get; }
+    /// <summary>Gets the shared result receipt/outbox owner; null is permitted only for standalone test contexts.</summary>
+    FuturesTdiResultReceipts? Receipts => null;
     /// <summary>Gets the Logger service supplied to the actor context.</summary>
     ILogger<FuturesTdiSignalRealtimeActor> Logger { get; }
 }

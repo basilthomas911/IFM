@@ -37,7 +37,7 @@ public static partial class CoreServiceRegistration
         .WriteTo.Async(
         sink => sink.File(
         new Serilog.Formatting.Json.JsonFormatter(renderMessage: true),
-        "Logs/ifm-apiserver-.log",
+        Hosting.Modes.HistoricalSessionReplay.Active?.LogPath ?? "Logs/ifm-apiserver-.log",
         rollingInterval: RollingInterval.Day,
         retainedFileCountLimit: 35,
         fileSizeLimitBytes: 128 * 1024 * 1024,

@@ -27,6 +27,7 @@ public static class ApiOperationalEndpoints
 {
     public static void MapOperationalEndpoints(WebApplication app)
     {
+        app.MapSessionCaptureEndpoints();
         // Copied native readiness evidence: this diagnostic never acquires leases or initiates recovery.
         app.MapGet("/api/market-data/options-health", async (Observability.HealthChecks.BackendDiagnosticReads diagnostics, CancellationToken token) =>
         {
@@ -89,6 +90,14 @@ public static class ApiOperationalEndpoints
             });
         });
         // The live views share a one-second capture without caching serialized bodies.
+        app.MapGet("/api/actor-health/realtime-mailboxes", (
+            TomasAI.IFM.Framework.Messaging.NatsJetStream.RealtimeMailboxes.DurableRealtimeMailboxHub hub, int? offset, int? limit) => Results.Ok(new
+            {
+                hub.Enabled, hub.IsRunning, hub.CurrentFailure, hub.MailboxCount,
+                hub.PendingSourceCount, hub.PendingSourceBytes, hub.ReceiptBytes,
+                hub.BrokerStoredBytes, hub.BrokerStoredMessages,
+                Streams = hub.StreamSnapshots, Mailboxes = hub.GetMailboxSnapshots(offset ?? 0, limit ?? 40)
+            }));
         app.MapGet("/api/actor-health/summary", (Observability.HealthChecks.ActorHealthSnapshotReader reader) =>
             Results.Ok(ActorHealthReadViews.Summarize(reader.Capture())));
         app.MapGet("/api/actor-health/actors", (Observability.HealthChecks.ActorHealthSnapshotReader reader, int? offset,

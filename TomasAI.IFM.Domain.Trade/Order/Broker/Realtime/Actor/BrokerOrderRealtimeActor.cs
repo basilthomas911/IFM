@@ -9,6 +9,7 @@ namespace TomasAI.IFM.Domain.Trade.Order.Broker.Realtime.Actor;
 /// <summary>Routes provider-neutral quote changes to working emulator broker orders.</summary>
 public sealed class BrokerOrderRealtimeActor(IRealtimeActorContext<BrokerOrderRealtimeActor> context) : BaseEventActor<BrokerOrderRealtimeActor>(context, Typed(context).Logger)
 {
+    protected override bool PropagateHandlerFailures => true;
     public const string ActorName = "BrokerOrderRealtime";
     private static readonly ActorTypeId QuoteRoute = new(ActorType.Realtime, FuturesTickQuoteDataChangedEvent.Actor, FuturesTickQuoteDataChangedEvent.Verb);
     private static readonly ActorTypeId OptionQuoteRoute = new(ActorType.Realtime, FuturesTickTradeDataChangedEvent.Actor, FuturesTickTradeDataChangedEvent.Verb);
@@ -44,7 +45,15 @@ public sealed class BrokerOrderRealtimeActor(IRealtimeActorContext<BrokerOrderRe
     /// <inheritdoc/>
     protected override IEvent ParseMessage(IEventActorContext<BrokerOrderRealtimeActor> context, IActorMessage message) => ParseMappedRealtimeEvent(context, message, _parseMap);
     /// <inheritdoc/>
-    protected override ValueTask ReceiveAsync(IEventActorContext<BrokerOrderRealtimeActor> context, IEvent @event) => ResolveMappedEventHandler(@event, _receiveMap)(_runtime, @event);
+    protected override async ValueTask ReceiveAsync(IEventActorContext<BrokerOrderRealtimeActor> context, IEvent @event)
+    {
+        try { await ResolveMappedEventHandler(@event, _receiveMap)(_runtime, @event).ConfigureAwait(false); }
+        finally
+        {
+            // Decoded quote segments own a pool lease separate from the serialized message payload.
+            if (@event is FuturesTickQuoteDataChangedEvent quote) quote.QuoteData.Dispose();
+        }
+    }
     /// <inheritdoc/>
     protected override async ValueTask OnExceptionAsync(IEventActorContext<BrokerOrderRealtimeActor> context, ActorThreadId threadId, IEvent @event, Exception ex) => await ex.SendErrorEventAsync<TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context).ConfigureAwait(false);
     private static IBrokerOrderRealtimeContext Typed(IRealtimeActorContext<BrokerOrderRealtimeActor> context) => context as IBrokerOrderRealtimeContext ?? throw new ArgumentException("Typed BrokerOrder realtime context required.", nameof(context));

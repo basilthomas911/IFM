@@ -22,12 +22,13 @@ public sealed class FuturesOptionRealtimeActorTests
     public async Task Option_router_forwards_repeated_and_lower_sequences_in_arrival_order()
     {
         var context = Substitute.For<IFuturesOptionRealtimeContext>();
+        context.RoutingReceipts.Returns(new TomasAI.IFM.Domain.Trade.Futures.Option.Realtime.FuturesOptionRoutingReceipts());
         var actor = Substitute.For<IActorService>();
         var routes = new ContractIdRouteIndex();
         routes.Add(new PortfolioFundTradeLeg(1,2,3,4,Guid.NewGuid(),Guid.NewGuid(),TradeStrategyKind.IronCondor,1), "ES-option");
         context.RouteIndex.Returns(routes); context.ActorService.Returns(actor);
         actor.SendAsync<ChangeTradeLegDataCommand,StrategyPositionId>(Arg.Any<ChangeTradeLegDataCommand>(),Arg.Any<StrategyPositionId>())
-            .Returns(new ServiceResult<Guid>(Guid.NewGuid()));
+            .Returns(call => new ServiceResult<Guid>(call.Arg<ChangeTradeLegDataCommand>().CommandId));
         foreach (uint sequence in new uint[] { 100, 100, 1, 0 })
             await new FuturesTickTradeDataChangedEvent { Id=Guid.NewGuid(), ReceivedOn=Now,
                 TickDataId=new("ES-option",DateOnly.FromDateTime(Now),sequence,Now),
@@ -41,8 +42,9 @@ public sealed class FuturesOptionRealtimeActorTests
         var commands = new List<ChangeTradeLegDataCommand>();
         var actorService = Substitute.For<IActorService>();
         actorService.SendAsync<ChangeTradeLegDataCommand, StrategyPositionId>(Arg.Any<ChangeTradeLegDataCommand>(), Arg.Any<StrategyPositionId>())
-            .Returns(call => { commands.Add(call.Arg<ChangeTradeLegDataCommand>()); return new ServiceResult<Guid>(Guid.NewGuid()); });
+            .Returns(call => { commands.Add(call.Arg<ChangeTradeLegDataCommand>()); return new ServiceResult<Guid>(call.Arg<ChangeTradeLegDataCommand>().CommandId); });
         var context = Substitute.For<IFuturesOptionRealtimeContext>();
+        context.RoutingReceipts.Returns(new TomasAI.IFM.Domain.Trade.Futures.Option.Realtime.FuturesOptionRoutingReceipts());
         var routes = new ContractIdRouteIndex();
         context.ActorService.Returns(actorService); context.RouteIndex.Returns(routes);
         routes.Add(new PortfolioFundTradeLeg(1, 2, 3, 4, Guid.NewGuid(), Guid.NewGuid(), TradeStrategyKind.IronCondor, 1), "ES-option");
@@ -76,8 +78,9 @@ public sealed class FuturesOptionRealtimeActorTests
         var actorService = Substitute.For<IActorService>();
         actorService.SendAsync<ChangeTradeLegDataCommand, StrategyPositionId>(
                 Arg.Any<ChangeTradeLegDataCommand>(), Arg.Any<StrategyPositionId>())
-            .Returns(new ServiceResult<Guid>(Guid.NewGuid()));
+            .Returns(call => new ServiceResult<Guid>(call.Arg<ChangeTradeLegDataCommand>().CommandId));
         var context = Substitute.For<IFuturesOptionRealtimeContext>();
+        context.RoutingReceipts.Returns(new TomasAI.IFM.Domain.Trade.Futures.Option.Realtime.FuturesOptionRoutingReceipts());
         var routes = new ContractIdRouteIndex();
         context.ActorService.Returns(actorService);
         context.RouteIndex.Returns(routes);
@@ -112,6 +115,7 @@ public sealed class FuturesOptionRealtimeActorTests
     public async Task Tick_without_an_open_position_is_counted_and_ignored()
     {
         var context = Substitute.For<IFuturesOptionRealtimeContext>();
+        context.RoutingReceipts.Returns(new TomasAI.IFM.Domain.Trade.Futures.Option.Realtime.FuturesOptionRoutingReceipts());
         var routes = new ContractIdRouteIndex();
         var actorService = Substitute.For<IActorService>();
         routes.RegisterKnownContract("ESZ6 C5000");

@@ -24,6 +24,8 @@ public abstract class NatsEventProducer : IEventProducer, IAsyncDisposable
 {
     private int _disposeStarted;
     private readonly TimeProvider _clock = TimeProvider.System;
+    private readonly IRealtimeSessionRecorder? _sessionRecorder;
+    private readonly IRealtimePublicationCapture? _realtimeCapture;
     /// <summary>Releases owned producers and startup gates after the host stops dispatching.</summary>
     public async ValueTask DisposeAsync()
     {
@@ -68,13 +70,16 @@ public abstract class NatsEventProducer : IEventProducer, IAsyncDisposable
     /// </summary>
     /// <param name="options">Core NATS producer configuration.</param>
     /// <param name="logger">Logger used for transport diagnostics.</param>
-    protected NatsEventProducer(INatsProducerOptions options, ILogger logger, TimeProvider? timeProvider = null)
+    protected NatsEventProducer(INatsProducerOptions options, ILogger logger, TimeProvider? timeProvider = null,
+        IRealtimePublicationCapture? realtimeCapture = null, IRealtimeSessionRecorder? sessionRecorder = null, Func<IActorSupervisor>? sessionSupervisor = null)
     {
         ArgumentNullException.ThrowIfNull(options);
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _producerName = GetType().Name;
         _clock = timeProvider ?? TimeProvider.System;
-        _producer = new NatsActorProducer(options, logger, timeProvider: _clock);
+        _sessionRecorder = sessionRecorder;
+        _realtimeCapture = realtimeCapture;
+        _producer = new NatsActorProducer(options, logger, timeProvider: _clock, realtimeCapture: realtimeCapture, sessionRecorder: sessionRecorder, sessionSupervisor: sessionSupervisor);
         _logger.LogInformationEvent(_producerName,"{Component}.{Method} "+"successfully initialized",nameof(NatsEventProducer),nameof(NatsEventProducer));
     }
 
@@ -87,7 +92,8 @@ public abstract class NatsEventProducer : IEventProducer, IAsyncDisposable
     protected NatsEventProducer(
         INatsProducerOptions options,
         INatsJetStreamProducerOptions jetStreamOptions,
-        ILoggerFactory loggerFactory, TimeProvider? timeProvider = null)
+        ILoggerFactory loggerFactory, TimeProvider? timeProvider = null,
+        IRealtimePublicationCapture? realtimeCapture = null, IRealtimeSessionRecorder? sessionRecorder = null, Func<IActorSupervisor>? sessionSupervisor = null)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(jetStreamOptions);
@@ -96,10 +102,12 @@ public abstract class NatsEventProducer : IEventProducer, IAsyncDisposable
         _producerName = GetType().Name;
         _logger = loggerFactory.CreateLogger(_producerName);
         _clock = timeProvider ?? TimeProvider.System;
-        _producer = new NatsActorProducer(options, loggerFactory.CreateLogger<NatsActorProducer>(), timeProvider: _clock);
+        _sessionRecorder = sessionRecorder;
+        _realtimeCapture = realtimeCapture;
+        _producer = new NatsActorProducer(options, loggerFactory.CreateLogger<NatsActorProducer>(), timeProvider: _clock, realtimeCapture: realtimeCapture, sessionRecorder: sessionRecorder, sessionSupervisor: sessionSupervisor);
         _jetStreamProducer = new NatsJetStreamActorProducer(
             jetStreamOptions,
-            loggerFactory.CreateLogger<NatsJetStreamActorProducer>(), timeProvider: _clock);
+            loggerFactory.CreateLogger<NatsJetStreamActorProducer>(), timeProvider: _clock, sessionRecorder: sessionRecorder, sessionSupervisor: sessionSupervisor);
         _logger.LogInformationEvent(_producerName,"{Component}.{Method} "+"successfully initialized",nameof(NatsEventProducer),nameof(NatsEventProducer));
     }
 
@@ -158,6 +166,7 @@ public abstract class NatsEventProducer : IEventProducer, IAsyncDisposable
                 "{Operation}: failed to prepare event {EventName}",
                 operation,
                 eventValue?.GetType().Name ?? "Unknown");
+            if (_sessionRecorder?.Enabled == true || _realtimeCapture?.Enabled == true) throw;
             return;
         }
 
@@ -196,6 +205,7 @@ public abstract class NatsEventProducer : IEventProducer, IAsyncDisposable
                 operation,
                 eventValue.EventName ?? eventValue.GetType().Name,
                 subject);
+            if (_sessionRecorder?.Enabled == true || _realtimeCapture?.Enabled == true) throw;
         }
     }
 
@@ -235,6 +245,7 @@ public abstract class NatsEventProducer : IEventProducer, IAsyncDisposable
                 operation,
                 eventValue.EventName ?? eventValue.GetType().Name,
                 subject);
+            if (_sessionRecorder?.Enabled == true || _realtimeCapture?.Enabled == true) throw;
         }
     }
 

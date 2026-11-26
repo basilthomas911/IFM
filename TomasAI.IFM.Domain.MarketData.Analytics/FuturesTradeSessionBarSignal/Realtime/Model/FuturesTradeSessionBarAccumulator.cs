@@ -9,7 +9,7 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSessionBarSignal.R
 /// <summary>
 /// Aggregates live normalized trades into session-aligned OHLCV bars without owning durable actor state.
 /// </summary>
-public sealed class FuturesTradeSessionBarAccumulator(
+public sealed partial class FuturesTradeSessionBarAccumulator(
     IMarketSessionCalendar calendar,
     IFuturesTradeSessionBarSeriesResolver seriesResolver,
     TimeProvider timeProvider)
@@ -215,7 +215,7 @@ public sealed class FuturesTradeSessionBarAccumulator(
     [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
     readonly record struct Interval(DateTimeOffset StartUtc, DateTimeOffset EndUtc);
 
-    sealed class ObservationBucket(
+    sealed partial class ObservationBucket(
         MarketSeriesIdentity seriesIdentity,
         string contractId,
         DateOnly valueDate,

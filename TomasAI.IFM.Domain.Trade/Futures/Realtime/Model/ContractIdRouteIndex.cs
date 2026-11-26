@@ -2,11 +2,13 @@ using TomasAI.IFM.Domain.Trade.Shared;
 
 namespace TomasAI.IFM.Domain.Trade.Futures.Realtime.Model;
 /// <summary>
-/// Mailbox-owned one-to-many ContractId route index. Reads reuse stable route arrays;
+/// Shared one-to-many ContractId route index. Synchronous mutations/reads are serialized;
+/// reads reuse stable route arrays;
 /// lifecycle mutations use copy-on-write because open/close changes are rare.
 /// </summary>
 public sealed class ContractIdRouteIndex
 {
+    readonly Lock gate = new();
     readonly Dictionary<string, PortfolioFundTradeLeg[]> _routes;
     readonly HashSet<string> _knownContracts;
     readonly Dictionary<string, long> _lastSourceSequences;
@@ -29,61 +31,85 @@ public sealed class ContractIdRouteIndex
     public long InvalidTicks { get; private set; }
     public long DuplicateOrOutOfOrderTicks { get; private set; }
 
+    public bool IsCurrentRoute(TomasAI.IFM.Domain.Trade.Shared.Trade.Position.ChangeTradeLegDataCommand command)
+    {
+        lock (gate) return _routes.TryGetValue(command.ContractId, out var routes) && routes.Any(route =>
+            route.StrategyPositionId == command.EntityId.PositionId && route.TradeLegId == command.TradeLegId &&
+            route.Generation == command.RouteGeneration && route.TradeType == command.TradeType &&
+            new TradeEntityId(route.PortfolioId, route.FundId, route.OrderId, route.TradeId) == command.EntityId.Trade);
+    }
+
+    bool snapshotLoaded;
+    public bool IsSuperseded(TomasAI.IFM.Domain.Trade.Shared.Trade.Position.ChangeTradeLegDataCommand command)
+    {
+        lock (gate) return _positionGenerations.TryGetValue(command.EntityId.PositionId, out var generation)
+            ? generation > command.RouteGeneration : snapshotLoaded;
+    }
+
     public void RegisterKnownContract(string contractId)
     {
-        if (!string.IsNullOrWhiteSpace(contractId))
-            _knownContracts.Add(contractId);
+        lock (gate)
+        {
+            if (!string.IsNullOrWhiteSpace(contractId))
+                _knownContracts.Add(contractId);
+        }
     }
 
     public bool Add(PortfolioFundTradeLeg route, string contractId)
     {
-        if (string.IsNullOrWhiteSpace(contractId) || route.PortfolioId <= 0 || route.FundId <= 0 || route.OrderId <= 0 || route.TradeId <= 0 || route.StrategyPositionId == Guid.Empty || route.TradeLegId == Guid.Empty || route.TradeType == TradeStrategyKind.Unknown || route.Generation <= 0)
-            return false;
-        if (_positionGenerations.TryGetValue(route.StrategyPositionId, out var currentGeneration))
+        lock (gate)
         {
-            if (route.Generation < currentGeneration)
+            if (string.IsNullOrWhiteSpace(contractId) || route.PortfolioId <= 0 || route.FundId <= 0 || route.OrderId <= 0 || route.TradeId <= 0 || route.StrategyPositionId == Guid.Empty || route.TradeLegId == Guid.Empty || route.TradeType == TradeStrategyKind.Unknown || route.Generation <= 0)
                 return false;
-            if (route.Generation > currentGeneration)
-                RemovePositionCore(route.StrategyPositionId);
-        }
+            if (_positionGenerations.TryGetValue(route.StrategyPositionId, out var currentGeneration))
+            {
+                if (route.Generation < currentGeneration)
+                    return false;
+                if (route.Generation > currentGeneration)
+                    RemovePositionCore(route.StrategyPositionId);
+            }
 
-        _positionGenerations[route.StrategyPositionId] = route.Generation;
-        _knownContracts.Add(contractId);
-        ResetReportedOutcomes(contractId);
-        if (!_routes.TryGetValue(contractId, out var existing))
-        {
-            _routes.Add(contractId, [route]);
+            _positionGenerations[route.StrategyPositionId] = route.Generation;
+            _knownContracts.Add(contractId);
+            ResetReportedOutcomes(contractId);
+            if (!_routes.TryGetValue(contractId, out var existing))
+            {
+                _routes.Add(contractId, [route]);
+                return true;
+            }
+
+            for (var index = 0; index < existing.Length; index++)
+            {
+                ref readonly var current = ref existing[index];
+                if (current.StrategyPositionId != route.StrategyPositionId || current.TradeLegId != route.TradeLegId)
+                    continue;
+                if (current == route)
+                    return false;
+                var replaced = (PortfolioFundTradeLeg[])existing.Clone();
+                replaced[index] = route;
+                _routes[contractId] = replaced;
+                return true;
+            }
+
+            var expanded = new PortfolioFundTradeLeg[existing.Length + 1];
+            existing.CopyTo(expanded, 0);
+            expanded[^1] = route;
+            _routes[contractId] = expanded;
             return true;
         }
-
-        for (var index = 0; index < existing.Length; index++)
-        {
-            ref readonly var current = ref existing[index];
-            if (current.StrategyPositionId != route.StrategyPositionId || current.TradeLegId != route.TradeLegId)
-                continue;
-            if (current == route)
-                return false;
-            var replaced = (PortfolioFundTradeLeg[])existing.Clone();
-            replaced[index] = route;
-            _routes[contractId] = replaced;
-            return true;
-        }
-
-        var expanded = new PortfolioFundTradeLeg[existing.Length + 1];
-        existing.CopyTo(expanded, 0);
-        expanded[^1] = route;
-        _routes[contractId] = expanded;
-        return true;
     }
 
     public int RemovePosition(Guid strategyPositionId, long generation)
     {
-        if (strategyPositionId == Guid.Empty || generation <= 0)
-            return 0;
-        if (_positionGenerations.TryGetValue(strategyPositionId, out var currentGeneration) && generation <= currentGeneration)
-            return 0;
-        _positionGenerations[strategyPositionId] = generation;
-        return RemovePositionCore(strategyPositionId);
+        lock (gate)
+        {
+            if (strategyPositionId == Guid.Empty || generation <= 0)
+                return 0;
+            if (_positionGenerations.TryGetValue(strategyPositionId, out var currentGeneration) && generation <= currentGeneration)
+                return 0;
+            _positionGenerations[strategyPositionId] = generation;
+            return RemovePositionCore(strategyPositionId);
+        }
     }
 
     int RemovePositionCore(Guid strategyPositionId)
@@ -107,46 +133,54 @@ public sealed class ContractIdRouteIndex
 
     public void ReplaceFromSnapshot(IEnumerable<OpenPositionRouteReadModel> routes)
     {
-        ArgumentNullException.ThrowIfNull(routes);
-        _routes.Clear();
-        _lastSourceSequences.Clear();
-        _positionGenerations.Clear();
-        _reportedOutcomes.Clear();
-        foreach (var item in routes)
-            Add(item.Route, item.ContractId);
+        lock (gate)
+        {
+            ArgumentNullException.ThrowIfNull(routes);
+            snapshotLoaded = false;
+            _routes.Clear();
+            _lastSourceSequences.Clear();
+            _positionGenerations.Clear();
+            _reportedOutcomes.Clear();
+            foreach (var item in routes)
+                Add(item.Route, item.ContractId);
+            snapshotLoaded = true;
+        }
     }
 
     /// <summary>Classifies a tick and returns the stable route array without allocating.</summary>
     public MarketRouteLookupOutcome TryRoute(in PositionMarketTick tick, out PortfolioFundTradeLeg[] routes, bool enforceSequenceOrdering = true)
     {
-        ReceivedTicks++;
-        routes = [];
-        if (string.IsNullOrWhiteSpace(tick.ContractId) || tick.Price <= 0 || enforceSequenceOrdering && tick.SourceSequence <= 0 || tick.OccurredAtUtc.Kind != DateTimeKind.Utc)
+        lock (gate)
         {
-            InvalidTicks++;
-            return MarketRouteLookupOutcome.InvalidTick;
-        }
+            ReceivedTicks++;
+            routes = [];
+            if (string.IsNullOrWhiteSpace(tick.ContractId) || tick.Price <= 0 || enforceSequenceOrdering && tick.SourceSequence <= 0 || tick.OccurredAtUtc.Kind != DateTimeKind.Utc)
+            {
+                InvalidTicks++;
+                return MarketRouteLookupOutcome.InvalidTick;
+            }
 
-        if (enforceSequenceOrdering && _lastSourceSequences.TryGetValue(tick.ContractId, out var last) && tick.SourceSequence <= last)
-        {
-            DuplicateOrOutOfOrderTicks++;
-            return MarketRouteLookupOutcome.DuplicateOrOutOfOrder;
-        }
+            if (enforceSequenceOrdering && _lastSourceSequences.TryGetValue(tick.ContractId, out var last) && tick.SourceSequence <= last)
+            {
+                DuplicateOrOutOfOrderTicks++;
+                return MarketRouteLookupOutcome.DuplicateOrOutOfOrder;
+            }
 
-        if (enforceSequenceOrdering) _lastSourceSequences[tick.ContractId] = tick.SourceSequence;
-        if (!_routes.TryGetValue(tick.ContractId, out routes!))
-        {
-            UnroutedTicks++;
-            return _knownContracts.Contains(tick.ContractId) ? MarketRouteLookupOutcome.NoOpenPosition : MarketRouteLookupOutcome.UnknownInstrument;
-        }
+            if (enforceSequenceOrdering) _lastSourceSequences[tick.ContractId] = tick.SourceSequence;
+            if (!_routes.TryGetValue(tick.ContractId, out routes!))
+            {
+                UnroutedTicks++;
+                return _knownContracts.Contains(tick.ContractId) ? MarketRouteLookupOutcome.NoOpenPosition : MarketRouteLookupOutcome.UnknownInstrument;
+            }
 
-        RoutedTicks++;
-        return MarketRouteLookupOutcome.Routed;
+            RoutedTicks++;
+            return MarketRouteLookupOutcome.Routed;
+        }
     }
 
-    public bool TryGetRoutes(string contractId, out PortfolioFundTradeLeg[] routes) => _routes.TryGetValue(contractId, out routes!);
+    public bool TryGetRoutes(string contractId, out PortfolioFundTradeLeg[] routes) { lock (gate) return _routes.TryGetValue(contractId, out routes!); }
     /// <summary>Returns true once for each contract/outcome pair until route state changes.</summary>
-    public bool ShouldLog(string contractId, MarketRouteLookupOutcome outcome) => _reportedOutcomes.Add(new ReportedOutcome(contractId, outcome));
+    public bool ShouldLog(string contractId, MarketRouteLookupOutcome outcome) { lock (gate) return _reportedOutcomes.Add(new ReportedOutcome(contractId, outcome)); }
     void ResetReportedOutcomes(string contractId)
     {
         _reportedOutcomes.Remove(new ReportedOutcome(contractId, MarketRouteLookupOutcome.NoOpenPosition));

@@ -11,12 +11,13 @@ using TomasAI.IFM.Shared.Extensions;
 namespace TomasAI.IFM.Domain.Trade.Futures.Realtime.Actor;
 public sealed class FuturesRealtimeActor(IRealtimeActorContext<FuturesRealtimeActor> context) : BaseEventActor<FuturesRealtimeActor>(context, Typed(context).Logger)
 {
+    protected override bool PropagateHandlerFailures => true;
     public const string ActorName = "FuturesRealtime";
     readonly IFuturesRealtimeContext services = Typed(context);
     static readonly ActorTypeId TickRoute = new(ActorType.Realtime, FuturesTickTradeDataChangedEvent.Actor, FuturesTickTradeDataChangedEvent.Verb);
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap = new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
     {
-        [FuturesTickTradeDataChangedEvent.Verb] = message => message.AsEvent<FuturesTickTradeDataChangedEvent>()!,
+        [FuturesTickTradeDataChangedEvent.Verb] = message => RestoreSource(message),
         [OpenPositionRoutesChangedEvent.Verb] = message => message.AsEvent<OpenPositionRoutesChangedEvent>()!
     }.ToFrozenDictionary(StringComparer.Ordinal);
     static readonly IReadOnlyDictionary<Type, Func<IFuturesRealtimeContext, IEvent, ValueTask>> _receiveMap = new Dictionary<Type, Func<IFuturesRealtimeContext, IEvent, ValueTask>>
@@ -29,6 +30,7 @@ public sealed class FuturesRealtimeActor(IRealtimeActorContext<FuturesRealtimeAc
         ArgumentNullException.ThrowIfNull(context);
         var routes = await services.DbFactory.TradeDb.GetOpenPositionRouteSnapshotAsync().ConfigureAwait(false);
         services.RouteIndex.ReplaceFromSnapshot(routes.Where(static value => value.Route.TradeType == TradeStrategyKind.FuturesOutright));
+        await FuturesTickTradeDataChanged.RecoverAsync(services).ConfigureAwait(false);
         context.AddRealtimeRouter(TickRoute, Id);
     }
 
@@ -42,5 +44,14 @@ public sealed class FuturesRealtimeActor(IRealtimeActorContext<FuturesRealtimeAc
     protected override IEvent ParseMessage(IEventActorContext<FuturesRealtimeActor> context, IActorMessage message) => ParseMappedRealtimeEvent(context, message, _parseMap);
     protected override ValueTask ReceiveAsync(IEventActorContext<FuturesRealtimeActor> context, IEvent @event) => ResolveMappedEventHandler(@event, _receiveMap)(services, @event);
     protected override async ValueTask OnExceptionAsync(IEventActorContext<FuturesRealtimeActor> context, ActorThreadId threadId, IEvent @event, Exception ex) => await ex.SendErrorEventAsync<TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context).ConfigureAwait(false);
+    static FuturesTickTradeDataChangedEvent RestoreSource(IActorMessage message)
+    {
+        var source = message.AsEvent<FuturesTickTradeDataChangedEvent>()!;
+        return MessageOrigins.Copy(source, source with
+        {
+            SourceDataset = string.IsNullOrEmpty(message.SourceDataset) ? source.SourceDataset : message.SourceDataset,
+            SourceGenerationId = message.SourceGenerationId == Guid.Empty ? source.SourceGenerationId : message.SourceGenerationId
+        });
+    }
     static IFuturesRealtimeContext Typed(IRealtimeActorContext<FuturesRealtimeActor> context) => context as IFuturesRealtimeContext ?? throw new ArgumentException("Typed Futures realtime context required.", nameof(context));
 }

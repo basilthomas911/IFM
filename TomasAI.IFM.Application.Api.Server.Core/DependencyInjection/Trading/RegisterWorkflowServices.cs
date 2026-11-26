@@ -140,6 +140,11 @@ public static partial class CoreServiceRegistration
         services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Runtime.WorkflowPreparedConfigurationCache>();
         services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Runtime.WorkflowResidentStateRegistry>();
         services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Runtime.WorkflowDecisionExecutor>();
+        services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Runtime.WorkflowRuntimePreparation>();
+        services.AddSingleton<TomasAI.IFM.Application.Api.Server.Core.HostedServices.WorkflowRuntimePreparationService>();
+        services.AddHostedService(provider=>provider.GetRequiredService<TomasAI.IFM.Application.Api.Server.Core.HostedServices.WorkflowRuntimePreparationService>());
+        services.AddHealthChecks().AddCheck<TomasAI.IFM.Application.Api.Server.Core.HostedServices.WorkflowRuntimePreparationService>(
+            "workflow_runtime_preparation",tags:["bootstrap","ready"]);
         services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition.WorkflowDecisionSession>();
         services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Runtime.WorkflowCalculationRuntime>();
         services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Runtime.WorkflowCompositionInputCache>();
@@ -159,6 +164,10 @@ public static partial class CoreServiceRegistration
             provider.GetRequiredService<TimeProvider>()));
         services.AddHostedService(provider => provider.GetRequiredService<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Runtime.WorkflowLocalDispatcher>());
         services.AddHostedService<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Runtime.WorkflowRuntimeRecoveryService>();
+        services.AddHostedService(provider=>new TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.WorkflowPublicationRecoveryService(
+            ()=>new IntrinsicTimeStrategyWorkflowRealtimeContext(provider.GetRequiredService<IActorSupervisor>(),provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<IntrinsicTimeStrategyWorkflowRealtimeActor>>(),
+                provider.GetRequiredService<IntrinsicTimeStrategyWorkflowOptions>(),provider.GetRequiredService<RegimeDiscoveryExecutionOptions>(),provider.GetRequiredService<TimeProvider>()),
+            provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.WorkflowPublicationRecoveryService>>()));
         services.AddSingleton<TomasAI.IFM.Domain.Portfolio.OrderComposition.Model.PortfolioDecisionStateCache>();
         services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition.IPortfolioDecisionStateReader>(provider =>
             provider.GetRequiredService<TomasAI.IFM.Domain.Portfolio.OrderComposition.Model.PortfolioDecisionStateCache>());
@@ -170,7 +179,44 @@ public static partial class CoreServiceRegistration
         services.AddHostedService<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Runtime.WorkflowInputPreparationService>();
         services.AddSingleton<MarketConditionHistoryCache>();
         services.AddHostedService<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Runtime.MarketConditionHistoryPreparationService>();
+        services.AddSingleton(_ => new TomasAI.IFM.Domain.Trade.Futures.Option.Realtime.FuturesOptionRoutingReceipts(
+            config["AppSettings:FuturesOptionRoutingRecovery:Directory"]
+            ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "IFM", "futures-option-routing-receipts")));
+        services.AddSingleton(_ => new TomasAI.IFM.Domain.Trade.Futures.Realtime.FuturesRoutingReceipts(
+            config["AppSettings:FuturesRoutingRecovery:Directory"]
+            ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "IFM", "futures-routing-receipts")));
+        services.AddSingleton(_ => new TomasAI.IFM.Domain.Trade.Futures.Position.Realtime.DailyFuturesExitIntents(
+            config["AppSettings:DailyFuturesExitRecovery:Directory"]
+            ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "IFM", "daily-futures-exit-intents")));
         services.AddHostedService<TomasAI.IFM.Domain.Trade.Futures.Position.Realtime.DailyFuturesFlattenService>();
+        services.AddSingleton(_ => new TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.WorkflowInitializationTerminals(
+            config["AppSettings:WorkflowInitializationRecovery:Directory"]
+            ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "IFM", "workflow-initialization-terminals")));
+        services.AddSingleton(_ => new TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.WorkflowCompositionFailures(
+            config["AppSettings:WorkflowCompositionRecovery:Directory"]
+            ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "IFM", "workflow-composition-failures")));
+        services.AddSingleton(_ => new TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.WorkflowMarketConditionFailures(
+            config["AppSettings:WorkflowMarketConditionRecovery:Directory"]
+            ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "IFM", "workflow-market-condition-failures")));
+        services.AddSingleton(_ => new TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.WorkflowReservationFailures(
+            config["AppSettings:WorkflowReservationRecovery:Directory"]
+            ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "IFM", "workflow-reservation-failures")));
+        services.AddSingleton(_ => new TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.WorkflowCompositionFunctionTerminals(
+            config["AppSettings:WorkflowCompositionFunctionRecovery:Directory"]
+            ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "IFM", "workflow-composition-function-terminals")));
+        services.AddSingleton(_ => new TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.WorkflowSelectionFunctionFailures(
+            config["AppSettings:WorkflowSelectionFunctionRecovery:Directory"]
+            ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "IFM", "workflow-selection-function-failures")));
+        services.AddSingleton(_ => new TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.WorkflowAssessmentFunctionFailures(
+            config["AppSettings:WorkflowAssessmentFunctionRecovery:Directory"]
+            ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "IFM", "workflow-assessment-function-failures")));
+        services.AddSingleton(_ => new TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.WorkflowRegimeFunctionFailures(
+            config["AppSettings:WorkflowRegimeFunctionRecovery:Directory"]
+            ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "IFM", "workflow-regime-function-failures")));
+        services.AddSingleton(_ => new TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.WorkflowPublicationJournal(
+            config["AppSettings:WorkflowPublicationRecovery:Directory"] ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "IFM", "workflow-publications"),
+            config.GetValue("AppSettings:WorkflowPublicationRecovery:MaximumRetainedBytes", TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.WorkflowPublicationJournal.DefaultMaximumRetainedBytes)));
+        services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.IWorkflowPublicationOwner,TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.WorkflowPublicationOwner>();
         services.AddSingleton(provider => new IntrinsicTimeStrategyWorkflowOptions
         {
             Enabled = provider.GetRequiredService<IConfiguration>().GetValue("AppSettings:IntrinsicTimeStrategyWorkflow:Enabled", false),

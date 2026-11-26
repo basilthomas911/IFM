@@ -33,6 +33,8 @@ pub struct Ordered {
     clock: Option<Arc<crate::runtime::clock::Clock>>,
 }
 impl Ordered {
+    pub(crate) fn checkpoint_publications_owned(&self)->Result<bool,String>{self.port.checkpoint_has_durable_ownership()}
+
     /// Validates the logical envelope before any submission. The port's owner
     /// must be dedicated to this stream; control/diagnostic requests use other IO.
     ///
@@ -82,6 +84,7 @@ impl Ordered {
         generation: [u8; 16],
         contract: Option<&str>,
     ) -> Result<u64, &'static str> {
+        let _checkpoint=crate::checkpoint::transaction().map_err(|_|"Checkpoint publication owner interrupted")?;
         if generation != self.header.generation {
             return Err("Retired native publication generation");
         }
@@ -160,5 +163,17 @@ impl Ordered {
     /// Detached latest-value query storage; retaining it cannot pin the writer.
     pub fn current(&self) -> Arc<Current> {
         self.current.clone()
+    }
+}
+
+impl Ordered{
+    pub(crate) fn checkpoint(&self)->Result<rmpv::Value,String>{
+        use rmpv::Value as V;let sequence=*self.sequence.lock().map_err(|_|"Ordered sequencer interrupted")?;let h=&self.header;
+        Ok(V::Array(vec![1.into(),(h.lane as u8).into(),h.value_date.into(),V::Binary(h.worker.to_vec()),V::Binary(h.generation.to_vec()),h.revision.into(),sequence.into(),self.current.checkpoint()?]))
+    }
+    pub(crate) fn restore_checkpoint(&self,value:&rmpv::Value)->Result<(),String>{
+        use crate::checkpoint as c;let f=c::fields(value,8)?;let h=&self.header;
+        if c::unsigned(&f[0])?!=1||c::unsigned(&f[1])?!=h.lane as u64||c::number(&f[2])?!=i64::from(h.value_date)||f[3].as_slice()!=Some(h.worker.as_slice())||f[4].as_slice()!=Some(h.generation.as_slice())||c::number(&f[5])?!=h.revision{return Err("Original option publication header mismatch".into());}
+        let next=c::number(&f[6])?;if next<0{return Err("Negative ordered source sequence".into());}let mut sequence=self.sequence.lock().map_err(|_|"Ordered sequencer interrupted")?;if *sequence!=0{return Err("Ordered restore cannot replace active publisher".into());}self.current.import_checkpoint(&f[7])?;*sequence=next;Ok(())
     }
 }

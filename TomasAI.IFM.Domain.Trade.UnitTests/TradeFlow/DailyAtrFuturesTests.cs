@@ -109,6 +109,10 @@ public sealed class DailyAtrFuturesTests
     public async Task Repeated_stop_and_clock_results_address_one_existing_exit_workflow()
     {
         var context=NSubstitute.Substitute.For<TomasAI.IFM.Domain.Trade.Futures.Position.Realtime.Actor.IFuturesTradePositionRealtimeContext>();
+        using var intents=new DailyFuturesExitIntents(); context.ExitIntents.Returns(intents);
+        context.RequestAsync<TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Workflow.StartFuturesExitPositionWorkflowCommand,
+            TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Workflow.ExitPositionWorkflowId>(Arg.Any<TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Workflow.StartFuturesExitPositionWorkflowCommand>())
+            .Returns(call=>new TomasAI.IFM.Shared.EventSourcing.ServiceOk<TomasAI.IFM.Shared.EventSourcing.GuidResult>(new(call.Arg<TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Workflow.StartFuturesExitPositionWorkflowCommand>().CommandId)));
         context.TimeProvider.Returns(TimeProvider.System);
         context.Parameters.Returns(new TradePlanParameters());
         var p=S.Position();
@@ -122,9 +126,9 @@ public sealed class DailyAtrFuturesTests
             await new TomasAI.IFM.Domain.Trade.Shared.Futures.Position.FuturesPositionChangedEvent
                 {Id=Guid.NewGuid(),PositionSnapshot=p with{PositionSequence=i+1}}.ExecuteAsync(context);
         await DailyFuturesFlattenService.Create(p,DailyFuturesSession.FlattenUtc(S.Date))!.ExecuteAsync(context);
-        var sends=context.ReceivedCalls().Where(c=>c.GetMethodInfo().Name=="SendAsync")
+        var sends=context.ReceivedCalls().Where(c=>c.GetMethodInfo().Name=="RequestAsync")
             .Select(c=>Assert.IsType<TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Workflow.StartFuturesExitPositionWorkflowCommand>(c.GetArguments()[0])).ToArray();
-        Assert.Equal(4,sends.Length);Assert.Single(sends.Select(x=>x.EntityId).Distinct());Assert.Single(sends.Select(x=>x.CommandId).Distinct());
+        Assert.Single(sends);Assert.Single(sends.Select(x=>x.EntityId).Distinct());Assert.Single(sends.Select(x=>x.CommandId).Distinct());
         Assert.All(sends,x=>Assert.True(x.ExitPlan.Plan.RequiresExit));
     }
 

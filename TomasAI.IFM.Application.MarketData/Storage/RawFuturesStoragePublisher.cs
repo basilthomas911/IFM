@@ -8,6 +8,29 @@ namespace TomasAI.IFM.Application.MarketData.Storage;
 public sealed class RawFuturesStoragePublisher(RawFuturesStorageOptions options, RawFuturesStorageTransport transport,
     ILogger<RawFuturesStoragePublisher> logger) : BackgroundService
 {
+    readonly object retentionGate=new();
+    ulong snapshotRetentionLease;
+    /// <summary>Owned snapshot retention, independent of a native runtime handle or its shutdown.</summary>
+    public ulong SnapshotRetentionLease{get{lock(retentionGate)return snapshotRetentionLease;}}
+    /// <summary>Pins authentic raw files after production is paused. Never creates substitute owner files.</summary>
+    public void HoldSnapshotRetention(ulong lease)
+    {
+        if(lease==0)throw new ArgumentException("A nonzero snapshot retention lease is required.",nameof(lease));
+        lock(retentionGate)
+        {
+            if(snapshotRetentionLease!=0&&snapshotRetentionLease!=lease)throw new InvalidOperationException("Another snapshot owns raw journal retention.");
+            snapshotRetentionLease=lease;
+        }
+    }
+    /// <summary>Only the matching explicit production resume can release raw snapshot retention.</summary>
+    public void ReleaseSnapshotRetention(ulong lease)
+    {
+        lock(retentionGate)
+        {
+            if(lease==0||snapshotRetentionLease!=lease)throw new InvalidOperationException("Raw snapshot retention owner differs.");
+            snapshotRetentionLease=0;
+        }
+    }
     public string? Failure { get; private set; }
     public bool Ready { get; private set; }
     public long PublishedRecords { get; private set; }
@@ -37,7 +60,9 @@ public sealed class RawFuturesStoragePublisher(RawFuturesStorageOptions options,
                         PublishedRecords += batch.Records.Length;
                         progressed = true;
                     }
-                    if (complete) RawFuturesJournal.RemoveCompleted(path);
+                    if (complete)
+                        lock(retentionGate)
+                            if(snapshotRetentionLease==0)RawFuturesJournal.RemoveCompleted(path);
                 }
                 Failure = null; Ready = true;
                 if (progressed) { await Task.Yield(); continue; }

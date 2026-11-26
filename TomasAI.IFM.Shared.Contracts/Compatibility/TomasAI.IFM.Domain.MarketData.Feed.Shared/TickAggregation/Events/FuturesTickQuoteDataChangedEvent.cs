@@ -6,8 +6,39 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
 
 [MessagePackObject(AllowPrivate = true)]
-public sealed record FuturesTickQuoteDataChangedEvent : IEvent<TickDataEntityId>, IRealtimeSourceGeneration
+public sealed record FuturesTickQuoteDataChangedEvent : IEvent<TickDataEntityId>, IRealtimeSourceGeneration, TomasAI.IFM.Shared.EventModelActor.IMessageOriginOwner
 {
+    [MessagePack.IgnoreMember]
+    TomasAI.IFM.Shared.EventModelActor.MessageOriginSlot originSlot;
+    [MessagePack.IgnoreMember]
+    ref TomasAI.IFM.Shared.EventModelActor.MessageOriginSlot TomasAI.IFM.Shared.EventModelActor.IMessageOriginOwner.MessageOriginSlot => ref originSlot;
+    /// <summary>Copies business fields while leaving nonserialized creation metadata unassociated.</summary>
+    [System.Diagnostics.CodeAnalysis.SetsRequiredMembers]
+    private FuturesTickQuoteDataChangedEvent(FuturesTickQuoteDataChangedEvent original)
+    {
+        SourceDataset = original.SourceDataset;
+        SourceGenerationId = original.SourceGenerationId;
+        Subject = original.Subject;
+        Id = original.Id;
+        EntityId = original.EntityId;
+        EventId = original.EventId;
+        CommandId = original.CommandId;
+        AggregateId = original.AggregateId;
+        EventSource = original.EventSource;
+        ReceivedOn = original.ReceivedOn;
+        SchemaVersion = original.SchemaVersion;
+        TickDataId = original.TickDataId;
+        AssetTypeId = original.AssetTypeId;
+        Dataset = original.Dataset;
+        DefinitionDate = original.DefinitionDate;
+        PublisherId = original.PublisherId;
+        InstrumentId = original.InstrumentId;
+        EmissionReason = original.EmissionReason;
+        QuoteCount = original.QuoteCount;
+        QuoteData = original.QuoteData;
+    }
+
+
 
     /// <summary>Creates an empty event for serialization.</summary>
     public FuturesTickQuoteDataChangedEvent() { }

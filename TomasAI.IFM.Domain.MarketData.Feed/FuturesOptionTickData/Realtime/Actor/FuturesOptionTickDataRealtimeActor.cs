@@ -17,6 +17,8 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Realtime.Acto
 public class FuturesOptionTickDataRealtimeActor(IRealtimeActorContext<FuturesOptionTickDataRealtimeActor> actorContext)
     : BaseEventActor<FuturesOptionTickDataRealtimeActor>(actorContext, actorContext.Logger)
 {
+    protected override bool PropagateHandlerFailures => true;
+
     public const string ActorName = "FuturesOptionTickDataRealtime";
 
     /// <summary>Gets the typed realtime context supplied at construction.</summary>
@@ -70,7 +72,8 @@ public class FuturesOptionTickDataRealtimeActor(IRealtimeActorContext<FuturesOpt
     {
         ArgumentNullException.ThrowIfNull(context);
         var handler = ResolveMappedEventHandler(@event, _receiveMap);
-        _ = await handler(@event, RealtimeContext).ConfigureAwait(false);
+        if (!await handler(@event, RealtimeContext).ConfigureAwait(false))
+            throw new InvalidOperationException("Required realtime option-trade handling failed.");
     }
 
     protected override async ValueTask OnExceptionAsync(

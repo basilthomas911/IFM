@@ -18,6 +18,7 @@ public sealed class IronCondorMonitoringTriggerTests
     public async Task Retired_or_superseded_input_notification_cannot_request_a_plan()
     {
         var context = Substitute.For<IIronCondorTradePositionRealtimeContext>();
+        using var requests = new IronCondorPositionRequests(); context.Requests.Returns(requests);
         var changed = Observation();
         context.IsCurrentMonitoringPosition(changed.PositionSnapshot, changed.MonitoringGenerationId).Returns(false);
         await changed.ExecuteAsync(context);
@@ -28,6 +29,7 @@ public sealed class IronCondorMonitoringTriggerTests
     public async Task Pending_references_publish_position_then_loaded_notification_runs_forward_price_without_another_tick()
     {
         var context = Substitute.For<IIronCondorTradePositionRealtimeContext>();
+        using var requests = new IronCondorPositionRequests(); context.Requests.Returns(requests);
         var changed = Observation();
         context.TimeProvider.Returns(TimeProvider.System);
         await new IronCondorPositionChangedEvent { Id = Guid.NewGuid(), EntityId = changed.EntityId,
@@ -50,23 +52,23 @@ public sealed class IronCondorMonitoringTriggerTests
             Arg.Any<UpdateIronCondorTradePlanCommand>(), Arg.Any<CancellationToken>())
             .Returns(new ServiceOk<FunctionResult<IronCondorTradePlanUpdatedEvent, TradePlanFailedEvent<IronCondorTradePlanId>>>(complete));
         await changed.ExecuteAsync(context);
-        var requests = context.ReceivedCalls().Where(call => call.GetMethodInfo().Name == "RequestFunctionAsync")
+        var functionRequests = context.ReceivedCalls().Where(call => call.GetMethodInfo().Name == "RequestFunctionAsync")
             .Select(call => call.GetArguments()[0]).ToArray();
-        requests.Should().HaveCount(2);
-        var forwardRequest = requests[0].Should().BeOfType<CalculateIronCondorForwardPriceCommand>().Subject;
+        functionRequests.Should().HaveCount(2);
+        var forwardRequest = functionRequests[0].Should().BeOfType<CalculateIronCondorForwardPriceCommand>().Subject;
         forwardRequest.SourceEventId.Should().Be(changed.Id);
         forwardRequest.IronCondorForwardPriceInputs.TradeDate.Should().Be(changed.IronCondorTradePlanInputs.TradeDate!.Value);
         forwardRequest.IronCondorForwardPriceInputs.MaturityDate.Should().Be(changed.IronCondorTradePlanInputs.MaturityDate!.Value);
-        var command = requests[1].Should().BeOfType<UpdateIronCondorTradePlanCommand>().Subject;
+        var command = functionRequests[1].Should().BeOfType<UpdateIronCondorTradePlanCommand>().Subject;
         command.UseForwardPriceFunction.Should().BeTrue();
-        command.IronCondorForwardPriceCalculated.Should().BeSameAs(forward);
+        command.IronCondorForwardPriceCalculated.Should().BeEquivalentTo(forward);
         command.ForwardPriceFailure.Should().BeNull();
-        command.IronCondorTradePlanInputs.Should().BeSameAs(changed.IronCondorTradePlanInputs);
-        command.Position.Should().BeSameAs(changed.PositionSnapshot); command.SourceEventId.Should().Be(changed.Id);
+        command.IronCondorTradePlanInputs.Should().BeEquivalentTo(changed.IronCondorTradePlanInputs);
+        command.Position.Should().BeEquivalentTo(changed.PositionSnapshot); command.SourceEventId.Should().Be(changed.Id);
         command.RequestedAtUtc.Should().Be(changed.ReceivedOn);
         await context.Received(1).PublishRealtimeAsync(changed.PositionSnapshot, complete.Completed!.Plan);
         await context.Received(1).IsClosingAsync(changed.PositionSnapshot.Id);
-        context.ReceivedCalls().Should().OnlyContain(call => new[] { "IsCurrentMonitoringPosition", "IsClosingAsync", "get_Parameters", "RequestFunctionAsync", "PublishRealtimeAsync" }.Contains(call.GetMethodInfo().Name));
+        context.ReceivedCalls().Should().OnlyContain(call => new[] { "IsCurrentMonitoringPosition", "IsClosingAsync", "get_Requests", "get_Parameters", "RequestFunctionAsync", "PublishRealtimeAsync" }.Contains(call.GetMethodInfo().Name));
         MessagePackSerializer.Deserialize<IronCondorMonitoringInputsChangedEvent>(MessagePackSerializer.Serialize(changed)).Should().BeEquivalentTo(changed);
     }
 
@@ -74,6 +76,7 @@ public sealed class IronCondorMonitoringTriggerTests
     public async Task Closing_position_does_not_request_a_plan_when_monitoring_inputs_arrive()
     {
         var context = Substitute.For<IIronCondorTradePositionRealtimeContext>();
+        using var requests = new IronCondorPositionRequests(); context.Requests.Returns(requests);
         var changed = Observation();
         context.IsCurrentMonitoringPosition(changed.PositionSnapshot, changed.MonitoringGenerationId).Returns(true);
         context.IsClosingAsync(changed.PositionSnapshot.Id).Returns(ValueTask.FromResult(true));

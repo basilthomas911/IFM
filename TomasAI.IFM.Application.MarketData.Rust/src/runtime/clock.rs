@@ -22,6 +22,18 @@ pub struct Clock {
     changes: tokio::sync::watch::Sender<u64>,
 }
 impl Clock {
+    pub(crate) fn checkpoint(&self)->Result<rmpv::Value,String>{
+        let state=self.state.read().map_err(|_|"Checkpoint clock owner interrupted")?;
+        let elapsed=i64::try_from(state.anchor.map_or(0,|anchor|anchor.elapsed().as_nanos()/100)).map_err(|_|"Checkpoint clock elapsed overflow")?;
+        let ticks=state.ticks.checked_add(elapsed).filter(|value|(MIN..=MAX).contains(value)).ok_or("Checkpoint clock out of range")?;
+        Ok(rmpv::Value::Array(vec![1.into(),ticks.into(),state.anchor.is_some().into(),(*self.changes.borrow()).into()]))
+    }
+    pub(crate) fn restore_checkpoint_controlled(&self,value:&rmpv::Value)->Result<(),String>{
+        let f=crate::checkpoint::fields(value,4)?;if crate::checkpoint::unsigned(&f[0])?!=1{return Err("Unknown checkpoint clock".into());}
+        let ticks=crate::checkpoint::number(&f[1])?;crate::checkpoint::boolean(&f[2])?;let version=crate::checkpoint::unsigned(&f[3])?;
+        if !(MIN..=MAX).contains(&ticks){return Err("Checkpoint original clock out of range".into());}
+        *self.state.write().map_err(|_|"Checkpoint clock owner interrupted")?=State{ticks,anchor:None};self.changes.send_replace(version);Ok(())
+    }
     /// Captures API UTC ticks since Unix epoch. Advancing mode extrapolates only
     /// elapsed time; controlled mode changes solely through explicit update calls.
     pub fn new(ticks: i64, advancing: bool) -> Result<Self, Failure> {
@@ -39,6 +51,7 @@ impl Clock {
     /// Replaces the API anchor, including deliberate simulated-clock movements.
     /// Callers reset active epochs when a replay seek invalidates source ordering.
     pub fn update(&self, ticks: i64, advancing: bool) -> Result<(), Failure> {
+        let _checkpoint=crate::checkpoint::transaction().map_err(|_|Failure::InterruptedWriter)?;
         if !(MIN..=MAX).contains(&ticks) {
             return Err(Failure::OutOfRange);
         }

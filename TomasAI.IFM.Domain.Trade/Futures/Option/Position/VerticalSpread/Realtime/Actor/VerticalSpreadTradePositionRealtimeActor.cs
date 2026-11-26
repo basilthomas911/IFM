@@ -1,3 +1,6 @@
+using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan;
+using MessagePack;
+using TomasAI.IFM.Domain.Trade.Persistence.Realtime;
 using Microsoft.Extensions.Logging;
 using System.Collections.Frozen;
 using TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position;
@@ -9,6 +12,8 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.VerticalSpread.Realtime.Actor;
 public sealed class VerticalSpreadTradePositionRealtimeActor(IRealtimeActorContext<VerticalSpreadTradePositionRealtimeActor> actorContext) : BaseEventActor<VerticalSpreadTradePositionRealtimeActor>(actorContext, Require(actorContext).Logger)
 {
+    protected override bool PropagateHandlerFailures => true;
+
     public const string ActorName = "VerticalSpreadTradePositionRealtime";
     readonly IVerticalSpreadTradePositionRealtimeContext _context = Require(actorContext);
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap = new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
@@ -19,6 +24,24 @@ public sealed class VerticalSpreadTradePositionRealtimeActor(IRealtimeActorConte
     {
         [typeof(VerticalSpreadPositionChangedEvent)] = static (@event, context) => @event.ExecuteAsync(context)
     }.ToFrozenDictionary();
+    protected override async ValueTask OnStartup(IEventActorContext<VerticalSpreadTradePositionRealtimeActor> context)
+    {
+        if(_context.PositionIntents is {} store)
+            foreach(var pending in store.Pending(PositionIntentKind.VerticalPlan))
+            {
+                var request=MessagePackSerializer.Deserialize<UpdateVerticalSpreadTradePlanCommand>(pending.Request);
+                if((pending.Flags&PositionIntentFlags.OutputCaptured)==0)
+                {
+                    var actual=await _context.ReadRecoveryPositionAsync(request.Position.Id).ConfigureAwait(false);
+                    if(actual is {IsOpen:false} && (actual.RouteGeneration>request.Position.RouteGeneration || actual.RouteGeneration==request.Position.RouteGeneration && actual.PositionSequence>=request.Position.PositionSequence))
+                    {
+                        await store.RetireClosedAsync(actual,request.SourceEventId).ConfigureAwait(false);
+                        continue;
+                    }
+                }
+                await new VerticalSpreadPositionChangedEvent {Id=request.SourceEventId,PositionSnapshot=request.Position}.ExecuteAsync(_context).ConfigureAwait(false);
+            }
+    }
     protected override IEvent ParseMessage(IEventActorContext<VerticalSpreadTradePositionRealtimeActor> context, IActorMessage message) => ParseMappedRealtimeEvent(context, message, _parseMap);
     protected override ValueTask ReceiveAsync(IEventActorContext<VerticalSpreadTradePositionRealtimeActor> context, IEvent @event) => ResolveMappedEventHandler(@event, _receiveMap)((VerticalSpreadPositionChangedEvent)@event, _context);
     protected override ValueTask OnExceptionAsync(IEventActorContext<VerticalSpreadTradePositionRealtimeActor> context, ActorThreadId threadId, IEvent @event, Exception ex)

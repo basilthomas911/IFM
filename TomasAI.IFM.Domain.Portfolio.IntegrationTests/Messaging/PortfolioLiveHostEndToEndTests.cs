@@ -21,6 +21,7 @@ namespace TomasAI.IFM.Domain.Portfolio.IntegrationTests.Messaging;
 /// <summary>Explicit live-host qualification. It is excluded from the default Portfolio filter because it requires the API host.</summary>
 public sealed class PortfolioLiveHostEndToEndTests
 {
+    public Func<DateTime> BusinessUtcNow { get; init; } = () => DateTime.UtcNow;
     [Fact]
     [Trait("Gate", "PF-22")]
     [Trait("Gate", "PF-26")]
@@ -117,7 +118,7 @@ public sealed class PortfolioLiveHostEndToEndTests
             var fundId = fundIdentity.Value!.Value;
             var workflowId = Guid.NewGuid();
             var selections = await FundSelectionCatalog.LoadAsync(new ReferenceQueryApi(producer), timeout.Token);
-            var now = DateTime.UtcNow;
+            var now = BusinessUtcNow();
             var policyAllocation = await new PortfolioIdentityApi(producer).AllocatePolicyIdAsync(timeout.Token);
             policyAllocation.Success.Should().BeTrue(policyAllocation.ErrorMessage);
             var policyId = policyAllocation.Value!.Value;
@@ -366,7 +367,7 @@ public sealed class PortfolioLiveHostEndToEndTests
             {
                 ResultId = Guid.NewGuid(),
                 ResultSha256 = compositionHash,
-                EvaluatedAtUtc = DateTime.UtcNow.AddMilliseconds(-1),
+                EvaluatedAtUtc = BusinessUtcNow().AddMilliseconds(-1),
                 ExpiresAtUtc = now.AddMinutes(5),
                 InvocationId = Guid.NewGuid(),
             }, timeout.Token);
@@ -378,7 +379,7 @@ public sealed class PortfolioLiveHostEndToEndTests
                 ResultId = Guid.NewGuid(),
                 ResultSha256 = new string('c', 64),
                 Decision = RiskDecision.Approved,
-                EvaluatedAtUtc = DateTime.UtcNow.AddMilliseconds(-1),
+                EvaluatedAtUtc = BusinessUtcNow().AddMilliseconds(-1),
                 ExpiresAtUtc = now.AddMinutes(5),
                 EnvelopeId = envelopeId,
                 EnvelopeVersion = 1,

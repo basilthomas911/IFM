@@ -8,6 +8,13 @@ public sealed class EmulatedOrderExecutionBroker(EmulatorLedger ledger) : IFrame
 {
     public string AccountAlias => ledger.AccountAlias;
     public long Generation => ledger.Generation;
+    public bool HasRecoverableOrderObservations => true;
+    public ValueTask AcknowledgeOrderObservationAsync(Guid observationId, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        ledger.AcknowledgeOrderObservation(observationId);
+        return ValueTask.CompletedTask;
+    }
     public ValueTask<FrameworkDispatchReceipt> PlaceAsync(FrameworkOrderRequest request, CancellationToken cancellationToken = default) { cancellationToken.ThrowIfCancellationRequested(); return ValueTask.FromResult(ledger.Place(request)); }
     public ValueTask<FrameworkDispatchReceipt> ModifyLimitAsync(FrameworkLimitUpdate request, CancellationToken cancellationToken = default) { cancellationToken.ThrowIfCancellationRequested(); return ValueTask.FromResult(ledger.Modify(request)); }
     public ValueTask<FrameworkDispatchReceipt> CancelAsync(FrameworkCancelRequest request, CancellationToken cancellationToken = default) { cancellationToken.ThrowIfCancellationRequested(); return ValueTask.FromResult(ledger.Cancel(request)); }

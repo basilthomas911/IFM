@@ -11,4 +11,7 @@ public interface IFrameworkOrderExecutionBroker
     ValueTask<FrameworkBrokerObservation[]> ReconcileAsync(string brokerOrderId, CancellationToken cancellationToken = default);
     ValueTask<int> PublishMarketQuoteAsync(FrameworkMarketQuote quote, CancellationToken cancellationToken = default);
     IAsyncEnumerable<FrameworkBrokerObservation> ObserveAsync(CancellationToken cancellationToken = default);
+    bool HasRecoverableOrderObservations => false;
+    ValueTask AcknowledgeOrderObservationAsync(Guid observationId, CancellationToken cancellationToken = default)
+        => ValueTask.FromException(new NotSupportedException("Recoverable broker observations are unavailable."));
 }

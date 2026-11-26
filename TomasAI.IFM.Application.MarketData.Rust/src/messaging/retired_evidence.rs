@@ -73,3 +73,19 @@ impl Archive {
         (self.entries.len(), self.accounting)
     }
 }
+
+impl Archive {
+    /// A held owner boundary cannot race late persistence/publication receipts.
+    pub(crate) fn has_pending_receipts(&self) -> Result<bool, &'static str> {
+        for outbox in &self.entries {
+            if outbox.retained_bytes()? != 0 { return Ok(true); }
+        }
+        Ok(false)
+    }
+    pub(crate) fn checkpoint(&self)->Result<rmpv::Value,String>{Ok(rmpv::Value::Array(vec![1.into(),self.accounting.generations.into(),self.accounting.records.into(),self.accounting.bytes.into(),rmpv::Value::Array(self.entries.iter().map(|v|v.checkpoint()).collect::<Result<Vec<_>,_>>()?)]))}
+    pub(crate) fn restore_checkpoint(value:&rmpv::Value)->Result<Self,String>{
+        use crate::checkpoint as c;let f=c::fields(value,5)?;if c::unsigned(&f[0])?!=1{return Err("Retired evidence checkpoint version".into());}let mut entries=VecDeque::new();
+        for v in f[4].as_array().filter(|v|v.len()<=4).ok_or("Retired evidence count exceeded")?{let e=c::fields(v,5)?;let maximum=c::unsigned(&e[1])?.try_into().map_err(|_|"Evidence capacity overflow")?;let bytes=c::unsigned(&e[2])?.try_into().map_err(|_|"Evidence byte capacity overflow")?;if bytes>16*1024*1024{return Err("Retired evidence byte bound exceeded".into());}let outbox=Outbox::new(maximum,bytes).map_err(str::to_owned)?;outbox.restore_checkpoint(v)?;entries.push_back(Arc::new(outbox));}
+        Ok(Self{entries,accounting:Accounting{generations:c::unsigned(&f[1])?,records:c::unsigned(&f[2])?,bytes:c::unsigned(&f[3])?}})
+    }
+}

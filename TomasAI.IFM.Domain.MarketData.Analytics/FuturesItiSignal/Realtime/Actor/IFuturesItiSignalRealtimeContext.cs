@@ -10,6 +10,9 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Realtime.Acto
 /// <summary>Defines the minimal services required by the Futures ITI realtime ingress actor.</summary>
 public interface IFuturesItiSignalRealtimeContext : IRealtimeActorContext<FuturesItiSignalRealtimeActor>
 {
+    /// <summary>Gets fallback ingress recovery; null is reserved for explicitly volatile tests.</summary>
+    FuturesItiIngressRecovery? IngressRecovery => null;
+
     /// <summary>Gets current provider-neutral market-data state.</summary>
     IMarketDataApi MarketDataApi { get; }
 

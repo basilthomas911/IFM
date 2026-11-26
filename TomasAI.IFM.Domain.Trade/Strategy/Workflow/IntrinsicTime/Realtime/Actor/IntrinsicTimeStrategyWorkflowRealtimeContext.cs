@@ -63,6 +63,16 @@ public sealed class IntrinsicTimeStrategyWorkflowRealtimeContext : EventActorCon
     public Runtime.WorkflowPreparedConfigurationCache PreparedConfiguration => Container.Resolve<Runtime.WorkflowPreparedConfigurationCache>();
     public Runtime.WorkflowCalculationRuntime DecisionRuntime => Container.Resolve<Runtime.WorkflowCalculationRuntime>();
     public Runtime.WorkflowCompositionInputCache CompositionInputs => Container.Resolve<Runtime.WorkflowCompositionInputCache>();
+    public WorkflowPublicationJournal Publications => Container.Resolve<WorkflowPublicationJournal>();
+    public IWorkflowPublicationOwner PublicationOwner => Container.Resolve<IWorkflowPublicationOwner>();
+    public WorkflowInitializationTerminals InitializationTerminals => Container.Resolve<WorkflowInitializationTerminals>();
+    public WorkflowCompositionFailures CompositionFailures => Container.Resolve<WorkflowCompositionFailures>();
+    public WorkflowMarketConditionFailures MarketConditionFailures => Container.Resolve<WorkflowMarketConditionFailures>();
+    public WorkflowReservationFailures ReservationFailures => Container.Resolve<WorkflowReservationFailures>();
+    public WorkflowCompositionFunctionTerminals CompositionFunctionTerminals => Container.Resolve<WorkflowCompositionFunctionTerminals>();
+    public WorkflowSelectionFunctionFailures SelectionFunctionFailures => Container.Resolve<WorkflowSelectionFunctionFailures>();
+    public WorkflowAssessmentFunctionFailures AssessmentFunctionFailures => Container.Resolve<WorkflowAssessmentFunctionFailures>();
+    public WorkflowRegimeFunctionFailures RegimeFunctionFailures => Container.Resolve<WorkflowRegimeFunctionFailures>();
     public IPortfolioDecisionStateReader FinancialDecisionState => Container.Resolve<IPortfolioDecisionStateReader>();
     public IPortfolioEntryCommitApi EntryCommits => Container.Resolve<IPortfolioEntryCommitApi>();
     public MarketCondition.Model.IMarketConditionAssessmentSnapshotProvider PreparedMarketContext => Container.Resolve<MarketCondition.Model.IMarketConditionAssessmentSnapshotProvider>();

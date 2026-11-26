@@ -49,6 +49,7 @@ public sealed class DailyFuturesFlattenService(IDbContextFactory database, IActo
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        if(clock is TomasAI.IFM.Shared.Time.IRecordedRealtimeSourceReplay replay && replay.UsesRecordedSource(FuturesTradePositionRealtimeActor.ActorName,FuturesPositionExitClockEvent.Verb))return;
         using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
         var recovered = false;
         DateOnly? completed = null;

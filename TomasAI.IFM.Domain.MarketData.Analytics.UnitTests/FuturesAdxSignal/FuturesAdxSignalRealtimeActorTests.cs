@@ -20,6 +20,50 @@ public sealed class FuturesAdxSignalRealtimeActorTests
     static readonly DateOnly ValueDate = new(2026, 8, 25);
 
     [Fact]
+    public async Task Failed_ADX_command_is_not_acknowledged_by_the_real_scheduler()
+    {
+        // Required command refusal must reach settlement even without mailbox metrics.
+        var logger = Microsoft.Extensions.Logging.Abstractions.NullLogger<FuturesAdxSignalRealtimeActor>.Instance;
+        var context = Context(logger);
+        var id = new ActorMailboxId(ActorType.Realtime, FuturesAdxSignalRealtimeActor.ActorName);
+        context.ActorId.Returns(id);
+        var supervisor = Substitute.For<IActorSupervisor>();
+        var container = Substitute.For<IContainerInstance>();
+        container.Resolve<IActorThreadQueue>().Returns(_ => new ActorThreadQueueV2(16));
+        supervisor.Container.Returns(container);
+        supervisor.GetProducer(Arg.Any<ActorMailboxId>()).Returns(Substitute.For<IActorProducer>());
+        await using var pool = new ActorThreadPoolV2(supervisor, Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance);
+        pool.Initialize(1); supervisor.ThreadPool.Returns(pool);
+        supervisor.GetThread(Arg.Any<ActorThreadId>()).Returns(call => pool.GetThread(call.Arg<ActorThreadId>()));
+        supervisor.GetThreadAsync(Arg.Any<ActorThreadId>(), Arg.Any<CancellationToken>())
+            .Returns(call => pool.GetThreadAsync(call.Arg<ActorThreadId>(), call.Arg<CancellationToken>()));
+        var mailbox = new ActorMailbox(supervisor, id);
+        supervisor.CreateMailbox(Arg.Any<ActorMailboxId>()).Returns(mailbox);
+        var actor = new FuturesAdxSignalRealtimeActor(context);
+        supervisor.Children.Returns(new Dictionary<ActorMailboxId, IActor> { [id] = actor });
+        var entity = new FuturesAdxSignalEntityId(ContractId, ValueDate, TimeFrameType.FifteenMinutes, 14);
+        var closed = Closed(Observation());
+        var message = Substitute.For<IActorMessage, IActorDeliveryCompletion>();
+        message.Subject.Returns(new ActorSubject(ActorType.Realtime, id.Name, closed.Subject.Verb, entity.Format()));
+        message.AsEvent<FuturesTradeSessionBarClosedRealtimeEvent>().Returns(closed);
+        var settlement = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        ((IActorDeliveryCompletion)message).CompleteDeliveryAsync(Arg.Any<bool>()).Returns(call =>
+        { settlement.TrySetResult(call.Arg<bool>()); return ValueTask.CompletedTask; });
+        context.RequestAsync<GenerateFuturesAdxSignalCommand, FuturesAdxSignalEntityId>(Arg.Any<GenerateFuturesAdxSignalCommand>())
+            .Returns(new ServiceFailed<GuidResult>(-429, "Injected required command refusal; nothing persisted."));
+        FuturesTradeSessionBarAttachmentRegistry<FuturesAdxSignalEntityId>.Clear();
+        FuturesTradeSessionBarAttachmentRegistry<FuturesAdxSignalEntityId>.Attach(entity);
+        try
+        {
+            await actor.StartAsync(supervisor);
+            Assert.True(await mailbox.ThreadQueues.WriteAsync(message));
+            Assert.False(await settlement.Task.WaitAsync(TimeSpan.FromSeconds(5)));
+            await context.Received(1).RequestAsync<GenerateFuturesAdxSignalCommand, FuturesAdxSignalEntityId>(Arg.Any<GenerateFuturesAdxSignalCommand>());
+        }
+        finally { await actor.StopAsync(); FuturesTradeSessionBarAttachmentRegistry<FuturesAdxSignalEntityId>.Clear(); }
+    }
+
+    [Fact]
     public async Task ReceiveAsync_WithMatchingClosedObservation_ForwardsGenerateCommandWithLineage()
     {
         var entityId = new FuturesAdxSignalEntityId(

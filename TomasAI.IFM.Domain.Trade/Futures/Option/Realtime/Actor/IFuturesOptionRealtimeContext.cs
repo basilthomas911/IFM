@@ -7,9 +7,12 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 namespace TomasAI.IFM.Domain.Trade.Futures.Option.Realtime.Actor;
 public interface IFuturesOptionRealtimeContext : IRealtimeActorContext<FuturesOptionRealtimeActor>
 {
+    TomasAI.IFM.Domain.Trade.Persistence.Realtime.PositionRealtimeIntents? PositionIntents => null;
+
     TradeRealtimeCacheRegistry? RealtimeCache => null;
     /// <summary>Gets actor-owned position-command completion evidence for required quote-path health.</summary>
     TomasAI.IFM.Domain.Trade.Futures.Option.Realtime.Model.OptionQuoteRoutingProgress? RoutingProgress => null;
+    FuturesOptionRoutingReceipts RoutingReceipts { get; }
     IDbContextFactory DbFactory { get; }
 
     IActorService ActorService { get; }

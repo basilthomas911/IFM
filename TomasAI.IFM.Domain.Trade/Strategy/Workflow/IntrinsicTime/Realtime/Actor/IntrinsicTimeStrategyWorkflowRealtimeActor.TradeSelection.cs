@@ -21,6 +21,7 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor
     {
         var execute = snapshot.State.SelectionDispatch ?? throw new InvalidOperationException("Missing durable selector request. Historical unbound selector dispatch is disabled.");
         var domain = RequireEventContext(context);
+        if(await TradeSelection.Realtime.SelectionFunctionTerminalDelivery.RecoverAsync(domain,execute).ConfigureAwait(false))return;
         var clock = domain.TimeProvider;
         FunctionResult<TradeSelectionFunctionCompletedEvent, TradeSelectionFunctionFailedEvent> terminal;
         try
@@ -85,7 +86,7 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor
                 CausationId = completed.Id,
                 CompletedAtUtc = completed.CompletedAtUtc
             };
-            await context.SendAsync<CompleteTradeSelectionCommand, IntrinsicTimeStrategyWorkflowEntityId>(c, c.EntityId).ConfigureAwait(false);
+            await WorkflowPublicationDelivery.PublishAsync(domain, snapshot, c).ConfigureAwait(false);
         }
         else
         {
@@ -110,7 +111,7 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor
                     FailedAtUtc = failed.ErrorDate
                 }
             };
-            await context.SendAsync<FailTradeSelectionCommand, IntrinsicTimeStrategyWorkflowEntityId>(c, c.EntityId).ConfigureAwait(false);
+            await TradeSelection.Realtime.SelectionFunctionTerminalDelivery.CaptureAsync(domain,execute,c).ConfigureAwait(false);
         }
     }
 
@@ -120,6 +121,7 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor
         var pending = view.CompositionHandoff!;
         var services = RequireEventContext(context);
         TradeSelectionTelemetry.ReservationPending(pending.UpdatedAtUtc, services.TimeProvider.GetUtcNow().UtcDateTime);
+        WorkflowReservationRecovery.Track(services,snapshot);
         var remaining = pending.Request.ExpiresAtUtc - services.TimeProvider.GetUtcNow().UtcDateTime;
         if (remaining <= TimeSpan.Zero)
         {
@@ -165,17 +167,22 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor
                     FailedAtUtc = services.TimeProvider.GetUtcNow().UtcDateTime
                 }
             };
-            await context.SendAsync<FailTradeSelectionCommand, IntrinsicTimeStrategyWorkflowEntityId>(c, c.EntityId).ConfigureAwait(false);
+            if (services.ReservationFailures is { } journal)
+                await SendReservationFailureAsync(context, journal, journal.Prepare(snapshot.Id, InitializationInputHash(snapshot), () => c)).ConfigureAwait(false);
+            else await context.SendAsync<FailTradeSelectionCommand, IntrinsicTimeStrategyWorkflowEntityId>(c, c.EntityId).ConfigureAwait(false);
             return;
         }
 
         await CompleteReservationAsync(context, snapshot, reply.Value).ConfigureAwait(false);
+        // Durable work remains until authoritative completion/late stopped cleanup is reconciled.
     }
 
-    static async ValueTask CompleteReservationAsync(IEventActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> context, WorkflowStrategyStateUpdatedEvent snapshot, TomasAI.IFM.Domain.Portfolio.Shared.Contracts.FundCompositionReservationResult reservation)
+    internal static async ValueTask CompleteReservationAsync(IEventActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> context, WorkflowStrategyStateUpdatedEvent snapshot, TomasAI.IFM.Domain.Portfolio.Shared.Contracts.FundCompositionReservationResult reservation)
     {
         var view = snapshot.State;
         var pending = view.CompositionHandoff!;
+        // Replay disposition is transport presentation, not a different financial reservation.
+        reservation=reservation with{Disposition=TomasAI.IFM.Domain.Portfolio.Shared.Contracts.ReservationDisposition.Committed};
         TradeSelectionHandoff.ValidateReservation(pending, reservation);
         var command = new CompleteTradeSelectionReservationCommand
         {
@@ -191,7 +198,7 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor
             CausationId = pending.SelectionSourceEventId,
             CompletedAtUtc = reservation.CommittedOnUtc
         };
-        await context.SendAsync<CompleteTradeSelectionReservationCommand, IntrinsicTimeStrategyWorkflowEntityId>(command, command.EntityId).ConfigureAwait(false);
+        await WorkflowPublicationDelivery.PublishAsync(RequireEventContext(context),snapshot,command,"reservation-completion").ConfigureAwait(false);
     }
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The detached late reservation observer must consume and log task failures without losing reconciliation identity.")]
@@ -201,7 +208,10 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor
         {
             var reply = await operation.ConfigureAwait(false);
             if (reply.Success && reply.Value is not null)
+            {
                 await CompleteReservationAsync(context, snapshot, reply.Value).ConfigureAwait(false);
+                // The durable work owner handles any stopped-order cleanup; no detached callback retires it early.
+            }
         }
         catch (Exception ex)
         {
@@ -222,7 +232,7 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor
             ExpectedWorkflowRevision = view.WorkflowRevision,
             TimeoutId = id
         };
-        await context.SendAsync<TimeoutTradeSelectionCommand, IntrinsicTimeStrategyWorkflowEntityId>(command, command.EntityId).ConfigureAwait(false);
+        await WorkflowPublicationDelivery.PublishAsync(RequireEventContext(context),snapshot,command,"reservation-timeout").ConfigureAwait(false);
     }
 
     internal static async ValueTask ReconcileStoppedSelectionAsync(IEventActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> context, WorkflowStrategyStateUpdatedEvent snapshot)
@@ -238,7 +248,8 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor
             foreach (var item in known.Value ?? [])
             {
                 var order = await services.PortfolioQueries.GetOrderAsync(item.OrderId).ConfigureAwait(false);
-                if (order.Success && order.Value is { } value && value.TradeSelectionResultId == handoff.Request.TradeSelectionResultId && value.Status is "IdentityReserved" or "TemplateSelected" or "Composing")
+                if(!order.Success||order.Value is null)throw new InvalidOperationException(order.ErrorMessage??"Reservation cleanup order is unavailable.");
+                if (order.Value is { } value && value.TradeSelectionResultId == handoff.Request.TradeSelectionResultId && value.Status is "IdentityReserved" or "TemplateSelected" or "Composing")
                 {
                     var expired = await services.PortfolioCommands.ExpireCompositionAsync(new(value.PortfolioId, value.FundId, value.OrderId), value.AggregateVersion, "Selection workflow stopped.").ConfigureAwait(false);
                     if (!expired.Success)

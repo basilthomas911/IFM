@@ -18,6 +18,9 @@ public sealed class FuturesEodTradeDispatchState
 {
     internal readonly FuturesEodTradeReadCache ReadCache = new();
     internal readonly Dictionary<string, FuturesEodTradeWorker> Workers = new(StringComparer.Ordinal);
+    internal readonly Lock RegistryGate = new();
+    internal readonly Dictionary<string, EodDeliveryLane> Lanes = new(StringComparer.Ordinal);
+    internal bool Stopping;
     internal bool WorkersEnabled;
     internal long Handoffs;
 }

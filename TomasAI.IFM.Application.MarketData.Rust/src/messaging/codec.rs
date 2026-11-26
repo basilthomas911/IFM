@@ -133,3 +133,47 @@ pub fn timestamp(ticks: i64) -> Result<Value, &'static str> {
 pub fn utc_offset(ticks: i64) -> Result<Value, &'static str> {
     Ok(Value::Array(vec![timestamp(ticks)?, 0.into()]))
 }
+
+/// Checks encoded expansion before source groups allocate any decompressed event graphs.
+pub(crate) fn expanded_length(bytes:&[u8])->Result<usize,&'static str>{
+    if bytes.len()>2*1024*1024{return Err("Source wire exceeds bound");}
+    let value=rmpv::decode::read_value(&mut std::io::Cursor::new(bytes)).map_err(|_|"Invalid source MessagePack")?;
+    if let Some(parts)=value.as_array()&&let Some(Value::Ext(98,sizes))=parts.first(){
+        let mut reader=std::io::Cursor::new(sizes.as_slice());let mut total=0usize;let mut blocks=0;
+        while reader.position()<sizes.len()as u64{let length=rmp::decode::read_int::<usize,_>(&mut reader).map_err(|_|"Invalid source compression length")?;total=total.checked_add(length).filter(|total|*total<=2*1024*1024).ok_or("Source expansion exceeds bound")?;blocks+=1;}
+        if blocks+1!=parts.len(){return Err("Source compression count differs");}return Ok(total);
+    }
+    Ok(bytes.len())
+}
+
+/// Decodes bounded MessagePack-CSharp Lz4BlockArray framing, retaining original bytes elsewhere.
+pub(crate) fn decode_compressed(bytes: &[u8]) -> Result<Value, &'static str> {
+    if bytes.len() > 2 * 1024 * 1024 {
+        return Err("Source wire exceeds bound");
+    }
+    let value = rmpv::decode::read_value(&mut std::io::Cursor::new(bytes))
+        .map_err(|_| "Invalid source MessagePack")?;
+    if let Some(parts) = value.as_array() {
+        if let Some(Value::Ext(98, sizes)) = parts.first() {
+            let mut lengths = std::io::Cursor::new(sizes.as_slice());
+            let mut out = Vec::new();
+            for block in &parts[1..] {
+                let len = rmp::decode::read_int::<usize, _>(&mut lengths)
+                    .map_err(|_| "Invalid source compression length")?;
+                if len > 2 * 1024 * 1024 - out.len() {
+                    return Err("Source decompression exceeds bound");
+                }
+                let compressed = block.as_slice().ok_or("Invalid source compressed block")?;
+                let decoded = lz4_flex::block::decompress(compressed, len)
+                    .map_err(|_| "Invalid source compressed bytes")?;
+                out.extend_from_slice(&decoded);
+            }
+            if lengths.position() != sizes.len() as u64 {
+                return Err("Unexpected source compression sizes");
+            }
+            return rmpv::decode::read_value(&mut std::io::Cursor::new(out))
+                .map_err(|_| "Invalid source MessagePack content");
+        }
+    }
+    Ok(value)
+}

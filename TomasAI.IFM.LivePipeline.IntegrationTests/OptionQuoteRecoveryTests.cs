@@ -25,12 +25,15 @@ public sealed class OptionQuoteRecoveryTests
         var service = Substitute.For<IActorService>();
         var logger = Substitute.For<ILogger<FuturesOptionRealtimeActor>>();
         var cache = new TradeRealtimeCacheRegistry();
-        var original = new FuturesOptionRealtimeContext(supervisor,db,service,logger,cache);
+        using var receipts = new FuturesOptionRoutingReceipts();
+        using var positionIntents=new TomasAI.IFM.Domain.Trade.Persistence.Realtime.PositionRealtimeIntents();
+        var original = new FuturesOptionRealtimeContext(supervisor,db,service,logger,receipts,cache,positionIntents);
         var dependencies = new Dictionary<Type,object> {
             [typeof(IRealtimeActorContext<FuturesOptionRealtimeActor>)] = original,
             [typeof(IActorSupervisor)] = supervisor,[typeof(IDbContextFactory)] = db,
             [typeof(IActorService)] = service,[typeof(ILogger<FuturesOptionRealtimeActor>)] = logger,
-            [typeof(TradeRealtimeCacheRegistry)] = cache };
+            [typeof(TomasAI.IFM.Domain.Trade.Persistence.Realtime.PositionRealtimeIntents)] = positionIntents,
+            [typeof(TradeRealtimeCacheRegistry)] = cache, [typeof(FuturesOptionRoutingReceipts)] = receipts };
         var replacement = (FuturesOptionRealtimeActor)RealtimeActorReplacementFactory.Create(typeof(FuturesOptionRealtimeActor),t=>dependencies[t]);
         Assert.NotSame(original.RealtimeGeneration,replacement.RealtimeGeneration);
         original.RealtimeGeneration.Retire();

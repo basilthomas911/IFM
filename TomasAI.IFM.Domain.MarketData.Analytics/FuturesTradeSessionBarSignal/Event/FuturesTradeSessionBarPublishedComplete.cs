@@ -32,11 +32,14 @@ public static class FuturesTradeSessionBarPublishedComplete
                 CommandId = @event.CommandId,
                 AggregateId = @event.EntityId.Format(),
                 EventSource = nameof(FuturesTradeSessionBarSignalEventActor),
-                ReceivedOn = context.TimeProvider.GetUtcNow().UtcDateTime,
+                ReceivedOn = @event.ReceivedOn,
                 Observation = @event.Bar
             };
+            var forwarded = MessageOrigins.Copy(@event, realtime);
+            // Legacy persisted bodies may have no associated metadata. Keep unknown explicit rather than creating a retry-clock origin.
+            MessageOrigins.Restore(forwarded, MessageOrigins.Get(@event));
             await context.SendAsync<FuturesTradeSessionBarClosedRealtimeEvent,
-                FuturesTradeSessionBarEntityId>(realtime).ConfigureAwait(false);
+                FuturesTradeSessionBarEntityId>(forwarded).ConfigureAwait(false);
             FuturesTradeSessionBarPublicationProgress.Record(@event.Bar);
             return true;
         }

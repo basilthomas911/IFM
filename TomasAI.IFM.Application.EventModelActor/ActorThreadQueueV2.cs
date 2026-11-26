@@ -340,6 +340,15 @@ public sealed class ActorThreadQueueV2 : IActorThreadQueue, IScheduledActorThrea
         return false;
     }
 
+    bool IScheduledActorThreadQueue.TryPeek(out IActorMessage? message)
+    {
+        lock(retirementGate)
+        {
+            if(_channel?.Reader.TryPeek(out var queued)==true){message=queued.Message;return true;}
+            message=null;return false;
+        }
+    }
+
     bool IScheduledActorThreadQueue.TryRead(out IActorMessage? message)
     {
         lock (retirementGate) return ReadForScheduler(out message);

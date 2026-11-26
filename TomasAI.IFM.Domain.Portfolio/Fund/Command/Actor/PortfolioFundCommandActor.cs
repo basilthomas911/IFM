@@ -356,7 +356,7 @@ public sealed class PortfolioFundCommandActor(
     {
         var request = (IPortfolioLifecycleCommand)command;
         using var activity = PortfolioTelemetry.StartRequest("command", command.Subject.Verb, request.CorrelationId, command);
-        var principal = _guard.Demand(Operation(command.Subject.Verb), request.Access, mutation: true).Principal;
+        var principal = _guard.Demand(Operation(command.Subject.Verb), request.Access, mutation: command is not ReserveFundOrderCompositionCommand { ReconcileOnly:true }).Principal;
         var committed = await _events.FindCommittedFundCommandAsync(state.IdValue, command.CommandId, cancellationToken).ConfigureAwait(false);
         if (committed is not null)
         {

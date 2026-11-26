@@ -161,7 +161,7 @@ public sealed class FuturesEodMinuteWriterTests
     }
 
     [Fact]
-    public async Task FailedCompletionNotification_DoesNotRetainSuccessfullySavedHistory()
+    public async Task FailedCompletionNotification_RetainsNotificationWithoutReapplyingHistory()
     {
         var (projector, context, storage) = Create();
         context.When(c => c.SendAsync<FuturesEodDataInsertedCompleteEvent, FuturesEodDataId>(Arg.Any<FuturesEodDataInsertedCompleteEvent>()))

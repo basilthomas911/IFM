@@ -111,6 +111,17 @@ impl Instrument {
             entity,
         })
     }
+    pub(crate) fn capture_identity(&self)->Value{
+        let source=&self.registration;
+        Value::Array(vec![source.instrument.into(),source.publisher.into(),source.contract.clone().into(),source.source.clone().into(),self.asset(),source.tick.map_or(Value::Nil,Into::into),source.vwap.into(),source.required.into(),(self.lane as u8).into(),day(self.date),day(self.definition_date),self.entity.clone().into()])
+    }
+    pub(crate) fn restore_identity(value:&Value)->Result<Self,String>{
+        use crate::checkpoint as c;
+        let f=c::fields(value,12)?;
+        let registration=Registration{instrument:c::unsigned(&f[0])?.try_into().map_err(|_|"Invalid checkpoint instrument")?,publisher:c::unsigned(&f[1])?.try_into().map_err(|_|"Invalid checkpoint publisher")?,contract:c::string(&f[2],256)?,source:c::string(&f[3],256)?,asset:match c::unsigned(&f[4])?{1=>Asset::Futures,2=>Asset::Option,_=>return Err("Invalid checkpoint asset".into())},tick:if f[5].is_nil(){None}else{Some(c::number(&f[5])?)},vwap:c::boolean(&f[6])?,required:c::boolean(&f[7])?};
+        let result=Self::new(registration,c::lane(&f[8])?,c::date(&f[9])?,c::date(&f[10])?).map_err(str::to_owned)?;
+        if result.capture_identity()!=*value{return Err("Checkpoint original instrument identity differs".into());}Ok(result)
+    }
     fn asset(&self) -> Value {
         if self.registration.asset == Asset::Futures {
             1.into()

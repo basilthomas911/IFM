@@ -1,3 +1,11 @@
+using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan;
+using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Workflow;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.Configuration;
+using TomasAI.IFM.Domain.Trade.Persistence.Realtime;
+using TomasAI.IFM.Domain.Trade.Futures.Option.Realtime.Actor;
+using TomasAI.IFM.Domain.Trade.Futures.Position.Realtime.Actor;
+using TomasAI.IFM.Domain.Trade.Futures.Option.Position.VerticalSpread.Realtime.Actor;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -29,12 +37,35 @@ public sealed partial class TradeSelectionRuntimeTests
     [InlineData(TimeFrameType.Daily, "LongFuture", "FuturesOutright", "FuturesOutright", 1)]
     public async Task Manual_create_add_open_close_settle_restart_and_reconcile_has_no_duplicates(
         TimeFrameType horizon, string variant, string openingType, string closingType, int legCount)
+        => await RunFinancialRoundTripAsync(horizon,variant,openingType,closingType,legCount,false);
+
+    [Theory,Trait("Category","ActualExitWorkflow")]
+    [InlineData(TimeFrameType.Monthly,"ShortBalancedIronCondor","ShortIronCondor","LongIronCondor",4)]
+    [InlineData(TimeFrameType.Weekly,"BullCallDebit","CallDebitSpread","CallCreditSpread",2)]
+    [InlineData(TimeFrameType.Daily,"LongFuture","FuturesOutright","FuturesOutright",1)]
+    public async Task Actual_exit_workflow_closes_and_replays_with_financial_owner(
+        TimeFrameType horizon,string variant,string openingType,string closingType,int legCount)
+        => await RunFinancialRoundTripAsync(horizon,variant,openingType,closingType,legCount,true);
+
+    async Task RunFinancialRoundTripAsync(TimeFrameType horizon,string variant,string openingType,string closingType,int legCount,bool automaticExit)
     {
         await using var isolation = await SharedOpeningActorIsolation.EnterAsync();
         var url = Environment.GetEnvironmentVariable("IFM_CONFIGURED_TEST_NATS_URL")!;
         var path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "IFM-ManualRoundTrip", Guid.NewGuid().ToString("N"), "ledger.json");
         var alias = $"IFM-MANUAL-{Guid.NewGuid():N}";
+        var ownedStores=new List<IDisposable>();
         var owner = Random.Shared.Next(10_000_000, 800_000_000);
+        // Minimal-host test callbacks run after eager domain registration. Scope these
+        // settings in this serial test process so registration itself uses fixture-owned paths.
+        using var environment=new FinancialReplayEnvironment(new Dictionary<string,string?>
+        {
+            ["TradeBroker__Emulator__LedgerPath"]=path,["TradeBroker__Emulator__AccountAlias"]=alias,
+            ["Actors__RealtimeMailboxes__Enabled"]="true",["Actors__RealtimeMailboxes__CapacityQualified"]="true",
+            ["Actors__RealtimeMailboxes__Storage"]="File",
+            ["Actors__RealtimeMailboxes__Directory"]=System.IO.Path.Combine(System.IO.Path.GetDirectoryName(path)!,"mailboxes"),
+            ["Actors__RealtimeMailboxes__StreamPrefix"]="IFM_VAL1_"+owner,["Actors__RealtimeMailboxes__Epoch"]="financial_owner_v2",
+            ["IFM_TEST_NATS_URL"]=url
+        },System.IO.Path.Combine(System.IO.Path.GetDirectoryName(path)!,"recovery"));
         var selection = await TradeSelectionFixture.Command(variant, horizon, DateTime.UtcNow,
             scopeId: owner, compositionReady: true, compositionIntegrationTiming: true, policyId: owner);
         var source = selection.SelectionBinding.PortfolioSnapshot;
@@ -68,18 +99,33 @@ public sealed partial class TradeSelectionRuntimeTests
             services.RemoveAll<FinancialDevelopmentPolicy>();
             services.AddSingleton(new FinancialDevelopmentPolicy(true));
             container.RegisterInstance(new FinancialDevelopmentPolicy(true));
+            services.RemoveAll<PositionRealtimeIntents>();
+            services.AddSingleton(_=>new PositionRealtimeIntents(System.IO.Path.Combine(System.IO.Path.GetDirectoryName(path)!,"position-intents")));
             container.RegisterInstance(EmulatorScenario.Development(alias));
-            container.RegisterInstance<IEmulatorLedgerStore>(new FileEmulatorLedgerStore(path));
-        }, url, actualPortfolio: true, isolatedTransport: true);
+            // The configured production store owns the only ledger lease; resolve it after host initialization.
+        }, url, actualPortfolio: true, isolatedTransport: true).WithWebHostBuilder(builder=>builder.ConfigureAppConfiguration((_,configuration)=>configuration.AddInMemoryCollection(new Dictionary<string,string?>
+        {
+            ["TradeBroker:Emulator:LedgerPath"]=path,
+            ["TradeBroker:Emulator:AccountAlias"]=alias,
+            ["Actors:RealtimeMailboxes:Enabled"]="true",
+            ["Actors:RealtimeMailboxes:CapacityQualified"]="true",
+            ["Actors:RealtimeMailboxes:Storage"]="File",
+            ["Actors:RealtimeMailboxes:Directory"]=System.IO.Path.Combine(System.IO.Path.GetDirectoryName(path)!,"mailboxes"),
+            ["Actors:RealtimeMailboxes:StreamPrefix"]="IFM_VAL1_"+owner,
+            ["Actors:RealtimeMailboxes:Epoch"]="financial_owner_v2"
+        })));
         var executed = new List<(TradeOrderDefinition Order, Guid Attempt)>();
         var executionHashes = new Dictionary<Guid, string>();
         int setupOrder = 0;
         StrategyPositionId positionId = default;
+        Func<IServiceProvider,Task>? replayExit=null;
         string? before = null;
         var timer = System.Diagnostics.Stopwatch.StartNew();
         await using (var host = NewHost())
         {
             _ = host.CreateClient();
+            AssertPositionIntentContainer(host.Services,url);
+            ownedStores.Add((IDisposable)host.Services.GetRequiredService<SimpleInjector.Container>().GetInstance<IEmulatorLedgerStore>());
             await host.Services.GetRequiredService<IActorProducer>().StartAsync(new(ActorType.Realtime, $"ManualLifecycle{Guid.NewGuid():N}"));
             try
             {
@@ -137,6 +183,13 @@ public sealed partial class TradeSelectionRuntimeTests
                 var position = await WaitManualPositionAsync(host.Services, positionId, true);
                 position.Legs.Should().HaveCount(legCount);
                 var opened = await WaitManualOrderAsync(query, setupOrder, "Opened");
+                if(automaticExit)
+                {
+                    var automatic=await ExecuteActualExitWorkflowAsync(host.Services,position);
+                    executed.Add((automatic.Order,automatic.Attempt));replayExit=automatic.Replay;
+                }
+                else
+                {
                 var closing = await commands.AddManualTradeAsync(Add(closingSetup, false, closingType, opened.AggregateVersion));
                 closing.Success.Should().BeTrue(closing.ErrorMessage);
                 closing.Value!.Trades.Should().HaveCount(2);
@@ -161,6 +214,7 @@ public sealed partial class TradeSelectionRuntimeTests
                 var closeOrder = close.Value.Completed!.Receipt.TradeOrder!.ToTradeOrder();
                 (await api.EvaluateCloseAsync(closeRequest)).Value!.Completed!.Id.Should().Be(close.Value.Completed.Id);
                 executed.Add((closeOrder, await ExecuteManualAsync(host.Services, closeOrder)));
+                }
                 var closed = await WaitManualPositionAsync(host.Services, positionId, false);
                 closed.ClosingFills.Should().HaveCount(legCount);
                 (await WaitManualOrderAsync(query, setupOrder, "Closed")).Status.Should().Be("Closed");
@@ -173,7 +227,7 @@ public sealed partial class TradeSelectionRuntimeTests
                     counts.RootElement.GetProperty("orders").GetInt32().Should().Be(2);
                     counts.RootElement.GetProperty("fills").GetInt32().Should().Be(legCount * 2);
                     counts.RootElement.GetProperty("positions").GetInt32().Should().Be(1);
-                    counts.RootElement.GetProperty("setups").GetInt32().Should().Be(2);
+                    if(!automaticExit)counts.RootElement.GetProperty("setups").GetInt32().Should().Be(2);
                     counts.RootElement.GetProperty("executions").GetInt32().Should().Be(2);
                 }
                 output.WriteLine($"Manual {horizon} create/add/open/add close/settle: {timer.Elapsed.TotalMilliseconds:F3} ms; setup={setupOrder}; legs={legCount}");
@@ -181,16 +235,20 @@ public sealed partial class TradeSelectionRuntimeTests
             finally { await global::SupervisorTestLifecycle.ShutdownAsync(host.Services); await host.Services.GetRequiredService<IActorProducer>().StopAsync(); }
         }
         timer.Restart();
-        var ledgerBefore = new FileEmulatorLedgerStore(path).Load()!;
+        foreach(var store in ownedStores)store.Dispose();ownedStores.Clear();
+        var ledgerBefore = ReadManualCheckpoint(path);
         ledgerBefore.Orders.Should().HaveCount(2);
         ledgerBefore.Journal.Count(row => row.Kind == "Place").Should().Be(2);
         await using (var restarted = NewHost())
         {
             _ = restarted.CreateClient();
+            AssertPositionIntentContainer(restarted.Services,url);
+            ownedStores.Add((IDisposable)restarted.Services.GetRequiredService<SimpleInjector.Container>().GetInstance<IEmulatorLedgerStore>());
             await restarted.Services.GetRequiredService<IActorProducer>().StartAsync(new(ActorType.Realtime, $"ManualRestart{Guid.NewGuid():N}"));
             try
             {
                 var actors = restarted.Services.GetRequiredService<IActorService>();
+                if(replayExit is not null){await replayExit(restarted.Services);await replayExit(restarted.Services);}
                 foreach (var (order, attempt) in executed)
                     foreach (var item in order.Components)
                     {
@@ -209,9 +267,9 @@ public sealed partial class TradeSelectionRuntimeTests
                     }
                 (await WaitManualPositionAsync(restarted.Services, positionId, false)).ClosingFills.Should().HaveCount(legCount);
                 await WaitManualOrderAsync(restarted.Services.GetRequiredService<IPortfolioQueryApi>(), setupOrder, "Closed");
-                await AssertManualSettlementAsync(restarted.Services, owner, fund, executed);
+                await AssertManualSettlementAsync(restarted.Services, owner, fund, executed,afterRestart:true);
                 (await ManualCountsAsync(owner)).Should().Be(before);
-                var ledgerAfter = new FileEmulatorLedgerStore(path).Load()!;
+                var ledgerAfter = restarted.Services.GetRequiredService<SimpleInjector.Container>().GetInstance<IEmulatorLedgerStore>().Load()!;
                 ledgerAfter.Orders.Should().BeEquivalentTo(ledgerBefore.Orders);
                 ledgerAfter.Journal.Where(row => row.Kind is "Place" or "Execution" or "Commission").Should()
                     .BeEquivalentTo(ledgerBefore.Journal.Where(row => row.Kind is "Place" or "Execution" or "Commission"));
@@ -219,6 +277,25 @@ public sealed partial class TradeSelectionRuntimeTests
             }
             finally { await global::SupervisorTestLifecycle.ShutdownAsync(restarted.Services); await restarted.Services.GetRequiredService<IActorProducer>().StopAsync(); }
         }
+        foreach(var store in ownedStores)store.Dispose();
+    }
+
+    static EmulatorLedgerCheckpoint ReadManualCheckpoint(string path)
+    {using var store=new FileEmulatorLedgerStore(path);return store.Load()!;}
+
+    static void AssertPositionIntentContainer(IServiceProvider services,string brokerUrl)
+    {
+        var container=services.GetRequiredService<SimpleInjector.Container>();
+        var owner=services.GetRequiredService<PositionRealtimeIntents>();
+        var options=services.GetRequiredService<RealtimeMailboxOptions>();
+        options.Enabled.Should().BeTrue();options.CapacityQualified.Should().BeTrue();options.Storage.Should().Be(RealtimeMailboxStorage.File);
+        services.GetRequiredService<TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts.INatsProducerOptions>().Url.Should().Be(brokerUrl);
+        services.GetRequiredService<TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts.INatsConsumerOptions>().Url.Should().Be(brokerUrl);
+        services.GetRequiredService<TomasAI.IFM.Framework.Messaging.NatsJetStream.RealtimeMailboxes.DurableRealtimeMailboxHub>().Enabled.Should().BeTrue();
+        ((IFuturesOptionRealtimeContext)container.GetInstance<IRealtimeActorContext<FuturesOptionRealtimeActor>>()).PositionIntents.Should().BeSameAs(owner);
+        ((IFuturesTradePositionRealtimeContext)container.GetInstance<IRealtimeActorContext<FuturesTradePositionRealtimeActor>>()).PositionIntents.Should().BeSameAs(owner);
+        ((IVerticalSpreadTradePositionRealtimeContext)container.GetInstance<IRealtimeActorContext<VerticalSpreadTradePositionRealtimeActor>>()).PositionIntents.Should().BeSameAs(owner);
+        owner.IsHealthy.Should().BeTrue(owner.LastFailure);
     }
 
     static async Task<Guid> ExecuteManualAsync(IServiceProvider services, TradeOrderDefinition order)
@@ -287,7 +364,7 @@ public sealed partial class TradeSelectionRuntimeTests
         throw new TimeoutException($"Manual setup order {id} did not reach {status}");
     }
 
-    static async Task AssertManualSettlementAsync(IServiceProvider services, int portfolio, int fund, List<(TradeOrderDefinition Order, Guid Attempt)> orders)
+    static async Task AssertManualSettlementAsync(IServiceProvider services, int portfolio, int fund, List<(TradeOrderDefinition Order, Guid Attempt)> orders,bool afterRestart=false)
     {
         var db = services.GetRequiredService<IDbContextFactory>().TradeDb;
         decimal paid = 0;
@@ -311,6 +388,32 @@ public sealed partial class TradeSelectionRuntimeTests
         account.CashBalance.Should().Be(scenario.StartingCash - paid);
         account.Positions.Should().OnlyContain(position => position.SignedQuantity == 0);
         account.AvailableFunds.Should().Be(account.CashBalance, "the closed orders leave no broker reservation");
+        long holds=long.MaxValue;
+        for(var poll=0;poll<100;poll++)
+        {
+            holds=await FinancialBoundaryTransactions().ExecuteOnceAsync(async (tx,token)=>(long)(await tx.ScalarAsync(
+                "SELECT count(*) FROM portfolio_financial.capacity_reservation WHERE portfolio_id=$1 AND fund_id=$2 AND status NOT IN(8,9);",[portfolio,fund],token))!);
+            if(holds==0)break;await Task.Delay(50);
+        }
+        holds.Should().Be(0,"all opening capacity holds must be released after authentic closing fills settle");
+        var transport=services.GetRequiredService<TomasAI.IFM.Framework.Messaging.NatsJetStream.RealtimeMailboxes.DurableRealtimeMailboxHub>();
+        transport.Enabled.Should().BeTrue();transport.IsRunning.Should().BeTrue();
+        if(!afterRestart)
+        {
+            var expected=orders[0].Order.Components[0].StrategyKind switch
+            {
+                TradeStrategyKind.FuturesOutright=>"FuturesTradePositionRealtime",
+                TradeStrategyKind.VerticalSpread=>"VerticalSpreadTradePositionRealtime",
+                _=>"IronCondorTradePositionRealtime"
+            };
+            for(var poll=0;poll<100 && (transport.Metrics.AcknowledgedDeliveries==0 || !transport.GetMailboxSnapshots(0,200).Any(item=>item.Identity.MailboxId.Name==expected));poll++)await Task.Delay(50);
+            transport.GetMailboxSnapshots(0,200).Should().Contain(item=>item.Identity.MailboxId.Name==expected,"the actual position destination must traverse the new durable backend");
+            transport.Metrics.PublishedDestinations.Should().BeGreaterThan(0,
+                $"captured={transport.Metrics.CapturedSources};pending={transport.PendingSourceCount};bytes={transport.PendingSourceBytes};receipts={transport.ReceiptBytes};last={transport.LastFailure};current={transport.CurrentFailure};mailboxes={string.Join(';',transport.GetMailboxSnapshots(0,200).Select(item=>item.Identity+"="+item.Failure))}");
+            transport.Metrics.AcknowledgedDeliveries.Should().BeGreaterThan(0);
+        }
+        // A cold restart may correctly have no new delivery after exact command reconciliation.
+        transport.ReceiptBytes.Should().BeGreaterThan(0,"previous required-handler success proofs must survive the restart");
         var balance = await services.GetRequiredService<IPortfolioFinancialApi>().GetAccountBalancesAsync(new()
         { PortfolioId = portfolio, FundId = fund, Access = new("ManualLifecycleQualification", ["LedgerRead"], [portfolio]) }, new());
         balance.Success.Should().BeTrue(balance.ErrorMessage);

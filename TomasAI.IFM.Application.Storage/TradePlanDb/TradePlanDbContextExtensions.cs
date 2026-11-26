@@ -328,7 +328,7 @@ internal sealed class PostgresTradePlanOffsetReadSession(
                 while (await reader.ReadAsync(token)
                     .ConfigureAwait(false))
                 {
-                    items.Add(MessagePackBinarySerializer.Shared.Deserialize<StrategyTradePlanSnapshot>(reader.GetFieldValue<byte[]>(0)));
+                    items.Add(PooledPostgresPayload.Deserialize<StrategyTradePlanSnapshot>(reader, 0));
                     lastRevision = reader.GetInt64(1);
                 }
             }

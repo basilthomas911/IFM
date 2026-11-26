@@ -7,6 +7,9 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.VerticalSpread.Realtime.Actor;
 public interface IVerticalSpreadTradePositionRealtimeContext : IRealtimeActorContext<VerticalSpreadTradePositionRealtimeActor>
 {
+    TomasAI.IFM.Domain.Trade.Persistence.Realtime.PositionRealtimeIntents? PositionIntents => null;
+
+    ValueTask<StrategyPositionSnapshot?> ReadRecoveryPositionAsync(StrategyPositionId position) => ValueTask.FromResult<StrategyPositionSnapshot?>(null);
     TimeProvider TimeProvider { get; }
 
     TradePlanParameters Parameters { get; }

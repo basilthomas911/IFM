@@ -183,16 +183,20 @@ public sealed class FuturesItiResidentStore : IAsyncDisposable
         }, token);
 
     const string PendingSql = """
+            WITH epoch_first AS MATERIALIZED (
+                SELECT stream, stream_epoch, min(input_id) AS first_input_id
+                FROM futures_iti_input_journal GROUP BY stream, stream_epoch
+            )
             SELECT j.input_id, j.stream, j.payload
             FROM futures_iti_input_journal j
             LEFT JOIN futures_iti_input_checkpoint c ON c.stream = j.stream
             LEFT JOIN futures_iti_input_journal anchor ON anchor.input_id=c.input_id
+            JOIN epoch_first first_input ON first_input.stream=j.stream AND first_input.stream_epoch=j.stream_epoch
             WHERE c.input_id IS NULL OR (j.stream_epoch=anchor.stream_epoch AND j.trade_ordinal>anchor.trade_ordinal)
                 OR (j.stream_epoch<>anchor.stream_epoch AND j.input_id>c.input_id)
             ORDER BY j.stream,
                 CASE WHEN j.stream_epoch=anchor.stream_epoch THEN 0 ELSE 1 END,
-                (SELECT min(first_input.input_id) FROM futures_iti_input_journal first_input
-                    WHERE first_input.stream=j.stream AND first_input.stream_epoch=j.stream_epoch),
+                first_input.first_input_id,
                 j.trade_ordinal
             """;
 
@@ -213,6 +217,13 @@ public sealed class FuturesItiResidentStore : IAsyncDisposable
             SELECT j.input_id,j.stream,j.payload FROM futures_iti_input_checkpoint c
             JOIN futures_iti_input_journal j ON j.input_id=c.input_id ORDER BY j.input_id
             """, [], reader => new StoredInput(reader.GetInt64(0), reader.GetString(1), (byte[])reader.GetValue(2)), ct).ConfigureAwait(false), token);
+
+    /// <summary>Recovery-only original frozen input proof; ordinary tick decisions never call this query.</summary>
+    public Task<IReadOnlyList<StoredInput>> ReadOriginalSourceAsync(string stream, Guid epoch, long ordinal, CancellationToken token = default)
+        => ExecuteAsync(async (transaction, ct) => await transaction.QueryAsync("""
+            SELECT input_id,stream,payload FROM futures_iti_input_journal
+            WHERE stream=$1 AND stream_epoch=$2 AND trade_ordinal=$3
+            """, [stream, epoch, ordinal], reader => new StoredInput(reader.GetInt64(0), reader.GetString(1), (byte[])reader.GetValue(2)), ct).ConfigureAwait(false), token);
 
     public static Task CheckpointAsync(EnlistedEventTransaction transaction, string stream, long inputId, long version, CancellationToken token)
         => transaction.ExecuteAsync("""

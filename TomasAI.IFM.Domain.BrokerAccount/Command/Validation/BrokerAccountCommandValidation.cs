@@ -20,7 +20,7 @@ public static class BrokerAccountCommandValidation
 
             if (command is RecordBrokerAccountSnapshotCommand snapshot && (snapshot.Snapshot is null || snapshot.Environment == Application.TradeBroker.Contracts.BrokerEnvironment.Unknown ||
                 !string.Equals(snapshot.Snapshot.AccountAlias, command.EntityId.AccountAlias, StringComparison.Ordinal) ||
-                snapshot.Snapshot.Generation <= 0 || snapshot.Snapshot.AsOfUtc.Kind != DateTimeKind.Utc))
+                snapshot.Snapshot.Generation <= 0 || snapshot.Snapshot.SourceSequence < 0 || snapshot.Snapshot.AsOfUtc.Kind != DateTimeKind.Utc))
                 errors.Add(new("A sourced UTC snapshot for the exact account is required."));
             if (command is SubmitAccountQualificationEvidenceCommand evidence && (string.IsNullOrWhiteSpace(evidence.ManifestHash) ||
                 string.IsNullOrWhiteSpace(evidence.EvidenceReference) ||

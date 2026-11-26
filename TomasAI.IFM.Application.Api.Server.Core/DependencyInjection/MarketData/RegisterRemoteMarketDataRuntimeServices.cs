@@ -176,7 +176,7 @@ public static partial class CoreServiceRegistration
         services.AddSingleton<TomasAI.IFM.Application.MarketData.Recovery.OptionFeedProcessingHealth>();
         services.AddSingleton(p => new MarketDataHostConnection(p.GetRequiredService<NatsConnectionManager>(),
             config["MarketDataHost:NatsUrl"] ?? p.GetService<INatsProducerOptions>()?.Url ?? "nats://localhost:4222", config["MarketDataHost:Scope"] ?? "development",
-            p.GetRequiredService<TimeProvider>(), p.GetRequiredService<TomasAI.IFM.Shared.Time.PhysicalTime>()));
+            p.GetRequiredService<TimeProvider>(), p.GetRequiredService<TomasAI.IFM.Shared.Time.PhysicalTime>(), p.GetService<IRealtimeSessionRecorder>()));
         services.AddSingleton<IMarketDataApi>(p => new MarketDataApiClient(p.GetRequiredService<MarketDataHostConnection>(), p.GetRequiredService<MarketDataReadMirror>(), p.GetRequiredService<MarketDataRemoteAdmission>()));
         services.AddSingleton<ITickAggregationEventPublisher, TickAggregationEventPublisher>();
         var rawStorage = config.GetSection("RawFuturesStorage").Get<TomasAI.IFM.Application.MarketData.Storage.RawFuturesStorageOptions>() ?? new();
@@ -276,6 +276,18 @@ public static partial class CoreServiceRegistration
             ["ES"] = MarketSeriesIdentity.ForFuturesSeries(
             new FuturesSeriesId("ES", "calendar-front", "unadjusted", 1))
         }));
+        services.AddSingleton(_ => new FuturesTradeSessionBarCheckpointStore(
+            config["AppSettings:TradeSessionBarRecovery:Directory"]
+            ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "IFM", "trade-session-bars")));
+        services.AddSingleton(_ => new TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Realtime.FuturesItiIngressRecovery(
+            config["AppSettings:ItiIngressRecovery:Directory"]
+            ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "IFM", "iti-ingress")));
+        services.AddSingleton(_ => new TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Realtime.FuturesTdiResultReceipts(
+            config["AppSettings:TdiResultRecovery:Directory"]
+            ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "IFM", "tdi-results")));
+        services.AddSingleton(_ => new TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Realtime.IronCondorPositionRequests(
+            config["AppSettings:IronCondorPositionRecovery:Directory"]
+            ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "IFM", "iron-condor-position-requests")));
         services.AddSingleton<FuturesTradeSessionBarAccumulatorRegistry>();
         services.AddSingleton(MarketOutlookHotCache.Shared);
         services.AddSingleton<IMarketOutlookHotCache>(provider =>

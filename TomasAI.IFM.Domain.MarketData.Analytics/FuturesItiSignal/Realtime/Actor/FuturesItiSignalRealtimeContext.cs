@@ -18,14 +18,19 @@ IFuturesItiSignalRealtimeContext
         IMarketDataApi marketDataApi,
         LivePipelineEvidence healthEvidence,
         FuturesItiSignalRuntimeTelemetry telemetry,
-        ILogger<FuturesItiSignalRealtimeActor> logger)
+        ILogger<FuturesItiSignalRealtimeActor> logger,
+        FuturesItiIngressRecovery? ingressRecovery = null)
         : base(supervisor, new ActorMailboxId(ActorType.Realtime, FuturesItiSignalRealtimeActor.ActorName))
     {
+        IngressRecovery = ingressRecovery;
         MarketDataApi = IsArgumentNull.Set(marketDataApi);
         HealthEvidence = IsArgumentNull.Set(healthEvidence);
         Telemetry = IsArgumentNull.Set(telemetry);
         Logger = IsArgumentNull.Set(logger);
     }
+
+    /// <inheritdoc />
+    public FuturesItiIngressRecovery? IngressRecovery { get; }
 
     /// <inheritdoc />
     public IMarketDataApi MarketDataApi { get; }

@@ -310,3 +310,8 @@ impl Rate {
         ]))
     }
 }
+
+impl Publications{
+ pub(crate) fn checkpoint(&self)->Value{Value::Array(vec![1.into(),self.version.clone().into(),self.from.into(),self.until.into(),self.zone.checkpoint_name().into(),Value::Array(self.entries.iter().map(|v|Value::Array(vec![crate::checkpoint::day(v.date),v.available.into()])).collect())])}
+ pub(crate) fn restore_checkpoint(value:&Value)->Result<Self,String>{use crate::checkpoint as c;let f=c::fields(value,6)?;if c::unsigned(&f[0])?!=1{return Err("Publication schedule checkpoint version".into());}let entries=f[5].as_array().filter(|v|v.len()<=1000).ok_or("Publication schedule count exceeded")?.iter().map(|v|{let p=c::fields(v,2)?;Ok(Publication{date:c::date(&p[0])?,available:c::number(&p[1])?})}).collect::<Result<Vec<_>,String>>()?;Self::new(c::string(&f[1],512)?,c::number(&f[2])?,c::number(&f[3])?,entries,&c::string(&f[4],128)?).map_err(str::to_owned)}
+}

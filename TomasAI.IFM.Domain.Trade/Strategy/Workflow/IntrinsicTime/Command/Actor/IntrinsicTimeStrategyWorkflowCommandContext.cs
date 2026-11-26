@@ -26,7 +26,7 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandContext : CommandActorCo
 
         TimeProvider = timeProvider ?? TimeProvider.System;
         ExecutionOptions = IsArgumentNull.Set(executionOptions);
-        WorkflowStartsEnabled = IsArgumentNull.Set(workflowOptions).Enabled;
+        IsArgumentNull.Set(workflowOptions);
         OpeningExecutionsEnabled = workflowOptions.ExecuteDevelopmentOpenings;
         WorkflowOptions = workflowOptions;
         Logger = IsArgumentNull.Set(logger);
@@ -47,7 +47,7 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandContext : CommandActorCo
     /// <inheritdoc/>
     public RegimeDiscoveryExecutionOptions ExecutionOptions { get; }
     /// <summary>Gets whether this host admits new signal-triggered workflows.</summary>
-    public bool WorkflowStartsEnabled { get; }
+    public bool WorkflowStartsEnabled => WorkflowOptions.Enabled && (!WorkflowOptions.LocalDecisionRuntimeEnabled || DecisionRuntime.IsPrepared);
     /// <summary>Whether this Development host may freeze a new emulator opening route.</summary>
     public bool OpeningExecutionsEnabled { get; }
     public IntrinsicTimeStrategyWorkflowOptions WorkflowOptions { get; }

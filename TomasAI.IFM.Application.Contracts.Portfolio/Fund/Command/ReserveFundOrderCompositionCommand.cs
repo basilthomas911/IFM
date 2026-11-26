@@ -28,7 +28,7 @@ public sealed record ReserveFundOrderCompositionCommand : ICommand<PortfolioFund
     /// <param name="access">The Access field.</param>
     /// <param name="preparation">The optional producer preparation.</param>
     [SerializationConstructor]
-    public ReserveFundOrderCompositionCommand(Guid commandId, ActorSubject subject, bool postEvents, PortfolioFundId entityId, int errorCode, BoundedContextName routeTo, ReserveFundOrderCompositionRequest request, PortfolioFundStrategySnapshot snapshot, Guid correlationId, DateTime requestedOnUtc, PortfolioAccessContext access, FundOrderPreparation? preparation = null)
+    public ReserveFundOrderCompositionCommand(Guid commandId, ActorSubject subject, bool postEvents, PortfolioFundId entityId, int errorCode, BoundedContextName routeTo, ReserveFundOrderCompositionRequest request, PortfolioFundStrategySnapshot snapshot, Guid correlationId, DateTime requestedOnUtc, PortfolioAccessContext access, FundOrderPreparation? preparation = null, bool? reconcileOnly = null)
     {
         CommandId = commandId;
         Subject = subject;
@@ -42,6 +42,7 @@ public sealed record ReserveFundOrderCompositionCommand : ICommand<PortfolioFund
         RequestedOnUtc = requestedOnUtc;
         Access = access;
         Preparation = preparation;
+        ReconcileOnly = reconcileOnly;
     }
 
     /// <summary>Initializes an empty message for serialization.</summary>
@@ -72,6 +73,9 @@ public sealed record ReserveFundOrderCompositionCommand : ICommand<PortfolioFund
     [Key(10)] public PortfolioAccessContext Access { get; init; } = new();
 
     [Key(11)] public FundOrderPreparation? Preparation { get; init; }
+    /// <summary>Read-only authority reconciliation on the same serialized Fund owner; never allocates identities.</summary>
+    [Key(12),System.Text.Json.Serialization.JsonIgnore(Condition=System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull),Newtonsoft.Json.JsonProperty(NullValueHandling=Newtonsoft.Json.NullValueHandling.Ignore)]
+    public bool? ReconcileOnly { get; init; }
 
     [IgnoreMember] public string CommandName => nameof(ReserveFundOrderCompositionCommand);
     [IgnoreMember] public string StreamId => Subject.StreamId;

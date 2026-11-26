@@ -50,16 +50,29 @@ public sealed class BrokerOrderObservationBridge(ITradeBroker broker, IActorSupe
     {
         await foreach (var observation in broker.ObserveOrdersAsync(cancellationToken).ConfigureAwait(false))
         {
-            try
+            // A failed or uncertain send retains the current fact. Never let a successor overtake it.
+            while (true)
             {
-                if (!TryParse(observation.BrokerOrderId, out var id))
-                    throw new InvalidOperationException("BrokerOrder.OBSERVATION.IDENTITY_INVALID");
-                await RouteAsync(id, observation).ConfigureAwait(false);
-                logger.Routed(observation.Kind.ToString(), observation.BrokerOrderId, observation.ObservationId);
-            }
-            catch (Exception exception) when (exception is not OperationCanceledException)
-            {
-                logger.Failed(exception, "BrokerOrder.OBSERVATION.ROUTE_FAILED", observation.BrokerOrderId, observation.ObservationId);
+                cancellationToken.ThrowIfCancellationRequested();
+                try
+                {
+                    if (observation.Kind is not (BrokerObservationKind.AccountSnapshot or BrokerObservationKind.GateChanged or BrokerObservationKind.ConnectionChanged))
+                    {
+                        if (!TryParse(observation.BrokerOrderId, out var id))
+                            throw new InvalidOperationException("BrokerOrder.OBSERVATION.IDENTITY_INVALID");
+                        await RouteAsync(id, observation, cancellationToken).ConfigureAwait(false);
+                    }
+                    if (broker.HasRecoverableOrderObservations)
+                        await broker.AcknowledgeOrderObservationAsync(observation.ObservationId, cancellationToken).ConfigureAwait(false);
+                    logger.Routed(observation.Kind.ToString(), observation.BrokerOrderId, observation.ObservationId);
+                    break;
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+                catch (Exception exception)
+                {
+                    logger.Failed(exception, "BrokerOrder.OBSERVATION.ROUTE_FAILED", observation.BrokerOrderId, observation.ObservationId);
+                    await Task.Delay(TimeSpan.FromMilliseconds(100), cancellationToken).ConfigureAwait(false);
+                }
             }
         }
     }

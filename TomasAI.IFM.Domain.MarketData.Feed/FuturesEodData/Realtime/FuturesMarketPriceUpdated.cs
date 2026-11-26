@@ -14,9 +14,12 @@ public static class FuturesMarketPriceUpdated
             IFuturesEodDataRealtimeContext context)
         {
             ArgumentNullException.ThrowIfNull(context);
-            _ = await VxQuoteMarketPriceUpdated.ExecuteVxQuoteAsync(
-                domainEvent, context.MarketDataApi, context.Projector,
-                context.StatusConsoleWriter, context.Logger).ConfigureAwait(false);
+            await context.OrderAsync(context, domainEvent.EntityId.ContractId, EodDeliveryLane.Identity(domainEvent), async () =>
+            {
+                if (!await VxQuoteMarketPriceUpdated.ExecuteVxQuoteAsync(domainEvent, context.MarketDataApi, context.Projector,
+                    context.StatusConsoleWriter, context.Logger).ConfigureAwait(false))
+                    throw new InvalidOperationException("VX EOD quote projection failed.");
+            }, context.TradeDispatch.WorkersEnabled).ConfigureAwait(false);
         }
     }
 }

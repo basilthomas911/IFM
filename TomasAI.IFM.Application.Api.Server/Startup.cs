@@ -7,7 +7,11 @@ namespace TomasAI.IFM.Application.Api.Server;
 /// <summary>Executable composition facade for registered Core host services.</summary>
 public static class Startup
 {
-    public static void ConfigureRunMode(WebApplicationBuilder builder, string[] args) => EventLogQualification.Configure(builder, args);
+    public static void ConfigureRunMode(WebApplicationBuilder builder, string[] args)
+    {
+        HistoricalSessionReplay.Configure(builder,args);
+        EventLogQualification.Configure(builder,args);
+    }
 
     extension(WebApplicationBuilder builder)
     {

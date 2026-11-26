@@ -7,13 +7,28 @@ namespace TomasAI.IFM.Shared.EventModelActor;
 public static class MessageOrigins
 {
     sealed record Association(MessageOrigin? Origin);
-    static readonly ConditionalWeakTable<object, Association> Origins = new();
+    // Legacy DTOs retain weak-key lifetime semantics. Sharding bounds individual table
+    // growth; high-volume DTOs use an owned slot and never enter a weak table.
+    static readonly ConditionalWeakTable<object, Association>[] Origins =
+        Enumerable.Range(0, 1024).Select(_ => new ConditionalWeakTable<object, Association>()).ToArray();
+    static ConditionalWeakTable<object, Association> Table(object message)
+        => Origins[unchecked((uint)RuntimeHelpers.GetHashCode(message) * 2654435769u) >> 22];
+    static bool TryGet(object message, out MessageOrigin? origin)
+    {
+        if (message is IMessageOriginOwner owner) return owner.MessageOriginSlot.TryGet(message, out origin);
+        var found = Table(message).TryGetValue(message, out var association);
+        origin = association?.Origin;
+        return found;
+    }
+    static MessageOrigin? GetOrAdd(object message, MessageOrigin? origin)
+        => message is IMessageOriginOwner owner ? owner.MessageOriginSlot.GetOrAdd(message, origin)
+            : Table(message).GetValue(message, _ => new Association(origin)).Origin;
 
     /// <summary>Returns recorded provenance, or null for legacy payloads with unknown origin.</summary>
     public static MessageOrigin? Get(object message)
     {
         ArgumentNullException.ThrowIfNull(message);
-        return Origins.TryGetValue(message, out var value) ? value.Origin : null;
+        return TryGet(message, out var value) ? value : null;
     }
 
     /// <summary>Captures origin at an explicit creation boundary, preserving it on repeated publication.</summary>
@@ -29,10 +44,10 @@ public static class MessageOrigins
         ArgumentNullException.ThrowIfNull(message);
         ArgumentNullException.ThrowIfNull(clock);
         ArgumentException.ThrowIfNullOrWhiteSpace(clockDomainId);
-        if (Origins.TryGetValue(message, out var existing))
+        if (TryGet(message, out var existing))
         {
-            if (existing.Origin is { } captured) FillMissingEventTimes(message, captured);
-            return existing.Origin;
+            if (existing is { } captured) FillMissingEventTimes(message, captured);
+            return existing;
         }
         if (clock is TomasAI.IFM.Shared.Time.IMessageClockIdentity identity)
         {
@@ -46,8 +61,7 @@ public static class MessageOrigins
     static MessageOrigin? CaptureNew(object message, TimeProvider clock, string clockDomainId,
         Guid? runId, Guid? generation, Guid? causationId)
     {
-        var origin = Origins.GetValue(message,
-            _ => new Association(new MessageOrigin(clock.GetUtcNow(), clockDomainId, runId, generation, causationId))).Origin;
+        var origin = GetOrAdd(message, new MessageOrigin(clock.GetUtcNow(), clockDomainId, runId, generation, causationId));
         if (origin is not null) FillMissingEventTimes(message, origin);
         return origin;
     }
@@ -56,7 +70,7 @@ public static class MessageOrigins
     public static T Restore<T>(T message, MessageOrigin? origin) where T : class
     {
         ArgumentNullException.ThrowIfNull(message);
-        var existing = Origins.GetValue(message, _ => new Association(origin)).Origin;
+        var existing = GetOrAdd(message, origin);
         if (origin is not null && existing != origin)
             throw new InvalidOperationException("Message origin cannot change after creation.");
         return message;
@@ -67,7 +81,7 @@ public static class MessageOrigins
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(copy);
-        return Origins.TryGetValue(source, out var value) ? Restore(copy, value.Origin) : copy;
+        return TryGet(source, out var value) ? Restore(copy, value) : copy;
     }
 
     /// <summary>Preserves a forwarded command's origin only when producer preparation keeps its existing identity.</summary>

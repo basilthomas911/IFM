@@ -27,5 +27,6 @@
   <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
+  <ItemGroup><Compile Include="../TomasAI.IFM.Application.Api.Server.Benchmarks/RealtimeMailboxes/OriginalRawPartitionExport.cs" Link="Qualification/OriginalRawPartitionExport.cs" /></ItemGroup>
 
-<ItemGroup><Using Include="TomasAI.IFM.Shared.OptionPricing" /><Compile Include="../test-support/ExpiryFixingTestScenario.cs" Link="Support/ExpiryFixingTestScenario.cs" /></ItemGroup></Project>
+<ItemGroup><Using Include="TomasAI.IFM.Shared.OptionPricing" /><Compile Include="../test-support/ExpiryFixingTestScenario.cs" Link="Support/ExpiryFixingTestScenario.cs" /></ItemGroup><ItemGroup><Compile Include="../TomasAI.IFM.Application.Api.Server.Benchmarks/RealtimeMailboxes/CertifiedReplayArchiveInputs.cs" Link="Qualification/CertifiedReplayArchiveInputs.cs" /></ItemGroup><ItemGroup><Compile Include="../test-support/RawFuturesJournalFixture.cs" Link="Support/RawFuturesJournalFixture.cs" /></ItemGroup></Project>

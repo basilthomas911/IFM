@@ -37,14 +37,26 @@ public class TradeDbFixture : IDisposable
     public TradeDbFixture()
     {
         infrastructure.StartAsync().GetAwaiter().GetResult();
+        _ = RequireOwnedConnection(infrastructure.PostgresConnectionString, infrastructure.PostgresDatabase, infrastructure.PostgresPort);
         SetSeqIdDatabase();
         SetTradeDatabase();
     }
 
+    internal static string RequireOwnedConnection(string connection,string expectedDatabase,int expectedPort)
+    {
+        var parsed=new Npgsql.NpgsqlConnectionStringBuilder(connection);
+        if(parsed.Host!="127.0.0.1"||parsed.Port!=expectedPort||expectedPort==5432||expectedPort<=0
+            ||parsed.Database!=expectedDatabase||!System.Text.RegularExpressions.Regex.IsMatch(expectedDatabase,"^ifm_storagetrade_[a-f0-9]{12}$"))
+            throw new InvalidOperationException("TradeDbFixture requires its exact disposable storage-trade database and loopback container port; application databases are forbidden.");
+        return connection;
+    }
+
+    string OwnedConnection=>RequireOwnedConnection(infrastructure.PostgresConnectionString,infrastructure.PostgresDatabase,infrastructure.PostgresPort);
+
     void SetSeqIdDatabase()
     {
         var dbConn = new DbConnectionSettings()
-             .Add("SequenceIdDbConnection", infrastructure.PostgresConnectionString, "System.Data.Postgres");
+             .Add("SequenceIdDbConnection", OwnedConnection, "System.Data.Postgres");
         var diContainer = new Dictionary<Type, SequenceIdDbContext>();
         var dbResolver = new DbContextResolver(repoType => diContainer[repoType]);
         var logger = Substitute.For<ILogger<DbProvider>>();
@@ -61,7 +73,7 @@ public class TradeDbFixture : IDisposable
     void SetTradeDatabase()
     {
         var dbConn = new DbConnectionSettings()
-            .Add("TradeDbConnection", infrastructure.PostgresConnectionString + ";Search Path=trade,public", "System.Data.Postgres");
+            .Add("TradeDbConnection", OwnedConnection + ";Search Path=trade,public", "System.Data.Postgres");
         var diContainer = new Dictionary<Type, TradeDbContext>();
         var dbResolver = new DbContextResolver(repoType => diContainer[repoType]);
         var logger = Substitute.For<ILogger<DbProvider>>();

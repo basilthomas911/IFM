@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "state": "ArmedAwaitingOriginalSessions",
+  "plan": "next-normal-sessions.json",
+  "overlay": "prepared-capture-overlay.json",
+  "ownerSnapshotRef": null,
+  "ownerFloorEvidenceRef": "../../.artifacts/realtime-mailboxes/20261125-safety/session-account-floor-readonly.json",
+  "accessTokenEnv": "IFM_SESSION_CAPTURE_ACCESS_TOKEN",
+  "captureStatusUrl": "http://127.0.0.1:22543/internal/session-capture/status",
+  "readiness": {
+    "api": "http://127.0.0.1:22543/health/ready",
+    "native": "http://127.0.0.1:22544/health/ready"
+  },
+  "archive": {
+    "sessionId": "normal-20261130-20261201-original-flow",
+    "directory": "D:/IFM/SessionQualification/nov30-dec1/source-archive",
+    "combinedOriginalFlow": true
+  },
+  "initialOwnerSnapshotSha256": null,
+  "initialClockManifestSha256": null,
+  "sourceFloorManifestSha256": null,
+  "observationWindows": [
+    "2026-11-30",
+    "2026-12-01"
+  ],
+  "businessHandlerProof": false,
+  "completedSessionCapture": false,
+  "latestPreflightRef": "D:/IFM/SessionQualification/nov30-dec1/control/controller.capacity.json",
+  "latestReadinessRef": "D:/IFM/SessionQualification/nov30-dec1/control/after-smoke-ready.json",
+  "backgroundCaptureArmed": true,
+  "memoryFileComparisonStarted": false,
+  "latestRuntimeStatusRef": "D:/IFM/SessionQualification/nov30-dec1/control/scheduled-task-readback.json",
+  "controllerConfiguration": "D:/IFM/SessionQualification/nov30-dec1/control/controller.json",
+  "captureOnlyProfileConfigured": true,
+  "durableMailboxActivationPerformed": false,
+  "pendingOperationalProofs": [
+    "Future initial full owner baseline and both complete original sessions",
+    "Serial Memory/File production-handler replay and exact outcome reconciliation",
+    "Full load, retention, coverage and two-second qualification gates"
+  ],
+  "historicalPreflightRef": "../../.artifacts/realtime-mailboxes/20261125-development-restart/capture-preflight-after-start.json",
+  "historicalReadinessRef": "../../.artifacts/realtime-mailboxes/20261125-live-session-followup/capture-readiness.json",
+  "historicalRuntimeStatusRef": "../../.artifacts/realtime-mailboxes/20261125-development-restart/final-runtime-status.json",
+  "scheduledTask": "IFM-OriginalSessions-202611300001",
+  "armReceipt": "D:/IFM/SessionQualification/nov30-dec1/control/controller.json.arm.json",
+  "boundarySmoke": "D:/IFM/SessionQualification/nov30-dec1/boundary-smoke-20261126-0955/smoke.json",
+  "armUtc": "2026-11-29T16:45:00Z",
+  "initialBoundaryUtc": "2026-11-29T17:00:00Z",
+  "updatedUtc": "2026-11-26T09:58:45.9592965-05:00",
+  "bootstrapUsesVerifiedBinaries": true
+}

@@ -12,6 +12,21 @@ namespace TomasAI.IFM.Framework.Messaging.Nats.UnitTests;
 public sealed class MessageOriginHeadersTests
 {
     [Fact]
+    public void V2_preserves_legacy_reading_and_rejects_conflicts_or_corruption()
+    {
+        var origin = Origin();
+        var legacy = new NatsHeaders { [MessageOriginHeaders.Header] = MessageOriginJson.Serialize(origin)! };
+        Assert.Equal(origin, MessageOriginHeaders.Read(legacy));
+        var binary = MessageOriginHeaders.Add(null, origin)!;
+        Assert.True(binary.ContainsKey(MessageOriginHeaders.BinaryHeader));
+        Assert.False(binary.ContainsKey(MessageOriginHeaders.Header));
+        binary[MessageOriginHeaders.Header] = MessageOriginJson.Serialize(origin)!;
+        Assert.Equal(origin, MessageOriginHeaders.Read(binary));
+        binary[MessageOriginHeaders.Header] = MessageOriginJson.Serialize(new MessageOrigin(origin.OriginatedAtUtc.AddDays(1), "other"))!;
+        Assert.Throws<InvalidDataException>(() => MessageOriginHeaders.Read(binary));
+        Assert.Throws<InvalidDataException>(() => MessageOriginBinary.Deserialize("bad"));
+    }
+    [Fact]
     public void MetadataRoundTripsWithoutActivityOrBodyChanges()
     {
         var origin = Origin();

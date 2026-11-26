@@ -84,7 +84,7 @@ public sealed class TradePlanDbContext(
     public ITradePlanDbWriteContext DbWriter => this;
 
     internal static (T Item, string[] Keys) MapToPageItem<T>(System.Data.Common.DbDataReader reader, int count) =>
-        (MessagePackBinarySerializer.Shared.Deserialize<T>(reader.GetFieldValue<byte[]>(0)),
+        (PooledPostgresPayload.Deserialize<T>(reader, 0),
          Enumerable.Range(1, count).Select(i => reader.GetValue(i) switch
          {
              DateTime date => date.ToString("O", System.Globalization.CultureInfo.InvariantCulture),
@@ -148,5 +148,5 @@ public sealed class TradePlanDbContext(
         => this.ReadExitWorkflowBaselineCoreAsync(transaction, cancellationToken);
 
     internal static ExitPositionWorkflowProjection MapToExitWorkflow(System.Data.Common.DbDataReader reader) =>
-        MessagePackBinarySerializer.Shared.Deserialize<ExitPositionWorkflowProjection>(reader.GetFieldValue<byte[]>(0));
+        PooledPostgresPayload.Deserialize<ExitPositionWorkflowProjection>(reader, 0);
 }

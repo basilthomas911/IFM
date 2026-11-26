@@ -17,6 +17,9 @@ public sealed class FuturesVwapSignalRealtimeActor(
     : BaseEventActor<FuturesVwapSignalRealtimeActor>(actorContext,
         ((IFuturesVwapSignalRealtimeContext)actorContext).Logger)
 {
+    /// <inheritdoc />
+    protected override bool PropagateHandlerFailures => true;
+
     /// <summary>Identifies the VWAP Realtime mailbox.</summary>
     public const string ActorName = "FuturesVwapSignal";
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap =
@@ -57,8 +60,9 @@ public sealed class FuturesVwapSignalRealtimeActor(
         var handler = ResolveMappedEventHandler(@event, _receiveMap);
         if (!TypedContext.MarketDataApi.TryGetOnTheRunFuturesContract(
                 FuturesVwapConfiguration.Standard.RootSymbol, out var contract))
-            return;
-        _ = await handler(@event, TypedContext, contract, TypedContext.Logger).ConfigureAwait(false);
+            throw new InvalidOperationException("The current VWAP contract is unavailable; delivery cannot complete.");
+        if (!await handler(@event, TypedContext, contract, TypedContext.Logger).ConfigureAwait(false))
+            throw new IOException("VWAP required downstream delivery failed.");
     }
 
     /// <inheritdoc />

@@ -12,8 +12,34 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 /// Carries one non-durable update to the primary futures market-price realtime actor and its registered routes.
 /// </summary>
 [MessagePackObject(AllowPrivate = true)]
-public sealed record FuturesMarketPriceUpdatedRealtimeEvent : IEvent<TickDataEntityId>, IRealtimeSourceGeneration
+public sealed record FuturesMarketPriceUpdatedRealtimeEvent : IEvent<TickDataEntityId>, IRealtimeSourceGeneration, TomasAI.IFM.Shared.EventModelActor.IMessageOriginOwner
 {
+    [MessagePack.IgnoreMember]
+    TomasAI.IFM.Shared.EventModelActor.MessageOriginSlot originSlot;
+    [MessagePack.IgnoreMember]
+    ref TomasAI.IFM.Shared.EventModelActor.MessageOriginSlot TomasAI.IFM.Shared.EventModelActor.IMessageOriginOwner.MessageOriginSlot => ref originSlot;
+    /// <summary>Copies business fields while leaving nonserialized creation metadata unassociated.</summary>
+    [System.Diagnostics.CodeAnalysis.SetsRequiredMembers]
+    private FuturesMarketPriceUpdatedRealtimeEvent(FuturesMarketPriceUpdatedRealtimeEvent original)
+    {
+        SourceDataset = original.SourceDataset;
+        SourceGenerationId = original.SourceGenerationId;
+        Subject = original.Subject;
+        Id = original.Id;
+        EntityId = original.EntityId;
+        EventId = original.EventId;
+        CommandId = original.CommandId;
+        AggregateId = original.AggregateId;
+        EventSource = original.EventSource;
+        ReceivedOn = original.ReceivedOn;
+        SchemaVersion = original.SchemaVersion;
+        Price = original.Price;
+        UpdateSource = original.UpdateSource;
+        VwapCheckpoint = original.VwapCheckpoint;
+        SourceTrade = original.SourceTrade;
+    }
+
+
 
     /// <summary>Creates an empty event for serialization.</summary>
     public FuturesMarketPriceUpdatedRealtimeEvent() { }

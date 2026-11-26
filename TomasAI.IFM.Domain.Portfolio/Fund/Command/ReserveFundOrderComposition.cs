@@ -1,4 +1,5 @@
 using TomasAI.IFM.Domain.Portfolio.Fund.Command.Model;
+using TomasAI.IFM.Domain.Portfolio.Shared.Validation;
 using TomasAI.IFM.Domain.Portfolio.Command.Model;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -39,6 +40,14 @@ public static class ReserveFundOrderComposition
                 return new ServiceOk<GuidResult>(new GuidResult(command.CommandId));
             }
 
+            if(command.ReconcileOnly==true)
+            {
+                // This command executes behind any earlier reservation on the same Fund actor.
+                // Later old requests are expired by the normal authoritative validation and cannot allocate.
+                return now>=command.Request.ExpiresAtUtc
+                    ?new ServiceFailed<GuidResult>(PortfolioErrorCodes.ReservationExpiredWithoutEffects,"Original reservation is authoritatively absent after expiry.")
+                    :new ServiceFailed<GuidResult>(PortfolioErrorCodes.ReservationNotYetSettled,"Original reservation is absent but its original validity has not ended.");
+            }
             var preparation = command.Preparation
                 ?? throw new InvalidOperationException("Fund reservation requires prepared order and trade identities.");
             var orderId = preparation.OrderId;

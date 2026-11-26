@@ -10,8 +10,34 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 /// Represents a domain event indicating that a Futures ITI signal has been generated.
 /// </summary>
 [MessagePackObject(AllowPrivate = true)]
-public record FuturesItiSignalGeneratedEvent : IEvent<FuturesItiSignalEntityId>, IRequireDurableProjection
+public record FuturesItiSignalGeneratedEvent : IEvent<FuturesItiSignalEntityId>, IRequireDurableProjection, TomasAI.IFM.Shared.EventModelActor.IMessageOriginOwner
 {
+    [MessagePack.IgnoreMember]
+    TomasAI.IFM.Shared.EventModelActor.MessageOriginSlot originSlot;
+    [MessagePack.IgnoreMember]
+    ref TomasAI.IFM.Shared.EventModelActor.MessageOriginSlot TomasAI.IFM.Shared.EventModelActor.IMessageOriginOwner.MessageOriginSlot => ref originSlot;
+    /// <summary>Copies business fields while leaving nonserialized creation metadata unassociated.</summary>
+    [System.Diagnostics.CodeAnalysis.SetsRequiredMembers]
+    protected FuturesItiSignalGeneratedEvent(FuturesItiSignalGeneratedEvent original)
+    {
+        Subject = original.Subject;
+        Id = original.Id;
+        EntityId = original.EntityId;
+        EventId = original.EventId;
+        CommandId = original.CommandId;
+        AggregateId = original.AggregateId;
+        EventSource = original.EventSource;
+        ReceivedOn = original.ReceivedOn;
+        FuturesItiSignal = original.FuturesItiSignal;
+        CreatedOn = original.CreatedOn;
+        CreatedBy = original.CreatedBy;
+        VixFuturesPrice = original.VixFuturesPrice;
+        DeriveLongerPeriods = original.DeriveLongerPeriods;
+        SourceCursor = original.SourceCursor;
+        JournalSequence = original.JournalSequence;
+    }
+
+
     [IgnoreMember] public const string Actor = "FuturesItiSignalEvent";
     [IgnoreMember] public const string Verb = "Generated";
     [IgnoreMember] public const int ErrorCode = 19002;

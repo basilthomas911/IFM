@@ -22,7 +22,8 @@ public static class FuturesTickTradeDataChanged
                 // A bid/ask mark never becomes a source trade or contributes to traded volume.
                 if (observation.PriceBasis == OptionMarketPriceBasis.QuoteMidpoint) return;
             }
-            _ = await context.Projector.ProcessRealtimeEventAsync(domainEvent.ToInsertedEvent()).ConfigureAwait(false);
+            if (!await context.Projector.ProcessRealtimeEventAsync(domainEvent.ToInsertedEvent()).ConfigureAwait(false))
+                throw new InvalidOperationException("Required trade tick projection failed.");
         }
     }
 }

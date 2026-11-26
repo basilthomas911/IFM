@@ -12,6 +12,43 @@ namespace TomasAI.IFM.Domain.Trade.UnitTests.TradeFlow;
 public sealed class IronCondorMonitoringInputReaderTests
 {
     [Fact]
+    public async Task Recorded_monitoring_source_suppresses_only_the_observer_while_capture_still_refreshes()
+    {
+        using var lifetime = new CancellationTokenSource();
+        var reads = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var pending = new TaskCompletionSource<EstablishedTradeDefinition?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var databases = Substitute.For<IDbContextFactory>(); var trades = Substitute.For<ITradeDbContext>(); databases.TradeDb.Returns(trades);
+        var tradeId = new TradeEntityId(1, 2, 3, 4);
+        var count = 0;
+        trades.GetEstablishedTradeAsync(tradeId, Arg.Any<CancellationToken>()).Returns(_ =>
+        {
+            if (Interlocked.Increment(ref count) == 2) reads.TrySetResult();
+            return pending.Task;
+        });
+        var live = new ObserverClock(false); var replay = new ObserverClock(true);
+        var position = new StrategyPositionSnapshot { Id = StrategyPositionId.Create(tradeId, TradeStrategyKind.IronCondor) };
+        var now = new DateTime(2026, 10, 7, 12, 0, 0, DateTimeKind.Utc);
+        foreach (var clock in new[] { live, replay })
+        {
+            var reader = new IronCondorMonitoringInputReader(databases, Substitute.For<ILogger>(), stoppingToken: lifetime.Token,
+                publishInputChange: (_, _, _, _) => Task.CompletedTask, timeProvider: clock);
+            Assert.Null(reader.Capture(position, new(2026, 10, 7), now));
+        }
+        await reads.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await live.Observed.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        Assert.False(replay.Observed.Task.IsCompleted);
+        Assert.Equal(2, Volatile.Read(ref count));
+        lifetime.Cancel(); pending.TrySetResult(null);
+    }
+
+    sealed class ObserverClock(bool recorded) : TimeProvider, TomasAI.IFM.Shared.Time.IRecordedRealtimeSourceReplay
+    {
+        public TaskCompletionSource Observed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public bool UsesRecordedSource(string actor, string verb) => recorded && actor == "IronCondorTradePositionRealtime" && verb == "IronCondorMonitoringInputsChanged";
+        public override DateTimeOffset GetUtcNow() { Observed.TrySetResult(); return new(2026, 10, 7, 12, 0, 0, TimeSpan.Zero); }
+    }
+
+    [Fact]
     public async Task Hung_storage_read_does_not_block_ticks_or_create_parallel_refreshes()
     {
         var databases = Substitute.For<IDbContextFactory>();

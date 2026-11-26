@@ -49,7 +49,7 @@ pub struct FuturesFactory {
     current: Arc<Mutex<Option<Arc<Current>>>>,
     diagnostics: Arc<Diagnostics>,
     queries: Arc<Mutex<Option<Queries>>>,
-    identity: Mutex<Option<crate::messaging::ordered::Header>>,
+    identity: Arc<Mutex<Option<crate::messaging::ordered::Header>>>,
 }
 impl FuturesFactory {
     /// Binds the authoritative API clock shared by native source processing.
@@ -63,7 +63,7 @@ impl FuturesFactory {
             current: Arc::new(Mutex::new(None)),
             diagnostics: Arc::default(),
             queries: Arc::new(Mutex::new(None)),
-            identity: Mutex::new(None),
+            identity: Arc::new(Mutex::new(None)),
         }
     }
     /// Detached current canonical/provider mappings, available after native setup.
@@ -85,11 +85,17 @@ impl FuturesFactory {
         self.queries.lock().ok().and_then(|q| q.clone())
     }
     /// Samples current source/output/publication counters without provider I/O.
-    pub fn counters(&self, generation: [u8; 16]) -> Option<std::collections::BTreeMap<String, i64>> {
-        if self.identity()?.generation != generation { return None; }
+    pub fn counters(
+        &self,
+        generation: [u8; 16],
+    ) -> Option<std::collections::BTreeMap<String, i64>> {
+        if self.identity()?.generation != generation {
+            return None;
+        }
         let mut result = self.queries()?.counters().ok()?;
         if let Some(directory) = self.publication.lock().ok()?.as_ref()
-            && let Some(port) = directory.lock().ok()?.as_ref() {
+            && let Some(port) = directory.lock().ok()?.as_ref()
+        {
             result.extend(port.counters());
         }
         (self.identity()?.generation == generation).then_some(result)
@@ -113,6 +119,17 @@ struct Group {
     status: watch::Receiver<Readiness>,
     retirement: Arc<Mutex<Option<Deadline>>>,
 }
+struct ImportedGroup{
+    parent:Arc<Child>,status:watch::Receiver<Readiness>,_state:crate::messaging::futures_delivery::ImportedFutures,
+}
+impl Resources for ImportedGroup{
+    fn provider(&self)->Option<crate::runtime::owner::ProviderUpdates>{None}
+    fn cancel(&self,_:Deadline){self.parent.cancellation().cancel();self._state.retire();}
+    fn reset(&mut self,_:Deadline)->BoxFuture<'_,Result<(),String>>{Box::pin(async{Err("Read-only checkpoint imports cannot start/reset provider resources".into())})}
+    fn changes(&self)->watch::Receiver<Readiness>{self.status.clone()}
+    fn join(&mut self,_:Deadline)->BoxFuture<'_,Result<(),String>>{Box::pin(async{Ok(())})}
+}
+impl Drop for ImportedGroup{fn drop(&mut self){self.parent.cancellation().cancel();self._state.retire();}}
 impl Factory for FuturesFactory {
     fn audit_workloads(&self, intent: &Self::Intent) -> Vec<String> {
         intent
@@ -134,6 +151,27 @@ impl Factory for FuturesFactory {
         deadline: Deadline,
     ) -> Result<Box<dyn Resources>, String> {
         let lane = intent.source.plan.lane;
+        if crate::checkpoint::replay_import_only(){
+            let image=crate::checkpoint::staged_owner(&intent.scope,&format!("futures-{}",lane as u8))?.ok_or("Read-only futures import requires its original staged owner")?;
+            let fields=crate::checkpoint::fields(&image,4)?;
+            let (restored,contracts,public_models)=super::futures_recipe_checkpoint::restore(&fields[3],&intent)?;
+            let(worker,generation)=crate::checkpoint::staged_futures_identity(&intent.scope,lane)?.ok_or("Original futures replay header absent")?;
+            let data=Arc::new(LiveData::new(restored.date,u128::from_le_bytes(generation),2048,self.clock.clone(),parent.owner().clone())?.with_diagnostics(self.diagnostics.clone(),worker)?.with_raw_capture(restored.definition));
+            let events=Futures::new(lane,restored.date,restored.definition,restored.source.registrations.clone(),64).map_err(str::to_owned)?;
+            let config=Configuration{broker:restored.broker.clone(),scope:restored.scope.clone(),lane,value_date:restored.date.to_julian_day()-1721426,worker,generation,revision:restored.revision,control_only:restored.source.evidence==Evidence::ControlOnly,queue:256,bytes:4*1024*1024};
+            let state=crate::messaging::futures_delivery::import_read_only(data.clone(),events,config,fields[3].clone())?;
+            *self.identity.lock().map_err(|_|"Original futures header directory interrupted")?=Some(crate::messaging::ordered::Header{lane,value_date:restored.date.to_julian_day()-1721426,worker,generation,revision:restored.revision});
+            *self.bindings.lock().map_err(|_|"Original futures registration directory interrupted")?=Some(Arc::new(restored.source.registrations));
+            *self.contracts.lock().map_err(|_|"Original futures catalog directory interrupted")?=Some(Arc::new(contracts));
+            *self.public_models.lock().map_err(|_|"Original futures public catalog interrupted")?=Some(Arc::new(public_models));
+            *self.current.lock().map_err(|_|"Original futures current directory interrupted")?=Some(state.current.clone());
+            *self.queries.lock().map_err(|_|"Original futures book directory interrupted")?=data.queries(lane)?;
+            let status=watch::channel(Readiness{setup_complete:false,proofs:vec![],failure:Some("Imported original read-only native state; no provider is running".into()),deadline:None}).1;
+            return Ok(Box::new(ImportedGroup{parent,status,_state:state}));
+        }
+        // Supervisor starts resources only after the previous provider group is quiesced/joined.
+        // Keep the original copied identity until every accepted native source has durable API ownership.
+        let retained_source=crate::messaging::source_outbox::lookup(&intent.scope).map_err(str::to_owned)?;
         if lane == Lane::OptionsGlbx || intent.revision <= 0 {
             return Err("Invalid native futures dataset intent".into());
         }
@@ -147,21 +185,17 @@ impl Factory for FuturesFactory {
         }
         // Retire the diagnostic directory before publishing the replacement ID.
         // An observer must never label the prior resource's totals with a new ID.
-        *self.queries.lock().map_err(|_| "Native query directory interrupted")? = None;
-        *self.publication.lock().map_err(|_| "Native publication diagnostics interrupted")? = None;
-        let worker = rand::random::<u128>().max(1).to_le_bytes();
-        let generation = rand::random::<u128>().max(1).to_le_bytes();
         *self
-            .identity
+            .queries
             .lock()
-            .map_err(|_| "Native futures identity directory interrupted")? =
-            Some(crate::messaging::ordered::Header {
-                lane,
-                value_date: intent.date.to_julian_day() - 1721426,
-                worker,
-                generation,
-                revision: intent.revision,
-            });
+            .map_err(|_| "Native query directory interrupted")? = None;
+        *self
+            .publication
+            .lock()
+            .map_err(|_| "Native publication diagnostics interrupted")? = None;
+        let original=crate::checkpoint::staged_futures_identity(&intent.scope,lane)?;
+        let (worker,generation)=original.unwrap_or_else(||(rand::random::<u128>().max(1).to_le_bytes(),rand::random::<u128>().max(1).to_le_bytes()));
+        let identity=self.identity.clone();
         let data = Arc::new(
             LiveData::new(
                 intent.date,
@@ -174,7 +208,10 @@ impl Factory for FuturesFactory {
             .with_diagnostics(self.diagnostics.clone(), worker)?
             .with_raw_capture(intent.definition),
         );
-        *self.publication.lock().map_err(|_| "Native publication diagnostics interrupted")? = None;
+        *self
+            .publication
+            .lock()
+            .map_err(|_| "Native publication diagnostics interrupted")? = None;
         let (status, observed) = watch::channel(Readiness::default());
         let output = self.current.clone();
         let publication_diagnostics = self.publication.clone();
@@ -206,25 +243,35 @@ impl Factory for FuturesFactory {
         let task=parent.spawn_joined(move|stop|async move{
             let mut setup=Some(deadline);
             let result=async {
+                if let Some(source)=retained_source{source.wait_drained(lane,&stop,deadline).await?;}
+                *identity.lock().map_err(|_|"Native futures identity directory interrupted")?=Some(crate::messaging::ordered::Header{lane,value_date:intent.date.to_julian_day()-1721426,worker,generation,revision:intent.revision});
                 let intent=if let Some(bootstrap)=&intent.bootstrap {
                     let (source, models, public)=bootstrap.resolve_with_models(&intent.source,intent.date,&stop,deadline).await?;
                     *public_models.lock().map_err(|_|"Native public contract directory interrupted")?=Some(Arc::new(public));
                     *contracts.lock().map_err(|_|"Native contract directory interrupted")?=Some(Arc::new(models));
                     Arc::new(Intent{bootstrap:None,date:intent.date,definition:intent.definition,source,broker:intent.broker.clone(),scope:intent.scope.clone(),revision:intent.revision})
                 }else{intent};
-                let encoder=Futures::new(lane,intent.date,intent.definition,intent.source.registrations.clone(),64)?;
+                let mut encoder=Some(Futures::new(lane,intent.date,intent.definition,intent.source.registrations.clone(),64)?);
+                let checkpoint_metadata=super::futures_recipe_checkpoint::capture(&intent,contracts.lock().map_err(|_|"Futures checkpoint catalog interrupted")?.as_ref().map_or_else(Vec::new,|values|values.as_ref().clone()),public_models.lock().map_err(|_|"Futures checkpoint public catalog interrupted")?.as_ref().map_or_else(Vec::new,|values|values.as_ref().clone()));
                 *bindings.lock().map_err(|_|"Native futures binding directory interrupted")?=Some(Arc::new(intent.source.registrations.clone()));
                 let mut diagnostics=diagnostic_delivery::Delivery::start(source.diagnostics(),intent.broker.clone(),intent.scope.clone(),owned.clone())?;
                 let mut logs=diagnostics.changes();
                 let mut connection_source=intent.source.clone();
                 connection_source.evidence=super::live::Evidence::ControlOnly;
+                let configuration=||Configuration{
+                    broker:intent.broker.clone(),scope:intent.scope.clone(),lane,value_date:intent.date.to_julian_day()-1721426,
+                    worker,generation,revision:intent.revision,control_only:intent.source.evidence==Evidence::ControlOnly,queue:256,bytes:4*1024*1024,
+                };
+                let early_delivery=if crate::messaging::source_outbox::enabled() {
+                    Some(Delivery::start_with_metadata(source.clone(),encoder.take().unwrap(),configuration(),owned.clone(),deadline,checkpoint_metadata.clone()).map_err(String::from)?)
+                }else{None};
                 source.start_in_parent(connection_source,&stop,deadline,&owned).await?;
                 *queries.lock().map_err(|_|"Native query directory interrupted")?=source.queries(lane)?;
                 let mut lifecycle=source.lifecycle(lane)?.ok_or("Native futures source status absent")?;
-                let mut delivery=Delivery::start(source.clone(),encoder,Configuration{
-                    broker:intent.broker.clone(),scope:intent.scope.clone(),lane,value_date:intent.date.to_julian_day()-1721426,
-                    worker,generation,revision:intent.revision,control_only:intent.source.evidence==Evidence::ControlOnly,queue:256,bytes:4*1024*1024,
-                },owned.clone(),deadline).map_err(String::from)?;
+                let mut delivery=match early_delivery {
+                    Some(delivery)=>{delivery.source_started();delivery},
+                    None=>Delivery::start_with_metadata(source.clone(),encoder.take().unwrap(),configuration(),owned.clone(),deadline,checkpoint_metadata).map_err(String::from)?,
+                };
                 *publication_diagnostics.lock().map_err(|_|"Native publication diagnostics interrupted")?=Some(delivery.diagnostics());
                 *output.lock().map_err(|_|"Native futures query directory interrupted")?=Some(delivery.current());
                 let mut publications=delivery.changes();

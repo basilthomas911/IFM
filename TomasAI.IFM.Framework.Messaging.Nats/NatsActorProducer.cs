@@ -1,10 +1,13 @@
 using Microsoft.Extensions.Logging;
+using System.Buffers;
+using TomasAI.IFM.Framework.Messaging.NatsJetStream.RealtimeMailboxes;
 using NATS.Client.Core;
 using NATS.Net;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Serializers;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Shared.MarketData.Contracts.TickAggregation;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 
@@ -23,7 +26,11 @@ public class NatsActorProducer(
     INatsProducerOptions options,
     ILogger logger,
     NatsConnectionManager? connectionManager = null,
-    TimeProvider? timeProvider = null)
+    TimeProvider? timeProvider = null,
+    IRealtimePublicationCapture? realtimeCapture = null,
+    IRealtimeSessionRecorder? sessionRecorder = null,
+    Func<IActorSupervisor>? sessionSupervisor = null,
+    RealtimeSessionRootFence? sessionRootFence = null)
     : IActorProducer, IAsyncDisposable
 {
     readonly INatsProducerOptions _options = IsArgumentNull.Set(options);
@@ -179,7 +186,7 @@ public class NatsActorProducer(
             IsArgumentNull.Check(entityId);
             if (!IsRunning)
                 await StartAsync(_actorId, cancellationToken).ConfigureAwait(false);
-            await PublishAsync(subject.ToString(), command.ToCommand<TCommand, TEntityId>(), cancellationToken).ConfigureAwait(false);
+            await PublishAsync(subject, command.ToCommand<TCommand, TEntityId>(), cancellationToken).ConfigureAwait(false);
             if (_logger.IsEnabled(LogLevel.Debug))
                 global::TomasAI.IFM.Framework.Messaging.NatsJetStream.PersistenceDiagnosticLog.Write4(_logger, null, nameof(NatsActorProducer), nameof(SendAsync), subject, command.CommandId);
         }
@@ -219,7 +226,7 @@ public class NatsActorProducer(
             IsArgumentNull.Check(@event);
             if (!IsRunning)
                 await StartAsync(_actorId, cancellationToken).ConfigureAwait(false);
-            await PublishAsync(subject.ToString(), @event.ToEvent<TEvent>(), cancellationToken).ConfigureAwait(false);
+            await PublishAsync(subject, @event.ToEvent<TEvent>(), cancellationToken).ConfigureAwait(false);
             if (_logger.IsEnabled(LogLevel.Debug))
                 global::TomasAI.IFM.Framework.Messaging.NatsJetStream.PersistenceDiagnosticLog.Write6(_logger, null, nameof(NatsActorProducer), nameof(SendAsync), subject, @event.CommandId);
         }
@@ -250,7 +257,7 @@ public class NatsActorProducer(
             IsArgumentNull.Check(@event);
             if (!IsRunning)
                 await StartAsync(_actorId).ConfigureAwait(false);
-            await PublishAsync(subject.ToString(), @event).ConfigureAwait(false);
+            await PublishAsync(subject, @event).ConfigureAwait(false);
             if (_logger.IsEnabled(LogLevel.Debug))
                 global::TomasAI.IFM.Framework.Messaging.NatsJetStream.PersistenceDiagnosticLog.Write8(_logger, null, nameof(NatsActorProducer), nameof(SendAsync), subject);
         }
@@ -402,16 +409,65 @@ public class NatsActorProducer(
             cancellationToken).ConfigureAwait(false);
     }
 
-    async ValueTask PublishAsync<T>(string subject, T message, CancellationToken cancellationToken = default)
+    async ValueTask PublishAsync<T>(ActorSubject subject, T message, CancellationToken cancellationToken = default)
     {
+        using var rootAdmission = sessionRecorder?.Enabled == true && sessionRootFence is not null && RealtimeSessionRootFence.IsRoot(subject)
+            ? await sessionRootFence.EnterAsync(cancellationToken).ConfigureAwait(false) : null;
         var started = NatsMessagingMetrics.StartOperation();
         try
         {
             TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.ThrowIfRetired();
+            var origin = MessageOrigins.ForPublication(message!, _clock);
+            if (sessionRecorder?.Enabled == true && subject.ActorType == ActorType.Realtime)
+            {
+                if (realtimeCapture?.Enabled == true) throw new InvalidOperationException("Capture-only recording cannot replace an enabled durable realtime backend.");
+                if (message is not IEvent source || source.Id == Guid.Empty)
+                    throw new InvalidDataException("Session source recording requires an immutable original event ID.");
+                var registry = sessionSupervisor?.Invoke() ?? throw new InvalidOperationException("Session recording requires the actual actor registry.");
+                var destinations = NatsActorConsumer.BuildPubSubDestinations(registry, subject.ActorType, subject).ToArray();
+                if (subject.ActorType == ActorType.Realtime && FuturesItiOrderedIngress.HasTradeConsumer)
+                    destinations = destinations.Where(value => value.Name != "FuturesItiSignalRealtime").ToArray();
+                if (subject.ActorType == ActorType.Realtime && subject.Verb == "TradeReplayBatch" && FuturesItiOrderedIngress.HasReplayConsumer) destinations = [];
+                var recorded = new ArrayBufferWriter<byte>();
+                NatsMessagePackSerializer<T>.Default.Serialize(recorded, message);
+                var generation = message as IRealtimeSourceGeneration;
+                var activity = System.Diagnostics.Activity.Current;
+                var recordedHeaders = RealtimeSourceGenerationHeaders.Add(global::TomasAI.IFM.Framework.Messaging.Nats.MessageOriginHeaders.Add(
+                    global::TomasAI.IFM.Framework.Messaging.Nats.NatsActorTrace.Headers(), origin), message!);
+                var key = $"core/v1|{subject}|{source.Id:N}|{generation?.SourceDataset}|{generation?.SourceGenerationId:N}|{origin?.ClockDomainId}|{origin?.RunId}";
+                // Reconstructable clock wakeups may legitimately reuse their business identity with a new clock body.
+                if (subject.Verb == "EvaluateFuturesExitClock") key += "|" + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(recorded.WrittenSpan));
+                var receipt = await sessionRecorder.RecordAsync(new RealtimeSessionArchiveRecord {
+                    Kind = subject.ActorType == ActorType.Realtime ? "RealtimePublication" : "AccountObservation", LogicalSourceKey = key,
+                    Subject = subject.ToString(), OriginalWire = recorded.WrittenMemory, Origin = origin, Dataset = generation?.SourceDataset,
+                    GenerationId = generation?.SourceGenerationId ?? Guid.Empty, EventId = source.Id, Destinations = destinations,
+                    TraceParent = activity?.Id, TraceState = activity?.TraceStateString
+                }, cancellationToken).ConfigureAwait(false);
+                if (!receipt.ArchiveOwnershipOnly || !string.Equals(receipt.OriginalWireSha256,
+                    Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(recorded.WrittenSpan)), StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidDataException("Session source archive did not prove the original wire ownership.");
+                // Publish the exact archived body and frozen headers; do not invoke mutable DTO getters or serializers a second time.
+                await _nc!.PublishAsync(subject.ToString(), recorded.WrittenMemory, headers: recordedHeaders,
+                    serializer: SessionWireSerializer.Instance, cancellationToken: cancellationToken).ConfigureAwait(false);
+                NatsMessagingMetrics.Published.Add(1);
+                return;
+            }
+            if (subject.ActorType == ActorType.Realtime && realtimeCapture?.Enabled == true)
+            {
+                if (message is not IEvent source) throw new InvalidDataException("Durable realtime publications require an immutable event identity.");
+                var writer = new ArrayBufferWriter<byte>();
+                NatsMessagePackSerializer<T>.Default.Serialize(writer, message);
+                var generation = message as IRealtimeSourceGeneration;
+                await realtimeCapture.CaptureAsync(new(subject, source.Id, writer.WrittenMemory, origin,
+                    generation?.SourceDataset, generation?.SourceGenerationId ?? Guid.Empty,
+                    System.Diagnostics.Activity.Current?.Id, System.Diagnostics.Activity.Current?.TraceStateString), cancellationToken).ConfigureAwait(false);
+                NatsMessagingMetrics.Published.Add(1);
+                return;
+            }
             await _nc!.PublishAsync(
-                subject,
+                subject.ToString(),
                 message,
-                headers: RealtimeSourceGenerationHeaders.Add(global::TomasAI.IFM.Framework.Messaging.Nats.MessageOriginHeaders.Add(global::TomasAI.IFM.Framework.Messaging.Nats.NatsActorTrace.Headers(), MessageOrigins.ForPublication(message!, _clock)), message!),
+                headers: RealtimeSourceGenerationHeaders.Add(global::TomasAI.IFM.Framework.Messaging.Nats.MessageOriginHeaders.Add(global::TomasAI.IFM.Framework.Messaging.Nats.NatsActorTrace.Headers(), origin), message!),
                 serializer: NatsMessagePackSerializer<T>.Default,
                 cancellationToken: cancellationToken).ConfigureAwait(false);
             NatsMessagingMetrics.Published.Add(1);
@@ -425,6 +481,12 @@ public class NatsActorProducer(
         {
             NatsMessagingMetrics.RecordOperation(started, NatsMessagingMetrics.CorePublishOperation);
         }
+    }
+
+    internal sealed class SessionWireSerializer : INatsSerialize<ReadOnlyMemory<byte>>
+    {
+        internal static readonly SessionWireSerializer Instance = new();
+        public void Serialize(IBufferWriter<byte> bufferWriter, ReadOnlyMemory<byte> value) => bufferWriter.Write(value.Span);
     }
 
     async ValueTask<ServiceResult<TResult>> RequestAsync<TRequest, TResult>(

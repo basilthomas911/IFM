@@ -17,13 +17,15 @@ public sealed class FuturesTdiSignalRealtimeContext : EventActorContext, IFuture
         IActorSupervisor supervisor,
         IRealtimeProjector<FuturesTdiSignalRealtimeActor> projector,
         IDbContextFactory dbFactory,
-        ILogger<FuturesTdiSignalRealtimeActor> logger)
+        ILogger<FuturesTdiSignalRealtimeActor> logger,
+        FuturesTdiResultReceipts? receipts = null)
         : base(supervisor, new ActorMailboxId(ActorType.Realtime, FuturesTdiSignalRealtimeActor.ActorName))
     {
         Supervisor = IsArgumentNull.Set(supervisor);
         Projector = IsArgumentNull.Set(projector);
         DbFactory = IsArgumentNull.Set(dbFactory);
         Logger = IsArgumentNull.Set(logger);
+        Receipts = receipts ?? new();
     }
 
     /// <inheritdoc/>
@@ -32,6 +34,8 @@ public sealed class FuturesTdiSignalRealtimeContext : EventActorContext, IFuture
     public IRealtimeProjector<FuturesTdiSignalRealtimeActor> Projector { get; }
     /// <inheritdoc/>
     public IDbContextFactory DbFactory { get; }
+    /// <inheritdoc/>
+    public FuturesTdiResultReceipts Receipts { get; }
     /// <inheritdoc/>
     public ILogger<FuturesTdiSignalRealtimeActor> Logger { get; }
 }

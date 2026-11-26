@@ -22,6 +22,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../TomasAI.IFM.Framework.Messaging.Nats/TomasAI.IFM.Framework.Messaging.Nats.csproj" />
+    <Compile Include="../test-support/StrictRealtimeCaptureFixture.cs" Link="Support/StrictRealtimeCaptureFixture.cs" />
     <ProjectReference Include="..\TomasAI.IFM.Domain.Portfolio\TomasAI.IFM.Domain.Portfolio.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Domain.Trade\TomasAI.IFM.Domain.Trade.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Analytics\TomasAI.IFM.Domain.MarketData.Analytics.csproj" />
@@ -45,4 +47,13 @@
 <ItemGroup><Compile Include="../test-support/AssessmentSeparationScenario.cs" Link="Support/AssessmentSeparationScenario.cs" /></ItemGroup>
 <ItemGroup><Compile Include="../test-support/OptionVxVetoScenario.cs" Link="Support/OptionVxVetoScenario.cs" /></ItemGroup>
 <ItemGroup><Compile Include="../test-support/DailyAtrFuturesScenario.cs" Link="Support/DailyAtrFuturesScenario.cs" /></ItemGroup>
-<ItemGroup><Compile Include="../test-support/ExpiryFixingTestScenario.cs" Link="Support/ExpiryFixingTestScenario.cs" /></ItemGroup></Project>
+<ItemGroup><Compile Include="../test-support/ExpiryFixingTestScenario.cs" Link="Support/ExpiryFixingTestScenario.cs" /></ItemGroup>  <ItemGroup><Compile Include="../test-support/IronCondorPositionDeliveryFixture.cs" Link="Support/IronCondorPositionDeliveryFixture.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../test-support/VerticalSpreadPositionDeliveryFixture.cs" Link="Support/VerticalSpreadPositionDeliveryFixture.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../test-support/FuturesPositionDeliveryFixture.cs" Link="Support/FuturesPositionDeliveryFixture.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../test-support/FuturesRoutingDeliveryFixture.cs" Link="Support/FuturesRoutingDeliveryFixture.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../test-support/FuturesOptionRoutingDeliveryFixture.cs" Link="Support/FuturesOptionRoutingDeliveryFixture.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../test-support/BrokerOrderDeliveryFixture.cs" Link="Support/BrokerOrderDeliveryFixture.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../test-support/BrokerEmulatorSettlementFixture.cs" Link="Support/BrokerEmulatorSettlementFixture.cs" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.TradeBroker/TomasAI.IFM.Application.TradeBroker.csproj" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="../TomasAI.IFM.Framework.TradeBroker.InteractiveBrokers.Emulator/TomasAI.IFM.Framework.TradeBroker.InteractiveBrokers.Emulator.csproj" /></ItemGroup>
+<ItemGroup><Compile Include="../test-support/BrokerObservationDeliveryFixture.cs" Link="Support/BrokerObservationDeliveryFixture.cs" /></ItemGroup><ItemGroup><Compile Include="../test-support/WorkflowDispatchDeliveryFixture.cs" Link="Support/WorkflowDispatchDeliveryFixture.cs" /></ItemGroup><ItemGroup><Compile Include="../TomasAI.IFM.IntegrationTesting/IsolatedIntegrationInfrastructure.cs" Link="Support/IsolatedIntegrationInfrastructure.cs" /></ItemGroup></Project>

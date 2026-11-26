@@ -14,6 +14,7 @@ public sealed class DatasetWorkerAdmissionRegistry : IRealtimeSourceAdmission
     readonly Dictionary<string, AdmissionState> admissions = new(StringComparer.Ordinal);
     readonly Dictionary<(string Dataset, Guid Generation), AdmissionState> draining = new();
     readonly Dictionary<string, ProbeState> probes = new(StringComparer.Ordinal);
+    readonly Dictionary<(string Dataset,Guid Generation),RecoveryAuthority> recoveries=[];
     bool managedRealtimeSources;
     long rejected;
 
@@ -90,12 +91,99 @@ public sealed class DatasetWorkerAdmissionRegistry : IRealtimeSourceAdmission
         {
             if (!admissions.TryGetValue(identity.Dataset, out var current)
                 || current.Identity != identity
-                || publicationSequence <= current.LastSequence)
+                || publicationSequence <= current.LastSequence || current.PendingSequence != 0)
                 return Reject();
             current.LastSequence = publicationSequence;
             generationCancellation = current.Stopping.Token;
             return true;
         }
+    }
+
+    /// <summary>Reserves one exact source without advancing the confirmed publication watermark.
+    /// A failed capture retains its identity and prevents a successor from overtaking it.</summary>
+    public async ValueTask<PublicationAdmission?> BeginPublicationAsync(DatasetWorkerAdmission identity,long sequence,string contentHash,CancellationToken token=default)
+    {
+        AdmissionState? state;
+        lock(gate)
+        {
+            if(sequence<1||contentHash.Length!=64||!admissions.TryGetValue(identity.Dataset,out state)||state.Identity!=identity)
+            {Reject();return null;}
+        }
+        await state.PublicationGate.WaitAsync(token).ConfigureAwait(false);
+        try
+        {
+            lock(gate)
+            {
+                if(state.Closing||state.CaptureSealed||!admissions.TryGetValue(identity.Dataset,out var current)||!ReferenceEquals(current,state)||sequence<=state.LastSequence)
+                {Reject();state.PublicationGate.Release();return null;}
+                if(state.PendingSequence!=0&&(state.PendingSequence!=sequence||state.PendingHash!=contentHash))
+                    throw new InvalidDataException("A prior immutable dataset publication still owns capture; retry it before its successor.");
+                state.PendingSequence=sequence;state.PendingHash=contentHash;
+                return new PublicationAdmission(this,state,sequence,contentHash);
+            }
+        }
+        catch {state.PublicationGate.Release();throw;}
+    }
+    public sealed class PublicationAdmission:IDisposable
+    {
+        readonly DatasetWorkerAdmissionRegistry owner;readonly AdmissionState state;readonly long sequence;readonly string hash;int disposed;
+        internal PublicationAdmission(DatasetWorkerAdmissionRegistry owner,AdmissionState state,long sequence,string hash)
+        {this.owner=owner;this.state=state;this.sequence=sequence;this.hash=hash;}
+        public CancellationToken GenerationCancellation=>state.Stopping.Token;
+        /// <summary>Called only after confirmed durable ownership. Retirement cannot erase an already captured fact.</summary>
+        public void ConfirmCapture()=>ConfirmCaptureThrough(sequence);
+        public void ConfirmCaptureThrough(long lastSequence)
+        {
+            if(lastSequence<sequence)throw new InvalidDataException("Confirmed capture group cannot regress its source sequence.");
+            lock(owner.gate)
+            {
+                ObjectDisposedException.ThrowIf(disposed!=0,this);
+                if(state.PendingSequence!=sequence||state.PendingHash!=hash)throw new InvalidDataException("Dataset capture reservation changed.");
+                state.LastSequence=lastSequence;state.PendingSequence=0;state.PendingHash=string.Empty;
+            }
+        }
+        public void Dispose(){if(Interlocked.Exchange(ref disposed,1)==0)state.PublicationGate.Release();}
+    }
+
+    /// <summary>Stops fresh source admission while original required handlers drain. This does not cancel their authority.</summary>
+    public async ValueTask SealCaptureAsync(DatasetWorkerAdmission identity,CancellationToken token)
+    {
+        AdmissionState? state;lock(gate){if(!admissions.TryGetValue(identity.Dataset,out state)||state.Identity!=identity)return;}
+        await state.PublicationGate.WaitAsync(token).ConfigureAwait(false);
+        try{lock(gate)state.CaptureSealed=true;}finally{state.PublicationGate.Release();}
+    }
+    /// <summary>Allows only a generation backed by the durable hub's retained required-source inventory.
+    /// This never installs live worker identity, admits new source capture or updates read views.</summary>
+    public IDisposable AllowDurableRecovery(string dataset,Guid generation)
+    {
+        if(string.IsNullOrWhiteSpace(dataset)||generation==Guid.Empty)throw new ArgumentException("Invalid durable recovery generation.");
+        lock(gate)
+        {
+            if(!recoveries.TryGetValue((dataset,generation),out var state)){state=new(dataset,generation);recoveries.Add((dataset,generation),state);}
+            state.Owners++;state.Closing=false;managedRealtimeSources=true;
+            return new RecoveryOwnership(this,state);
+        }
+    }
+
+    public bool TryEnterDurableRecovery(string dataset,Guid generation,out IDisposable? processingLease)
+    {
+        processingLease=null;lock(gate)
+        {
+            if(!recoveries.TryGetValue((dataset,generation),out var state)||state.Closing)return false;
+            state.ActiveHandlers++;processingLease=new RecoveryProcessing(this,state);return true;
+        }
+    }
+
+    public long LastConfirmedSequence(DatasetWorkerAdmission identity)
+    {lock(gate)return admissions.TryGetValue(identity.Dataset,out var state)&&state.Identity==identity?state.LastSequence:-1;}
+
+    /// <summary>Proves a duplicate latest-value publication was already delivered in this exact admission.</summary>
+    public bool HasConfirmedOptionObservation(DatasetWorkerAdmission identity, string contract, long sequence,
+        DateTimeOffset observedAt,DateTimeOffset calculatedAt,bool pricingUpdate)
+    {
+        lock(gate)return admissions.TryGetValue(identity.Dataset,out var state)&&state.Identity==identity
+            &&state.Options.TryGetValue((contract,pricingUpdate),out var old)
+            &&(old.Sequence>=sequence||observedAt<old.ObservedAt||observedAt==old.ObservedAt&&calculatedAt<old.CalculatedAt);
     }
 
     public bool TryGet(string dataset, out DatasetWorkerAdmission admission)
@@ -154,6 +242,8 @@ public sealed class DatasetWorkerAdmissionRegistry : IRealtimeSourceAdmission
                 processingLease = new ProbeProcessingLease(this, probe);
                 return true;
             }
+            if(dataset is not null&&recoveries.TryGetValue((dataset,generationId),out var recovery)&&!recovery.Closing)
+            {recovery.ActiveHandlers++;processingLease=new RecoveryProcessing(this,recovery);return true;}
             if (string.IsNullOrEmpty(dataset) || generationId == Guid.Empty
                 || !admissions.TryGetValue(dataset, out var current)
                 || current.Identity.GenerationId != generationId)
@@ -259,15 +349,32 @@ public sealed class DatasetWorkerAdmissionRegistry : IRealtimeSourceAdmission
         finally { stopping.Dispose(); }
     }
 
-    sealed class AdmissionState(DatasetWorkerAdmission identity)
+    internal sealed class AdmissionState(DatasetWorkerAdmission identity)
     {
         public Dictionary<(string Contract, bool PricingUpdate), (long Sequence, DateTimeOffset ObservedAt, DateTimeOffset CalculatedAt)> Options { get; } = [];
         public DatasetWorkerAdmission Identity { get; } = identity;
         public CancellationTokenSource Stopping { get; } = new();
         public long LastSequence;
+        public long PendingSequence;
+        public string PendingHash=string.Empty;
+        public SemaphoreSlim PublicationGate {get;}=new(1,1);
         public int ActiveHandlers;
         public bool Closing;
+        public bool CaptureSealed;
         public TaskCompletionSource Drained { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    }
+
+    sealed class RecoveryAuthority(string dataset,Guid generation)
+    {public string Dataset{get;}=dataset;public Guid Generation{get;}=generation;public int Owners,ActiveHandlers;public bool Closing;}
+    sealed class RecoveryOwnership(DatasetWorkerAdmissionRegistry owner,RecoveryAuthority state):IDisposable
+    {
+        int disposed;
+        public void Dispose(){if(Interlocked.Exchange(ref disposed,1)!=0)return;lock(owner.gate){state.Owners--;if(state.Owners==0){state.Closing=true;if(state.ActiveHandlers==0)owner.recoveries.Remove((state.Dataset,state.Generation));}}}
+    }
+    sealed class RecoveryProcessing(DatasetWorkerAdmissionRegistry owner,RecoveryAuthority state):IDisposable
+    {
+        int disposed;
+        public void Dispose(){if(Interlocked.Exchange(ref disposed,1)!=0)return;lock(owner.gate){state.ActiveHandlers--;if(state.Closing&&state.ActiveHandlers==0)owner.recoveries.Remove((state.Dataset,state.Generation));}}
     }
 
     sealed class ProbeState(DatasetWorkerAdmission identity)

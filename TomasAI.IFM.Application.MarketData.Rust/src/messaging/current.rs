@@ -16,6 +16,20 @@ pub struct Current {
     state: Mutex<State>,
 }
 impl Current {
+    pub(crate) fn checkpoint(&self)->Result<rmpv::Value,String>{
+        let state=self.state.lock().map_err(|_|"Checkpoint current owner interrupted")?;
+        Ok(rmpv::Value::Array(vec![1.into(),(self.maximum_contracts as u64).into(),(self.maximum_bytes as u64).into(),rmpv::Value::Array(state.frames.iter().map(|((contract,kind),frame)|rmpv::Value::Array(vec![contract.clone().into(),(*kind).into(),frame.checkpoint()])).collect())]))
+    }
+    pub(crate) fn import_checkpoint(&self,value:&rmpv::Value)->Result<(),String>{
+        use crate::checkpoint as c;let f=c::fields(value,4)?;
+        if c::unsigned(&f[0])?!=1||c::unsigned(&f[1])?!=self.maximum_contracts as u64||c::unsigned(&f[2])?!=self.maximum_bytes as u64{return Err("Checkpoint retained publication configuration differs".into());}
+        let values=f[3].as_array().filter(|values|values.len()<=self.maximum_contracts).ok_or("Checkpoint retained publication count exceeds bound")?;
+        let fresh=Self::new(self.maximum_contracts,self.maximum_bytes).map_err(str::to_owned)?;
+        for value in values{let f=c::fields(value,3)?;let contract=c::string(&f[0],1024)?;let kind=c::unsigned(&f[1])?;let frame=Frame::restore_checkpoint(&f[2])?;if u64::from(frame.kind)!=kind{return Err("Checkpoint retained kind differs".into());}fresh.retain(&contract,&frame).map_err(str::to_owned)?;}
+        let mut state=self.state.lock().map_err(|_|"Checkpoint current owner interrupted")?;
+        if !state.frames.is_empty(){return Err("Checkpoint import cannot overwrite active retained publications".into());}
+        *state=fresh.state.into_inner().map_err(|_|"Checkpoint current owner interrupted")?;Ok(())
+    }
     /// Creates explicit item/byte limits before accepting any event allocation.
     ///
     /// # Errors

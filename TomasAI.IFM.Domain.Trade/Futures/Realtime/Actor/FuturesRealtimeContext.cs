@@ -8,14 +8,16 @@ namespace TomasAI.IFM.Domain.Trade.Futures.Realtime.Actor;
 public sealed class FuturesRealtimeContext : EventActorContext, IFuturesRealtimeContext
 {
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "This typed context adapts services for its actor and intentionally retains the actor logger category.")]
-    public FuturesRealtimeContext(IActorSupervisor supervisor, IDbContextFactory dbFactory, IActorService actorService, ILogger<FuturesRealtimeActor> logger) : base(supervisor, new ActorMailboxId(ActorType.Realtime, FuturesRealtimeActor.ActorName))
+    public FuturesRealtimeContext(IActorSupervisor supervisor, IDbContextFactory dbFactory, IActorService actorService, ILogger<FuturesRealtimeActor> logger, FuturesRoutingReceipts routingReceipts) : base(supervisor, new ActorMailboxId(ActorType.Realtime, FuturesRealtimeActor.ActorName))
     {
+        RoutingReceipts = routingReceipts;
         DbFactory = dbFactory;
         ActorService = actorService;
         Logger = logger;
         RouteIndex = new ContractIdRouteIndex(4096);
     }
 
+    public FuturesRoutingReceipts RoutingReceipts { get; }
     public IDbContextFactory DbFactory { get; }
     public IActorService ActorService { get; }
     public ContractIdRouteIndex RouteIndex { get; }

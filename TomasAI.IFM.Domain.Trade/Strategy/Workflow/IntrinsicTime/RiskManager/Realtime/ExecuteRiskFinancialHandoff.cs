@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Commands;
@@ -19,6 +20,7 @@ public static class ExecuteRiskFinancialHandoff
         {
             ArgumentNullException.ThrowIfNull(context);
             ArgumentNullException.ThrowIfNull(view);
+            if(await WorkflowPublicationDelivery.RecoverAsync(context,view,"financial-advance").ConfigureAwait(false))return;
             using var trace = WorkflowTrace.Start("risk.financial_handoff", view);
             var handoff = view.FinancialHandoff;
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -73,7 +75,7 @@ public static class ExecuteRiskFinancialHandoff
             var advance = await PrepareAdvanceAsync(view, context, readTimeout.Token).ConfigureAwait(false);
             timing_authorization_build_advance?.Stop();
             using var timing_authorization_advance_send = WorkflowTrace.Start("authorization.advance_send", view);
-            await context.SendAsync<AdvanceRiskFinancialHandoffCommand, IntrinsicTimeStrategyWorkflowEntityId>(advance, advance.EntityId).ConfigureAwait(false);
+            await WorkflowPublicationDelivery.PublishAsync(context,view,advance,"financial-advance").ConfigureAwait(false);
             timing_authorization_advance_send?.Stop();
         }
     }

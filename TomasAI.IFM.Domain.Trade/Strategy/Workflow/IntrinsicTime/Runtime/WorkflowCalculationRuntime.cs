@@ -19,7 +19,8 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Runtime;
 /// <summary>The local calculation boundary has no persistence, provider, actor or financial-commit capability.</summary>
 public sealed class WorkflowCalculationRuntime(WorkflowDecisionExecutor executor, TimeProvider? timeProvider = null,
     IPortfolioEntryDecisionCalculator? portfolioCalculator = null, WorkflowDecisionSession? session = null,
-    WorkflowSelectionConfigurationCache? selectionConfiguration = null, WorkflowCompositionInputCache? compositionConfiguration = null)
+    WorkflowSelectionConfigurationCache? selectionConfiguration = null, WorkflowCompositionInputCache? compositionConfiguration = null,
+    WorkflowRuntimePreparation? preparation = null)
 {
     readonly TimeProvider clock = timeProvider ?? TimeProvider.System;
     readonly RegimeOperator regime = new();
@@ -29,6 +30,7 @@ public sealed class WorkflowCalculationRuntime(WorkflowDecisionExecutor executor
     readonly RiskOperator risk = new();
     readonly WorkflowDecisionSession lifetime = session ?? new();
     public Guid SessionId => lifetime.Id;
+    public bool IsPrepared => preparation?.IsReady ?? true;
     readonly object attemptsGate = new();
     readonly Dictionary<(Guid Workflow, StrategyWorkflowStage Stage), Attempt> attempts = [];
     readonly System.Collections.Concurrent.ConcurrentDictionary<(Guid Workflow, StrategyWorkflowStage Stage, long Revision), StrategyStageResultEnvelope> results = new();
@@ -108,6 +110,7 @@ public sealed class WorkflowCalculationRuntime(WorkflowDecisionExecutor executor
     async ValueTask<TOutput> RunAsync<TInput, TOutput>(IWorkflowDecisionOperator<TInput, TOutput> operation,
         TInput input, IntrinsicTimeStrategyWorkflowView view, CancellationToken token)
     {
+        preparation?.RequireReady();
         Attempt attempt;
         lock (attemptsGate)
         {

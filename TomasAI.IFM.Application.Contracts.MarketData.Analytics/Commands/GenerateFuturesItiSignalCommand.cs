@@ -13,8 +13,44 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 /// price information. The command is designed for use with message-based workflows and supports serialization for
 /// transport between services.</remarks>
 [MessagePackObject(AllowPrivate = true)]
-public record GenerateFuturesItiSignalCommand : ICommand<FuturesItiSignalEntityId>
+public record GenerateFuturesItiSignalCommand : ICommand<FuturesItiSignalEntityId>, TomasAI.IFM.Shared.EventModelActor.IMessageOriginOwner
 {
+    [MessagePack.IgnoreMember]
+    TomasAI.IFM.Shared.EventModelActor.MessageOriginSlot originSlot;
+    [MessagePack.IgnoreMember]
+    ref TomasAI.IFM.Shared.EventModelActor.MessageOriginSlot TomasAI.IFM.Shared.EventModelActor.IMessageOriginOwner.MessageOriginSlot => ref originSlot;
+    /// <summary>Copies business fields while leaving nonserialized creation metadata unassociated.</summary>
+    [System.Diagnostics.CodeAnalysis.SetsRequiredMembers]
+    protected GenerateFuturesItiSignalCommand(GenerateFuturesItiSignalCommand original)
+    {
+        DailyAtr = original.DailyAtr;
+        RequireDailyAtr = original.RequireDailyAtr;
+        SourceCursor = original.SourceCursor;
+        SourceCaptureRequired = original.SourceCaptureRequired;
+        SourceEventId = original.SourceEventId;
+        InputsFrozen = original.InputsFrozen;
+        InputUnavailableReason = original.InputUnavailableReason;
+        VerifiedEpochStart = original.VerifiedEpochStart;
+        ResidentAdmission = original.ResidentAdmission;
+        JournalSequence = original.JournalSequence;
+        JournalPayload = original.JournalPayload;
+        ResidentBatch = original.ResidentBatch;
+        CommandId = original.CommandId;
+        Subject = original.Subject;
+        PostEvents = original.PostEvents;
+        EntityId = original.EntityId;
+        ErrorCode = original.ErrorCode;
+        RouteTo = original.RouteTo;
+        ContractId = original.ContractId;
+        ValueDate = original.ValueDate;
+        TimePeriod = original.TimePeriod;
+        Timestamp = original.Timestamp;
+        FuturesPrice = original.FuturesPrice;
+        VixFuturesPrice = original.VixFuturesPrice;
+        TimeFrameStartValueDate = original.TimeFrameStartValueDate;
+    }
+
+
     public const string Actor = "FuturesItiSignalCommand";
     public const string Verb = "GenerateFuturesItiSignal";
     public const int ErrorId = 20011;
@@ -24,6 +60,8 @@ public record GenerateFuturesItiSignalCommand : ICommand<FuturesItiSignalEntityI
     [Key(16)] public bool InputsFrozen { get; init; }
     [Key(17)] public string? InputUnavailableReason { get; init; }
     [Key(18)] public bool VerifiedEpochStart { get; init; }
+    [Key(19)] public bool SourceCaptureRequired { get; init; }
+    [Key(20)] public Guid SourceEventId { get; init; }
     // Local capabilities never survive a network round trip or deserialization.
     [IgnoreMember] public object? ResidentAdmission { get; init; }
     [IgnoreMember] public long JournalSequence { get; init; }

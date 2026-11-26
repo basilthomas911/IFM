@@ -1,0 +1,274 @@
+// Frozen pre-fix ingress from HEAD, benchmark reference only.
+using System.Security.Cryptography;
+using System.Text;
+using TomasAI.IFM.Application.MarketData.OperationsHealth;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Realtime.Actor;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Realtime.Logging;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
+using TomasAI.IFM.Shared.EventSourcing;
+
+namespace TomasAI.IFM.Application.Api.Server.Benchmarks.RealtimeMailboxes.Baselines;
+
+/// <summary>Maps one eligible current ES trade-price update to a Daily Futures ITI Generate command.</summary>
+public static class LegacyItiIngress
+{
+    const string Scope = "ES";
+
+    /// <param name="event">
+    /// The routed normalized futures market-price event.
+    /// </param>
+    extension(FuturesMarketPriceUpdatedRealtimeEvent @event)
+    {
+        /// <summary>Processes a normalized market-price update through the minimal Daily ITI ingress boundary.</summary>
+        ///
+        /// <param name="context">The typed realtime actor context.</param>
+        /// <param name="cancellationToken">Stops ingress processing without recalling an accepted downstream command.</param>
+        /// <returns><see langword="true"/> when the event was handled or intentionally ignored.</returns>
+        public async ValueTask<bool> ExecuteLegacyAsync(
+            IFuturesItiSignalRealtimeContext context,
+            CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(@event);
+            ArgumentNullException.ThrowIfNull(context);
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var telemetry = context.Telemetry;
+            var trade = @event.Price.Trade;
+            var eventTime = trade?.EventTimestamp.UtcDateTime ?? @event.ReceivedOn;
+            telemetry.RecordMarketPriceReceived(eventTime);
+
+            try
+            {
+                if (!IsUsableTradeEvent(@event, out var esTrade, out var filterReason))
+                    return Filter(context, filterReason);
+                if (!StringComparer.Ordinal.Equals(@event.EntityId.ContractId, @event.Price.ContractId)
+                    || @event.EntityId.ValueDate != @event.Price.ValueDate
+                    || @event.EntityId.AssetTypeId != @event.Price.AssetTypeId)
+                {
+                    return Reject(context, @event, eventTime, "The market-price event entity and price snapshot identities do not match.");
+                }
+                if (!context.MarketDataApi.TryGetOnTheRunFuturesContract("ES", out var esContract)
+                    || !StringComparer.Ordinal.Equals(esContract.ContractId, @event.Price.ContractId))
+                    return Filter(context, "Trade is not for the current on-the-run ES contract.");
+
+                telemetry.RecordEligibleEsTrade(esTrade.EventTimestamp.UtcDateTime);
+
+                if (!TryGetCurrentVxPrice(context, out var vxPrice, out var unavailableReason))
+                {
+                    _ = telemetry.RecordInputUnavailable(unavailableReason);
+                    context.HealthEvidence.Record("ITI", Scope, "Degraded", unavailableReason, eventTime);
+                    return true;
+                }
+
+                await SubmitCommandAsync(@event, context, esTrade, vxPrice, eventTime, cancellationToken).ConfigureAwait(false);
+                return true;
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                telemetry.RecordFailure(exception.Message);
+                context.HealthEvidence.Record("ITI", Scope, "Unhealthy", exception.Message, eventTime);
+                FuturesItiSignalRealtimeLogging.IngressFailed(
+                    context.Logger,
+                    exception,
+                    @event.Id,
+                    @event.CommandId,
+                    @event.EntityId.ContractId,
+                    nameof(LegacyItiIngress),
+                    exception.GetType().Name);
+                throw;
+            }
+
+        }
+    }
+
+
+    /// <summary>Builds the deterministic command identity and submits the current ES/VX inputs without changing ingress failure handling.</summary>
+    static async ValueTask SubmitCommandAsync(FuturesMarketPriceUpdatedRealtimeEvent @event,
+        IFuturesItiSignalRealtimeContext context, FuturesMarketTradeSnapshot esTrade, double vxPrice,
+        DateTime eventTime, CancellationToken cancellationToken)
+    {
+        var commandId = CreateCommandId(@event, esTrade);
+        var sourceEventId = @event.Id;
+        var contractId = @event.Price.ContractId;
+        var valueDate = @event.Price.ValueDate;
+        var futuresPrice = Convert.ToDouble(esTrade.LastPrice);
+        var tradeTimestamp = esTrade.EventTimestamp.UtcDateTime;
+        context.Telemetry.RecordCommandRequested();
+        FuturesItiSignalRealtimeLogging.CommandGenerated(
+            context.Logger, sourceEventId, commandId, contractId, valueDate);
+        await GenerateAsync(context, sourceEventId, commandId, contractId, valueDate,
+            tradeTimestamp, futuresPrice, vxPrice, eventTime, cancellationToken).ConfigureAwait(false);
+    }
+
+    static bool Filter(IFuturesItiSignalRealtimeContext context, string reason)
+    {
+        context.Telemetry.RecordFiltered(reason);
+        return true;
+    }
+
+
+    static bool Reject(IFuturesItiSignalRealtimeContext context, FuturesMarketPriceUpdatedRealtimeEvent @event, DateTime eventTime, string reason)
+    {
+        context.Telemetry.RecordFailure(reason);
+        context.HealthEvidence.Record("ITI", Scope, "Unhealthy", reason, eventTime);
+        FuturesItiSignalRealtimeLogging.IngressRejected(
+            context.Logger,
+            @event.Id,
+            @event.CommandId,
+            @event.EntityId.ContractId,
+            nameof(LegacyItiIngress),
+            reason);
+        return false;
+    }
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This realtime message boundary records the failed signal operation and contains it according to the existing telemetry and completion contract.")]
+    static async ValueTask GenerateAsync(
+            IFuturesItiSignalRealtimeContext context,
+            Guid sourceEventId,
+            Guid commandId,
+            string contractId,
+            DateOnly valueDate,
+            DateTime tradeTimestamp,
+            double futuresPrice,
+            double vxPrice,
+            DateTime eventTime,
+            CancellationToken cancellationToken)
+    {
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var result = await MarketDataAnalyticsCommandApiExtensions.GenerateFuturesItiSignalAsync(
+                context,
+                contractId,
+                valueDate,
+                TimeFrameType.Daily,
+                tradeTimestamp,
+                futuresPrice,
+                vxPrice,
+                commandId,
+                valueDate).AsTask().WaitAsync(cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (result is ServiceFailed<GuidResult> failed)
+            {
+                var message = failed.ErrorMessage ?? "Generate command was rejected.";
+                context.Telemetry.RecordFailure(message);
+                context.HealthEvidence.Record("ITI", Scope, "Unhealthy", message, eventTime);
+                FuturesItiSignalRealtimeLogging.CommandFailed(
+                    context.Logger, sourceEventId, commandId, contractId, valueDate,
+                    failed.ErrorCode, message);
+                return;
+            }
+
+            context.Telemetry.RecordCommandAccepted();
+            context.HealthEvidence.Record(
+                "ITI", Scope, "Healthy", "Daily ITI command accepted; no signal change is a valid result.", eventTime);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            context.Telemetry.RecordFailure(exception.Message);
+            context.HealthEvidence.Record("ITI", Scope, "Unhealthy", exception.Message, eventTime);
+            FuturesItiSignalRealtimeLogging.IngressFailed(
+                context.Logger,
+                exception,
+                sourceEventId,
+                commandId,
+                contractId,
+                nameof(LegacyItiIngress),
+                exception.GetType().Name);
+        }
+    }
+
+    /// <summary>Applies the allocation-free eligibility checks that do not require market-data lookup.</summary>
+    internal static bool IsUsableTradeEvent(
+        FuturesMarketPriceUpdatedRealtimeEvent @event,
+        out FuturesMarketTradeSnapshot trade,
+        out string reason)
+    {
+        if (@event.Price.AssetTypeId != AssetTypeId.Futures)
+        {
+            trade = default;
+            reason = "Asset is not Futures.";
+            return false;
+        }
+        if (@event.UpdateSource != FuturesMarketPriceUpdateSource.Trade)
+        {
+            trade = default;
+            reason = "Update is not a trade.";
+            return false;
+        }
+        if (@event.Price.Trade is not { } currentTrade)
+        {
+            trade = default;
+            reason = "Trade snapshot is absent.";
+            return false;
+        }
+        if (currentTrade.NormalizedTradeAction is NormalizedTradeAction.Cancel or NormalizedTradeAction.Clear)
+        {
+            trade = default;
+            reason = "Trade action does not provide a usable current price.";
+            return false;
+        }
+        if ((currentTrade.NormalizedTradeConditionFlags & NormalizedTradeConditionFlags.UndefinedPrice) != NormalizedTradeConditionFlags.None
+            || currentTrade.LastPrice <= 0)
+        {
+            trade = default;
+            reason = "Trade price is undefined or non-positive.";
+            return false;
+        }
+
+        trade = currentTrade;
+        reason = string.Empty;
+        return true;
+    }
+
+    static bool TryGetCurrentVxPrice(
+        IFuturesItiSignalRealtimeContext context,
+        out double price,
+        out string reason)
+    {
+        price = 0;
+        if (!context.MarketDataApi.TryGetOnTheRunFuturesContract("VX", out var vxContract))
+        {
+            reason = "Current on-the-run VX contract is unavailable.";
+            return false;
+        }
+        if (!context.MarketDataApi.TryGetLastTickPrice(vxContract.ContractId, out var snapshot)
+            || snapshot.Trade is not { } trade
+            || trade.LastPrice <= 0
+            || (trade.NormalizedTradeConditionFlags & NormalizedTradeConditionFlags.UndefinedPrice) != NormalizedTradeConditionFlags.None
+            || trade.NormalizedTradeAction is NormalizedTradeAction.Cancel or NormalizedTradeAction.Clear)
+        {
+            reason = $"Current VX trade price is unavailable for {vxContract.ContractId}.";
+            return false;
+        }
+
+        price = Convert.ToDouble(trade.LastPrice);
+        reason = string.Empty;
+        return true;
+    }
+
+    internal static Guid CreateCommandId(
+        FuturesMarketPriceUpdatedRealtimeEvent @event,
+        FuturesMarketTradeSnapshot trade)
+    {
+        if (@event.Id != Guid.Empty)
+            return @event.Id;
+
+        var identity = string.Create(
+            System.Globalization.CultureInfo.InvariantCulture,
+            $"FuturesItiSignal|Daily|{@event.Price.ContractId}|{@event.Price.ValueDate:yyyy-MM-dd}|{trade.StreamEpochId:N}|{trade.TradeOrdinal}|{trade.SourceSequence}|{trade.EventTimestamp.UtcTicks}");
+        return new Guid(SHA256.HashData(Encoding.UTF8.GetBytes(identity)).AsSpan(0, 16));
+    }
+}

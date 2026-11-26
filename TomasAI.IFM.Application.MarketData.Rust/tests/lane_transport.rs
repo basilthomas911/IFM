@@ -1835,12 +1835,12 @@ async fn real_sdk_option_replay_statistics_and_reset_do_not_recount_logical_volu
         101_000_000_000
     );
     let output = ifm_market_data_native::dataset::live::Output {
-        observed: 0,
+        capture_serial: 0, observed: 0,
         lane: Lane::OptionsGlbx,
         generation: 0,
         source: OutputSource::ReplayComplete(0),
         state: Default::default(),
-        trade: None,
+        trade: None, raw: None,
     };
     let mut outputs: [_; 16] = std::array::from_fn(|_| output.clone());
     let count = data.drain_output(&mut outputs).unwrap();
@@ -4394,12 +4394,12 @@ async fn verify_live_replay(mode: Mode, replay_volume: i64, live_sequence: i64) 
     // incorrectly attach the live trade's volume to this completion marker.
     use ifm_market_data_native::dataset::live::{Output, OutputSource};
     let empty = Output {
-        observed: 0,
+        capture_serial: 0, observed: 0,
         lane: Lane::FuturesGlbx,
         generation: 0,
         source: OutputSource::ReplayComplete(0),
         state: Default::default(),
-        trade: None,
+        trade: None, raw: None,
     };
     let startup_quote = if matches!(mode, Mode::ReplayLiveQuoteFlood) {
         8192
@@ -4877,12 +4877,12 @@ async fn option_quote_flood_retains_latest_without_queue_recovery_or_trade_loss(
         Phase::Running
     );
     let empty = Output {
-        observed: 0,
+        capture_serial: 0, observed: 0,
         lane: Lane::OptionsGlbx,
         generation: 0,
         source: OutputSource::ReplayComplete(0),
         state: Default::default(),
-        trade: None,
+        trade: None, raw: None,
     };
     let mut batch: [_; 16] = std::array::from_fn(|_| empty.clone());
     let count = data.drain_output(&mut batch).unwrap();
@@ -5088,12 +5088,12 @@ async fn actual_option_trade_retains_source_underlying_and_reference_before_newe
     .unwrap();
     let mut rows: [_; 16] =
         std::array::from_fn(|_| ifm_market_data_native::dataset::live::Output {
-            observed: 0,
+            capture_serial: 0, observed: 0,
             lane: Lane::OptionsGlbx,
             generation: 0,
             source: OutputSource::ReplayComplete(0),
             state: Default::default(),
-            trade: None,
+            trade: None, raw: None,
         });
     let count = data.drain_output(&mut rows).unwrap();
     let frozen=rows[..count].iter().find(|row|matches!(row.source,OutputSource::Observation(Observation::Trade(t))if t.header.instrument==43)).unwrap().trade.as_ref().unwrap();

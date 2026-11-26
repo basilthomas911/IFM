@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime;
 ﻿using System.Security.Cryptography;
 using System.Text;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Commands;
@@ -30,6 +31,7 @@ public static class ExecuteRiskManagement
         {
             ArgumentNullException.ThrowIfNull(context);
             ArgumentNullException.ThrowIfNull(snapshot);
+            if(await WorkflowPublicationDelivery.RecoverAsync(context,snapshot.State).ConfigureAwait(false))return;
             using var trace = WorkflowTrace.Start("risk.dispatch", snapshot.State);
             using var currentViewTrace = WorkflowTrace.Start("risk.dispatch.current_view", snapshot.State);
             var view = await context.ReadActiveWorkflowAsync(snapshot.EntityId).ConfigureAwait(false);
@@ -56,6 +58,7 @@ public static class ExecuteRiskManagement
 
             if (view.RiskExecution is not { } execute)
             {
+                if(await WorkflowPublicationDelivery.RecoverAsync(context,view,"risk-prepare").ConfigureAwait(false))return;
                 await EnsureFundCompositionAsync(view, context).ConfigureAwait(false);
                 var prepare = new PrepareRiskManagementCommand
                 {
@@ -86,7 +89,7 @@ public static class ExecuteRiskManagement
                         });
                     }
                 }
-                await context.SendAsync<PrepareRiskManagementCommand, IntrinsicTimeStrategyWorkflowEntityId>(prepare, view.EntityId).ConfigureAwait(false);
+                await WorkflowPublicationDelivery.PublishAsync(context,view,prepare,"risk-prepare").ConfigureAwait(false);
                 return;
             }
 
@@ -113,7 +116,7 @@ public static class ExecuteRiskManagement
                     CausationId = completed.Id,
                     CompletedAtUtc = completed.Result.ProducedAtUtc
                 };
-                await context.SendAsync<CompleteRiskManagementCommand, IntrinsicTimeStrategyWorkflowEntityId>(command, command.EntityId).ConfigureAwait(false);
+                await WorkflowPublicationDelivery.PublishAsync(context,view,command).ConfigureAwait(false);
             }
             else
             {
@@ -139,7 +142,7 @@ public static class ExecuteRiskManagement
                         FailedAtUtc = failed.ErrorDate
                     }
                 };
-                await context.SendAsync<FailRiskManagementCommand, IntrinsicTimeStrategyWorkflowEntityId>(command, command.EntityId).ConfigureAwait(false);
+                await WorkflowPublicationDelivery.PublishAsync(context,view,command).ConfigureAwait(false);
             }
         }
     }
@@ -151,7 +154,9 @@ public static class ExecuteRiskManagement
         EvaluatePortfolioOrderCompositionCommand request;
         try
         {
-            request = PortfolioOrderCompositionMapper.CreateRequest(view, context.Options.PortfolioId, now);
+            request = context.Publications?.FreezeInput(WorkflowPublicationDelivery.Key(view,"portfolio-request"),WorkflowPublicationDelivery.Digest(view),
+                ()=>PortfolioOrderCompositionMapper.CreateRequest(view, context.Options.PortfolioId, now))
+                ?? PortfolioOrderCompositionMapper.CreateRequest(view, context.Options.PortfolioId, now);
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or OverflowException)
         {
@@ -163,8 +168,9 @@ public static class ExecuteRiskManagement
         var reply = await context.PortfolioOrderComposition.EvaluateAsync(request, timeout.Token).ConfigureAwait(false);
         if (!reply.Success || reply.Value is null)
         {
-            await FailAsync(view, context, "RM.PORTFOLIO.REQUEST_FAILED", $"ErrorCode={reply.ErrorCode};ErrorMessage={reply.ErrorMessage}", now).ConfigureAwait(false);
-            return;
+            // A transport refusal or missing reply is not proof that the financial
+            // operation did not commit. Retry/reconcile its exact frozen request.
+            throw new IOException($"RM.PORTFOLIO.OUTCOME_UNKNOWN: ErrorCode={reply.ErrorCode};ErrorMessage={reply.ErrorMessage}");
         }
 
         if (reply.Value.Failed is { } failed)
@@ -205,7 +211,7 @@ public static class ExecuteRiskManagement
             CompletedAtUtc = completed.CommittedAtUtc,
             PortfolioDecision = PortfolioOrderCompositionMapper.ToDecision(completed.Receipt)
         };
-        await context.SendAsync<CompleteRiskManagementCommand, IntrinsicTimeStrategyWorkflowEntityId>(command, command.EntityId).ConfigureAwait(false);
+        await WorkflowPublicationDelivery.PublishAsync(context,view,command).ConfigureAwait(false);
     }
 
     internal static async ValueTask FailAsync(IntrinsicTimeStrategyWorkflowView view, IIntrinsicTimeStrategyWorkflowRealtimeContext context, string reasonCode, string details, DateTime failedAtUtc)
@@ -231,7 +237,7 @@ public static class ExecuteRiskManagement
                 FailedAtUtc = DateTime.SpecifyKind(failedAtUtc, DateTimeKind.Utc)
             }
         };
-        await context.SendAsync<FailRiskManagementCommand, IntrinsicTimeStrategyWorkflowEntityId>(command, command.EntityId).ConfigureAwait(false);
+        await WorkflowPublicationDelivery.PublishAsync(context,view,command).ConfigureAwait(false);
     }
 
     // Only a workflow-accepted Composer result may advance the Fund. Read each committed

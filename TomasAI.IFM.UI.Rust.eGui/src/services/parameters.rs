@@ -124,6 +124,7 @@ pub fn document(
         let mut json = serde_json::Map::new();
         let original_draft_revision = Value::from(0);
         let absent_futures_watermark = Value::Nil;
+        let original_trail_tightened = Value::from(false);
         for (name, index, inner) in shape.members {
             let slot = slots.get(index).or_else(|| {
                 // Older retained order receipts predate the Fund draft revision.
@@ -133,7 +134,23 @@ pub fn document(
             }).or_else(|| {
                 // Saved futures plans may predate the appended nullable trailing watermark.
                 (kind == "TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.StrategyTradePlanSnapshot"
-                    && name == "FuturesTrailingExtremePrice" && slots.len() == index)
+                    && matches!((name.as_str(), index), ("FuturesTrailingExtremePrice", 20) | ("FuturesStopPrice", 21))
+                    && slots.len() >= 20 && slots.len() <= index)
+                    .then_some(&absent_futures_watermark)
+            }).or_else(|| {
+                (kind == "TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.StrategyTradePlanSnapshot"
+                    && name == "FuturesTrailTightened" && index == 22 && (20..=22).contains(&slots.len()))
+                    .then_some(&original_trail_tightened)
+            }).or_else(|| {
+                // Legacy position snapshots have the complete 0..25 prefix; these
+                // appended optional facts must stay absent rather than being invented.
+                (kind == "TomasAI.IFM.Domain.Trade.Shared.StrategyPositionSnapshot"
+                    && matches!((name.as_str(), index), ("DailyFuturesEntry", 26) | ("EndOfDayClosingQuotes", 27))
+                    && slots.len() >= 26 && slots.len() <= index)
+                    .then_some(&absent_futures_watermark)
+            }).or_else(|| {
+                (kind == "TomasAI.IFM.Domain.Trade.Shared.EstablishedTradeDefinition"
+                    && name == "DailyFuturesEntry" && index == 18 && slots.len() == 18)
                     .then_some(&absent_futures_watermark)
             }).ok_or_else(|| format!("Missing parameter document slot {kind}.{name}"))?;
             json.insert(

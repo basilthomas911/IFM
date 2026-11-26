@@ -3,6 +3,17 @@ namespace TomasAI.IFM.Shared.EventModelActor;
 /// <summary>Immutable creation provenance, separate from source timestamps and delivery attempts.</summary>
 public sealed record MessageOrigin
 {
+    string? json, binary;
+    internal string GetJson() => Volatile.Read(ref json)
+        ?? Cache(ref json, System.Text.Json.JsonSerializer.Serialize(this));
+    internal string GetBinary() => Volatile.Read(ref binary)
+        ?? Cache(ref binary, MessageOriginBinary.EncodeCore(this));
+    static string Cache(ref string? target, string value) => Interlocked.CompareExchange(ref target, value, null) ?? value;
+    internal void RememberBinary(string value) => Cache(ref binary, value);
+    public bool Equals(MessageOrigin? other) => other is not null
+        && OriginatedAtUtc == other.OriginatedAtUtc && ClockDomainId == other.ClockDomainId
+        && RunId == other.RunId && Generation == other.Generation && CausationId == other.CausationId;
+    public override int GetHashCode() => HashCode.Combine(OriginatedAtUtc, ClockDomainId, RunId, Generation, CausationId);
     /// <summary>Creates a validated UTC origin without consulting a clock during deserialization.</summary>
     public MessageOrigin(DateTimeOffset originatedAtUtc, string clockDomainId,
         Guid? runId = null, Guid? generation = null, Guid? causationId = null)

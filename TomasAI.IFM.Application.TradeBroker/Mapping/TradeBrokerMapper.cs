@@ -65,6 +65,6 @@ public static class TradeBrokerMapper
         ArgumentNullException.ThrowIfNull(x);
         return new(x.AccountAlias, x.Currency,
         x.CashBalance, x.AvailableFunds, x.Complete, x.NewRiskAllowed, x.Generation, x.AsOfUtc,
-        [.. x.Positions.Select(p => new BrokerAccountPosition(p.ContractId, p.SignedQuantity, p.AveragePrice))]);
+        [.. x.Positions.Select(p => new BrokerAccountPosition(p.ContractId, p.SignedQuantity, p.AveragePrice))]) { SourceSequence = x.SourceSequence };
     }
 }

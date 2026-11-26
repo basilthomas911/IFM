@@ -11,6 +11,99 @@ namespace TomasAI.IFM.Application.ServerManager.IntegrationTests;
 public sealed class ManagedProcessSupervisorTests
 {
     [Fact]
+    public async Task Dispose_cancels_owned_startup_readiness_then_gracefully_joins_the_real_child()
+    {
+        var logs=new ConcurrentQueue<ManagedProcessLogEntry>();var definition=CreateDefinition("api",ProcessShutdownMode.StandardInput,"--wait-for-shutdown","stop");
+        definition.ReadinessUri=$"http://127.0.0.1:{ReserveAvailablePort()}/never-ready";definition.ReadinessTimeoutSeconds=900;
+        await using var supervisor=new ManagedProcessSupervisor([definition],TimeSpan.FromSeconds(2),logs.Enqueue);
+        var startup=supervisor.StartAllAsync();
+        await WaitUntilAsync(()=>supervisor.RunningProcesses.Count==1,TimeSpan.FromSeconds(5));
+        var child=Assert.Single(supervisor.RunningProcesses);var began=Stopwatch.StartNew();
+        await supervisor.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(()=>startup);
+        Assert.Empty(supervisor.RunningProcessKeys);Assert.True(began.Elapsed<TimeSpan.FromSeconds(5));
+        Assert.Contains(logs,row=>row.Message=="graceful-shutdown");
+        Assert.DoesNotContain(logs,row=>row.Message.Contains("forc",StringComparison.OrdinalIgnoreCase));
+        Assert.False(IsLiveProcess(child.ProcessId));
+        static bool IsLiveProcess(int pid){try{using var process=Process.GetProcessById(pid);return !process.HasExited;}catch(ArgumentException){return false;}}
+    }
+
+    [Fact]
+    public async Task Capture_profile_stops_and_joins_native_before_stopping_the_API()
+    {
+        var previous=Environment.GetEnvironmentVariable("IFM_SESSION_CAPTURE_BOUNDARY_ENABLED");
+        Environment.SetEnvironmentVariable("IFM_SESSION_CAPTURE_BOUNDARY_ENABLED","1");
+        try
+        {
+            var logs=new ConcurrentQueue<ManagedProcessLogEntry>();
+            var definitions=new[]{"market-data","scheduler","api","ui"}.Select((key,index)=>
+            {
+                var definition=key=="market-data"?CreateDefinition(key,ProcessShutdownMode.StandardInput,"--wait-for-shutdown","stop","--delay-ms","2100")
+                    :CreateDefinition(key,ProcessShutdownMode.StandardInput,"--wait-for-shutdown","stop");
+                definition.StartOrder=index;return definition;
+            }).ToArray();
+            await using var supervisor=new ManagedProcessSupervisor(definitions,TimeSpan.FromSeconds(2),logs.Enqueue);
+            await supervisor.StartAllAsync();await supervisor.StopAllAsync();
+            Assert.Empty(supervisor.RunningProcessKeys);
+            Assert.Equal(new[]{"ui","scheduler","market-data","api"},logs.Where(row=>row.Message=="Graceful shutdown requested.").Select(row=>row.ProcessKey));
+            Assert.DoesNotContain(logs,row=>row.Message.Contains("forc",StringComparison.OrdinalIgnoreCase));
+        }
+        finally{Environment.SetEnvironmentVariable("IFM_SESSION_CAPTURE_BOUNDARY_ENABLED",previous);}
+    }
+
+    [Fact]
+    public async Task Capture_hold_times_out_behind_incomplete_startup_without_acquiring_a_lease()
+    {
+        var logs=new ConcurrentQueue<ManagedProcessLogEntry>();var definition=CreateDefinition("api",ProcessShutdownMode.StandardInput,"--wait-for-shutdown","stop");
+        definition.ReadinessUri=$"http://127.0.0.1:{ReserveAvailablePort()}/not-ready";definition.ReadinessTimeoutSeconds=60;
+        await using var supervisor=new ManagedProcessSupervisor([definition],TimeSpan.FromSeconds(2),logs.Enqueue);
+        using var stop=new CancellationTokenSource();var startup=supervisor.StartAllAsync(stop.Token);
+        await WaitUntilAsync(()=>supervisor.RunningProcesses.Count==1,TimeSpan.FromSeconds(5));
+        var began=Stopwatch.StartNew();
+        await Assert.ThrowsAsync<TimeoutException>(()=>supervisor.HoldCaptureAsync(Guid.NewGuid().ToString("N"),CancellationToken.None));
+        Assert.InRange(began.Elapsed.TotalSeconds,9,15);Assert.Equal("Open",supervisor.CaptureStatus().State);
+        stop.Cancel();await Assert.ThrowsAnyAsync<OperationCanceledException>(()=>startup);
+    }
+
+    [Fact]
+    public async Task Capture_hold_stops_only_real_ui_scheduler_then_native_without_killing_and_parks_api_recovery()
+    {
+        var logs=new ConcurrentQueue<ManagedProcessLogEntry>();
+        var definitions=new[]{"api","ui","scheduler","market-data"}.Select(key=>CreateDefinition(key,ProcessShutdownMode.StandardInput,"--wait-for-shutdown","stop")).ToArray();
+        await using var supervisor=new ManagedProcessSupervisor(definitions,TimeSpan.FromMilliseconds(20),logs.Enqueue);
+        await supervisor.StartAllAsync();var original=supervisor.RunningProcesses.ToDictionary(x=>x.ProcessKey);
+        var lease=Guid.NewGuid().ToString("N");var held=await supervisor.HoldCaptureAsync(lease,CancellationToken.None);
+        Assert.Equal("Held",held.State);Assert.False(held.ForcedStop);Assert.Equal(2,held.StoppedWriters.Count);
+        Assert.Equal(new[]{"api","market-data"},supervisor.RunningProcessKeys.Order());
+        await Assert.ThrowsAsync<InvalidOperationException>(()=>supervisor.RestartAllAsync());
+        using(var cancellation=new CancellationTokenSource())
+        {
+            var recovery=supervisor.RestartApiAsync(original["api"].ProcessId,original["api"].StartedAtUtc.UtcDateTime,cancellation.Token);
+            await Task.Delay(50);Assert.False(recovery.IsCompleted);cancellation.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(()=>recovery);
+        }
+        Assert.Equal(original["api"].ProcessId,Assert.Single(supervisor.RunningProcesses,x=>x.ProcessKey=="api").ProcessId);
+        await supervisor.StopCaptureNativeAsync(lease,CancellationToken.None);
+        Assert.Equal("api",Assert.Single(supervisor.RunningProcessKeys));
+        await Assert.ThrowsAsync<InvalidOperationException>(()=>supervisor.ReleaseCaptureAsync(Guid.NewGuid().ToString("N"),CancellationToken.None));
+        await supervisor.ReleaseCaptureAsync(lease,CancellationToken.None);
+        Assert.Equal(4,supervisor.RunningProcessKeys.Count);Assert.Equal("Open",supervisor.CaptureStatus().State);
+        Assert.DoesNotContain(logs,x=>x.Message.Contains("forc",StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task Capture_without_graceful_channel_refuses_and_keeps_actual_writer_alive()
+    {
+        var logs=new ConcurrentQueue<ManagedProcessLogEntry>();
+        var scheduler=CreateDefinition("scheduler",ProcessShutdownMode.None,"--wait-for-shutdown","stop");
+        await using var supervisor=new ManagedProcessSupervisor([scheduler],TimeSpan.FromMilliseconds(20),logs.Enqueue);
+        await supervisor.StartAllAsync();var original=Assert.Single(supervisor.RunningProcesses);
+        await Assert.ThrowsAsync<InvalidOperationException>(()=>supervisor.HoldCaptureAsync(Guid.NewGuid().ToString("N"),CancellationToken.None));
+        Assert.Equal("Held",supervisor.CaptureStatus().State);Assert.Equal(original.ProcessId,Assert.Single(supervisor.RunningProcesses).ProcessId);
+        Assert.DoesNotContain(logs,x=>x.Message.Contains("forc",StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public async Task Captures_high_volume_stdout_stderr_and_nonzero_exit_without_deadlock()
     {
         var logs = new ConcurrentQueue<ManagedProcessLogEntry>();

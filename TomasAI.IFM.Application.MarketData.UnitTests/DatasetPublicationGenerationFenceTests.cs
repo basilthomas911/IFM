@@ -224,6 +224,71 @@ public sealed class DatasetPublicationGenerationFenceTests
         }
     }
 
+    [Fact]
+    public async Task Failed_publication_retains_exact_source_until_capture_and_only_then_advances_fence()
+    {
+        var admissions=new DatasetWorkerAdmissionRegistry();var identity=Admission("GLBX.MDP3");admissions.Admit(identity);
+        var publisher=Substitute.For<ITickAggregationEventPublisher>();var attempts=0;
+        publisher.PublishAsync(Arg.Any<FuturesMarketPriceUpdatedRealtimeEvent>(),Arg.Any<CancellationToken>())
+            .Returns(_=>++attempts==1?ValueTask.FromException(new IOException("Destination capture failed.")):ValueTask.CompletedTask);
+        var ingress=new DatasetPublicationIngress(admissions,publisher,Substitute.For<IMarketDataOperationsRecorder>());
+        var source=Price(identity,"ES20260918");
+        await Assert.ThrowsAsync<IOException>(async()=>await ingress.AcceptAsync(source));
+        Assert.True(await ingress.AcceptAsync(source));Assert.Equal(2,attempts);
+        Assert.False(await ingress.AcceptAsync(source));Assert.Equal(2,attempts);
+        Assert.True(await ingress.AcceptAsync(Price(identity,"ES20260918",2)));Assert.Equal(3,attempts);
+    }
+
+    [Fact]
+    public async Task Pending_capture_blocks_successor_and_changed_bytes_but_not_an_independent_dataset()
+    {
+        var admissions=new DatasetWorkerAdmissionRegistry();var es=Admission("GLBX.MDP3");var vx=Admission("XCBF.PITCH");admissions.Admit(es);admissions.Admit(vx);
+        var publisher=Substitute.For<ITickAggregationEventPublisher>();var fail=true;
+        publisher.PublishAsync(Arg.Any<FuturesMarketPriceUpdatedRealtimeEvent>(),Arg.Any<CancellationToken>())
+            .Returns(call=>fail&&call.Arg<FuturesMarketPriceUpdatedRealtimeEvent>().Price.ContractId.StartsWith("ES",StringComparison.Ordinal)?ValueTask.FromException(new IOException("Capture unavailable.")):ValueTask.CompletedTask);
+        var ingress=new DatasetPublicationIngress(admissions,publisher,Substitute.For<IMarketDataOperationsRecorder>());
+        var source=Price(es,"ES20260918");await Assert.ThrowsAsync<IOException>(async()=>await ingress.AcceptAsync(source));
+        await Assert.ThrowsAsync<InvalidDataException>(async()=>await ingress.AcceptAsync(Price(es,"ES20260918",2)));
+        await Assert.ThrowsAsync<InvalidDataException>(async()=>await ingress.AcceptAsync(source with{Kind=DatasetPublicationKind.Trade}));
+        Assert.True(await ingress.AcceptAsync(Price(vx,"VX20260916")));
+        fail=false;Assert.True(await ingress.AcceptAsync(source));Assert.True(await ingress.AcceptAsync(Price(es,"ES20260918",2)));
+    }
+
+    [Fact]
+    public async Task Confirmed_source_recovery_preserves_retired_generation_and_does_not_promote_live_admission()
+    {
+        var admissions=new DatasetWorkerAdmissionRegistry();var original=Admission("GLBX.MDP3");admissions.Admit(original);
+        var replacement=original with{GenerationId=Guid.NewGuid()};admissions.Admit(replacement);
+        var publisher=Substitute.For<ITickAggregationEventPublisher,IRecoveredFuturesItiPublisher>();var ingress=new DatasetPublicationIngress(admissions,publisher,Substitute.For<IMarketDataOperationsRecorder>(),requireDurableCapture:true);
+        Assert.False(await ingress.CaptureSourceAsync(Price(original,"ES20260918")));
+        await ((IRecoveredFuturesItiPublisher)publisher).Received(1).PublishRecoveredAsync(Arg.Is<FuturesMarketPriceUpdatedRealtimeEvent>(x=>x.SourceGenerationId==original.GenerationId&&x.SourceDataset==original.Dataset),Arg.Any<CancellationToken>());
+        Assert.True(admissions.TryGet(original.Dataset,out var active));Assert.Equal(replacement,active);
+        Assert.True(await ingress.CaptureSourceAsync(Price(replacement,"ES20260918")));
+    }
+
+    [Fact]
+    public async Task Generation_capture_seal_waits_inflight_capture_and_preserves_original_handler_authority()
+    {
+        var registry=new DatasetWorkerAdmissionRegistry();var identity=Admission("GLBX.MDP3");registry.Admit(identity);
+        var ready=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);var release=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var publisher=Substitute.For<ITickAggregationEventPublisher>();
+        publisher.PublishAsync(Arg.Any<FuturesMarketPriceUpdatedRealtimeEvent>(),Arg.Any<CancellationToken>()).Returns(_=>new ValueTask(Block()));
+        async Task Block(){ready.TrySetResult();await release.Task;}
+        var ingress=new DatasetPublicationIngress(registry,publisher,Substitute.For<IMarketDataOperationsRecorder>());
+        var pending=ingress.AcceptAsync(Price(identity,"ES20260918")).AsTask();await ready.Task;
+        var seal=registry.SealCaptureAsync(identity,default).AsTask();Assert.False(seal.IsCompleted);release.TrySetResult();Assert.True(await pending);await seal;
+        Assert.False(await ingress.AcceptAsync(Price(identity,"ES20260918",2)));
+        Assert.True(registry.TryGet(identity.Dataset,out var retained));Assert.Equal(identity,retained);
+    }
+    [Fact]
+    public void Cold_durable_recovery_authority_does_not_admit_live_worker_or_fresh_source_capture()
+    {
+        var registry=new DatasetWorkerAdmissionRegistry();var identity=Admission("GLBX.MDP3");var authority=registry.AllowDurableRecovery(identity.Dataset,identity.GenerationId);
+        Assert.False(registry.TryGet(identity.Dataset,out _));Assert.False(registry.TryAccept(identity,1));
+        Assert.True(registry.TryEnterDurableRecovery(identity.Dataset,identity.GenerationId,out var handler));
+        authority.Dispose();Assert.False(registry.TryEnterDurableRecovery(identity.Dataset,identity.GenerationId,out _));handler!.Dispose();
+    }
+
     static DatasetPublicationIngress CreateIngress(
         DatasetWorkerAdmissionRegistry admissions, List<CancellationToken> queued)
     {

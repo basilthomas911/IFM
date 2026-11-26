@@ -8,7 +8,7 @@ use super::wire::Frame;
 use crate::runtime::Deadline;
 use futures_util::{FutureExt, StreamExt};
 use std::panic::AssertUnwindSafe;
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 use tokio::sync::{OwnedSemaphorePermit, Semaphore, mpsc, watch};
 use tokio_util::sync::CancellationToken;
 
@@ -52,6 +52,29 @@ impl BrokerSettings {
     /// resolver task is retained by this value comparison.
     pub(crate) fn same_data_source(&self, other: &Self) -> bool {
         self.endpoints == other.endpoints && self.authentication == other.authentication
+    }
+
+    pub(crate) fn source_namespace_digest(&self) -> [u8; 32] {
+        use sha2::{Digest, Sha256};
+        let mut h = Sha256::new();
+        for endpoint in &self.endpoints {
+            h.update((endpoint.len() as u64).to_le_bytes());
+            h.update(endpoint.as_bytes());
+        }
+        match &self.authentication {
+            Authentication::None => h.update([0]),
+            Authentication::Token(token) => {
+                h.update([1]);
+                h.update(token.as_bytes());
+            }
+            Authentication::UserPassword(user, password) => {
+                h.update([2]);
+                h.update((user.len() as u64).to_le_bytes());
+                h.update(user.as_bytes());
+                h.update(password.as_bytes());
+            }
+        }
+        h.finalize().into()
     }
 
     /// Validates broker address and constructs a cancellable DNS resolver.
@@ -163,6 +186,26 @@ pub(crate) struct PreparedFrame {
     subject: String,
     pub(crate) bytes: Vec<u8>,
     origin_json: Option<String>,
+    source_key: [u8; 32],
+}
+
+impl PreparedFrame {
+    pub(crate) fn restore_intent(value:&rmpv::Value)->Result<Self,String>{
+        use crate::checkpoint as c;let f=c::fields(value,4)?;
+        let bytes=match &f[1]{rmpv::Value::Binary(bytes) if bytes.len()<=2*1024*1024=>bytes.clone(),_=>return Err("Checkpoint prepared frame exceeds bound".into())};
+        let source_key=match &f[3]{rmpv::Value::Binary(bytes) if bytes.len()==32=>bytes.as_slice().try_into().unwrap(),_=>return Err("Checkpoint prepared source key invalid".into())};
+        Ok(Self{subject:c::string(&f[0],512)?,bytes,origin_json:if f[2].is_nil(){None}else{Some(c::string(&f[2],32768)?)},source_key})
+    }
+    pub(crate) fn intent_value(&self) -> rmpv::Value {
+        rmpv::Value::Array(vec![
+            self.subject.clone().into(),
+            rmpv::Value::Binary(self.bytes.clone()),
+            self.origin_json
+                .clone()
+                .map_or(rmpv::Value::Nil, Into::into),
+            rmpv::Value::Binary(self.source_key.to_vec()),
+        ])
+    }
 }
 
 /// One bounded publication lane with explicit worker/socket lifetime.
@@ -174,6 +217,8 @@ pub struct Publisher {
     task: Option<tokio::task::JoinHandle<()>>,
     status: watch::Receiver<Status>,
     scope: String,
+    source: Option<Weak<super::source_outbox::Sink>>,
+    tracker: super::source_outbox::Tracker,
     reply: Option<String>,
 }
 
@@ -187,17 +232,47 @@ pub struct Port {
     stopping: CancellationToken,
     status: watch::Receiver<Status>,
     scope: String,
+    source: Option<Weak<super::source_outbox::Sink>>,
+    tracker: super::source_outbox::Tracker,
 }
 impl Port {
+    /// Detached imported-state queries have no writer, socket or admission authority.
+    pub(crate) fn imported_read_only(scope:&str)->Self{
+        let (incoming,_receiver)=mpsc::channel(1);let(status,observed)=watch::channel(Status{stopped:true,..Default::default()});
+        Self{incoming,bytes:Arc::new(Semaphore::new(4*1024*1024)),maximum_bytes:4*1024*1024,stopping:CancellationToken::new(),status:observed,scope:scope.into(),source:None,tracker:super::source_outbox::Tracker::new(status)}
+    }
+
+    /// A durable source frame is owned before try_publish advances its caller. Any legacy
+    /// charged packet still queued or in flight prevents a mixed-mode checkpoint.
+    pub(crate) fn checkpoint_has_durable_ownership(&self)->Result<bool,String>{
+        let source=self.source.as_ref().and_then(Weak::upgrade).or(super::source_outbox::lookup(&self.scope).map_err(str::to_owned)?);
+        Ok(source.is_some()&&self.incoming.capacity()==self.incoming.max_capacity()&&self.bytes.available_permits()==self.maximum_bytes)
+    }
+
     /// Copies logical queue occupancy and broker progress; no broker request is sent.
     pub fn counters(&self) -> std::collections::BTreeMap<String, i64> {
         [
-            ("Publication frames flushed", self.status.borrow().flushed.min(i64::MAX as u64) as i64),
-            ("Publication queue pending", (self.incoming.max_capacity() - self.incoming.capacity()) as i64),
-            ("Publication queue capacity", self.incoming.max_capacity() as i64),
-            ("Publication retained bytes", (self.maximum_bytes - self.bytes.available_permits()) as i64),
+            (
+                "Publication frames flushed",
+                self.status.borrow().flushed.min(i64::MAX as u64) as i64,
+            ),
+            (
+                "Publication queue pending",
+                (self.incoming.max_capacity() - self.incoming.capacity()) as i64,
+            ),
+            (
+                "Publication queue capacity",
+                self.incoming.max_capacity() as i64,
+            ),
+            (
+                "Publication retained bytes",
+                (self.maximum_bytes - self.bytes.available_permits()) as i64,
+            ),
             ("Publication byte capacity", self.maximum_bytes as i64),
-        ].into_iter().map(|(name, value)| (name.into(), value)).collect()
+        ]
+        .into_iter()
+        .map(|(name, value)| (name.into(), value))
+        .collect()
     }
     /// Copies a detached frame into the one ordered native broker queue.
     ///
@@ -210,7 +285,25 @@ impl Port {
         let subject = frame.subject(&self.scope)?;
         let bytes = frame.encode()?;
         let origin_json = frame.origin_json()?;
-        let charge_bytes = bytes.len().checked_add(origin_json.as_ref().map_or(0, |json| json.len() + 64))
+        if let Some(source) = self
+            .source
+            .as_ref()
+            .and_then(Weak::upgrade)
+            .or(super::source_outbox::lookup(&self.scope)?)
+        {
+            return source
+                .capture(
+                    &subject,
+                    &bytes,
+                    origin_json.as_deref(),
+                    super::source_outbox::key(frame, &subject),
+                    self.tracker.clone(),
+                )
+                .map_err(|_| "Native durable source capture unavailable");
+        }
+        let charge_bytes = bytes
+            .len()
+            .checked_add(origin_json.as_ref().map_or(0, |json| json.len() + 64))
             .ok_or("Native publication byte capacity exceeded")?;
         if charge_bytes > self.maximum_bytes {
             return Err("Native publication byte capacity exceeded");
@@ -229,6 +322,53 @@ impl Port {
                 _charge: charge,
             })
             .map_err(|_| "Native publication queue unavailable")
+    }
+    pub(crate) fn prepare_frame(&self, frame: &Frame) -> Result<PreparedFrame, &'static str> {
+        Ok(PreparedFrame {
+            subject: frame.subject(&self.scope)?,
+            bytes: frame.encode()?,
+            origin_json: frame.origin_json()?,
+            source_key: super::source_outbox::key(frame, &frame.subject(&self.scope)?),
+        })
+    }
+    pub(crate) fn try_prepared_batch(
+        &self,
+        frames: &mut [&mut PreparedFrame],
+    ) -> Result<(), &'static str> {
+        if self.stopping.is_cancelled() {
+            return Err("Native publisher stopped");
+        }
+        let source = self
+            .source
+            .as_ref()
+            .and_then(Weak::upgrade)
+            .or(super::source_outbox::lookup(&self.scope)?)
+            .ok_or("Native durable source owner unavailable")?;
+        let records = frames
+            .iter()
+            .map(|frame| {
+                (
+                    frame.subject.as_str(),
+                    frame.bytes.as_slice(),
+                    frame.origin_json.as_deref(),
+                    frame.source_key,
+                )
+            })
+            .collect::<Vec<_>>();
+        source
+            .capture_batch(&records, self.tracker.clone())
+            .map_err(|_| "Native durable source batch capture unavailable")?;
+        for frame in frames {
+            frame.subject.clear();
+            frame.bytes.clear();
+            frame.origin_json = None;
+        }
+        Ok(())
+    }
+    #[cfg(test)]
+    pub(crate) fn local_source_for_test(scope:&str,source:Option<&Arc<super::source_outbox::Sink>>)->Self{
+        let (incoming,_receiver)=mpsc::channel(1);let (status,observed)=watch::channel(Status{connected:true,..Default::default()});
+        Self{incoming,bytes:Arc::new(Semaphore::new(4*1024*1024)),maximum_bytes:4*1024*1024,stopping:CancellationToken::new(),status:observed,scope:scope.into(),source:source.map(Arc::downgrade),tracker:super::source_outbox::Tracker::new(status)}
     }
     /// Copied broker state, independent of any caller holding this port.
     pub fn status(&self) -> Status {
@@ -362,6 +502,17 @@ impl Publisher {
         }
         let (incoming, receiver) = mpsc::channel(capacity);
         let (status, observed) = watch::channel(Status::default());
+        // Exchanges carry raw IO/receipt traffic and must never recursively capture themselves.
+        let source = if exchange.is_none() {
+            super::source_outbox::lookup(&scope)
+                .ok()
+                .flatten()
+                .as_ref()
+                .map(Arc::downgrade)
+        } else {
+            None
+        };
+        let tracker = super::source_outbox::Tracker::new(status.clone());
         let stopping = parent.map_or_else(CancellationToken::new, |parent| {
             parent.cancellation().child_token()
         });
@@ -389,6 +540,8 @@ impl Publisher {
             status: observed,
             scope,
             reply,
+            source,
+            tracker,
         })
     }
 
@@ -405,6 +558,22 @@ impl Publisher {
         let subject = frame.subject(&self.scope)?;
         let bytes = frame.encode()?;
         let mut origin = frame.origin_json()?;
+        if let Some(source) = self
+            .source
+            .as_ref()
+            .and_then(Weak::upgrade)
+            .or(super::source_outbox::lookup(&self.scope)?)
+        {
+            return source
+                .capture(
+                    &subject,
+                    &bytes,
+                    origin.as_deref(),
+                    super::source_outbox::key(frame, &subject),
+                    self.tracker.clone(),
+                )
+                .map_err(|_| "Native durable source capture unavailable");
+        }
         let mut subject = subject;
         let mut bytes = bytes;
         self.try_packet_owned(&mut subject, &mut bytes, None, &mut origin)
@@ -417,11 +586,76 @@ impl Publisher {
             subject: frame.subject(&self.scope)?,
             bytes: frame.encode()?,
             origin_json: frame.origin_json()?,
+            source_key: super::source_outbox::key(frame, &frame.subject(&self.scope)?),
         })
     }
 
     pub(crate) fn try_prepared_frame(&self, frame: &mut PreparedFrame) -> Result<(), &'static str> {
-        self.try_packet_owned(&mut frame.subject, &mut frame.bytes, None, &mut frame.origin_json)
+        if let Some(source) = self
+            .source
+            .as_ref()
+            .and_then(Weak::upgrade)
+            .or(super::source_outbox::lookup(&self.scope)?)
+        {
+            source
+                .capture(
+                    &frame.subject,
+                    &frame.bytes,
+                    frame.origin_json.as_deref(),
+                    frame.source_key,
+                    self.tracker.clone(),
+                )
+                .map_err(|_| "Native durable source capture unavailable")?;
+            frame.bytes.clear();
+            frame.subject.clear();
+            frame.origin_json = None;
+            return Ok(());
+        }
+        self.try_packet_owned(
+            &mut frame.subject,
+            &mut frame.bytes,
+            None,
+            &mut frame.origin_json,
+        )
+    }
+
+    pub(crate) fn has_source_capture(&self) -> bool {
+        self.source.is_some()
+    }
+
+    pub(crate) fn try_prepared_batch(
+        &self,
+        frames: &mut [&mut PreparedFrame],
+    ) -> Result<(), &'static str> {
+        if self.stopping.is_cancelled() || self.status.borrow().stopped {
+            return Err("Native publisher stopped");
+        }
+        let source = self
+            .source
+            .as_ref()
+            .and_then(Weak::upgrade)
+            .or(super::source_outbox::lookup(&self.scope)?)
+            .ok_or("Native durable source owner unavailable")?;
+        let records = frames
+            .iter()
+            .map(|f| {
+                (
+                    f.subject.as_str(),
+                    f.bytes.as_slice(),
+                    f.origin_json.as_deref(),
+                    f.source_key,
+                )
+            })
+            .collect::<Vec<_>>();
+        source
+            .capture_batch(&records, self.tracker.clone())
+            .map_err(|_| "Native durable source batch capture unavailable")?;
+        for frame in frames {
+            frame.subject.clear();
+            frame.bytes.clear();
+            frame.origin_json = None;
+        }
+        Ok(())
     }
 
     /// Publishes one copied prepared-chain chunk on the existing cache subject.
@@ -436,7 +670,8 @@ impl Publisher {
     ) -> Result<(), &'static str> {
         self.try_packet_origin(
             format!("ifm.{}.marketdata.v1.option-cache", self.scope),
-            publication.frame(index)?, None,
+            publication.frame(index)?,
+            None,
             super::wire::origin_json(publication.snapshot.at, Some(publication.generation))?,
         )
     }
@@ -463,8 +698,12 @@ impl Publisher {
         }
         let subject = format!("ifm.{}.marketdata.v1.option-cache", self.scope);
         for bytes in encoded {
-            self.try_packet_origin(subject.clone(), bytes, None,
-                super::wire::origin_json(publication.snapshot.at, Some(publication.generation))?)?;
+            self.try_packet_origin(
+                subject.clone(),
+                bytes,
+                None,
+                super::wire::origin_json(publication.snapshot.at, Some(publication.generation))?,
+            )?;
         }
         Ok(count)
     }
@@ -485,7 +724,8 @@ impl Publisher {
         let bytes = super::evidence_protocol::request(record)?;
         self.try_packet_origin(
             format!("ifm.{}.marketdata.v1.evidence.write", self.scope),
-            bytes, Some(reply),
+            bytes,
+            Some(reply),
             super::wire::origin_json(record.origin_ticks, Some(record.generation))?,
         )
     }
@@ -504,7 +744,9 @@ impl Publisher {
             .ok_or("Publisher has no raw-reference reply subscription")?;
         self.try_packet_origin(
             format!("ifm.{}.marketdata.v1.reference.read", self.scope),
-            bytes, Some(reply), origin.to_owned(),
+            bytes,
+            Some(reply),
+            origin.to_owned(),
         )
     }
     /// Copies a complete provider diagnostic onto the dedicated logging stream.
@@ -518,7 +760,11 @@ impl Publisher {
         value: &crate::dataset::live::Diagnostic,
         worker: [u8; 16],
     ) -> Result<(), &'static str> {
-        self.try_diagnostic_bytes(value.lane, super::diagnostic::encode(value, worker)?, value.observed)
+        self.try_diagnostic_bytes(
+            value.lane,
+            super::diagnostic::encode(value, worker)?,
+            value.observed,
+        )
     }
 
     pub(crate) fn try_diagnostic_bytes(
@@ -534,7 +780,9 @@ impl Publisher {
         };
         self.try_packet_origin(
             format!("ifm.{}.marketdata.v1.diagnostics.{role}", self.scope),
-            bytes, self.reply.clone(), super::wire::origin_json(observed, None)?,
+            bytes,
+            self.reply.clone(),
+            super::wire::origin_json(observed, None)?,
         )
     }
 
@@ -548,8 +796,10 @@ impl Publisher {
         notice: &super::recovery_notice::Notice,
     ) -> Result<(), &'static str> {
         self.try_packet_origin(
-            notice.subject.clone(), super::codec::compress(notice.bytes.clone())?,
-            None, super::wire::origin_json(notice.origin_ticks, None)?,
+            notice.subject.clone(),
+            super::codec::compress(notice.bytes.clone())?,
+            None,
+            super::wire::origin_json(notice.origin_ticks, None)?,
         )
     }
 
@@ -561,32 +811,73 @@ impl Publisher {
         if body.len() > 16 * 1024 || !(1..=9999).contains(&date.year()) {
             return Err("Invalid recovery outcome");
         }
-        let parsed: serde_json::Value = serde_json::from_str(body).map_err(|_| "Invalid recovery outcome JSON")?;
-        let mut origin = parsed["OccurredAtUtc"].as_str().map(|text| {
-            let at = chrono::DateTime::parse_from_rfc3339(text).map_err(|_| "Invalid recovery outcome origin")?;
-            let ticks = at.timestamp().checked_mul(10_000_000)
-                .and_then(|value| value.checked_add(i64::from(at.timestamp_subsec_nanos() / 100)))
-                .ok_or("Recovery outcome origin overflow")?;
-            super::wire::origin_json(ticks, None)
-        }).transpose()?;
-        self.try_packet_owned(&mut format!("Notify.MarketDataRecoveryOutcome.{date}"),
-            &mut body.as_bytes().to_vec(), None, &mut origin)
+        let parsed: serde_json::Value =
+            serde_json::from_str(body).map_err(|_| "Invalid recovery outcome JSON")?;
+        let mut origin = parsed["OccurredAtUtc"]
+            .as_str()
+            .map(|text| {
+                let at = chrono::DateTime::parse_from_rfc3339(text)
+                    .map_err(|_| "Invalid recovery outcome origin")?;
+                let ticks = at
+                    .timestamp()
+                    .checked_mul(10_000_000)
+                    .and_then(|value| {
+                        value.checked_add(i64::from(at.timestamp_subsec_nanos() / 100))
+                    })
+                    .ok_or("Recovery outcome origin overflow")?;
+                super::wire::origin_json(ticks, None)
+            })
+            .transpose()?;
+        self.try_packet_owned(
+            &mut format!("Notify.MarketDataRecoveryOutcome.{date}"),
+            &mut body.as_bytes().to_vec(),
+            None,
+            &mut origin,
+        )
     }
 
     /// Sends a bounded existing Function request using this independent reply subscription.
     /// # Errors
     /// Missing inbox, stopped connection or full copied-value capacity.
-    pub fn try_recovery_record(&self, mut subject: String, mut bytes: Vec<u8>, origin_ticks: Option<i64>) -> Result<(), &'static str> {
+    pub fn try_recovery_record(
+        &self,
+        mut subject: String,
+        mut bytes: Vec<u8>,
+        origin_ticks: Option<i64>,
+    ) -> Result<(), &'static str> {
         let reply = self
             .reply
             .clone()
             .ok_or("Audit reply subscription unavailable")?;
-        let mut origin = origin_ticks.map(|at| super::wire::origin_json(at, None)).transpose()?;
+        let mut origin = origin_ticks
+            .map(|at| super::wire::origin_json(at, None))
+            .transpose()?;
         self.try_packet_owned(&mut subject, &mut bytes, Some(reply), &mut origin)
     }
 
-    fn try_packet_origin(&self, mut subject: String, mut bytes: Vec<u8>,
-        reply: Option<String>, origin: String) -> Result<(), &'static str> {
+    pub(crate) fn try_source_capture(
+        &self,
+        subject: &str,
+        bytes: &[u8],
+        origin: Option<&str>,
+    ) -> Result<(), &'static str> {
+        let reply = self
+            .reply
+            .clone()
+            .ok_or("Source reply subscription unavailable")?;
+        let mut subject = subject.to_owned();
+        let mut bytes = bytes.to_vec();
+        let mut origin = origin.map(str::to_owned);
+        self.try_packet_owned(&mut subject, &mut bytes, Some(reply), &mut origin)
+    }
+
+    fn try_packet_origin(
+        &self,
+        mut subject: String,
+        mut bytes: Vec<u8>,
+        reply: Option<String>,
+        origin: String,
+    ) -> Result<(), &'static str> {
         self.try_packet_owned(&mut subject, &mut bytes, reply, &mut Some(origin))
     }
 
@@ -600,7 +891,9 @@ impl Publisher {
         if self.stopping.is_cancelled() || self.status.borrow().stopped {
             return Err("Native publisher stopped");
         }
-        let charge_bytes = bytes.len().checked_add(origin_json.as_ref().map_or(0, |json| json.len() + 64))
+        let charge_bytes = bytes
+            .len()
+            .checked_add(origin_json.as_ref().map_or(0, |json| json.len() + 64))
             .ok_or("Native publication byte capacity exceeded")?;
         if charge_bytes > self.maximum_bytes {
             return Err("Native publication byte capacity exceeded");
@@ -610,7 +903,9 @@ impl Publisher {
             .clone()
             .try_acquire_many_owned(charge_bytes as u32)
             .map_err(|_| "Native publication byte capacity exceeded")?;
-        let slot = self.incoming.try_reserve()
+        let slot = self
+            .incoming
+            .try_reserve()
             .map_err(|_| "Native publication queue unavailable")?;
         slot.send(Packet {
             subject: std::mem::take(subject),
@@ -632,6 +927,8 @@ impl Publisher {
             stopping: self.stopping.clone(),
             status: self.status.clone(),
             scope: self.scope.clone(),
+            source: self.source.clone(),
+            tracker: self.tracker.clone(),
         }
     }
 
@@ -674,7 +971,7 @@ impl Publisher {
             .client_capacity(1)
             .subscription_capacity(64)
             .inbound_payload_limit(
-                std::num::NonZeroUsize::new(8192).expect("positive receipt bound"),
+                std::num::NonZeroUsize::new(128 * 1024).expect("positive grouped receipt bound"),
             )
             .connection_timeout(deadline.remaining())
             .max_reconnects(0)
@@ -757,7 +1054,7 @@ impl Publisher {
                 let packet = tokio::select! { biased; () = stop.cancelled() => break,()=fault.cancelled()=>break,
                 received=async{match &mut replies {Some(replies)=>replies.next().await,None=>std::future::pending().await}}=>{
                     match (received,&exchange) {
-                        (Some(message),Some(exchange)) if message.payload.len()<=8192 && message.status.is_none()=>{
+                        (Some(message),Some(exchange)) if message.payload.len()<=128*1024 && message.status.is_none()=>{
                             if exchange.received.try_send(message.payload.to_vec()).is_err(){status.send_modify(|s|s.failure=Some("Native evidence receipt queue exhausted"));break;}
                         }
                         (Some(message),_)=>{
@@ -860,7 +1157,6 @@ impl Drop for Publisher {
     }
 }
 
-
 #[cfg(test)]
 mod prepared_frames {
     use super::*;
@@ -893,6 +1189,8 @@ mod prepared_frames {
             status: watch::channel(Status::default()).1,
             scope: "test".into(),
             reply: None,
+            source: None,
+            tracker: super::super::source_outbox::Tracker::new(watch::channel(Status::default()).0),
         };
         let first = frame(1);
         publisher.try_publish(&first).unwrap();
@@ -901,7 +1199,10 @@ mod prepared_frames {
         let expected_bytes = second.encode().unwrap();
         let expected_subject = second.subject("test").unwrap();
         let charge = publisher.retained_bytes();
-        assert_eq!(publisher.try_prepared_frame(&mut prepared), Err("Native publication queue unavailable"));
+        assert_eq!(
+            publisher.try_prepared_frame(&mut prepared),
+            Err("Native publication queue unavailable")
+        );
         assert_eq!(publisher.retained_bytes(), charge);
         assert_eq!(prepared.bytes, expected_bytes);
         assert_eq!(prepared.subject, expected_subject);

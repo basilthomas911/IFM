@@ -65,7 +65,7 @@ public sealed class ActorThreadQueues(
         }
         // Complete disposable snapshots use their own fixed slot budget, not the shared durable traffic budget.
         var charge = default(ActorAdmissionCharge);
-        var admission = LatestOptionSnapshotQueue.IsDisposable(message, subject) ? ActorAdmissionResult.AcceptedResult
+        var admission = (message is IRealtimeBrokerDelivery || LatestOptionSnapshotQueue.IsDisposable(message, subject)) ? ActorAdmissionResult.AcceptedResult
             : _admissionController.TryReserve(message, threadId.ActorType, out charge);
         if (!admission.Accepted)
         {
@@ -101,7 +101,8 @@ public sealed class ActorThreadQueues(
                 if (result.Accepted)
                 {
                     reservationOwned = false;
-                    _metrics?.GetOrRegister(threadId, queue).RecordAccepted();
+                    var acceptedMetrics=_metrics?.GetOrRegister(threadId,queue);
+                    for(var logical=0;logical<(message is IRealtimeBrokerBatch group?Math.Clamp(group.Messages.Count,1,64):1);logical++)acceptedMetrics?.RecordAccepted();
                     if (scheduled.TrySchedule())
                     {
                         if (scheduler is null)
@@ -159,7 +160,7 @@ public sealed class ActorThreadQueues(
             return ActorAdmissionResult.Rejected(ActorAdmissionReason.Stopping);
         }
         var charge = default(ActorAdmissionCharge);
-        var admission = LatestOptionSnapshotQueue.IsDisposable(message, subject) ? ActorAdmissionResult.AcceptedResult
+        var admission = (message is IRealtimeBrokerDelivery || LatestOptionSnapshotQueue.IsDisposable(message, subject)) ? ActorAdmissionResult.AcceptedResult
             : _admissionController.TryReserve(message, threadId.ActorType, out charge);
         if (!admission.Accepted)
         {
@@ -197,7 +198,8 @@ public sealed class ActorThreadQueues(
                 if (result.Accepted)
                 {
                     reservationOwned = false;
-                    _metrics?.GetOrRegister(threadId, queue).RecordAccepted();
+                    var acceptedMetrics=_metrics?.GetOrRegister(threadId,queue);
+                    for(var logical=0;logical<(message is IRealtimeBrokerBatch group?Math.Clamp(group.Messages.Count,1,64):1);logical++)acceptedMetrics?.RecordAccepted();
                     if (scheduled.TrySchedule())
                     {
                         if (scheduler is null)
@@ -235,7 +237,8 @@ public sealed class ActorThreadQueues(
                 RemoveRetired(threadId, existing);
             }
 
-            var created = LatestOptionSnapshotQueue.Applies(threadId)
+            var brokerOwned = threadId.ActorType == ActorType.Realtime && _supervisor.Container?.Resolve<IRealtimePublicationCapture>()?.Enabled == true;
+            var created = brokerOwned ? new ActorThreadQueueV2(1) : LatestOptionSnapshotQueue.Applies(threadId)
                 ? new LatestOptionSnapshotQueue(_admissionController) : _supervisor.Container.Resolve<IActorThreadQueue>();
             created.SetId(threadId);
             created.Start();

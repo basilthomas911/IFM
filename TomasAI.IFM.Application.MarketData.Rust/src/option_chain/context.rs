@@ -437,3 +437,21 @@ fn guid(bytes: [u8; 16]) -> String {
         bytes[15]
     )
 }
+
+impl Context {
+    pub(crate) fn checkpoint(&self)->rmpv::Value{
+        use rmpv::Value as V;let r=&self.rate;let x=&r.conversion;
+        V::Array(vec![1.into(),self.contract.value(),self.calendar.value(),V::Array(vec![r.tenor.into(),V::Array(r.percentage.bits.iter().map(|v|(*v).into()).collect()),r.annual.to_bits().into(),crate::checkpoint::day(r.date),r.retrieved.into(),r.digest.clone().into(),V::Array(vec![x.source.clone().into(),x.series.clone().into(),x.convention.into(),x.version.clone().into(),x.evidence.clone().into()])]),self.valid_until.into(),V::Binary(self.generation.to_vec()),self.publication_version.clone().into(),self.maximum_lead.into(),self.maximum_age.into(),self.maximum_skew.into(),self.prepared_at.into()])
+    }
+    pub(crate) fn restore_checkpoint(value:&rmpv::Value)->Result<Self,String>{
+        use crate::checkpoint as c;let f=c::fields(value,11)?;if c::unsigned(&f[0])?!=1{return Err("Pricing reference checkpoint version".into());}
+        let calendar=c::fields(&f[2],6)?;let dates=calendar[5].as_array().filter(|v|v.len()<=2000).ok_or("Reference calendar exceeds bound")?.iter().map(c::date).collect::<Result<Vec<_>,_>>()?;
+        let calendar=Calendar::new(c::string(&calendar[0],512)?,&c::string(&calendar[1],256)?,c::date(&calendar[2])?,c::date(&calendar[3])?,c::unsigned(&calendar[4])?,dates).map_err(|_|"Original pricing calendar invalid")?;
+        let r=c::fields(&f[3],7)?;let percentage=c::fields(&r[1],4)?.iter().map(|v|c::unsigned(v)?.try_into().map_err(|_|"Rate decimal word overflow".to_owned())).collect::<Result<Vec<u32>,_>>()?;let x=c::fields(&r[6],5)?;
+        let rate=Rate{tenor:c::unsigned(&r[0])?.try_into().map_err(|_|"Rate tenor overflow")?,percentage:super::qualification::Decimal{bits:percentage.try_into().unwrap()},annual:f64::from_bits(c::unsigned(&r[2])?),date:c::date(&r[3])?,retrieved:c::number(&r[4])?,digest:c::string(&r[5],512)?,conversion:Conversion{source:c::string(&x[0],1024)?,series:c::string(&x[1],1024)?,convention:c::number(&x[2])?.try_into().map_err(|_|"Rate convention overflow")?,version:c::string(&x[3],1024)?,evidence:c::string(&x[4],4096)?}};
+        let generation=match &f[5]{rmpv::Value::Binary(bytes) if bytes.len()==16=>bytes.as_slice().try_into().unwrap(),_=>return Err("Reference generation invalid".into())};
+        let result=Self{contract:Convention::new(f[1].clone()).map_err(str::to_owned)?,calendar,rate,valid_until:c::number(&f[4])?,generation,publication_version:c::string(&f[6],512)?,maximum_lead:c::number(&f[7])?.try_into().map_err(|_|"Reference lead overflow")?,maximum_age:c::unsigned(&f[8])?.try_into().map_err(|_|"Reference age overflow")?,maximum_skew:c::unsigned(&f[9])?.try_into().map_err(|_|"Reference skew overflow")?,prepared_at:c::number(&f[10])?,digest:std::sync::OnceLock::new()};
+        if result.generation==[0;16]||!(1..=5000).contains(&result.maximum_age)||result.maximum_skew>2000||!(0..=2000).contains(&result.maximum_lead)||!result.rate.annual.is_finite(){return Err("Original pricing reference policy invalid".into());}
+        result.digest().map_err(str::to_owned)?;Ok(result)
+    }
+}

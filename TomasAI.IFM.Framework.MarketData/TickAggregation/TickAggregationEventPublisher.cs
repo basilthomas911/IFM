@@ -1,4 +1,7 @@
 ﻿using System.Threading.Channels;
+using MessagePack;
+using MessagePack.Resolvers;
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
@@ -10,7 +13,7 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Framework.MarketData.TickAggregation;
 
-public sealed class TickAggregationEventPublisher : ITickAggregationEventPublisher, ITickAggregationPublisherDiagnostics
+public sealed class TickAggregationEventPublisher : ITickAggregationEventPublisher, ITickAggregationPublisherDiagnostics, IRecoveredFuturesItiPublisher, IDurableTickPublicationBatch
 {
     private readonly IActorSupervisor _supervisor;
     private readonly int _capacity;
@@ -21,6 +24,10 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
     private int _running;
     private long _pending;
     private readonly BoundedRealtimeTickPublisher? _bounded;
+    private readonly IRealtimePublicationCapture? _capture;
+    private long _captured;
+    private static readonly MessagePackSerializerOptions CaptureWire=MessagePackSerializerOptions.Standard.WithResolver(ContractlessStandardResolver.Instance).WithCompression(MessagePackCompression.Lz4BlockArray);
+    public bool ConfirmsDurableCapture=>_capture is {Enabled:true};
 
     /// <summary>Creates an ordered realtime publisher with bounded queue admission.</summary>
     /// <param name="supervisor">The actor supervisor providing the realtime producer.</param>
@@ -28,13 +35,14 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
     /// <param name="policy">The optional bounded delivery policy; null selects the legacy waiting channel.</param>
     /// <param name="timeProvider">The clock used by bounded delivery; null selects the system clock.</param>
     public TickAggregationEventPublisher(IActorSupervisor supervisor, int capacity = 1024,
-        RealtimeTickPublisherPolicy? policy = null, TimeProvider? timeProvider = null)
+        RealtimeTickPublisherPolicy? policy = null, TimeProvider? timeProvider = null, IRealtimePublicationCapture? capture = null)
     {
         ArgumentNullException.ThrowIfNull(supervisor);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(capacity);
         _supervisor = supervisor;
         _capacity = capacity;
-        if (policy is not null)
+        _capture=capture is {Enabled:true}?capture:null;
+        if (policy is not null&&_capture is null)
             _bounded = new BoundedRealtimeTickPublisher(supervisor, policy.Validate(), timeProvider ?? TimeProvider.System);
     }
 
@@ -42,7 +50,10 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
 
     /// <summary>Captures the current publisher state and admission diagnostics.</summary>
     /// <returns>The current queue, delivery, and failure diagnostics.</returns>
-    public RealtimeTickPublisherSnapshot GetSnapshot() => _bounded?.GetSnapshot()
+    public RealtimeTickPublisherSnapshot GetSnapshot() => _capture is not null
+        ? new(true,IsRunning,false,false,false,0,(int)Math.Min(int.MaxValue,Interlocked.Read(ref _pending)),0,TimeSpan.Zero,TimeSpan.Zero,
+            Interlocked.Read(ref _captured),Interlocked.Read(ref _captured),0,0,0,0,0,0,RealtimeTickPublisherFailure.None,"Confirmed durable source capture; no local volatile publication queue.")
+        : _bounded?.GetSnapshot()
         ?? new(false, IsRunning, false, false, false, _capacity,
             (int)Math.Min(int.MaxValue, Math.Max(0, Interlocked.Read(ref _pending))), 0,
             TimeSpan.Zero, TimeSpan.Zero, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -58,6 +69,7 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
     /// <returns>An awaitable that completes when the operation finishes.</returns>
     public async ValueTask StartAsync(CancellationToken cancellationToken)
     {
+        if(_capture is not null){cancellationToken.ThrowIfCancellationRequested();Volatile.Write(ref _running,1);return;}
         if (_bounded is not null) { await _bounded.StartAsync(cancellationToken).ConfigureAwait(false); return; }
         await _lifecycle.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
@@ -90,6 +102,7 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
         FuturesTickTradeDataChangedEvent @event,
         CancellationToken cancellationToken)
     {
+        if(_capture is not null)return CaptureAsync(@event,cancellationToken);
         if (_bounded is not null) return _bounded.PublishAsync(@event, null, cancellationToken);
         EnsureRunning();
         return EnqueueAsync(
@@ -110,6 +123,7 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
         FuturesMarketPriceUpdatedRealtimeEvent @event,
         CancellationToken cancellationToken)
     {
+        if(_capture is not null){await FuturesItiOrderedIngress.PrepareSourceAsync(@event,cancellationToken).ConfigureAwait(false);await CaptureAsync(@event,cancellationToken).ConfigureAwait(false);await FuturesItiOrderedIngress.DeliverAsync(@event,cancellationToken).ConfigureAwait(false);return;}
         Exception? itiFailure = null;
         try { await FuturesItiOrderedIngress.DeliverAsync(@event, cancellationToken).ConfigureAwait(false); }
         catch (Exception error) when (!cancellationToken.IsCancellationRequested) { itiFailure = error; }
@@ -140,6 +154,7 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
         FuturesTradeReplayBatchRealtimeEvent @event,
         CancellationToken cancellationToken)
     {
+        if(_capture is not null){await FuturesItiOrderedIngress.PrepareSourceAsync(@event,cancellationToken).ConfigureAwait(false);await CaptureAsync(@event,cancellationToken).ConfigureAwait(false);await FuturesItiOrderedIngress.DeliverReplayAsync(@event,cancellationToken).ConfigureAwait(false);return;}
         Exception? itiFailure = null;
         try { await FuturesItiOrderedIngress.DeliverReplayAsync(@event, cancellationToken).ConfigureAwait(false); }
         catch (Exception error) when (!cancellationToken.IsCancellationRequested) { itiFailure = error; }
@@ -167,6 +182,7 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
         FuturesSessionStatisticsUpdatedRealtimeEvent @event,
         CancellationToken cancellationToken)
     {
+        if(_capture is not null)return CaptureAsync(@event,cancellationToken);
         if (_bounded is not null) return _bounded.PublishAsync(@event, null, cancellationToken);
         EnsureRunning();
         ArgumentNullException.ThrowIfNull(@event);
@@ -199,6 +215,7 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
             lease.Count != @event.QuoteCount ||
             @event.QuoteCount is 0 or > FuturesTickQuoteDataSegment.MaximumCount)
             throw new ArgumentException("The quote event does not describe the supplied active buffer lease.", nameof(@event));
+        if(_capture is not null){await CaptureAsync(@event,cancellationToken).ConfigureAwait(false);lease.Dispose();return;}
         if (_bounded is not null)
         {
             await _bounded.PublishAsync(@event, lease, cancellationToken).ConfigureAwait(false);
@@ -218,6 +235,7 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Realtime supervision boundary records every transport failure and preserves lease cleanup or retirement; arbitrary provider failures must be contained.")]
     public async ValueTask StopAsync(CancellationToken cancellationToken)
     {
+        if(_capture is not null){Volatile.Write(ref _running,0);return;}
         if (_bounded is not null) { await _bounded.StopAsync(cancellationToken).ConfigureAwait(false); return; }
         await _lifecycle.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
@@ -301,6 +319,99 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
             Volatile.Write(ref _running, 0);
             throw;
         }
+    }
+
+    public async ValueTask PublishBatchAsync(IReadOnlyList<IEvent> sources,bool recovered,CancellationToken token)
+    {
+        EnsureRunning();if(_capture is null)throw new InvalidOperationException("Source groups require confirmed capture.");
+        if(sources.Count is <1 or >64)throw new InvalidDataException("Source group is outside bounds.");
+        var prices=sources.OfType<FuturesMarketPriceUpdatedRealtimeEvent>().ToArray();
+        if(sources.Any(source=>source is FuturesTradeReplayBatchRealtimeEvent)||prices.Any(price=>price.VwapCheckpoint is not null))
+            throw new InvalidDataException("Replay and checkpoint controls are ordered single-source barriers.");
+        if(recovered){foreach(var price in prices)await FuturesItiOrderedIngress.ValidateRecoveredAsync(price,token).ConfigureAwait(false);}
+        else await FuturesItiOrderedIngress.PrepareBatchAsync(prices,token).ConfigureAwait(false);
+        var publications=new RealtimeSourcePublication[sources.Count];
+        for(var index=0;index<sources.Count;index++)
+        {
+            var source=sources[index];var (dataset,generation)=source switch
+            {
+                FuturesMarketPriceUpdatedRealtimeEvent value=>(value.SourceDataset,value.SourceGenerationId),
+                FuturesTickTradeDataChangedEvent value=>(value.SourceDataset,value.SourceGenerationId),
+                FuturesTickQuoteDataChangedEvent value=>(value.SourceDataset,value.SourceGenerationId),
+                FuturesSessionStatisticsUpdatedRealtimeEvent value=>(value.SourceDataset,value.SourceGenerationId),
+                _=>throw new InvalidDataException("Unsupported source group event.")
+            };
+            publications[index]=new(source.Subject,source.Id,MessagePackSerializer.Serialize(source.GetType(),source,CaptureWire,token),MessageOrigins.Get(source),dataset,generation);
+        }
+        Interlocked.Add(ref _pending,sources.Count);
+        try
+        {
+            var receipts=await _capture.CaptureBatchAsync(publications,token).ConfigureAwait(false);
+            if(receipts.Count!=sources.Count||receipts.Where((receipt,index)=>receipt.SourceEventId!=sources[index].Id).Any())throw new InvalidDataException("Source group capture returned another identity/order.");
+            Interlocked.Add(ref _captured,sources.Count);
+            if(recovered){foreach(var price in prices)await FuturesItiOrderedIngress.DeliverRecoveredAsync(price,token).ConfigureAwait(false);}
+            else await FuturesItiOrderedIngress.DeliverBatchAsync(prices,token).ConfigureAwait(false);
+        }
+        finally{Interlocked.Add(ref _pending,-sources.Count);}
+    }
+
+    public async ValueTask PublishRecoveredAsync(FuturesMarketPriceUpdatedRealtimeEvent source,CancellationToken token)
+    {
+        if(_capture is null)
+        {
+            if(!await FuturesItiOrderedIngress.ProveRecoveredAsync(source,token).ConfigureAwait(false))
+                throw new IOException("Original retained ITI source has no exact committed input coverage; native ownership remains retained.");
+            await PublishRecoveredCoreAsync(source,token).ConfigureAwait(false);return;
+        }
+        await FuturesItiOrderedIngress.ValidateRecoveredAsync(source,token).ConfigureAwait(false);
+        await CaptureAsync(source,token).ConfigureAwait(false);
+        await FuturesItiOrderedIngress.DeliverRecoveredAsync(source,token).ConfigureAwait(false);
+    }
+    public async ValueTask PublishRecoveredAsync(FuturesTradeReplayBatchRealtimeEvent source,CancellationToken token)
+    {
+        if(_capture is null)
+        {
+            if(!await FuturesItiOrderedIngress.ProveRecoveredAsync(source,token).ConfigureAwait(false))
+                throw new IOException("Original retained replay source has no exact committed coverage; native ownership remains retained.");
+            await PublishRecoveredCoreAsync(source,token).ConfigureAwait(false);return;
+        }
+        await FuturesItiOrderedIngress.ValidateRecoveredAsync(source,token).ConfigureAwait(false);
+        await CaptureAsync(source,token).ConfigureAwait(false);
+        await FuturesItiOrderedIngress.DeliverRecoveredReplayAsync(source,token).ConfigureAwait(false);
+    }
+
+    async ValueTask PublishRecoveredCoreAsync<TEvent>(TEvent source,CancellationToken token) where TEvent:class,IEvent
+    {
+        // The original ordered recipient is already positively proved. Never call normal
+        // PublishAsync here: it samples current causal inputs and could regenerate a signal.
+        EnsureRunning();
+        if(_bounded is not null)await _bounded.PublishAsync(source,null,token).ConfigureAwait(false);
+        else await EnqueueAsync(new Publication(source,null,token),token).ConfigureAwait(false);
+    }
+
+    private async ValueTask CaptureAsync<TEvent>(TEvent value,CancellationToken token) where TEvent:class,IEvent
+    {
+        EnsureRunning();ArgumentNullException.ThrowIfNull(value);
+        var (dataset,generation)=(object)value switch
+        {
+            FuturesMarketPriceUpdatedRealtimeEvent c=>(c.SourceDataset,c.SourceGenerationId),
+            FuturesTickTradeDataChangedEvent c=>(c.SourceDataset,c.SourceGenerationId),
+            FuturesTickQuoteDataChangedEvent c=>(c.SourceDataset,c.SourceGenerationId),
+            FuturesSessionStatisticsUpdatedRealtimeEvent c=>(c.SourceDataset,c.SourceGenerationId),
+            FuturesTradeReplayBatchRealtimeEvent c=>(c.SourceDataset,c.SourceGenerationId),
+            _=>(string.Empty,Guid.Empty)
+        };
+        // Legacy/native messages without an origin retain that absence across retries; never restamp retained bytes.
+        var origin=MessageOrigins.Get(value);
+        var payload=MessagePackSerializer.Serialize(value,CaptureWire,token);
+        Interlocked.Increment(ref _pending);
+        try
+        {
+            var receipt=await _capture!.CaptureAsync(new(value.Subject,value.Id,payload,origin,dataset,generation),token).ConfigureAwait(false);
+            if(receipt.SourceEventId!=value.Id)throw new InvalidDataException("Durable realtime capture returned another source identity.");
+            Interlocked.Increment(ref _captured);
+        }
+        finally {Interlocked.Decrement(ref _pending);}
     }
 
     private void EnsureRunning()

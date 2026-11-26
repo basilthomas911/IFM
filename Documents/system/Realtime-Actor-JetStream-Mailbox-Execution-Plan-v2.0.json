@@ -1,0 +1,590 @@
+{
+  "version": "2.0",
+  "date": "2026-11-25",
+  "status": "Dedicated production-handler replay host and certified native checkpoint implementation verified; authentic complete-session Memory/File qualification and activation remain pending",
+  "scope": "All 22 core packages and both adjacent account safety packages",
+  "audit": "Realtime-Actor-JetStream-Mailbox-Remaining-Work-2026-11-25.json",
+  "agentConcurrency": {
+    "maximumActiveAgents": 4,
+    "root": 1,
+    "subagents": 3,
+    "parallelBound": "Shared protocol S1 precedes dependent edits; independent baseline/tests/account/domain work overlaps safely"
+  },
+  "stages": [
+    {
+      "id": "S0",
+      "name": "Freeze baseline and acceptance criteria",
+      "dependsOn": [],
+      "exit": "Preserved current source/config/manifests, all 12 audit cases catalogued, before BDN workloads and numeric SLO/capacity sheet fixed",
+      "executionStatus": "baseline captured"
+    },
+    {
+      "id": "S1",
+      "name": "Shared intent/outcome/capture protocol and recovery policy",
+      "dependsOn": [
+        "S0"
+      ],
+      "exit": "Versioned contracts frozen; real owner acceptance/unknown/interrupted dispositions, local proof and old-journal migration specified/tested",
+      "executionStatus": "implemented; component integration verified; full stage qualification pending"
+    },
+    {
+      "id": "S2",
+      "name": "Parallel component implementation",
+      "dependsOn": [
+        "S1"
+      ],
+      "exit": "Workflow family repairs, backend skeleton, independent domain/account fixes implemented; local checks pass with feature disabled",
+      "executionStatus": "implemented; component integration verified; full stage qualification pending"
+    },
+    {
+      "id": "S3",
+      "name": "Complete source-to-mailbox and lifecycle integration",
+      "dependsOn": [
+        "S2"
+      ],
+      "exit": "Every required source/destination captured; scheduler/order/ACK/generation/retention semantics integrated; all24 package acceptance checklists wired",
+      "executionStatus": "implemented; component integration verified; full stage qualification pending"
+    },
+    {
+      "id": "S4",
+      "name": "Actual owner recovery, saturation and regression qualification",
+      "dependsOn": [
+        "S3"
+      ],
+      "exit": "Real owners/schemas and money invariants pass fault matrix; finite retention/capacity/exhaustion verified; all audit counterexamples converted",
+      "executionStatus": "finite-retention, archive and regression checks passed; full actual-owner/session qualification still pending"
+    },
+    {
+      "id": "S5",
+      "name": "Matched before/after BenchmarkDotNet and full-path performance",
+      "dependsOn": [
+        "S4"
+      ],
+      "exit": "Frozen local/Memory/File workloads report full latency/resource costs and meet declared thresholds including two-second stage decision/handoff budget",
+      "executionStatus": "matched before/after recorded; prepared first decisions and operational transport pass; 3,000-consumer cold creation is explicit test-only stress with raw timings retained; no activation"
+    },
+    {
+      "id": "S6",
+      "name": "Two matched complete sessions per backend",
+      "dependsOn": [
+        "S5"
+      ],
+      "exit": "Two complete authoritative sessions for both modes reconcile identities/results and supported failure boundaries without live orders",
+      "executionStatus": "PG/Scylla/owner-file restore, dedicated historical host and native registration/book/mapper checkpoint implemented; capture jobs unarmed; complete matching tapes/session reconciliation pending"
+    },
+    {
+      "id": "S7",
+      "name": "Controlled development cutover and rollback",
+      "dependsOn": [
+        "S6"
+      ],
+      "exit": "Epoch/drain/migration and rollback verified; profile/UI/readiness/source accounting passes; production deployment remains outside this plan",
+      "executionStatus": "isolated config switch/exact rollback rehearsal implemented and tested; live cutover not run and remains gated on full session qualification"
+    }
+  ],
+  "packages": [
+    {
+      "id": "W1",
+      "title": "Freeze all time/evidence-bearing workflow outputs together",
+      "primaryOwner": "Agent A",
+      "earliestStage": "S1",
+      "exitStage": "S5",
+      "status": "implemented; component verification passed; package qualification pending",
+      "auditDependencies": [],
+      "acceptance": "Original command/result/parameter/provenance survives lost replies and startup; owner audit accepts/reconciles exact bytes without deadline relaxation",
+      "evidenceStatus": "reproduced + static",
+      "scopeCondition": "MC completion; prepared/legacy Risk failure, preparation, entry-commit confirmation and financial advance variants",
+      "componentReadyStage": "S2",
+      "qualificationRequirement": "Relevant S4 real-owner/recovery/regression checks and S5 measured resource gates before package closure"
+    },
+    {
+      "id": "W2",
+      "title": "Separate Risk calculation failure from uncertain success delivery",
+      "primaryOwner": "Agent A",
+      "earliestStage": "S1",
+      "exitStage": "S5",
+      "status": "implemented; component verification passed; package qualification pending",
+      "auditDependencies": [
+        "W1",
+        "W7"
+      ],
+      "acceptance": "Accepted/lost approval never becomes a contradictory failure; original result and unknown outcome remain recoverable",
+      "evidenceStatus": "reproduced",
+      "scopeCondition": "PreparedPortfolioRisk.EvaluateAsync currently catches CompleteRiskManagement send failure",
+      "componentReadyStage": "S2",
+      "qualificationRequirement": "Relevant S4 real-owner/recovery/regression checks and S5 measured resource gates before package closure"
+    },
+    {
+      "id": "W3",
+      "title": "Freeze legacy Portfolio request before financial evaluation",
+      "primaryOwner": "Agent A",
+      "earliestStage": "S1",
+      "exitStage": "S5",
+      "status": "implemented; component verification passed; package qualification pending",
+      "auditDependencies": [
+        "W1"
+      ],
+      "acceptance": "Exact request/op/hash is reused; real Portfolio store resolves accepted/lost response without new effects",
+      "evidenceStatus": "reproduced",
+      "scopeCondition": "Legacy EvaluatePortfolioAsync rebuilds RequestedAt/hash under same operation",
+      "componentReadyStage": "S2",
+      "qualificationRequirement": "Relevant S4 real-owner/recovery/regression checks and S5 measured resource gates before package closure"
+    },
+    {
+      "id": "W4",
+      "title": "Canonicalize reservation receipt completion",
+      "primaryOwner": "Agent A",
+      "earliestStage": "S1",
+      "exitStage": "S5",
+      "status": "implemented; component verification passed; package qualification pending",
+      "auditDependencies": [
+        "W1"
+      ],
+      "acceptance": "Same immutable completion bytes retain original receipt semantics; no duplicate allocation",
+      "evidenceStatus": "reproduced",
+      "scopeCondition": "Legacy Fund receipt returns Committed first, IdempotentReplay later",
+      "componentReadyStage": "S2",
+      "qualificationRequirement": "Relevant S4 real-owner/recovery/regression checks and S5 measured resource gates before package closure"
+    },
+    {
+      "id": "W5",
+      "title": "Durably own late reservation and stopped cleanup",
+      "primaryOwner": "Agent A",
+      "earliestStage": "S1",
+      "exitStage": "S5",
+      "status": "implemented; component verification passed; package qualification pending",
+      "auditDependencies": [
+        "W1",
+        "W4"
+      ],
+      "acceptance": "Recover until authoritative reservation/expiry settled, including crash after timeout and required read failure",
+      "evidenceStatus": "code-confirmed failure paths",
+      "scopeCondition": "Detached late callback logs failure; pending cleanup skips failed order read",
+      "componentReadyStage": "S2",
+      "qualificationRequirement": "Relevant S4 real-owner/recovery/regression checks and S5 measured resource gates before package closure"
+    },
+    {
+      "id": "W6",
+      "title": "Define cold recovery for unaccepted local composition preparation",
+      "primaryOwner": "Agent A",
+      "earliestStage": "S1",
+      "exitStage": "S5",
+      "status": "implemented; component verification passed; package qualification pending",
+      "auditDependencies": [
+        "W7"
+      ],
+      "acceptance": "Persist exact preparation or intentionally interrupt/retire it with durable settlement; no recapture under old authority",
+      "evidenceStatus": "recovery-policy gap",
+      "scopeCondition": "Resident Lazy preparation can be lost before owner accepts it",
+      "componentReadyStage": "S2",
+      "qualificationRequirement": "Relevant S4 real-owner/recovery/regression checks and S5 measured resource gates before package closure"
+    },
+    {
+      "id": "W7",
+      "title": "Reconcile durable outputs with local proof/session lifetimes",
+      "primaryOwner": "Agent A",
+      "earliestStage": "S1",
+      "exitStage": "S5",
+      "status": "implemented; component verification passed; package qualification pending",
+      "auditDependencies": [],
+      "acceptance": "Actual owners can reconcile original acceptance or safely retire interrupted output; never bypass proof/expiry or resume stale eligibility",
+      "evidenceStatus": "architecture/qualification gap",
+      "scopeCondition": "MC/TS/OC MatchesResult is resident; Risk approval also uses reference identity; old decisions intentionally interrupt",
+      "componentReadyStage": "S2",
+      "qualificationRequirement": "Relevant S4 real-owner/recovery/regression checks and S5 measured resource gates before package closure"
+    },
+    {
+      "id": "W8",
+      "title": "Accept legitimate redispatch aliases without losing input integrity",
+      "primaryOwner": "Agent A",
+      "earliestStage": "S1",
+      "exitStage": "S5",
+      "status": "implemented; component verification passed; package qualification pending",
+      "auditDependencies": [
+        "W1"
+      ],
+      "acceptance": "Same accepted view/dispatch aliases recover original pending/sent terminal; changed accepted content still fails closed",
+      "evidenceStatus": "reproduced",
+      "scopeCondition": "Regime/Assessment key WF+stage+revision but hash full outer notification; explicit redispatch changes outer ID/time",
+      "componentReadyStage": "S2",
+      "qualificationRequirement": "Relevant S4 real-owner/recovery/regression checks and S5 measured resource gates before package closure"
+    },
+    {
+      "id": "P1",
+      "title": "Commit ingress replay watermark after durable capture",
+      "primaryOwner": "Agent B",
+      "earliestStage": "S1",
+      "exitStage": "S5",
+      "status": "implemented; component verification passed; package qualification pending",
+      "auditDependencies": [
+        "INF2"
+      ],
+      "acceptance": "Retain/serialize pending admission and commit progress after durable ownership; exact retry and successor order survive restart/fan-out",
+      "evidenceStatus": "reproduced",
+      "scopeCondition": "Non-option admission advances LastSequence before publication; a failure fences exact retry",
+      "componentReadyStage": "S3",
+      "qualificationRequirement": "Relevant S4 real-owner/recovery/regression checks and S5 measured resource gates before package closure"
+    },
+    {
+      "id": "D1",
+      "title": "Resolve option lifecycle snapshot/cleanup retry ownership",
+      "primaryOwner": "Agent C",
+      "earliestStage": "S1",
+      "exitStage": "S5",
+      "status": "implemented; component verification passed; package qualification pending",
+      "auditDependencies": [
+        "INF2"
+      ],
+      "acceptance": "Recover required lifecycle/cleanup or prove allowed display/read-repair semantics; preserve final feed-off/control contract, no route resurrection",
+      "evidenceStatus": "reproduced; lifecycle/display scope",
+      "scopeCondition": "Open/close route/cache mutation can suppress failed snapshot send; separate IronCondor final close publications exist",
+      "componentReadyStage": "S3",
+      "qualificationRequirement": "Relevant S4 real-owner/recovery/regression checks and S5 measured resource gates before package closure"
+    },
+    {
+      "id": "D2",
+      "title": "Make legacy market-price failure settlement metrics-independent",
+      "primaryOwner": "Agent C",
+      "earliestStage": "S0",
+      "exitStage": "S5",
+      "status": "implemented; component verification passed; package qualification pending",
+      "auditDependencies": [],
+      "acceptance": "Required failure is not ACKed in every supported mode, or unqualified legacy configuration is explicitly disabled",
+      "evidenceStatus": "reproduced; conditional legacy mode",
+      "scopeCondition": "IFM.RawFuturesDurableStorage=false and optional metrics absent; default durable raw mode bypasses forward",
+      "componentReadyStage": "S2",
+      "qualificationRequirement": "Relevant S4 real-owner/recovery/regression checks and S5 measured resource gates before package closure"
+    },
+    {
+      "id": "D3",
+      "title": "Specify parameter-version compatibility for pending position plans",
+      "primaryOwner": "Agent C",
+      "earliestStage": "S1",
+      "exitStage": "S5",
+      "status": "implemented; component verification passed; package qualification pending",
+      "auditDependencies": [
+        "INF4"
+      ],
+      "acceptance": "Capture original versioned plan input or explicitly retire incompatible pending work under tested upgrade policy",
+      "evidenceStatus": "reproduced conditional upgrade; not active hot-reload defect",
+      "scopeCondition": "VerticalSpread/pre-intent Futures contexts currently immutable; changed Version during pending replay conflicts",
+      "componentReadyStage": "S3",
+      "qualificationRequirement": "Relevant S4 real-owner/recovery/regression checks and S5 measured resource gates before package closure"
+    },
+    {
+      "id": "A1",
+      "title": "Recover latest account convergence and supervise callback reader",
+      "primaryOwner": "Agent C",
+      "earliestStage": "S1",
+      "exitStage": "S5",
+      "status": "implemented; component verification passed; package qualification pending",
+      "auditDependencies": [],
+      "acceptance": "Last failed snapshot converges without another callback; startup fault restarts or surfaces readiness; dead reader cannot stall financial progress",
+      "evidenceStatus": "code-confirmed failure paths; outside 25 Realtime destinations",
+      "scopeCondition": "BrokerAccount Event bridge can lose last snapshot, remain faulted, and leave bounded synchronous channel blocking financial callers",
+      "componentReadyStage": "S3",
+      "qualificationRequirement": "Relevant S4 real-owner/recovery/regression checks and S5 measured resource gates before package closure"
+    },
+    {
+      "id": "A2",
+      "title": "Fence stale same-generation account evidence",
+      "primaryOwner": "Agent C",
+      "earliestStage": "S0",
+      "exitStage": "S5",
+      "status": "implemented; component verification passed; package qualification pending",
+      "auditDependencies": [],
+      "acceptance": "Monotonic authoritative evidence/order plus equal-time conflict rule; preserve manual/qualification holds",
+      "evidenceStatus": "reproduced; outside Realtime transport",
+      "scopeCondition": "Older account AsOf can overwrite newer NewRiskAllowed=false evidence and reopen gate",
+      "componentReadyStage": "S2",
+      "qualificationRequirement": "Relevant S4 real-owner/recovery/regression checks and S5 measured resource gates before package closure"
+    },
+    {
+      "id": "INF1",
+      "title": "Realtime backend/options, canonical envelope and durable mailbox registry",
+      "primaryOwner": "Root",
+      "earliestStage": "S1",
+      "exitStage": "S5",
+      "status": "implemented; component transport/source/recovery checks passed; full workload qualification pending",
+      "auditDependencies": [],
+      "acceptance": "Realtime-only Memory/File backend behind current APIs; binary origin envelope, stable registry, cached async lifecycle; other actor categories unchanged",
+      "evidenceStatus": "missing implementation / qualification",
+      "scopeCondition": "ActorType/Name/EntityId is key; all verbs share one consumer. No production backend is registered",
+      "componentReadyStage": "S2",
+      "qualificationRequirement": "Relevant S4 real-owner/recovery/regression checks and S5 measured resource gates before package closure"
+    },
+    {
+      "id": "INF2",
+      "title": "Confirmed source-to-destination publication and frozen fan-out manifest",
+      "primaryOwner": "Root + Agent B",
+      "earliestStage": "S1",
+      "exitStage": "S5",
+      "status": "implemented; component transport/source/recovery checks passed; full workload qualification pending",
+      "auditDependencies": [
+        "INF1"
+      ],
+      "acceptance": "Every required native/managed/domain/clock source and recipient has original identity plus confirmed capture or recoverable outbox; partial/unknown publishes reconcile",
+      "evidenceStatus": "missing implementation / qualification",
+      "scopeCondition": "Core sends/local enqueue/flush are not durable destination acceptance; raw trade/quote WAL excludes statistics/control families",
+      "componentReadyStage": "S3",
+      "qualificationRequirement": "Relevant S4 real-owner/recovery/regression checks and S5 measured resource gates before package closure"
+    },
+    {
+      "id": "INF3",
+      "title": "Broker scheduling, ordered retries, ACKs and independent progress",
+      "primaryOwner": "Root",
+      "earliestStage": "S2",
+      "exitStage": "S5",
+      "status": "implemented; component transport/source/recovery checks passed; full workload qualification pending",
+      "auditDependencies": [
+        "INF1",
+        "INF2"
+      ],
+      "acceptance": "Bounded byte/message pulls, one owner/mailbox, no overtaking on fail/ACK uncertainty, idle pull/self-send/cycle safety; migrated Realtime bypasses old shared rejection",
+      "evidenceStatus": "missing implementation / qualification",
+      "scopeCondition": "Current ActorThreadV2 consumes local queues; shared admission/stripes remain; a completion hook alone is not an adapter",
+      "componentReadyStage": "S3",
+      "qualificationRequirement": "Relevant S4 real-owner/recovery/regression checks and S5 measured resource gates before package closure"
+    },
+    {
+      "id": "INF4",
+      "title": "Generation, rollover, consumer eviction and restart lifecycle",
+      "primaryOwner": "Root",
+      "earliestStage": "S1",
+      "exitStage": "S5",
+      "status": "implemented; component transport/source/recovery checks passed; full workload qualification pending",
+      "auditDependencies": [
+        "INF1",
+        "INF3"
+      ],
+      "acceptance": "Retain pending consumers independent of local objects; fence old execution/ACKs and qualify contract/attachment generation plus wakeup envelope aliases",
+      "evidenceStatus": "missing implementation / qualification",
+      "scopeCondition": "Local eviction sees local count only; source fences can settle as success; obsolete and required ownership need explicit policy",
+      "componentReadyStage": "S3",
+      "qualificationRequirement": "Relevant S4 real-owner/recovery/regression checks and S5 measured resource gates before package closure"
+    },
+    {
+      "id": "INF5",
+      "title": "Measured finite capacity, overflow ownership, storage guarantees and retention",
+      "primaryOwner": "Root",
+      "earliestStage": "S0",
+      "exitStage": "S5",
+      "status": "implemented; component transport/source/recovery checks passed; full workload qualification pending",
+      "auditDependencies": [
+        "INF1",
+        "INF2",
+        "INF3"
+      ],
+      "acceptance": "Per-subject/stream/account/fetch budgets; no TTL/DiscardOld for required work; owned refused publications; safe pruning; tested disk-full and declared Memory/File failure limits",
+      "evidenceStatus": "missing implementation / qualification",
+      "scopeCondition": "No complete numeric capacity worksheet; pending journals bounded but sent history unpruned; Memory does not survive broker loss",
+      "componentReadyStage": "S4",
+      "qualificationRequirement": "Relevant S4 real-owner/recovery/regression checks and S5 measured resource gates before package closure"
+    },
+    {
+      "id": "INF6",
+      "title": "Broker-aware Actor Health, metrics and readiness",
+      "primaryOwner": "Root",
+      "earliestStage": "S2",
+      "exitStage": "S5",
+      "status": "operational metrics and readiness wired; full latency/resource instrumentation and qualification pending",
+      "auditDependencies": [
+        "INF3",
+        "INF4"
+      ],
+      "acceptance": "Show pending bytes/messages/age, in-flight/ACK/refusal/cursors and source gaps; incident counters survive eviction and health stays truthful",
+      "evidenceStatus": "missing implementation / qualification",
+      "scopeCondition": "Current local queue counters cannot describe authoritative broker backlog or stalled consumers",
+      "componentReadyStage": "S3",
+      "qualificationRequirement": "Relevant S4 real-owner/recovery/regression checks and S5 measured resource gates before package closure"
+    },
+    {
+      "id": "VAL1",
+      "title": "Actual-owner end-to-end failure/restart and non-Realtime regression",
+      "primaryOwner": "Root; all agents supply cases",
+      "earliestStage": "S3",
+      "exitStage": "S4",
+      "status": "component regressions and actual workflow/Fund/financial owner cases passed; full all-family fault matrix pending",
+      "auditDependencies": [
+        "W1",
+        "W2",
+        "W3",
+        "W4",
+        "W5",
+        "W6",
+        "W7",
+        "W8",
+        "P1",
+        "D1",
+        "D2",
+        "D3",
+        "INF1",
+        "INF2",
+        "INF3",
+        "INF4",
+        "INF5",
+        "INF6"
+      ],
+      "acceptance": "Real owners and schemas through before/after commit/ACK, fan-out, source/generation changes, pool disposal and no duplicate financial effects; deadline/proof rules intact",
+      "evidenceStatus": "evidence gate; not an asserted defect",
+      "scopeCondition": "Synthetic terminal receipts do not prove actual workflow/Fund/Portfolio/financial/projector acceptance",
+      "componentReadyStage": "S4",
+      "qualificationRequirement": "Stage exit criteria in the plan"
+    },
+    {
+      "id": "VAL2",
+      "title": "Matched complete-backend BenchmarkDotNet and burst qualification",
+      "primaryOwner": "Root; benchmark coordinator",
+      "earliestStage": "S0",
+      "exitStage": "S5",
+      "status": "three latest fresh-process workflow traversals and strict termination passed; operational transport evidence recorded; bulk cold creation is explicit test-only stress, not the decision deadline; resource/session gates pending",
+      "auditDependencies": [
+        "VAL1"
+      ],
+      "acceptance": "Predeclared capacity/latency gates; local vs Memory vs File under recorded rates/cardinality; p50/p95/p99/max, drain, API+NATS RAM, LOH/Gen2/CPU/IO; two-second decisions separately from queue age",
+      "evidenceStatus": "evidence gate; not an asserted defect",
+      "scopeCondition": "Existing component probes exclude parts of real transport, financial owners and NATS RAM",
+      "componentReadyStage": "S5",
+      "qualificationRequirement": "Stage exit criteria in the plan"
+    },
+    {
+      "id": "VAL3",
+      "title": "Two complete matched exchange-session trials per backend",
+      "primaryOwner": "Root; parallel isolated verification workers",
+      "earliestStage": "S5",
+      "exitStage": "S6",
+      "status": "capture planning, store restoration, dedicated production-handler host and native checkpoint implemented; complete matching sessions not executed",
+      "auditDependencies": [
+        "VAL1",
+        "VAL2"
+      ],
+      "acceptance": "Same authoritative captured sessions, overnight/open/close/EOD/rollover; isolated financial effects and complete identity/result reconciliation",
+      "evidenceStatus": "evidence gate; not an asserted defect",
+      "scopeCondition": "No completed two-session Memory/File qualification exists",
+      "componentReadyStage": "S6",
+      "qualificationRequirement": "Stage exit criteria in the plan"
+    },
+    {
+      "id": "VAL4",
+      "title": "Controlled activation, migration and rollback",
+      "primaryOwner": "Root",
+      "earliestStage": "S6",
+      "exitStage": "S7",
+      "status": "stopped journal inventory and isolated switch/exact rollback tool implemented; actual cutover and rollback with running owners not run; activation disabled",
+      "auditDependencies": [
+        "VAL1",
+        "VAL2",
+        "VAL3"
+      ],
+      "acceptance": "Retain pending ownership across both directions; no Core+JS double execution; qualify profile restart/UI/readiness, keep old backend rollback",
+      "evidenceStatus": "evidence gate; not an asserted defect",
+      "scopeCondition": "Core/local live path remains active; isolated drained epoch/rollback rehearsal implemented; live double-route exclusion and restart qualification pending",
+      "componentReadyStage": "S7",
+      "qualificationRequirement": "Stage exit criteria in the plan"
+    }
+  ],
+  "constraints": {
+    "noDecisionInputIO": true,
+    "noInDecisionRetries": true,
+    "maximumStageSeconds": 2,
+    "sessionInterruptionPreserved": true,
+    "ownerProofAndExpiryGuardsPreserved": true,
+    "memoryDevelopmentDefault": true,
+    "memoryBrokerRestartDurabilityClaim": false,
+    "ordinaryDisplayCoalescingPreserved": true,
+    "allKnownPackagesBeforeRollout": true,
+    "benchmarkRunsSerialized": true,
+    "noProductionDeployment": true
+  },
+  "execution": {
+    "baseline": ".artifacts/realtime-mailboxes/20261125-execution-v2/baseline",
+    "transportTests": ".artifacts/realtime-mailboxes/20261125-execution-v2/nats-codec-allocation-tests.log",
+    "workflowResults": ".artifacts/realtime-mailboxes/20261125-execution-v2/workflow-results.md",
+    "destinationResults": ".artifacts/realtime-mailboxes/20261125-safety/destination-v2-results.md",
+    "qualification": "Latest simple setup: first prepared Daily traversals858.375/975.137/1039.570ms; blocked-provider terminal1915.399ms; Core startup5/5 and latest NATS252/252 including20,000 receipts and exact initial archive boundary checks pass. Operational load evidence and exact hashes/order/recovery retained. Cold3,000-consumer creation is explicit test-only stress, not the two-second decision gate. Matching owner baseline, complete sessions, production-owner replay/resources and rollout remain pending. No live restart/activation.",
+    "results": "Documents/system/Realtime-Actor-JetStream-Mailbox-Execution-Results-2026-11-25.md",
+    "benchmarkLog": ".artifacts/realtime-mailboxes/20261125-execution-v2/bdn/transport-codec-final.log",
+    "profileComparison": ".artifacts/realtime-mailboxes/20261125-execution-v2/profiles/comparison.json",
+    "latestQualification": {
+      "summary": "Documents/system/Realtime-Mailbox-Latency-Remediation-2026-11-25.md",
+      "load": ".artifacts/realtime-mailboxes/20261125-qualification-v4/final-reconciliation.json",
+      "workflow": ".artifacts/realtime-mailboxes/20261125-execution-v2/workflow-cold-start-qualification.md",
+      "sessions": "scripts/RealtimeMailboxSessions/nov30-dec1.capture-job.json",
+      "activationEnabled": false,
+      "sessionsArmed": false,
+      "gatesPassed": false,
+      "twoSecondGateScope": "Prepared cached decision operators and local continuation",
+      "bulkColdCreationGateApplicability": "ExplicitTestOnlyStress_NotDecisionPipelineGate",
+      "liveCounts": ".artifacts/realtime-mailboxes/20261125-safety/live-startup-rollover-counts.md"
+    },
+    "remainingImplementation": {
+      "actualSnapshotRestore": {
+        "tool": "scripts/RealtimeMailboxSessions/session_restore.py",
+        "state": "ImplementedComponentVerified",
+        "tests": "5 passed including actual PostgreSQL/Scylla and secondary-index rebuilding",
+        "log": ".artifacts/realtime-mailboxes/20261125-simple-qualification/session-restore-tests.log"
+      },
+      "isolatedCutoverRehearsal": {
+        "tool": "scripts/RealtimeMailboxSessions/cutover_tool.py",
+        "state": "ImplementedComponentVerified",
+        "tests": "9 passed",
+        "liveActivation": false,
+        "log": ".artifacts/realtime-mailboxes/20261125-simple-qualification/cutover-tests.log"
+      },
+      "productionHandlerSessionRunner": {
+        "state": "ImplementedComponentVerified",
+        "usage": "scripts/RealtimeMailboxSessions/Historical-Replay.md",
+        "host": "TomasAI.IFM.Application.Api.Server.Core/Hosting/Modes/HistoricalSessionReplay.cs",
+        "runner": "TomasAI.IFM.Application.Api.Server.Benchmarks/RealtimeMailboxes/OriginalSessionReplay.cs",
+        "nativeCheckpoint": "TomasAI.IFM.Application.MarketData.Rust/src/checkpoint.rs",
+        "nativeTests": "177 passed; 13 intentional manual/provider skips",
+        "natsTests": "252 passed",
+        "recordedInputTests": "Full isolated MarketData957 passed, zero failed, five intentional skips, including11 recorded backend cases and seven broker guards",
+        "prefixTests": "14 passed",
+        "remainingQualification": [
+          "two complete original normal-session archives with v4 admission timestamps",
+          "matching original cross-owner financial/configuration boundary",
+          "actual Memory/File replay with carried state, exact owner reconciliation and resource gates"
+        ],
+        "liveActivation": false,
+        "results": "Documents/system/Realtime-Actor-JetStream-Mailbox-Historical-Replay-Results-2026-11-25.md",
+        "hostTests": "20 passed; latest guard/authority-export subset18 passed",
+        "nativeManagedTests": "48 passed including actual Rust DLL ABI",
+        "actualFinancialOwnerAcceptance": "Latest complete API child r8 passed1/1, real restored owners, zero skips",
+        "timerBarTests": "35 passed",
+        "monitoringTests": "16 passed",
+        "missingImplementation": []
+      },
+      "activationEnabled": false,
+      "actualOwnerEvidence": {
+        "tool": "scripts/RealtimeMailboxSessions/outcome_evidence.py",
+        "usage": "scripts/RealtimeMailboxSessions/Outcome-Evidence.md",
+        "state": "ImplementedComponentVerified",
+        "tests": "13 passed including actual PostgreSQL and Scylla paging/trade/quote cases",
+        "log": ".artifacts/realtime-mailboxes/20261125-simple-qualification/outcome-evidence-final-tests.log",
+        "sessionQualification": false
+      }
+    }
+  },
+  "latestOperationalCapturePreflight": {
+    "state": "BlockedBeforeCapture",
+    "report": "Documents/system/Realtime-Actor-JetStream-Mailbox-Session-Capture-Status-2026-11-25.md",
+    "captureStarted": false,
+    "backgroundCaptureArmed": false,
+    "memoryFileComparisonStarted": false,
+    "activationEnabled": false,
+    "windows": [
+      "2026-11-30",
+      "2026-12-01"
+    ],
+    "operationalBlockers": [
+      "positive financial source/commit owner binding not proved",
+      "matching cross-owner snapshot/floor not acquired",
+      "snapshot topology/boundary not configured",
+      "aggregate storage/export budgets not qualified",
+      "protected capture token not configured"
+    ],
+    "runtimeReady": true,
+    "runtimeEvidence": ".artifacts/realtime-mailboxes/20261125-development-restart/final-runtime-status.json"
+  }
+}

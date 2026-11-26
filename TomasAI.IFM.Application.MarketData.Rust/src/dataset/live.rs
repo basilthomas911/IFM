@@ -492,6 +492,8 @@ pub enum OutputSource {
 /// Ordered source or control transition together with its frozen derived state.
 #[derive(Clone, Debug)]
 pub struct Output {
+    /// Stable per-generation ordering token, assigned once before mapping.
+    pub capture_serial: u64,
     /// API UTC ticks frozen when this source contribution was processed.
     /// Publication must not substitute a later managed-drain wall clock.
     pub observed: i64,
@@ -508,6 +510,42 @@ pub struct Output {
     pub trade: Option<crate::option_chain::trade::Captured>,
     /// Journal identity; its monotonic row ID is not the ITI trade ordinal.
     pub raw: Option<super::raw_capture::Stamp>,
+}
+/// Source capture is synchronous and receives only frozen source-time values.
+/// Queue ownership is held before the mapper owner, never the reverse.
+pub(crate) type RequiredOutputCapture = Arc<dyn Fn(&[Output]) -> Result<(), String> + Send + Sync>;
+type CheckpointProcessor=Arc<Mutex<Box<dyn FnMut(u64,&Event,bool)->Result<bool,String>+Send>>>;
+
+fn retain_required_output(
+    queue: &mut super::output::LaneOutput,
+    mut value: Output,
+    captures: &Mutex<BTreeMap<Lane, RequiredOutputCapture>>,
+    capture_enabled: bool,
+) -> Result<(), String> {
+    let required = matches!(value.source,
+        OutputSource::ReplayComplete(_) | OutputSource::StatisticsReplayComplete(_)
+        | OutputSource::Observation(super::records::Observation::Statistic(_)));
+    if !required { return queue.push_back(value); }
+    let capture = captures.lock().map_err(|_| "Required source capture registry interrupted")?
+        .get(&value.lane).cloned();
+    let Some(capture) = capture else {
+        if value.lane != Lane::OptionsGlbx && capture_enabled {
+            return Err("Required futures source capture must be bound before provider startup".into());
+        }
+        return queue.push_back(value);
+    };
+    queue.assign_capture_serial(&mut value)?;
+    let mut original = queue.ordered_prefix(usize::MAX);
+    let prior = original.len();
+    original.push(value.clone());
+    if let Err(error) = capture(&original) {
+        queue.retain_failed_capture(value);
+        return Err(error);
+    }
+    // The current value bypasses removable admission; the prior prefix leaves
+    // only after the same durable owner has captured every original frame.
+    for _ in 0..prior { queue.pop_front(); }
+    Ok(())
 }
 /// Native data-plane owner for exactly one API ValueDate/instance. Full output
 /// publication and risk calculation remain distinct owners using these snapshots.
@@ -529,6 +567,12 @@ pub struct LiveData {
     option_pricing: Option<Arc<crate::option_chain::coalesced::Coalesced>>,
     option_statistics: crate::option_chain::statistics::Bank,
     raw_capture: Option<(std::path::PathBuf, time::Date)>,
+    required_output_capture: Arc<Mutex<BTreeMap<Lane, RequiredOutputCapture>>>,
+    capture_enabled: bool,
+    checkpoint_processors: Mutex<BTreeMap<Lane,CheckpointProcessor>>,
+    checkpoint_imports: Arc<Mutex<BTreeMap<Lane,rmpv::Value>>>,
+    checkpoint_raw:Arc<Mutex<BTreeMap<Lane,rmpv::Value>>>,
+    checkpoint_books:Arc<Mutex<BTreeMap<Lane,Arc<Mutex<BookState>>>>>,
 }
 struct Startup {
     stop: CancellationToken,
@@ -542,6 +586,49 @@ impl Drop for Startup {
     }
 }
 impl LiveData {
+    #[cfg(test)]
+    pub(crate) fn seed_checkpoint_book_for_test(&self,lane:Lane,book:Book<Values>,attempt:u64)->Result<(),String>{
+        let image=book.checkpoint()?;let fields=crate::checkpoint::fields(&image,7)?;
+        let instruments=fields[5].as_array().ok_or("Fixture book registrations absent")?.iter().map(|value|crate::checkpoint::unsigned(&crate::checkpoint::fields(value,11)?[0])?.try_into().map_err(|_|"Fixture instrument overflow".to_owned())).collect::<Result<Vec<u32>,String>>()?;
+        let registrations=instruments.len();let generation=book.generation();
+        self.output.lock().map_err(|_|"Fixture output owner interrupted")?.get_mut(&lane).ok_or("Fixture output lane absent")?.configure(instruments.into_iter());
+        self.active.lock().map_err(|_|"Fixture active owner interrupted")?.insert(lane,Active{counters:Arc::default(),registrations,status:watch::channel(Status{lane,phase:Phase::Running,generation:attempt,episode:0,attempts:1,error:None,root_error:None,deadline:None}).1,stop:CancellationToken::new(),book:Arc::new(Mutex::new(BookState{attempt,generation,book:Some(book),ready:true,trade_replay_pending:false,statistics_replay_pending:false,heartbeat_diagnostics:Default::default()})),retired:CancellationToken::new(),capture_updates:Arc::default()});
+        self.checkpoint_processors.lock().map_err(|_|"Fixture processor owner interrupted")?.insert(lane,Arc::new(Mutex::new(Box::new(|_,event,_|if matches!(event,Event::Flush){Ok(true)}else{Err("Fixture processor only flushes already-applied explicit test records".into())}))));Ok(())
+    }
+    pub(crate) fn checkpoint_prepare_lane(&self,lane:Lane,mut capture:impl FnMut(&[Output])->Result<(),String>)->Result<(),String>{
+        let processor=self.checkpoint_processors.lock().map_err(|_|"Checkpoint processor registry interrupted")?.get(&lane).cloned();
+        let Some(processor)=processor else{if self.checkpoint_books.lock().map_err(|_|"Checkpoint original book registry interrupted")?.contains_key(&lane){return Ok(());}return Err("Original checkpoint source processor absent".into());};
+        processor.lock().map_err(|_|"Checkpoint source processor interrupted")?(0,&Event::Flush,true)?;
+        let mut queues=self.output.lock().map_err(|_|"Checkpoint output owner interrupted")?;let queue=queues.get_mut(&lane).ok_or("Checkpoint output lane absent")?;
+        for _ in 0..257{let prefix=queue.ordered_prefix(64);if prefix.is_empty(){queue.checkpoint_empty()?;return Ok(());}capture(&prefix)?;for _ in 0..prefix.len(){queue.pop_front();}}
+        Err("Checkpoint original output drain exceeds finite bound".into())
+    }
+    pub(crate) fn checkpoint_lane(&self,lane:Lane)->Result<rmpv::Value,String>{
+        use rmpv::Value as V;
+        if !self.active.lock().map_err(|_|"Checkpoint active registry interrupted")?.contains_key(&lane){if let Some(original)=self.checkpoint_imports.lock().map_err(|_|"Checkpoint original image registry interrupted")?.get(&lane){return Ok(original.clone());}}
+        // All owner prepare passes ran before the managed snapshot. Refresh
+        // shared raw-root prefix evidence after the final lane's flush; there
+        // are no new source callbacks while the common state lease is held.
+        if let Some(processor)=self.checkpoint_processors.lock().map_err(|_|"Checkpoint processor registry interrupted")?.get(&lane).cloned(){processor.lock().map_err(|_|"Checkpoint source processor interrupted")?(0,&Event::Flush,true)?;}
+        let (book,available)=self.active.lock().map_err(|_|"Checkpoint active registry interrupted")?.get(&lane).map(|active|(active.book.clone(),active.status.borrow().phase==Phase::Running&&!active.stop.is_cancelled()&&!active.retired.is_cancelled())).ok_or("Original checkpoint lane absent")?;
+        let state=book.lock().map_err(|_|"Checkpoint book owner interrupted")?;
+        let book=state.book.as_ref().ok_or("Original checkpoint book has not been initialized")?;
+        let serial=self.output.lock().map_err(|_|"Checkpoint output owner interrupted")?.get(&lane).ok_or("Original checkpoint output absent")?.checkpoint_empty()?;
+        let raw=self.checkpoint_raw.lock().map_err(|_|"Raw checkpoint registry interrupted")?.get(&lane).cloned().unwrap_or(V::Nil);
+        Ok(V::Array(vec![1.into(),crate::checkpoint::day(self.date),crate::checkpoint::wide(self.instance),(self.capacity as u64).into(),(lane as u8).into(),state.attempt.into(),crate::checkpoint::wide(state.generation),(state.ready&&available).into(),state.trade_replay_pending.into(),state.statistics_replay_pending.into(),book.checkpoint()?,serial.into(),self.clock.checkpoint()?,raw]))
+    }
+    pub(crate) fn import_checkpoint_lane(&self,lane:Lane,value:&rmpv::Value)->Result<(),String>{
+        use crate::checkpoint as c;let f=c::fields(value,14)?;
+        if c::unsigned(&f[0])?!=1||c::date(&f[1])?!=self.date||c::read_wide(&f[2])?!=self.instance||c::unsigned(&f[3])?!=self.capacity as u64||c::lane(&f[4])?!=lane{return Err("Native checkpoint book date/owner/configuration differs".into());}
+        let book=Book::<Values>::restore_checkpoint(&f[10],CancellationToken::new())?;
+        if book.generation()!=c::read_wide(&f[6])?{return Err("Native checkpoint physical book generation differs".into());}
+        if !self.active.lock().map_err(|_|"Checkpoint active registry interrupted")?.is_empty(){return Err("Native checkpoint cannot overwrite an active provider".into());}
+        let mut pending=self.checkpoint_imports.lock().map_err(|_|"Checkpoint staged book registry interrupted")?;
+        if let Some(existing)=pending.get(&lane){if existing==value{return Ok(());}return Err("Native checkpoint staged original book differs".into());}
+        self.clock.restore_checkpoint_controlled(&f[12])?;
+        self.checkpoint_books.lock().map_err(|_|"Checkpoint original book registry interrupted")?.insert(lane,Arc::new(Mutex::new(BookState{attempt:c::unsigned(&f[5])?,generation:book.generation(),book:Some(book),ready:c::boolean(&f[7])?,trade_replay_pending:c::boolean(&f[8])?,statistics_replay_pending:c::boolean(&f[9])?,heartbeat_diagnostics:Default::default()})));
+        pending.insert(lane,value.clone());Ok(())
+    }
     /// Creates only in-memory ownership; it opens no network or worker process.
     pub fn new(
         date: time::Date,
@@ -571,6 +658,12 @@ impl LiveData {
             diagnostic_worker: [0; 16],
             option_pricing: None,
             raw_capture: None,
+            required_output_capture: Arc::new(Mutex::new(BTreeMap::new())),
+            capture_enabled: crate::messaging::source_outbox::enabled(),
+            checkpoint_processors:Mutex::new(BTreeMap::new()),
+            checkpoint_imports:Arc::new(Mutex::new(BTreeMap::new())),
+            checkpoint_raw:Arc::new(Mutex::new(BTreeMap::new())),
+            checkpoint_books:Arc::new(Mutex::new(BTreeMap::new())),
             option_statistics: Arc::new(Mutex::new(BTreeMap::new())),
             output: Arc::new(Mutex::new(
                 [Lane::FuturesGlbx, Lane::FuturesXcbf, Lane::OptionsGlbx]
@@ -585,6 +678,10 @@ impl LiveData {
         self.raw_capture = std::env::var_os("IFM_RAW_FUTURES_STORAGE_ROOT")
             .filter(|root| !root.is_empty()).map(|root| (root.into(), definition));
         self
+    }
+    /// Cached original-storage root; no environment read occurs during capture.
+    pub(crate) fn raw_capture_root(&self) -> Option<&std::path::Path> {
+        self.raw_capture.as_ref().map(|(root, _)| root.as_path())
     }
     /// Shares the runtime-owned bounded diagnostic sink across physical scopes.
     pub(crate) fn diagnostic_sink(&self) -> DiagnosticSink {
@@ -730,6 +827,7 @@ impl LiveData {
     /// quotes retain the latest per contract; authoritative capacity exhaustion
     /// is a visible recovery fault, never a hidden contribution drop.
     pub fn drain_output(&self, output: &mut [Output]) -> Result<usize, String> {
+        let _checkpoint=crate::checkpoint::transaction()?;
         let ready: u8 = self
             .active
             .lock()
@@ -773,6 +871,7 @@ impl LiveData {
         lane: Lane,
         consume: impl FnOnce(&Output) -> Result<Option<T>, String>,
     ) -> Result<Option<T>, String> {
+        let _checkpoint=crate::checkpoint::transaction()?;
         let ready = self
             .active
             .lock()
@@ -797,6 +896,35 @@ impl LiveData {
         };
         queue.pop_front();
         Ok(Some(value))
+    }
+    /// Durable mode maps and captures a finite original prefix while queue
+    /// ownership is held. A later required producer cannot overtake a popped
+    /// trade while racing for the shared mapper lock.
+    pub(crate) fn capture_output_prefix<T>(
+        &self, lane: Lane, maximum: usize,
+        capture: impl FnOnce(&[Output]) -> Result<T, String>,
+    ) -> Result<Option<T>, String> {
+        let _checkpoint=crate::checkpoint::transaction()?;
+        if !(1..=64).contains(&maximum) { return Err("Native capture prefix exceeds bound".into()); }
+        let mut queues = self.output.lock().map_err(|_| "Native output writer interrupted")?;
+        let queue = queues.get_mut(&lane).ok_or("Native output lane absent")?;
+        let prefix = queue.ordered_prefix(maximum);
+        if prefix.is_empty() { return Ok(None); }
+        let accepted = match capture(&prefix) {
+            Ok(value) => value,
+            Err(error) => { queue.mark_capture_failed(); return Err(error); }
+        };
+        for _ in 0..prefix.len() { queue.pop_front(); }
+        Ok(Some(accepted))
+    }
+    pub(crate) fn bind_required_output_capture(&self, lane: Lane, capture: RequiredOutputCapture) -> Result<(), String> {
+        if !self.active.lock().map_err(|_| "Native lane registry interrupted")?.is_empty() {
+            return Err("Required source capture must bind before provider startup".into());
+        }
+        let mut captures = self.required_output_capture.lock().map_err(|_| "Required source capture registry interrupted")?;
+        if captures.contains_key(&lane) { return Err("Required source capture already bound".into()); }
+        captures.insert(lane, capture);
+        Ok(())
     }
     /// Starts one tracked lane and awaits its required native processing evidence.
     /// Cancellation signals a partial start immediately; explicit stop joins it.
@@ -855,6 +983,18 @@ impl LiveData {
         parent: Option<&crate::runtime::owner::Child>,
     ) -> Result<Status, String> {
         request.validate(self.capacity)?;
+        if self.output.lock().map_err(|_| "Native output writer interrupted")?
+            .get(&request.plan.lane).is_some_and(|queue| queue.capture_failed()) {
+            return Err("Pending failed required source capture must drain before provider restart".into());
+        }
+        if self.capture_enabled && request.plan.lane != Lane::OptionsGlbx {
+            if self.raw_capture.is_none() {
+                return Err("Durable futures source capture requires the original raw trade/quote journal before provider startup".into());
+            }
+            if !self.required_output_capture.lock().map_err(|_| "Required source capture registry interrupted")?.contains_key(&request.plan.lane) {
+                return Err("Durable futures source capture requires its frozen output mapper before provider startup".into());
+            }
+        }
         let Start {
             plan,
             registrations,
@@ -1003,13 +1143,20 @@ impl LiveData {
             .collect();
         let retirement = BookRetirement(retired.clone(), pricing.clone());
         let registration_count = registrations.len();
+        let original_raw=self.checkpoint_imports.lock().map_err(|_|"Checkpoint staged book registry interrupted")?.get(&lane).map(|value|crate::checkpoint::fields(value,14).map(|fields|fields[13].clone())).transpose()?;
         let mut raw_capture = match &self.raw_capture {
-            Some((root, definition)) if lane != Lane::OptionsGlbx => Some(super::raw_capture::RawCapture::open(
-                root, lane, self.date, *definition, &registrations)?),
+            Some((root, definition)) if lane != Lane::OptionsGlbx => Some(match original_raw.as_ref().filter(|value|!value.is_nil()){
+                Some(value)=>{crate::checkpoint::validate_raw_restore_path(root,value)?;super::raw_capture::RawCapture::restore_checkpoint(root,value,lane,self.date,*definition,&registrations)?},
+                None=>super::raw_capture::RawCapture::open(root, lane, self.date, *definition, &registrations)?,
+            }),
             _ => None,
         };
         let counters = Arc::new(super::counters::Counters::default());
         let processing_counters = counters.clone();
+        let required_output_capture = self.required_output_capture.clone();
+        let capture_enabled = self.capture_enabled;
+        let checkpoint_imports=self.checkpoint_imports.clone();
+        let checkpoint_books=self.checkpoint_books.clone();
         let process_one = move |attempt, event: &Event, raw: Option<super::raw_capture::Stamp>| {
             processing_counters.measure(event, || {
             let _retirement = &retirement;
@@ -1017,6 +1164,19 @@ impl LiveData {
                 .lock()
                 .map_err(|_| "Native book writer interrupted".to_owned())?;
             if state.attempt != attempt {
+                let restored=checkpoint_imports.lock().map_err(|_|"Checkpoint staged book registry interrupted")?.remove(&lane);
+                if let Some(restored)=restored{
+                    use crate::checkpoint as c;let f=c::fields(&restored,14)?;
+                    let mut book=Book::<Values>::restore_checkpoint(&f[10],processor_retired.clone())?;
+                    if lane==Lane::OptionsGlbx{book.rebind_checkpoint_statistics(option_statistics.clone())?;}
+                    state.book=Some(book);state.attempt=attempt;state.generation=c::read_wide(&f[6])?;state.ready=c::boolean(&f[7])?;state.trade_replay_pending=c::boolean(&f[8])?;state.statistics_replay_pending=c::boolean(&f[9])?;
+                    output.lock().map_err(|_|"Checkpoint output writer interrupted")?.get_mut(&lane).ok_or("Checkpoint output lane absent")?.restore_empty_checkpoint(c::unsigned(&f[11])?)?;
+                    if let Some(original)=checkpoint_books.lock().map_err(|_|"Checkpoint original book registry interrupted")?.remove(&lane){if let Some(book)=original.lock().map_err(|_|"Checkpoint original book interrupted")?.book.as_mut(){book.retire().map_err(|error|format!("Checkpoint prior reader retirement: {error:?}"))?;}}
+                }else{
+                if output.lock().map_err(|_| "Native output writer interrupted")?
+                    .get(&lane).is_some_and(|queue| queue.capture_failed()) {
+                    return Err("Pending required capture prevents physical generation replacement".into());
+                }
                 output
                     .lock()
                     .map_err(|_| "Native output writer interrupted")?
@@ -1061,6 +1221,7 @@ impl LiveData {
                 state.statistics_replay_pending = has_statistics_replay;
                 state.heartbeat_diagnostics = HeartbeatDiagnostics::default();
                 capture_signal.notify(None);
+                }
             }
             let generation = state.generation;
             if matches!(event, Event::System { .. } | Event::Error { .. }) {
@@ -1116,7 +1277,8 @@ impl LiveData {
                     .lock()
                     .map_err(|_| "Native output writer interrupted")?;
                 let queue = queues.get_mut(&lane).ok_or("Native output lane absent")?;
-                if trade_instruments.len() > queue.available() {
+                if trade_instruments.len() > queue.available()
+                    && !required_output_capture.lock().map_err(|_| "Required source capture registry interrupted")?.contains_key(&lane) {
                     return Err("Authoritative application output capacity exhausted".into());
                 }
                 // Paired analytics must be able to prove both contracts came
@@ -1127,14 +1289,14 @@ impl LiveData {
                     book.complete_replay(generation, *instrument, epoch)
                         .map_err(|e| format!("{e:?}"))?;
                     let state = book.publication_state(*instrument, super::book::Update::Unchanged);
-                    queue.push_back(Output {
-                        observed: clock.utc_ticks().map_err(|e| format!("{e:?}"))?,
+                    retain_required_output(queue, Output {
+                        capture_serial: 0, observed: clock.utc_ticks().map_err(|e| format!("{e:?}"))?,
                         lane,
                         generation,
                         source: OutputSource::ReplayComplete(*instrument),
                         state,
                         trade: None, raw: None,
-                    })?;
+                    }, &required_output_capture, capture_enabled)?;
                 }
                 updates.send_modify(|version| *version = version.saturating_add(1));
                 notifier
@@ -1148,8 +1310,8 @@ impl LiveData {
                 let queue = queues.get_mut(&lane).ok_or("Native output lane absent")?;
                 for instrument in &statistics_instruments {
                     for statistics in book.all_statistics(*instrument) {
-                        queue.push_back(Output {
-                            observed: clock.utc_ticks().map_err(|e| format!("{e:?}"))?,
+                        retain_required_output(queue, Output {
+                            capture_serial: 0, observed: clock.utc_ticks().map_err(|e| format!("{e:?}"))?,
                             lane,
                             generation,
                             source: OutputSource::StatisticsReplayComplete(*instrument),
@@ -1158,7 +1320,7 @@ impl LiveData {
                                 ..Default::default()
                             },
                             trade: None, raw: None,
-                        })?;
+                        }, &required_output_capture, capture_enabled)?;
                     }
                 }
                 updates.send_modify(|version| *version = version.saturating_add(1));
@@ -1265,14 +1427,14 @@ impl LiveData {
                         .lock()
                         .map_err(|_| "Native output writer interrupted")?;
                     let queue = queues.get_mut(&lane).ok_or("Native output lane absent")?;
-                    queue.push_back(Output {
-                        observed: local,
+                    retain_required_output(queue, Output {
+                        capture_serial: 0, observed: local,
                         lane,
                         generation,
                         source: OutputSource::Observation(*record),
                         state,
                         trade, raw,
-                    })?;
+                    }, &required_output_capture, capture_enabled)?;
                 }
                 if was_ready {
                     // Numeric state and the bounded output are committed. Wake consumers only after releasing the book.
@@ -1329,9 +1491,10 @@ impl LiveData {
             })
         };
         let capture_clock = self.clock.clone();
+        let checkpoint_raw=self.checkpoint_raw.clone();let checkpoint_enabled=crate::checkpoint::enabled();
         let mut pending = Vec::<(u64, Event, Option<super::raw_capture::Stamp>)>::with_capacity(64);
         let mut last_ready = false;
-        let processor = move |attempt: u64, event: &Event| -> Result<bool, String> {
+        let processor = move |attempt: u64, event: &Event,checkpoint_capture:bool| -> Result<bool, String> {
             let buffered = match event {
                 Event::Market(super::records::Observation::Trade(trade)) => trade.header.flags & 2 == 0,
                 Event::Market(super::records::Observation::Quote(quote)) => quote.header.flags & 2 == 0,
@@ -1350,10 +1513,22 @@ impl LiveData {
                         last_ready = process_one(accepted_attempt, &accepted, stamp)?;
                     }
                 }
-                if buffered || matches!(event, Event::Flush) { return Ok(last_ready); }
+                if buffered || matches!(event, Event::Flush) {
+                    if checkpoint_enabled&&checkpoint_capture{capture.flush()?;checkpoint_raw.lock().map_err(|_|"Raw checkpoint registry interrupted")?.insert(lane,capture.checkpoint()?);}
+                    return Ok(last_ready);
+                }
             } else if matches!(event, Event::Flush) { return Ok(last_ready); }
             last_ready = process_one(attempt, event, None)?;
             Ok(last_ready)
+        };
+        let mut local_processor=Some(processor);
+        let checkpoint_processor=if crate::checkpoint::enabled(){
+            let shared:CheckpointProcessor=Arc::new(Mutex::new(Box::new(local_processor.take().unwrap())));
+            self.checkpoint_processors.lock().map_err(|_|"Checkpoint processor registry interrupted")?.insert(lane,shared.clone());Some(shared)
+        }else{None};
+        let processor=move|attempt,event:&Event|{
+            if let Some(processor)=&checkpoint_processor{let _checkpoint=crate::checkpoint::transaction()?;processor.lock().map_err(|_|"Checkpoint source processor interrupted")?(attempt,event,false)}
+            else{local_processor.as_mut().unwrap()(attempt,event,false)}
         };
         let mut status = if let Some(parent) = parent {
             lanes.start_nested_with_quote_replay(
@@ -1457,6 +1632,19 @@ impl LiveData {
         if let Some(stop) = signals.get(&lane) {
             stop.cancel();
         }
+        drop(signals);
+        // Imported read-only owners have no provider stop token. Retire their
+        // actual shared book so retained query handles cannot outlive the owner.
+        if crate::checkpoint::replay_import_only() {
+            if let Some(original) = self.checkpoint_books.lock().map_err(|_| "Checkpoint original book registry interrupted")?.remove(&lane) {
+                let mut state = original.lock().map_err(|_| "Checkpoint original book interrupted")?;
+                state.ready = false;
+                if let Some(book) = state.book.as_mut() {
+                    book.retire().map_err(|error| format!("Checkpoint reader retirement: {error:?}"))?;
+                }
+            }
+            self.checkpoint_imports.lock().map_err(|_| "Checkpoint import registry interrupted")?.remove(&lane);
+        }
         Ok(())
     }
     async fn running(
@@ -1516,7 +1704,9 @@ impl LiveData {
             .lock()
             .map_err(|_| "Native lane registry interrupted")?;
         let Some(value) = active.get(&lane) else {
-            return Ok(None);
+            drop(active);
+            let original=self.checkpoint_books.lock().map_err(|_|"Checkpoint original book registry interrupted")?.get(&lane).cloned();
+            return match original{Some(original)=>{let state=original.lock().map_err(|_|"Checkpoint original book interrupted")?;if !state.ready{return Ok(None);}state.book.as_ref().map_or(Ok(None),|book|book.reader(id).map_err(|error|format!("Checkpoint original reader: {error:?}")))},None=>Ok(None)};
         };
         if value.status.borrow().phase != Phase::Running || value.stop.is_cancelled() {
             return Ok(None);
@@ -1540,6 +1730,13 @@ impl LiveData {
             .active
             .lock()
             .map_err(|_| "Native query registry interrupted")?;
+        if !active.contains_key(&lane){
+            drop(active);let book=self.checkpoint_books.lock().map_err(|_|"Checkpoint original book registry interrupted")?.get(&lane).cloned();
+            return book.map(|book|{
+                let registrations=book.lock().map_err(|_|"Checkpoint original book interrupted")?.book.as_ref().ok_or("Checkpoint original book absent")?.checkpoint()?.as_array().and_then(|fields|fields[5].as_array()).map(Vec::len).ok_or("Checkpoint original registrations absent")?;
+                Ok(Queries{counters:Arc::default(),output:self.output.clone(),lane,capacity:self.capacity,registrations,lifecycle:watch::channel(Status{lane,phase:Phase::Stopped,generation:0,episode:0,attempts:0,error:Some("Original checkpoint read-only state; no provider is running".into()),root_error:None,deadline:None}).1,book,retired:CancellationToken::new(),changes:self.updates.subscribe(),capture_updates:Arc::default()})
+            }).transpose();
+        }
         Ok(active.get(&lane).map(|active| Queries {
             counters: active.counters.clone(),
             output: self.output.clone(),
@@ -1563,7 +1760,8 @@ impl LiveData {
             .lock()
             .map_err(|_| "Native lane registry interrupted")?;
         let Some(value) = active.get(&lane) else {
-            return Ok(None);
+            drop(active);let original=self.checkpoint_books.lock().map_err(|_|"Checkpoint original book registry interrupted")?.get(&lane).cloned();
+            return match original{Some(original)=>{let state=original.lock().map_err(|_|"Checkpoint original book interrupted")?;Ok(if state.ready{state.book.as_ref().and_then(read)}else{None})},None=>Ok(None)};
         };
         if value.status.borrow().phase != Phase::Running || value.stop.is_cancelled() {
             return Ok(None);
@@ -1783,5 +1981,141 @@ mod publisher_tests {
         assert!(!publisher_matches(Lane::FuturesXcbf, 3, 106));
         assert!(!publisher_matches(Lane::FuturesXcbf, 105, 65535));
         assert!(publisher_matches(Lane::FuturesXcbf, 105, 105));
+    }
+}
+
+
+#[cfg(test)]
+mod required_capture_tests {
+    use super::*;
+    use crate::aggregation::session::{Snapshot, VolumeQuality};
+    use crate::dataset::{book::{PublicationState, Update}, records::{Header, Observation, Statistic}};
+    use std::io::Write;
+
+    fn date() -> time::Date { time::Date::from_calendar_date(2026, time::Month::November, 23).unwrap() }
+    fn official(sequence: u32) -> Output {
+        let snapshot = Snapshot { value_date: date(), open: 6_000_000_000_000, high: 6_025_000_000_000,
+            low: 5_975_000_000_000, sequence, event_ns: 1_795_467_599_000_000_000 + i64::from(sequence),
+            volume: 1_234_567, quality: VolumeQuality::OfficialFinal };
+        Output { capture_serial: 0, observed: 17_954_675_990_000_000, lane: Lane::FuturesGlbx, generation: 55,
+            source: OutputSource::Observation(Observation::Statistic(Statistic {
+                header: Header { instrument: 42, publisher: 1, flags: 0, event_ns: snapshot.event_ns,
+                    received_ns: snapshot.event_ns + 100, sequence, schema: 9 },
+                price: 0, quantity: snapshot.volume, reference_ns: snapshot.event_ns, kind: 6, channel: 2, action: 1, flags: 0,
+            })), state: PublicationState { update: Some(Update::Statistics(snapshot)), session: Some(snapshot), ..Default::default() },
+            trade: None, raw: None }
+    }
+    #[test]
+    fn official_output_captures_the_exact_prior_prefix_before_capacity_or_generation_discard() {
+        let mut queue = super::super::output::LaneOutput::new();
+        for sequence in 1..=8192 { queue.push_back(official(sequence)).unwrap(); }
+        assert_eq!(queue.available(), 0);
+        let accepted = Arc::new(Mutex::new(Vec::new()));
+        let observed = accepted.clone();
+        let mut captures = BTreeMap::<Lane, RequiredOutputCapture>::new();
+        captures.insert(Lane::FuturesGlbx, Arc::new(move |prefix: &[Output]| {
+            *observed.lock().unwrap() = prefix.to_vec(); Ok(())
+        }));
+        retain_required_output(&mut queue, official(8193), &Mutex::new(captures), true).unwrap();
+        let accepted = accepted.lock().unwrap();
+        assert_eq!(accepted.len(), 8193);
+        for (index, original) in accepted.iter().enumerate() {
+            let OutputSource::Observation(Observation::Statistic(statistic)) = original.source else { panic!("wrong source"); };
+            assert_eq!(statistic.header.sequence, index as u32 + 1);
+            assert_eq!(original.observed, 17_954_675_990_000_000);
+            assert_eq!(original.generation, 55);
+            assert_eq!(original.state.session.unwrap().volume, 1_234_567);
+        }
+        assert!(queue.pop_front().is_none());
+        queue.clear(); // A replacement cannot discard what the durable owner already accepted.
+        assert_eq!(accepted.last().unwrap().state.session.unwrap().quality, VolumeQuality::OfficialFinal);
+    }
+    #[test]
+    fn capture_refusal_never_removes_the_prior_prefix_or_reports_success() {
+        let mut queue = super::super::output::LaneOutput::new(); queue.push_back(official(1)).unwrap();
+        let mut captures = BTreeMap::<Lane, RequiredOutputCapture>::new();
+        captures.insert(Lane::FuturesGlbx, Arc::new(|_: &[Output]| Err("Injected required capture refusal".into())));
+        assert!(retain_required_output(&mut queue, official(2), &Mutex::new(captures), true).is_err());
+        let retained = queue.pop_front().unwrap();
+        let OutputSource::Observation(Observation::Statistic(statistic)) = retained.source else { panic!("wrong source"); };
+        assert_eq!(statistic.header.sequence, 1);
+        queue.clear(); // Failed capture ownership survives generation cleanup.
+        let second = queue.pop_front().unwrap();
+        assert_eq!(second.capture_serial, 2);
+        let OutputSource::Observation(Observation::Statistic(statistic)) = second.source else { panic!("wrong source"); };
+        assert_eq!(statistic.header.sequence, 2); assert!(!queue.capture_failed());
+        assert!(queue.pop_front().is_none());
+        assert!(retain_required_output(&mut queue, official(3), &Mutex::new(BTreeMap::new()), true).is_err());
+    }
+    #[test]
+    fn failed_capture_preserves_stable_ordering_tokens_until_confirmed_drain() {
+        let mut queue = super::super::output::LaneOutput::new();
+        queue.push_back(official(1)).unwrap();
+        let first = Arc::new(Mutex::new(Vec::<Output>::new())); let seen = first.clone();
+        let mut captures = BTreeMap::<Lane, RequiredOutputCapture>::new();
+        captures.insert(Lane::FuturesGlbx, Arc::new(move |prefix: &[Output]| {
+            *seen.lock().unwrap() = prefix.to_vec(); Err("Injected unknown capture outcome".into())
+        }));
+        assert!(retain_required_output(&mut queue, official(2), &Mutex::new(captures), true).is_err());
+        queue.clear(); queue.configure([99].into_iter());
+        assert!(queue.capture_failed());
+        let retry = queue.ordered_prefix(64); let original = first.lock().unwrap();
+        assert_eq!(retry.len(), 2);
+        for (before, after) in original.iter().zip(&retry) {
+            assert_eq!((before.generation, before.capture_serial, before.observed),
+                (after.generation, after.capture_serial, after.observed));
+            assert_eq!(before.state.session, after.state.session);
+        }
+        assert_ne!(retry[0].capture_serial, retry[1].capture_serial);
+        for _ in retry { queue.pop_front(); }
+        assert!(!queue.capture_failed());
+    }
+    #[test]
+    fn frozen_official_wire_survives_lost_capture_reply_and_replacement_without_restamping() {
+        use crate::messaging::{codec, futures::Futures, wire::Frame};
+        let root = std::env::temp_dir().join(format!("ifm-required-official-{:032x}", rand::random::<u128>()));
+        std::fs::create_dir_all(&root).unwrap(); let path = root.join("captured.bin");
+        let registration = Registration { instrument: 42, publisher: 1, contract: "ES20261218".into(), source: "ESZ6".into(),
+            asset: Asset::Futures, tick: Some(250_000_000), vwap: false, required: true };
+        let encoder = Arc::new(Mutex::new(Futures::new(Lane::FuturesGlbx, date(), date(), vec![registration], 64).unwrap()));
+        let captured = Arc::new(Mutex::new(Vec::<u8>::new())); let accepted = captured.clone(); let original_path = path.clone();
+        let mut captures = BTreeMap::<Lane, RequiredOutputCapture>::new();
+        captures.insert(Lane::FuturesGlbx, Arc::new(move |prefix: &[Output]| {
+            let mut encoder = encoder.lock().map_err(|_| "mapper poisoned")?;
+            let mut records = Vec::new();
+            for source in prefix {
+                for event in encoder.process(source).map_err(String::from)? {
+                    let frame = Frame { lane: source.lane, value_date: date().to_julian_day()-1_721_426, worker: [1;16], generation: [2;16],
+                        manifest_revision: 7, sequence: records.len() as i64 + 1, kind: event.kind,
+                        payload: codec::encode(&event.value)?, origin_ticks: Some(source.observed) };
+                    records.push(rmpv::Value::Array(vec![rmpv::Value::Binary(frame.encode().map_err(String::from)?),
+                        frame.origin_json().map_err(String::from)?.unwrap().into()]));
+                }
+            }
+            let bytes = codec::encode(&rmpv::Value::Array(records))?;
+            let mut file = std::fs::File::create(&original_path).map_err(|e| e.to_string())?;
+            file.write_all(&bytes).and_then(|_| file.sync_all()).map_err(|e| e.to_string())?;
+            *accepted.lock().unwrap() = bytes;
+            Err("Capture committed; original caller died before success".into())
+        }));
+        let mut queue = super::super::output::LaneOutput::new();
+        assert!(retain_required_output(&mut queue, official(77), &Mutex::new(captures), true).is_err());
+        queue.clear(); drop(queue);
+        let saved = std::fs::read(&path).unwrap(); assert_eq!(saved, *captured.lock().unwrap());
+        let rows = rmpv::decode::read_value(&mut std::io::Cursor::new(saved)).unwrap();
+        let row = &rows.as_array().unwrap()[0].as_array().unwrap();
+        let framed = rmpv::decode::read_value(&mut std::io::Cursor::new(row[0].as_slice().unwrap())).unwrap();
+        let compressed = framed.as_array().unwrap();
+        let rmpv::Value::Ext(98, length) = &compressed[0] else { panic!("Expected original LZ4 framing"); };
+        let length = rmpv::decode::read_value(&mut std::io::Cursor::new(length)).unwrap().as_i64().unwrap() as usize;
+        let content = lz4_flex::block::decompress(compressed[1].as_slice().unwrap(), length).unwrap();
+        let wire = rmpv::decode::read_value(&mut std::io::Cursor::new(content)).unwrap();
+        let fields = wire.as_array().unwrap(); assert_eq!(fields[6].as_u64(), Some(4));
+        let payload = rmpv::decode::read_value(&mut std::io::Cursor::new(fields[7].as_slice().unwrap())).unwrap();
+        let statistics = payload.as_array().unwrap();
+        assert!(format!("{:?}", statistics[2]).contains("ES20261218"));
+        assert!(row[1].as_str().unwrap().contains("2026-11-23"));
+        assert_eq!(statistics.last().unwrap().as_array().unwrap()[7].as_i64(), Some(1_234_567));
+        std::fs::remove_dir_all(root).unwrap();
     }
 }

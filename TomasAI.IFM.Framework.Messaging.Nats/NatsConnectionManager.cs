@@ -13,6 +13,15 @@ namespace TomasAI.IFM.Framework.Messaging.NatsJetStream;
 /// </remarks>
 public sealed class NatsConnectionManager : IAsyncDisposable
 {
+    /// <summary>Preserves the published parameterless/Activator contract and legacy reply behavior.</summary>
+    public NatsConnectionManager():this(NatsRequestReplyMode.SharedInbox){}
+    /// <summary>Selects only request/reply dispatch; server ownership and acknowledgement policies are unchanged.</summary>
+    public NatsConnectionManager(NatsRequestReplyMode requestReplyMode)
+    {
+        if(!Enum.IsDefined(requestReplyMode))throw new ArgumentOutOfRangeException(nameof(requestReplyMode));
+        RequestReplyMode=requestReplyMode;
+    }
+    public NatsRequestReplyMode RequestReplyMode{get;}
     readonly SemaphoreSlim _gate = new(1, 1);
     NatsClient? _client;
     INatsJSContext? _jetStream;
@@ -53,6 +62,7 @@ public sealed class NatsConnectionManager : IAsyncDisposable
             {
                 Url = url,
                 Name = "TomasAI.IFM",
+                RequestReplyMode = RequestReplyMode,
                 RequestTimeout = TimeSpan.FromMinutes(2),
                 CommandTimeout = TimeSpan.FromMinutes(2),
                 DrainSubscriptionsOnDispose = true,

@@ -21,11 +21,13 @@ public sealed class MarketDataHostConnection : IAsyncDisposable
     readonly TimeProvider clock;
     readonly TimeProvider physicalClock;
     readonly string url;
+    readonly TomasAI.IFM.Shared.EventModelActor.Contracts.IRealtimeSessionRecorder? recorder;
     public string Scope { get; }
     public static MessagePackSerializerOptions Serialization { get; } = MessagePackSerializerOptions.Standard
         .WithResolver(ContractlessStandardResolver.Instance).WithSecurity(MessagePackSecurity.UntrustedData);
     public MarketDataHostConnection(NatsConnectionManager connections, string url, string scope,
-        TimeProvider? timeProvider = null, TomasAI.IFM.Shared.Time.PhysicalTime? physicalTime = null)
+        TimeProvider? timeProvider = null, TomasAI.IFM.Shared.Time.PhysicalTime? physicalTime = null,
+        TomasAI.IFM.Shared.EventModelActor.Contracts.IRealtimeSessionRecorder? sessionRecorder = null)
     {
         if (string.IsNullOrWhiteSpace(scope) || scope.Any(c => !char.IsAsciiLetterOrDigit(c) && c != '-'))
             throw new ArgumentException("A single deployment scope token is required.", nameof(scope));
@@ -33,6 +35,7 @@ public sealed class MarketDataHostConnection : IAsyncDisposable
         clock = timeProvider ?? TimeProvider.System;
         physicalClock = physicalTime?.Provider ?? TimeProvider.System;
         this.url = url;
+        recorder = sessionRecorder;
         Scope = $"ifm.{scope}.marketdata.v1";
     }
     public ValueTask<NatsClient> GetClientAsync(CancellationToken token) => connections.GetClientAsync(url, token);
@@ -82,14 +85,37 @@ public sealed class MarketDataHostConnection : IAsyncDisposable
         // RPC identity belongs to this envelope, not a potentially shared value such as Array.Empty<T>().
         var origin = MessageOrigins.ForPublication(envelope, clock);
         MessageOrigins.Restore(envelope, origin);
-        var reply = await client.RequestAsync<MarketDataHostRequest, MarketDataHostReply>(ControlSubject(path),
-            envelope,
-            headers: global::TomasAI.IFM.Framework.Messaging.Nats.MessageOriginHeaders.Add(
-                global::TomasAI.IFM.Framework.Messaging.Nats.NatsActorTrace.Headers(), origin),
-            requestSerializer: NatsMessagePackSerializer<MarketDataHostRequest>.Default,
-            replySerializer: NatsMessagePackSerializer<MarketDataHostReply>.Default,
-            replyOpts: new NatsSubOpts { Timeout = budget }, cancellationToken: deadline.Token).ConfigureAwait(false);
-        if (reply.Data is null) throw new InvalidDataException("MarketData Host returned no result.");
+        var startedAt = recorder is { Enabled: true } ? clock.GetUtcNow() : default;
+        NatsMsg<MarketDataHostReply> reply;
+        try
+        {
+            reply = await client.RequestAsync<MarketDataHostRequest, MarketDataHostReply>(ControlSubject(path),
+                envelope,
+                headers: global::TomasAI.IFM.Framework.Messaging.Nats.MessageOriginHeaders.Add(
+                    global::TomasAI.IFM.Framework.Messaging.Nats.NatsActorTrace.Headers(), origin),
+                requestSerializer: NatsMessagePackSerializer<MarketDataHostRequest>.Default,
+                replySerializer: NatsMessagePackSerializer<MarketDataHostReply>.Default,
+                replyOpts: new NatsSubOpts { Timeout = budget }, cancellationToken: deadline.Token).ConfigureAwait(false);
+            if (reply.Data is null) throw new InvalidDataException("MarketData Host returned no result.");
+        }
+        catch (Exception transportError) when (recorder is { Enabled: true })
+        {
+            // A missing original response is evidence too. The replay refuses this explicit
+            // unsupported transport outcome rather than fabricating a successful provider reply.
+            using var captureFailure = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+            await RecordExchangeAsync(new(envelope, new([], null), startedAt, clock.GetUtcNow(), null,
+                MessageOriginBinary.Serialize(origin), transportError is OperationCanceledException
+                    ? token.IsCancellationRequested ? "CallerCancelled" : "PhysicalDeadlineExpired" : transportError.GetType().Name),
+                origin, captureFailure.Token).ConfigureAwait(false);
+            throw;
+        }
+        if (recorder is { Enabled: true })
+        {
+            var capturedReplyOrigin = global::TomasAI.IFM.Framework.Messaging.Nats.MessageOriginHeaders.Read(reply.Headers);
+            await RecordExchangeAsync(new(envelope, reply.Data!, startedAt, clock.GetUtcNow(),
+                capturedReplyOrigin is null ? null : MessageOriginBinary.Serialize(capturedReplyOrigin), MessageOriginBinary.Serialize(origin)),
+                origin, deadline.Token).ConfigureAwait(false);
+        }
         if (reply.Data.Error is { } error) throw new InvalidOperationException(error);
         var result = Decode<T>(reply.Data.Payload);
         var replyOrigin = global::TomasAI.IFM.Framework.Messaging.Nats.MessageOriginHeaders.Read(reply.Headers);
@@ -98,6 +124,17 @@ public sealed class MarketDataHostConnection : IAsyncDisposable
         MessageOrigins.Restore(reply.Data, replyOrigin);
         trace?.Complete();
         return result;
+    }
+    async Task RecordExchangeAsync(Remote.RecordedMarketDataExchange exchange, MessageOrigin origin, CancellationToken token)
+    {
+        var originalWire = Encode(exchange);
+        var receipt = await recorder!.RecordAsync(new()
+        {
+            Kind = "BackendRpc", LogicalSourceKey = Guid.NewGuid().ToString("N"), Subject = ControlSubject(exchange.Request.Path),
+            OriginalWire = originalWire, Origin = origin
+        }, token).ConfigureAwait(false);
+        if (!string.Equals(receipt.OriginalWireSha256, Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(originalWire)), StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("Session archive did not prove the original backend exchange.");
     }
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 }

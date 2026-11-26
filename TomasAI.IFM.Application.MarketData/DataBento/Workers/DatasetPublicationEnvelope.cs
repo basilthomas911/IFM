@@ -1,4 +1,4 @@
-﻿using System.Buffers.Binary;
+using System.Buffers.Binary;
 using TomasAI.IFM.Application.MarketData.Pricing;
 using MessagePack;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
@@ -11,9 +11,19 @@ using TomasAI.IFM.Application.MarketData.MarketOutlook;
 
 namespace TomasAI.IFM.Application.MarketData.Databento.Workers;
 
-[MessagePackObject]
-public sealed record DatasetPublicationEnvelope
+[MessagePackObject(AllowPrivate = true)]
+public sealed record DatasetPublicationEnvelope : TomasAI.IFM.Shared.EventModelActor.IMessageOriginOwner
 {
+    [IgnoreMember] TomasAI.IFM.Shared.EventModelActor.MessageOriginSlot originSlot;
+    [IgnoreMember] ref TomasAI.IFM.Shared.EventModelActor.MessageOriginSlot TomasAI.IFM.Shared.EventModelActor.IMessageOriginOwner.MessageOriginSlot => ref originSlot;
+    public DatasetPublicationEnvelope() { }
+    [System.Diagnostics.CodeAnalysis.SetsRequiredMembers]
+    private DatasetPublicationEnvelope(DatasetPublicationEnvelope original)
+    {
+        Dataset = original.Dataset; ValueDate = original.ValueDate; WorkerInstanceId = original.WorkerInstanceId;
+        GenerationId = original.GenerationId; ManifestRevision = original.ManifestRevision;
+        PublicationSequence = original.PublicationSequence; Kind = original.Kind; Payload = original.Payload;
+    }
     [Key(0)] public required string Dataset { get; init; }
     [Key(1)] public required DateOnly ValueDate { get; init; }
     [Key(2)] public required Guid WorkerInstanceId { get; init; }

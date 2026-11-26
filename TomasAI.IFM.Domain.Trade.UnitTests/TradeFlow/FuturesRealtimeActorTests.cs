@@ -24,8 +24,9 @@ public sealed class FuturesRealtimeActorTests
         var actorService = Substitute.For<IActorService>();
         actorService.SendAsync<ChangeTradeLegDataCommand, StrategyPositionId>(
                 Arg.Any<ChangeTradeLegDataCommand>(), Arg.Any<StrategyPositionId>())
-            .Returns(new ServiceResult<Guid>(Guid.NewGuid()));
+            .Returns(call => new ServiceResult<Guid>(call.Arg<ChangeTradeLegDataCommand>().CommandId));
         var context = Substitute.For<IFuturesRealtimeContext>();
+        context.RoutingReceipts.Returns(new TomasAI.IFM.Domain.Trade.Futures.Realtime.FuturesRoutingReceipts());
         var routes = new ContractIdRouteIndex();
         context.ActorService.Returns(actorService);
         context.RouteIndex.Returns(routes);
@@ -60,6 +61,7 @@ public sealed class FuturesRealtimeActorTests
     public async Task Tick_for_known_contract_without_open_position_is_ignored()
     {
         var context = Substitute.For<IFuturesRealtimeContext>();
+        context.RoutingReceipts.Returns(new TomasAI.IFM.Domain.Trade.Futures.Realtime.FuturesRoutingReceipts());
         var routes = new ContractIdRouteIndex();
         var actorService = Substitute.For<IActorService>();
         routes.RegisterKnownContract("ESZ6");

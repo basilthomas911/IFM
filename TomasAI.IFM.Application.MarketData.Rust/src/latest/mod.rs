@@ -497,3 +497,34 @@ mod source_cancellation_tests {
         drop(writer);
     }
 }
+
+// Checkpoint codecs preserve raw source watermarks independently of priced observations.
+pub(crate) fn checkpoint_tick<T>(tick: &Tick<T>, encode: impl Fn(&T)->rmpv::Value)->rmpv::Value {
+    rmpv::Value::Array(vec![tick.sequence.into(),tick.event_ticks.into(),tick.receive_ticks.into(),encode(&tick.value)])
+}
+pub(crate) fn restore_tick<T>(value:&rmpv::Value, decode:impl Fn(&rmpv::Value)->Result<T,String>)->Result<Tick<T>,String>{
+    let f=crate::checkpoint::fields(value,4)?;Ok(Tick{sequence:crate::checkpoint::number(&f[0])?,event_ticks:crate::checkpoint::number(&f[1])?,receive_ticks:crate::checkpoint::number(&f[2])?,value:decode(&f[3])?})
+}
+pub(crate) fn checkpoint_trade(value:&TradeValue)->rmpv::Value{rmpv::Value::Array(vec![value.price.into(),value.size.into()])}
+pub(crate) fn restore_trade(value:&rmpv::Value)->Result<TradeValue,String>{let f=crate::checkpoint::fields(value,2)?;Ok(TradeValue{price:crate::checkpoint::number(&f[0])?,size:crate::checkpoint::unsigned(&f[1])?.try_into().map_err(|_|"Trade size overflow")?})}
+pub(crate) fn checkpoint_quote(value:&QuoteValue)->rmpv::Value{use rmpv::Value as V;V::Array(vec![value.bid.map_or(V::Nil,Into::into),value.ask.map_or(V::Nil,Into::into),value.bid_size.into(),value.ask_size.into(),value.bid_count.into(),value.ask_count.into(),value.local_received_ticks.into()])}
+pub(crate) fn restore_quote(value:&rmpv::Value)->Result<QuoteValue,String>{use crate::checkpoint as c;let f=c::fields(value,7)?;let optional=|v:&rmpv::Value|if v.is_nil(){Ok(None)}else{c::number(v).map(Some)};let small=|v:&rmpv::Value|->Result<u32,String>{c::unsigned(v)?.try_into().map_err(|_|"Quote count overflow".into())};Ok(QuoteValue{bid:optional(&f[0])?,ask:optional(&f[1])?,bid_size:small(&f[2])?,ask_size:small(&f[3])?,bid_count:small(&f[4])?,ask_count:small(&f[5])?,local_received_ticks:c::number(&f[6])?})}
+impl Contract<crate::pricing::Values>{
+    pub(crate) fn checkpoint(&self)->Result<rmpv::Value,String>{
+        use rmpv::Value as V;let s=self.state.lock().map_err(|_|"Latest writer interrupted")?;
+        fn values<T>(v:&Values<T,crate::pricing::Values>,encode:impl Fn(&T)->V)->V{
+            let raw=v.raw.as_ref().map_or(V::Nil,|t|checkpoint_tick(t,&encode));
+            let priced=v.priced.as_ref().map_or(V::Nil,|p|{let g=&p.greeks;V::Array(vec![checkpoint_tick(&p.tick,&encode),V::Array([g.price,g.volatility,g.delta,g.gamma,g.vega,g.theta,g.rho].iter().map(|v|V::from(v.to_bits())).collect())])});V::Array(vec![raw,priced])
+        }
+        Ok(V::Array(vec![1.into(),(s.active&&!self.stopped.is_cancelled()&&!self.retired.load(Ordering::Acquire)).into(),values(&s.trade,checkpoint_trade),values(&s.quote,checkpoint_quote)]))
+    }
+    pub(crate) fn restore_checkpoint(&self,value:&rmpv::Value)->Result<(),String>{
+        use crate::checkpoint as c;let f=c::fields(value,4)?;if c::unsigned(&f[0])?!=1{return Err("Latest checkpoint version".into());}
+        fn values<T>(v:&rmpv::Value,decode:impl Fn(&rmpv::Value)->Result<T,String>)->Result<Values<T,crate::pricing::Values>,String>{
+            use crate::checkpoint as c;let f=c::fields(v,2)?;let raw=if f[0].is_nil(){None}else{Some(restore_tick(&f[0],&decode)?)};
+            let priced=if f[1].is_nil(){None}else{let p=c::fields(&f[1],2)?;let g=c::fields(&p[1],7)?;let bits=g.iter().map(|v|c::unsigned(v).map(f64::from_bits)).collect::<Result<Vec<_>,_>>()?;Some(Priced{tick:restore_tick(&p[0],decode)?,greeks:Arc::new(crate::pricing::Values{price:bits[0],volatility:bits[1],delta:bits[2],gamma:bits[3],vega:bits[4],theta:bits[5],rho:bits[6]})})};Ok(Values{raw,priced})
+        }
+        let state=State{active:c::boolean(&f[1])?,trade:values(&f[2],restore_trade)?,quote:values(&f[3],restore_quote)?};
+        *self.state.lock().map_err(|_|"Latest writer interrupted")?=state;Ok(())
+    }
+}

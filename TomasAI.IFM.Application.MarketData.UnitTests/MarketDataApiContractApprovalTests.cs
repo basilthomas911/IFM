@@ -13,14 +13,14 @@ public sealed class MarketDataApiContractApprovalTests
     {
         var methods = typeof(IMarketDataApi).GetMethods();
 
-        methods.Should().HaveCount(76);
+        methods.Should().HaveCount(77);
         methods.Select(method => method.Name).Should().BeEquivalentTo(
             "get_DatasetRecoveryOwnership",
             "InjectDevelopmentOptionWorkerFaultAsync", "WarmTreasuryPricingAsync", "ReadTreasuryCurveAsync",
             "ReadTreasuryCurvesAsync", "ReadEconomicCalendarAsync", "RefreshInstrumentDefinitionsAsync",
             "RefreshOptionCalendarAsync", "EvaluateOptionChainAsync", "ResetMarketDataAsync",
             "ReconcileCommittedSubscriptionsAsync", "ReleaseCompositionAsync", "AcquireMonitoredOptionAsync",
-            "ReleaseMonitoredOptionAsync", "ReadFiveMinuteSeedBarsAsync", "ReadIndicatorSeedBarsAsync", "GetBackendReadSnapshotAsync",
+            "ReleaseMonitoredOptionAsync", "ReadFiveMinuteSeedBarsAsync", "ReadIndicatorSeedBarsAsync", "GetBackendReadSnapshotAsync", "ReadEmaSeedBarsAsync",
             "PrepareSessionAsync", "GetBackendStatusAsync", "RecoverMarketDataAsync", "RepairOptionObservationsAsync",
             "AcquireOptionScopeAsync", "ReleaseOptionScopeAsync", "CaptureCompositionAsync", "CaptureOptionRiskAsync",
             "PrepareCompositionAsync", "PrepareCachedCompositionAsync", "GetHistoricalAvailableEndAsync",

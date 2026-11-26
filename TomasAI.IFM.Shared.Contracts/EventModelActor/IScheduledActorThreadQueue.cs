@@ -23,6 +23,7 @@ internal interface IScheduledActorThreadQueue
         ActorAdmissionCharge charge,
         CancellationToken cancellationToken);
     bool TryRead(out IActorMessage? message);
+    bool TryPeek(out IActorMessage? message) { message=null;return false; }
     bool TrySchedule();
     bool CompleteDrain();
     bool TryRetire();

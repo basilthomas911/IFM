@@ -15,6 +15,16 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.Acto
 /// <summary>Defines the readonly services owned by the Intrinsic Time Strategy Workflow Realtime actor.</summary>
 public interface IIntrinsicTimeStrategyWorkflowRealtimeContext : IRealtimeActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor>
 {
+    WorkflowPublicationJournal? Publications => null;
+    IWorkflowPublicationOwner? PublicationOwner => null;
+    WorkflowInitializationTerminals? InitializationTerminals => null;
+    WorkflowCompositionFailures? CompositionFailures => null;
+    WorkflowMarketConditionFailures? MarketConditionFailures => null;
+    WorkflowReservationFailures? ReservationFailures => null;
+    WorkflowCompositionFunctionTerminals? CompositionFunctionTerminals => null;
+    WorkflowSelectionFunctionFailures? SelectionFunctionFailures => null;
+    WorkflowAssessmentFunctionFailures? AssessmentFunctionFailures => null;
+    WorkflowRegimeFunctionFailures? RegimeFunctionFailures => null;
     /// <summary>Reads and qualifies published deployment snapshots outside the database transaction.</summary>
     TomasAI.IFM.Application.Strategy.StrategyCatalog.IStrategyDeploymentReader CatalogDeployments =>
         new TomasAI.IFM.Application.Strategy.StrategyCatalog.StrategyCatalogQualification();

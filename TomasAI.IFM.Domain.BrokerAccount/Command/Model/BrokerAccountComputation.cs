@@ -37,10 +37,31 @@ internal static class BrokerAccountComputation
         };
         if (brokerAccountDefinition.Environment != BrokerEnvironment.Unknown && brokerAccountDefinition.Environment != command.Environment)
             return BrokerAccountChange.Reject("BrokerAccount.ENVIRONMENT.CONFLICT");
-        if (brokerAccountDefinition.Snapshot is { } prior && command.Snapshot.Generation < prior.Generation)
-            return BrokerAccountChange.Unchanged(brokerAccountDefinition);
-        if (brokerAccountDefinition.Snapshot == command.Snapshot)
-            return BrokerAccountChange.Unchanged(brokerAccountDefinition);
+        if (brokerAccountDefinition.Snapshot is { } prior)
+        {
+            if(command.Snapshot.Generation<prior.Generation)return BrokerAccountChange.Unchanged(brokerAccountDefinition);
+            if(command.Snapshot.Generation==prior.Generation)
+            {
+                // Ordered broker revisions take precedence when both sides carry them; old evidence uses source time.
+                var order=command.Snapshot.SourceSequence>0 && prior.SourceSequence>0
+                    ? command.Snapshot.SourceSequence.CompareTo(prior.SourceSequence) : command.Snapshot.AsOfUtc.CompareTo(prior.AsOfUtc);
+                if(order<0)return BrokerAccountChange.Unchanged(brokerAccountDefinition);
+                if(order==0)
+                {
+                    if(Equivalent(prior,command.Snapshot))return BrokerAccountChange.Unchanged(brokerAccountDefinition);
+                    if(prior.SourceSequence==0 && command.Snapshot.SourceSequence>0
+                        && Equivalent(prior with{SourceSequence=command.Snapshot.SourceSequence},command.Snapshot))
+                    {
+                        var ordered=brokerAccountDefinition with{Snapshot=prior with{SourceSequence=command.Snapshot.SourceSequence},Revision=brokerAccountDefinition.Revision+1};
+                        return BrokerAccountChange.Accept(ordered with{Gate=Gate(ordered)});
+                    }
+                    // Same-authority contradictory evidence may never reopen risk. Keep the established money/hold evidence.
+                    if(!prior.NewRiskAllowed && !(prior.SourceSequence==0 && command.Snapshot.SourceSequence>0))return BrokerAccountChange.Unchanged(brokerAccountDefinition);
+                    var conflicted=brokerAccountDefinition with { Snapshot=prior with{NewRiskAllowed=false,SourceSequence=Math.Max(prior.SourceSequence,command.Snapshot.SourceSequence)},Revision=brokerAccountDefinition.Revision+1 };
+                    return BrokerAccountChange.Accept(conflicted with{Gate=Gate(conflicted)});
+                }
+            }
+        }
         var changedAccount = brokerAccountDefinition with
         {
             Environment = command.Environment,
@@ -127,6 +148,10 @@ internal static class BrokerAccountComputation
         };
         return BrokerAccountChange.Accept(changedAccount);
     }
+
+    static bool Equivalent(BrokerAccountSnapshotEvidence x,BrokerAccountSnapshotEvidence y)=>x.AccountAlias==y.AccountAlias && x.Currency==y.Currency
+        && x.CashBalance==y.CashBalance && x.AvailableFunds==y.AvailableFunds && x.Complete==y.Complete && x.NewRiskAllowed==y.NewRiskAllowed
+        && x.Generation==y.Generation && x.SourceSequence==y.SourceSequence && x.Positions.SequenceEqual(y.Positions);
 
     /// <summary>Determines whether qualification, snapshot evidence, and manual hold permit new risk.</summary>
     internal static BrokerAccountOperationalGate Gate(BrokerAccountDefinition brokerAccountDefinition) =>

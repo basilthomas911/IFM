@@ -227,7 +227,15 @@ public static partial class CoreServiceRegistration
             Url = EventLogQualification.Active is null ? brokerUrl ?? new NatsEventListenerOptions().Url : EventLogQualification.Active.BrokerUrl
         });
         services.AddSingleton<NatsConnectionManager>();
-        services.AddTransient<IActorProducer, NatsActorProducer>();
+        var realtimeMailboxOptions = config.GetSection("Actors:RealtimeMailboxes").Get<RealtimeMailboxOptions>() ?? new();
+        realtimeMailboxOptions.Validate();
+        services.AddSingleton(realtimeMailboxOptions);
+        services.AddSingleton<TomasAI.IFM.Framework.Messaging.NatsJetStream.RealtimeMailboxes.DurableRealtimeMailboxHub>();
+        services.AddSingleton<IRealtimePublicationCapture>(provider => provider.GetRequiredService<TomasAI.IFM.Framework.Messaging.NatsJetStream.RealtimeMailboxes.DurableRealtimeMailboxHub>());
+        services.AddSingleton<IRealtimeGenerationDrain>(provider => provider.GetRequiredService<TomasAI.IFM.Framework.Messaging.NatsJetStream.RealtimeMailboxes.DurableRealtimeMailboxHub>());
+        SessionCaptureServiceRegistration.Register(services, config, hostEnvironment, siContainer, realtimeMailboxOptions);
+        services.AddSingleton(_ => new TomasAI.IFM.Domain.Trade.Persistence.Realtime.PositionRealtimeIntents(
+            Path.Combine(realtimeMailboxOptions.Directory, "PositionRealtimeIntents")));
         services.AddTransient<IActorConsumer, NatsActorConsumer>();
         services.AddSingleton<INatsJetStreamProducerOptions>(_ => new NatsJetStreamProducerOptions
         {
@@ -235,7 +243,6 @@ public static partial class CoreServiceRegistration
         });
         services.AddSingleton<INatsJetStreamConsumerOptions>(natsJetStreamConsumerOptions);
         services.AddSingleton<IDurableReplayQueue, NatsJSDurableReplayQueue>();
-        services.AddTransient<IJSActorProducer, NatsJetStreamActorProducer>();
         services.AddTransient<IJSActorConsumer, NatsJetStreamActorConsumer>();
         services.AddSingleton<IContainerInstance>(provider => new ContainerInstance(type =>
         {

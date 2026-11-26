@@ -34,7 +34,10 @@ public sealed class IronCondorMonitoringInputReader(IDbContextFactory databases,
         _ = initializeMonitoring;
         stoppingToken.ThrowIfCancellationRequested();
         var entry = entries.GetOrAdd((position.Id.Trade, valueDate), _ => new());
-        if (publishInputChange is not null && Interlocked.CompareExchange(ref observerStarted, 1, 0) == 0)
+        if (publishInputChange is not null
+            && !(businessClock is TomasAI.IFM.Shared.Time.IRecordedRealtimeSourceReplay replay
+                && replay.UsesRecordedSource("IronCondorTradePositionRealtime", IronCondorMonitoringInputsChangedEvent.Verb))
+            && Interlocked.CompareExchange(ref observerStarted, 1, 0) == 0)
             _ = Task.Run(ObserveChangesAsync);
         lock (entry)
         {

@@ -31,6 +31,9 @@ public sealed class InteractiveBrokersEmulatorTradeBroker : ITradeBroker
     public string AccountAlias => _orders.AccountAlias;
     public long Generation => _account.Generation;
     public BrokerCapabilities Capabilities => BrokerCapabilities.Emulator(AccountAlias);
+    public bool HasRecoverableOrderObservations => _orders.HasRecoverableOrderObservations;
+    public ValueTask AcknowledgeOrderObservationAsync(Guid observationId, CancellationToken cancellationToken = default)
+        => _orders.AcknowledgeOrderObservationAsync(observationId, cancellationToken);
 
     async ValueTask<BrokerDispatchReceipt> PlaceCoreAsync(BrokerOrderRequest request, CancellationToken cancellationToken = default)
     {

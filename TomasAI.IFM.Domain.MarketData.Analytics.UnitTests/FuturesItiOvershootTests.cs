@@ -52,7 +52,12 @@ public sealed class FuturesItiOvershootTests
         var start = Start(period, up);
         var ordinaryPrice = start.TrendExtreme + sign * start.BandSize * 1.01;
         var previous = start;
-        if (up)
+        if (up && period == TimeFrameType.Daily)
+        {
+            previous = Next(start, ordinaryPrice); // Daily's band-qualified Trending is enabled.
+            Assert.Equal(IntrinsicTimeModeType.Trending, previous.IntrinsicTimeMode);
+        }
+        else if (up)
             Assert.False(FuturesItiSignalCompute.TryCompute(Command(period, ordinaryPrice, 1), start, out _));
         else
         {
@@ -88,7 +93,13 @@ public sealed class FuturesItiOvershootTests
 
         var returnPrice = start.TrendPrice + sign * start.Threshold * 0.85;
         var returned = secondPullback;
-        if (up)
+        if (up && period == TimeFrameType.Daily)
+        {
+            returned = Next(secondPullback, returnPrice);
+            Assert.Equal(IntrinsicTimeModeType.Trending, returned.IntrinsicTimeMode);
+            Assert.Equal(start.IntrinsicTimeGroupId, returned.IntrinsicTimeGroupId);
+        }
+        else if (up)
             Assert.False(FuturesItiSignalCompute.TryCompute(Command(period, returnPrice, 5), secondPullback, out _));
         else
         {

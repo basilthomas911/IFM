@@ -290,8 +290,12 @@ public abstract class BaseEventActor<TActor>(
                     exceptionHandlerFailure, primaryFailureId == Guid.Empty ? null : primaryFailureId);
                 SharedActorDiagnosticLog.Write8(_logger, exceptionHandlerFailure, Id, threadId, activeStage, ex.GetType().FullName, ex.Message);
             }
+            if (PropagateHandlerFailures) throw;
         }
     }
+
+    /// <summary>Allows delivery-owned handlers to fail acknowledgement independently of optional metrics.</summary>
+    protected virtual bool PropagateHandlerFailures => false;
 
     // Explicit interface implementations forwarding to protected hooks
     ValueTask IEventActor<TActor>.OnStartup(IEventActorContext<TActor> context) => OnStartup(context);

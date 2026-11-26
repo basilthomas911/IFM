@@ -14,7 +14,8 @@ public static class FuturesTickQuoteDataChanged
         {
             ArgumentNullException.ThrowIfNull(context);
             ArgumentNullException.ThrowIfNull(domainEvent);
-            _ = await context.Projector.ProcessRealtimeEventAsync(domainEvent.ToInsertedEvent()).ConfigureAwait(false);
+            if (!await context.Projector.ProcessRealtimeEventAsync(domainEvent.ToInsertedEvent()).ConfigureAwait(false))
+                throw new InvalidOperationException("Required quote tick projection failed.");
         }
     }
 }

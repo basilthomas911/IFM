@@ -1,3 +1,4 @@
+using System.Buffers;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NATS.Client.JetStream;
@@ -31,7 +32,9 @@ public class NatsJetStreamActorProducer(
     INatsJetStreamProducerOptions options,
     ILogger<NatsJetStreamActorProducer> logger,
     NatsConnectionManager? connectionManager = null,
-    TimeProvider? timeProvider = null)
+    TimeProvider? timeProvider = null,
+    IRealtimeSessionRecorder? sessionRecorder = null,
+    Func<IActorSupervisor>? sessionSupervisor = null)
     : IJSActorProducer, IAsyncDisposable
 {
     readonly INatsJetStreamProducerOptions _options = IsArgumentNull.Set(options);
@@ -189,10 +192,36 @@ public class NatsJetStreamActorProducer(
                 cancellationToken,
                 operationStopping.Token);
             TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.ThrowIfRetired();
+            var origin = MessageOrigins.ForPublication(message!, _clock);
+            if (sessionRecorder?.Enabled == true && message is IEvent source
+                && source.Subject.Is(ActorType.Event, "BrokerAccountEvent", "BrokerAccountSnapshotObserved"))
+            {
+                if (source.Id == Guid.Empty) throw new InvalidDataException("Session account recording requires its immutable original event ID.");
+                var registry = sessionSupervisor?.Invoke() ?? throw new InvalidOperationException("Session account recording requires the actual actor registry.");
+                var writer = new ArrayBufferWriter<byte>();
+                NatsMessagePackSerializer<T>.Default.Serialize(writer, message);
+                var activity = System.Diagnostics.Activity.Current;
+                var headers = global::TomasAI.IFM.Framework.Messaging.Nats.MessageOriginHeaders.Add(
+                    global::TomasAI.IFM.Framework.Messaging.Nats.NatsActorTrace.Headers(), origin);
+                var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(writer.WrittenSpan));
+                var receipt = await sessionRecorder.RecordAsync(new RealtimeSessionArchiveRecord {
+                    Kind = "AccountObservation", LogicalSourceKey = $"jetstream/v1|{subject}|{source.Id:N}|{origin?.ClockDomainId}|{origin?.RunId}",
+                    Subject = subject, OriginalWire = writer.WrittenMemory, Origin = origin, EventId = source.Id,
+                    Destinations = NatsActorConsumer.BuildPubSubDestinations(registry, ActorType.Event, source.Subject).ToArray(),
+                    TraceParent = activity?.Id, TraceState = activity?.TraceStateString
+                }, operationCancellation.Token).ConfigureAwait(false);
+                if (!receipt.ArchiveOwnershipOnly || !string.Equals(receipt.OriginalWireSha256, hash, StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidDataException("Session archive did not prove original account wire ownership.");
+                var recordedAck = await _js.PublishAsync(subject, writer.WrittenMemory, headers: headers,
+                    serializer: NatsActorProducer.SessionWireSerializer.Instance, cancellationToken: operationCancellation.Token).ConfigureAwait(false);
+                recordedAck.EnsureSuccess();
+                NatsMessagingMetrics.Published.Add(1);
+                return;
+            }
             var acknowledgement = await _js.PublishAsync(
                 subject,
                 message,
-                headers: global::TomasAI.IFM.Framework.Messaging.Nats.MessageOriginHeaders.Add(null, MessageOrigins.ForPublication(message!, _clock)),
+                headers: global::TomasAI.IFM.Framework.Messaging.Nats.MessageOriginHeaders.Add(null, origin),
                 serializer: NatsMessagePackSerializer<T>.Default,
                 cancellationToken: operationCancellation.Token).ConfigureAwait(false);
             acknowledgement.EnsureSuccess();

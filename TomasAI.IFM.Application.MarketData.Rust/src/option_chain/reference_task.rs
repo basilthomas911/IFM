@@ -91,9 +91,13 @@ impl ReferenceTask {
             let result:Result<(),String>=async {
                 loop {
                     if stopping.is_cancelled(){return Ok(());}
+                    let production=match crate::messaging::source_production::enter(&stopping).await {
+                        Ok(permit)=>permit,Err(_) if stopping.is_cancelled()=>return Ok(()),Err(error)=>return Err(error),
+                    };
                     let at=clock.utc_ticks().map_err(|_|"API reference clock unavailable")?;
                     let (valid,until)=engine.reference_window(at)?;
                     if valid {
+                        drop(production);
                         let wait=Duration::from_nanos(u64::try_from(i128::from(until)-i128::from(at)).unwrap_or(u64::MAX).saturating_mul(100));
                         tokio::select!{biased;()=stopping.cancelled()=>return Ok(()),changed=clocks.changed()=>{changed.map_err(|_|"API reference clock observation ended")?;},changed=demands.changed()=>{changed.map_err(|_|"Native reference observation ended")?;},()=tokio::time::sleep(wait.min(Duration::from_secs(86400)))=>{}}
                         continue;
@@ -104,11 +108,13 @@ impl ReferenceTask {
                     let deadline=engine.limit_reference_recovery(provider.deadline.map_or(original,|other|other.earliest(original)))?;
                     if let Ok(mut status)=shared.lock(){status.recovering=true;status.error.get_or_insert("Native reference assumptions require refresh".into());}
                     let _=root.signal(1<<(Lane::OptionsGlbx as u32));
+                    drop(production);
                     if require_new
                         && let Err(error)=data.report_fault(Lane::OptionsGlbx,"Native reference assumptions require refresh",&stopping,deadline).await
                         && let Ok(mut status)=shared.lock(){status.error=Some(error);}
                     loop {
                         let attempt:Result<(),String>=async {
+                            let production=crate::messaging::source_production::enter(&stopping).await?;
                             let next=Box::pin(reviewed.prepare(&registrations,generation,&stopping,deadline)).await?;
                             let prior=engine.context_identities()?;
                             let mut updates=Vec::with_capacity(next.configuration.options.len());let mut manifests=BTreeMap::new();
@@ -116,15 +122,20 @@ impl ReferenceTask {
                                 updates.push(Refresh{instrument:option.instrument,expected:*prior.get(&option.instrument).ok_or("Native reference membership changed")?,context:option.context});
                                 manifests.insert(option.instrument,option.manifest.ok_or("Native reference manifest missing")?);
                             }
-                            engine.refresh_references(&updates,&manifests,&next.references)?;
-                            on_digest(next.configuration.digest)?;
+                            {let _checkpoint=crate::checkpoint::transaction()?;
+                            engine.refresh_references_in_transaction(&updates,&manifests,&next.references)?;
+                            on_digest(next.configuration.digest)?;}
+                            drop(production);
                             let mut pricing=engine.updates();
                             deadline.run(&stopping,async {
                                 loop {
                                     let at=clock.utc_ticks().map_err(|_|"API reference clock unavailable")?;
                                     let source=data.status(Lane::OptionsGlbx)?;
                                     let replaced=source.is_some_and(|s|s.phase==crate::dataset::lanes::Phase::Running && if require_new{s.generation>before}else{s.generation>=before});
-                                    if replaced && engine.complete_reference_recovery(at)? {return Ok::<(),String>(());}
+                                    if replaced {
+                                        let _production=crate::messaging::source_production::enter(&stopping).await?;
+                                        if engine.complete_reference_recovery(at)? {return Ok::<(),String>(());}
+                                    }
                                     tokio::select!{biased;()=stopping.cancelled()=>return Err("Native reference recovery cancelled".into()),changed=pricing.changed()=>{changed.map_err(|_|"Native pricing observation ended")?;},changed=clocks.changed()=>{changed.map_err(|_|"API reference clock observation ended")?;},
                                     changed=async {match &mut source_changes {Some(source)=>source.changed().await,None=>std::future::pending().await}}=>{changed.map_err(|_|"Native reference lifecycle observation ended")?;}}
                                 }

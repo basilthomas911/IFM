@@ -1274,7 +1274,7 @@ async fn exact_current_context_and_manifest_contents_and_hashes() {
                     schema: 4,
                 };
                 let mut output = Output {
-                    observed: at,
+                    capture_serial: 0, observed: at,
                     lane: Lane::OptionsGlbx,
                     generation: 99,
                     source: OutputSource::Observation(Observation::Trade(Trade {
@@ -1288,7 +1288,7 @@ async fn exact_current_context_and_manifest_contents_and_hashes() {
                         delta_ns: 0,
                     })),
                     state: Default::default(),
-                    trade: Some(captured.clone()),
+                    trade: Some(captured.clone()), raw: None,
                 };
                 let outbox = Outbox::new(1, 131072).unwrap();
                 let retained = ingress

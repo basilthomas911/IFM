@@ -1,0 +1,157 @@
+{
+  "dockerVhdPath": "D:/Docker/wsl/data/disk/docker_data.vhdx",
+  "measuredAtUtc": "2026-11-26T12:17:02.955106+00:00",
+  "minimumFreeBytes": 34359738368,
+  "dockerGuestRequiredBytes": 274877906944,
+  "captureRoot": "D:/IFM/SessionQualification/nov30-dec1",
+  "version": 1,
+  "nativeRoots": [
+    {
+      "role": "ExistingRawFuturesStorage",
+      "path": "C:/Users/basil/AppData/Local/IFM/RawFuturesStorage",
+      "bindings": []
+    },
+    {
+      "path": "C:\\Users\\basil\\AppData\\Local\\IFM\\RealtimeSourceCapture\\development",
+      "role": "ExistingNativeSource",
+      "bindings": [
+        {
+          "relativePath": "namespace.sha256",
+          "sha256": "5c7bed19180a7a89659337ad5ae03a2cdc631500997ae4830aa8c057cc67c1be"
+        }
+      ],
+      "prefixEvidencePath": "D:\\IFM\\SessionQualification\\nov30-dec1\\control\\live-native-prefix.json",
+      "prefixEvidenceSha256": "ed560ff04b406fd1a02bc0861f942566d95fc3bec6c7462cf860aeac225133b3",
+      "scope": "development",
+      "mapperCheckpoint": false
+    }
+  ],
+  "plannedInitialNativeRoots": [],
+  "phases": [
+    {
+      "name": "capture-retained-originals",
+      "reservations": [
+        {
+          "name": "raw-growth-plus-first-native-source",
+          "path": "C:/Users/basil/AppData/Local/IFM/RawFuturesStorage",
+          "bytes": 146028888064
+        },
+        {
+          "name": "api-archive-body-receipts-index",
+          "path": "D:/IFM/SessionQualification/nov30-dec1",
+          "bytes": 161061273600
+        },
+        {
+          "name": "build-and-control",
+          "path": "C:/repos",
+          "bytes": 8589934592
+        },
+        {
+          "name": "repo-build-artifacts",
+          "path": "E:/IFM",
+          "bytes": 17179869184
+        }
+      ]
+    },
+    {
+      "name": "serial-replay-retain-original-and-all-results",
+      "reservations": [
+        {
+          "name": "raw-growth-plus-first-native-source",
+          "path": "C:/Users/basil/AppData/Local/IFM/RawFuturesStorage",
+          "bytes": 146028888064
+        },
+        {
+          "name": "original-and-immutable-copy-api-archives",
+          "path": "D:/IFM/SessionQualification/nov30-dec1",
+          "bytes": 322122547200
+        },
+        {
+          "name": "original-held-owner-snapshot",
+          "path": "D:/IFM/SessionQualification/nov30-dec1",
+          "bytes": 206158430208
+        },
+        {
+          "name": "one-disposable-restored-pg-scylla-plus-wal",
+          "path": "D:/Docker/wsl/data/disk",
+          "bytes": 240518168576
+        },
+        {
+          "name": "three-complete-compact-outcomes-plus-metadata",
+          "path": "D:/IFM/SessionQualification/nov30-dec1",
+          "bytes": 139586437120
+        },
+        {
+          "name": "working-native-raw-copies",
+          "path": "D:/IFM/SessionQualification/nov30-dec1",
+          "bytes": 34359738368
+        },
+        {
+          "name": "isolated-broker-work",
+          "path": "D:/Docker/wsl/data/disk",
+          "bytes": 34359738368
+        },
+        {
+          "name": "control",
+          "path": "C:/repos",
+          "bytes": 8589934592
+        },
+        {
+          "name": "repo-build-artifacts",
+          "path": "E:/IFM",
+          "bytes": 17179869184
+        },
+        {
+          "name": "two-retained-replay-receipt-owners32GiB-perfile-plus-indexes",
+          "path": "D:/IFM/SessionQualification/nov30-dec1",
+          "bytes": 163208757248
+        },
+        {
+          "name": "original-business-outcomes-plus-metadata",
+          "path": "E:/IFM/SessionQualification/nov30-dec1/original-outcomes",
+          "bytes": 69793218560
+        }
+      ]
+    }
+  ],
+  "measurementSources": {
+    "postgres": {
+      "container": "ifm_db",
+      "database": "ifm_application_development",
+      "user": "postgres"
+    },
+    "scylla": {
+      "container": "ifm-scylladb"
+    },
+    "fileOwnerPlan": "D:/IFM/SessionQualification/nov30-dec1/control/operational-plan.json"
+  },
+  "measurements": {
+    "postgresBytes": 104213802131,
+    "postgresContainerId": "aaf7a4aa0b21b406f836fb584dc0a727e67a230b9e50dbc3a0edc33999aaeeac",
+    "scyllaBytes": 30928158351,
+    "scyllaContainerId": "9b3938c222e625de2698c8a3e9c2ba5408dfa65213f00da70230ab94dbca9ac1",
+    "ownerRoots": [
+      {
+        "path": "C:\\Users\\basil\\AppData\\Local\\IFM\\RawFuturesStorage",
+        "exists": true,
+        "bytes": 9448,
+        "files": 4
+      },
+      {
+        "path": "C:\\Users\\basil\\AppData\\Local\\IFM\\RealtimeSourceCapture\\development",
+        "exists": true,
+        "bytes": 558211,
+        "files": 3
+      },
+      {
+        "path": "D:\\IFM\\SessionQualification\\nov30-dec1",
+        "exists": true,
+        "bytes": 11434486,
+        "files": 16
+      }
+    ],
+    "dockerGuestAvailableBytes": 1106104209408,
+    "sourceSnapshotMinimumBytes": 162170352578,
+    "sourceRestoreMinimumBytes": 175684548626
+  }
+}

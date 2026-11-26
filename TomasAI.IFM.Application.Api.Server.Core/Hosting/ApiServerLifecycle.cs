@@ -42,6 +42,7 @@ public sealed partial class ApiServerLifecycle : IApiServerLifecycle
             Log.Information("Deployment identity verified: {BuildId}", deploymentIdentity.BuildId);
             CoreServiceRegistration.ConfigureRequestPipeline(app, logger);
             ApiOperationalEndpoints.MapOperationalEndpoints(app);
+            HistoricalSessionReplay.Active?.MapControlEndpoints(app);
             if (!await ApiServerModes.RunBuiltHostModeAsync(app, args, logger))
             await RunServerAsync(app, args, logger, fatalRecoveryShutdown);
         }

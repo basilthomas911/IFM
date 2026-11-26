@@ -9,6 +9,8 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Realtime.Actor;
 public sealed class IronCondorTradePositionRealtimeActor(IRealtimeActorContext<IronCondorTradePositionRealtimeActor> actorContext) : BaseEventActor<IronCondorTradePositionRealtimeActor>(actorContext, Require(actorContext).Logger)
 {
+    protected override bool PropagateHandlerFailures => true;
+
     public const string ActorName = "IronCondorTradePositionRealtime";
     readonly IIronCondorTradePositionRealtimeContext _context = Require(actorContext);
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap = new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
@@ -21,6 +23,8 @@ public sealed class IronCondorTradePositionRealtimeActor(IRealtimeActorContext<I
         [typeof(IronCondorPositionChangedEvent)] = static (@event, context) => ((IronCondorPositionChangedEvent)@event).ExecuteAsync(context),
         [typeof(IronCondorMonitoringInputsChangedEvent)] = static (@event, context) => ((IronCondorMonitoringInputsChangedEvent)@event).ExecuteAsync(context)
     }.ToFrozenDictionary();
+    protected override ValueTask OnStartup(IEventActorContext<IronCondorTradePositionRealtimeActor> context) => _context.RecoverPublicationsAsync();
+
     protected override IEvent ParseMessage(IEventActorContext<IronCondorTradePositionRealtimeActor> context, IActorMessage message) => ParseMappedRealtimeEvent(context, message, _parseMap);
     protected override ValueTask ReceiveAsync(IEventActorContext<IronCondorTradePositionRealtimeActor> context, IEvent @event) => ResolveMappedEventHandler(@event, _receiveMap)(@event, _context);
     protected override ValueTask OnExceptionAsync(IEventActorContext<IronCondorTradePositionRealtimeActor> context, ActorThreadId threadId, IEvent @event, Exception ex)

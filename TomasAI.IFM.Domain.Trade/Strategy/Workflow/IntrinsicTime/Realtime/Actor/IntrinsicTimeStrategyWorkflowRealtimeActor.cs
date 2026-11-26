@@ -36,6 +36,8 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.Acto
 /// </remarks>
 public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor(IRealtimeActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> actorContext) : BaseEventActor<IntrinsicTimeStrategyWorkflowRealtimeActor>(actorContext, RequireContext(actorContext).Logger)
 {
+    /// <inheritdoc/>
+    protected override bool PropagateHandlerFailures => true;
     static readonly TimeSpan FunctionReplyGrace = TimeSpan.FromSeconds(5);
     /// <summary>Gets the workflow Realtime actor name.</summary>
     public const string ActorName = "IntrinsicTimeStrategyWorkflowRealtime";
@@ -59,14 +61,57 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor(IRealtime
         [StrategyWorkflowStage.RiskManagement] = static (context, snapshot) => RiskManager.Realtime.ExecuteRiskManagement.ExecuteAsync(snapshot, RequireEventContext(context))
     };
     /// <inheritdoc/>
-    protected override ValueTask OnStartup(IEventActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> context)
+    protected override async ValueTask OnStartup(IEventActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> context)
     {
-        _ = context;
-        return ValueTask.CompletedTask;
+        // The hosted owner recovers independently of actor admission. An unavailable
+        // historical destination must not prevent unrelated assignment mailboxes starting.
+        if(RequireEventContext(context).Publications is not null)return;
+        await WorkflowPublicationDelivery.RecoverPendingAsync(RequireEventContext(context)).ConfigureAwait(false);
+        if (RequireEventContext(context).InitializationTerminals is { } journal)
+            foreach (var pending in journal.Pending())
+                await SendInitializationTerminalAsync(context, journal, pending).ConfigureAwait(false);
+        if (RequireEventContext(context).CompositionFailures is { } failures)
+            foreach (var pending in failures.Pending())
+                await SendCompositionFailureAsync(context, failures, pending).ConfigureAwait(false);
+        if (RequireEventContext(context).MarketConditionFailures is { } marketFailures)
+            foreach (var pending in marketFailures.Pending())
+                await SendMarketConditionFailureAsync(context, marketFailures, pending).ConfigureAwait(false);
+        if (RequireEventContext(context).ReservationFailures is { } reservationFailures)
+            foreach (var pending in reservationFailures.Pending())
+                await SendReservationFailureAsync(context, reservationFailures, pending).ConfigureAwait(false);
+        await OrderComposer.Realtime.CompositionFunctionTerminalDelivery.RecoverPendingAsync(RequireEventContext(context)).ConfigureAwait(false);
+        await TradeSelection.Realtime.SelectionFunctionTerminalDelivery.RecoverPendingAsync(RequireEventContext(context)).ConfigureAwait(false);
+        await AssessmentFunctionTerminalDelivery.RecoverPendingAsync(RequireEventContext(context)).ConfigureAwait(false);
+        await RegimeFunctionTerminalDelivery.RecoverPendingAsync(RequireEventContext(context)).ConfigureAwait(false);
+    }
+
+    internal static async Task RecoverLegacyPendingAsync(IIntrinsicTimeStrategyWorkflowRealtimeContext context,CancellationToken token,int offset=0)
+    {
+        List<Func<ValueTask>> work=[];
+        if(context.InitializationTerminals is{} initialization)foreach(var item in initialization.Pending())work.Add(()=>SendInitializationTerminalAsync(context,initialization,item));
+        if(context.CompositionFailures is{} composition)foreach(var item in composition.Pending())work.Add(()=>SendCompositionFailureAsync(context,composition,item));
+        if(context.MarketConditionFailures is{} market)foreach(var item in market.Pending())work.Add(()=>SendMarketConditionFailureAsync(context,market,item));
+        if(context.ReservationFailures is{} reservation)foreach(var item in reservation.Pending())work.Add(()=>SendReservationFailureAsync(context,reservation,item));
+        if(context.CompositionFunctionTerminals is{} compositionFunction)foreach(var item in compositionFunction.Pending())work.Add(async()=>
+        {if(await WorkflowLegacyPublicationMigration.TryMigrateAsync(context,item.InputHash,item.Command).ConfigureAwait(false))compositionFunction.MarkSent(item.Key);});
+        if(context.SelectionFunctionFailures is{} selectionFunction)foreach(var item in selectionFunction.Pending())work.Add(async()=>
+        {if(await WorkflowLegacyPublicationMigration.TryMigrateAsync(context,item.InputHash,item.Command).ConfigureAwait(false))selectionFunction.MarkSent(item.Key);});
+        if(context.AssessmentFunctionFailures is{} assessmentFunction)foreach(var item in assessmentFunction.Pending())work.Add(async()=>
+        {if(await WorkflowLegacyPublicationMigration.TryMigrateAsync(context,item.InputHash,item.Command).ConfigureAwait(false))assessmentFunction.MarkSent(item.Key);});
+        if(context.RegimeFunctionFailures is{} regimeFunction)foreach(var item in regimeFunction.Pending())work.Add(async()=>
+        {if(await WorkflowLegacyPublicationMigration.TryMigrateAsync(context,item.InputHash,item.Command).ConfigureAwait(false))regimeFunction.MarkSent(item.Key);});
+        List<Exception>? failures=null;
+        foreach(var action in work.Skip(offset%Math.Max(1,work.Count)).Concat(work).Take(Math.Min(64,work.Count)))
+        {
+            token.ThrowIfCancellationRequested();
+            try{await action().ConfigureAwait(false);}
+            catch(Exception error)when(!token.IsCancellationRequested){(failures??=[]).Add(error);}
+        }
+        if(failures is not null)throw new AggregateException("Legacy workflow terminals remain owned.",failures);
     }
 
     /// <inheritdoc/>
-    protected override ValueTask OnShutdown(IEventActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> context) => OnStartup(context);
+    protected override ValueTask OnShutdown(IEventActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> context) => ValueTask.CompletedTask;
 
     /// <inheritdoc/>
     protected override IEvent ParseMessage(IEventActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> context, IActorMessage message) => ParseMappedRealtimeEvent(context, message, _parseMap);
@@ -93,6 +138,7 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor(IRealtime
         var view = snapshot.State;
         if (view.Status != WorkflowStrategyMachineStatus.Started)
             return;
+        if(await WorkflowPublicationDelivery.InterruptOldSessionAsync(RequireEventContext(context),view).ConfigureAwait(false))return;
         if (snapshot.DispatchRegimeDiscovery ||
             view.CurrentStage is StrategyWorkflowStage.TradeSelection or StrategyWorkflowStage.OrderComposition)
         {
@@ -147,6 +193,7 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor(IRealtime
     static async ValueTask ExecuteRegimeDiscoveryAsync(IEventActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> context, WorkflowStrategyStateUpdatedEvent snapshot)
     {
         var services = RequireEventContext(context);
+        if (await RegimeFunctionTerminalDelivery.RecoverAsync(services, snapshot).ConfigureAwait(false)) return;
         var timeProvider = services.TimeProvider;
         var view = snapshot.State;
         if (snapshot.DispatchRegimeDiscovery &&
@@ -160,22 +207,22 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor(IRealtime
                 SourceEventId = snapshot.Id, CorrelationId = view.CorrelationId, CausationId = snapshot.Id,
                 CheckTriggerFreshness = true
             };
-            await context.SendAsync<FailRegimeDiscoveryCommand, IntrinsicTimeStrategyWorkflowEntityId>(stop, stop.EntityId).ConfigureAwait(false);
+            await WorkflowPublicationDelivery.PublishAsync(services,snapshot,stop).ConfigureAwait(false);
             return;
         }
         var execute = CreateRegimeExecute(snapshot) ?? throw new InvalidOperationException("Only a committed Started/Regime snapshot can dispatch Execute.");
         if (view.DecisionRuntimeVersion > 0) execute = execute with { ExpiresAtUtc = Runtime.WorkflowCalculationRuntime.Deadline(view) };
+        // Initialization returns a calculation outcome. Its required command handoff is outside the calculation catch.
+        var start = await execute.StartPipelineAsync(services).ConfigureAwait(false);
+        if (!start.Success)
+        {
+            await FailRegimeDiscoveryInitializationAsync(context, snapshot, start.Error!).ConfigureAwait(false);
+            return;
+        }
+        execute = start.Value!;
         FunctionResult<RegimeDiscoveryPipelineCompletedEvent, RegimeDiscoveryPipelineFailedEvent>? terminal;
         try
         {
-            var start = await execute.StartPipelineAsync(RequireEventContext(context)).ConfigureAwait(false);
-            if (!start.Success)
-            {
-                await FailRegimeDiscoveryInitializationAsync(context, snapshot, start.Error!).ConfigureAwait(false);
-                return;
-            }
-
-            execute = start.Value!;
             if (view.DecisionRuntimeVersion > 0 && services.DecisionRuntime is null)
                 throw new InvalidOperationException("RD.RUNTIME.NOT_READY");
             if (view.DecisionRuntimeVersion > 0 && services.DecisionRuntime is { } local)
@@ -208,12 +255,12 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor(IRealtime
         {
             var complete = CreateCompleteCommand(terminal.Completed!);
             if (view.DecisionRuntimeVersion > 0) services.DecisionRuntime?.RecordResult(view, complete.Result);
-            await context.SendAsync<CompleteRegimeDiscoveryCommand, IntrinsicTimeStrategyWorkflowEntityId>(complete, complete.EntityId).ConfigureAwait(false);
+            await RegimeFunctionTerminalDelivery.CaptureAsync(services, snapshot, complete).ConfigureAwait(false);
         }
         else
         {
             var fail = CreateFailCommand(terminal.Failed!, execute.ParameterSet.ParameterSetId, execute.ParameterSet.Version, execute.ParameterPayloadSha256);
-            await context.SendAsync<FailRegimeDiscoveryCommand, IntrinsicTimeStrategyWorkflowEntityId>(fail, fail.EntityId).ConfigureAwait(false);
+            await RegimeFunctionTerminalDelivery.CaptureAsync(services, snapshot, fail).ConfigureAwait(false);
         }
     }
 
@@ -245,7 +292,98 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor(IRealtime
             ParameterSetVersion = error.ParameterSetVersion,
             ParameterPayloadSha256 = error.ParameterPayloadSha256
         };
-        await context.SendAsync<FailRegimeDiscoveryCommand, IntrinsicTimeStrategyWorkflowEntityId>(fail, fail.EntityId).ConfigureAwait(false);
+        if (RequireEventContext(context).Publications is not null)
+            await WorkflowPublicationDelivery.PublishAsync(RequireEventContext(context), snapshot, fail).ConfigureAwait(false);
+        else if (RequireEventContext(context).InitializationTerminals is { } journal)
+        {
+            var saved = journal.Prepare(snapshot.Id, InitializationInputHash(snapshot), () => fail);
+            await SendInitializationTerminalAsync(context, journal, saved).ConfigureAwait(false);
+        }
+        else await context.SendAsync<FailRegimeDiscoveryCommand, IntrinsicTimeStrategyWorkflowEntityId>(fail, fail.EntityId).ConfigureAwait(false);
+    }
+
+    static string InitializationInputHash(WorkflowStrategyStateUpdatedEvent source)
+        => Convert.ToHexString(SHA256.HashData(MessagePack.MessagePackSerializer.Serialize(source)));
+
+    internal static async ValueTask<bool> RecoverInitializationAsync(IEventActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> context, WorkflowStrategyStateUpdatedEvent source)
+    {
+        var journal = RequireEventContext(context).InitializationTerminals;
+        if (journal?.Find(source.Id) is not { } saved) return false;
+        if (!string.Equals(saved.InputHash, InitializationInputHash(source), StringComparison.Ordinal))
+            throw new InvalidDataException("Workflow initialization source identity reused with different content.");
+        await SendInitializationTerminalAsync(context, journal, saved).ConfigureAwait(false);
+        return true;
+    }
+
+    static async ValueTask SendInitializationTerminalAsync(IEventActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> context, WorkflowInitializationTerminals journal, WorkflowInitializationTerminal saved)
+    {
+        if(!saved.Sent&&await WorkflowLegacyPublicationMigration.TryMigrateAsync(RequireEventContext(context),saved.InputHash,saved.Command).ConfigureAwait(false)){journal.MarkSent(saved.Key);return;}
+        if (!saved.Sent)
+            await context.SendAsync<FailRegimeDiscoveryCommand, IntrinsicTimeStrategyWorkflowEntityId>(saved.Command, saved.Command.EntityId).ConfigureAwait(false);
+        journal.MarkSent(saved.Key);
+    }
+
+    internal static async ValueTask<bool> RecoverCompositionFailureAsync(IEventActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> context, WorkflowStrategyStateUpdatedEvent source)
+    {
+        var journal = RequireEventContext(context).CompositionFailures;
+        if (journal?.Find(source.Id) is not { } saved) return false;
+        if (!string.Equals(saved.InputHash, InitializationInputHash(source), StringComparison.Ordinal))
+            throw new InvalidDataException("Workflow composition source identity reused with different content.");
+        await SendCompositionFailureAsync(context, journal, saved).ConfigureAwait(false);
+        return true;
+    }
+
+    internal static async ValueTask FreezeCompositionFailureAsync(IEventActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> context, WorkflowStrategyStateUpdatedEvent source, FailOrderCompositionCommand command)
+    {
+        if (RequireEventContext(context).Publications is not null)
+            await WorkflowPublicationDelivery.PublishAsync(RequireEventContext(context), source, command).ConfigureAwait(false);
+        else if (RequireEventContext(context).CompositionFailures is { } journal)
+            await SendCompositionFailureAsync(context, journal, journal.Prepare(source.Id, InitializationInputHash(source), () => command)).ConfigureAwait(false);
+        else await context.SendAsync<FailOrderCompositionCommand, IntrinsicTimeStrategyWorkflowEntityId>(command, command.EntityId).ConfigureAwait(false);
+    }
+
+    static async ValueTask SendCompositionFailureAsync(IEventActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> context, WorkflowCompositionFailures journal, WorkflowCompositionFailure saved)
+    {
+        if(!saved.Sent&&await WorkflowLegacyPublicationMigration.TryMigrateAsync(RequireEventContext(context),saved.InputHash,saved.Command).ConfigureAwait(false)){journal.MarkSent(saved.Key);return;}
+        if (!saved.Sent)
+            await context.SendAsync<FailOrderCompositionCommand, IntrinsicTimeStrategyWorkflowEntityId>(saved.Command, saved.Command.EntityId).ConfigureAwait(false);
+        journal.MarkSent(saved.Key);
+    }
+
+    internal static async ValueTask<bool> RecoverMarketConditionFailureAsync(IEventActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> context, WorkflowStrategyStateUpdatedEvent source)
+    {
+        var journal = RequireEventContext(context).MarketConditionFailures;
+        if (journal?.Find(source.Id) is not { } saved) return false;
+        if (!string.Equals(saved.InputHash, InitializationInputHash(source), StringComparison.Ordinal))
+            throw new InvalidDataException("Market Condition initialization source identity reused with different content.");
+        await SendMarketConditionFailureAsync(context, journal, saved).ConfigureAwait(false);
+        return true;
+    }
+
+    static async ValueTask SendMarketConditionFailureAsync(IEventActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> context, WorkflowMarketConditionFailures journal, WorkflowMarketConditionFailure saved)
+    {
+        if(!saved.Sent&&await WorkflowLegacyPublicationMigration.TryMigrateAsync(RequireEventContext(context),saved.InputHash,saved.Command).ConfigureAwait(false)){journal.MarkSent(saved.Key);return;}
+        if (!saved.Sent)
+            await context.SendAsync<FailMarketConditionCommand, IntrinsicTimeStrategyWorkflowEntityId>(saved.Command, saved.Command.EntityId).ConfigureAwait(false);
+        journal.MarkSent(saved.Key);
+    }
+
+    internal static async ValueTask<bool> RecoverReservationFailureAsync(IEventActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> context, WorkflowStrategyStateUpdatedEvent source)
+    {
+        var journal = RequireEventContext(context).ReservationFailures;
+        if (journal?.Find(source.Id) is not { } saved) return false;
+        if (!string.Equals(saved.InputHash, InitializationInputHash(source), StringComparison.Ordinal))
+            throw new InvalidDataException("Reservation rejection source identity reused with different content.");
+        await SendReservationFailureAsync(context, journal, saved).ConfigureAwait(false);
+        return true;
+    }
+
+    static async ValueTask SendReservationFailureAsync(IEventActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> context, WorkflowReservationFailures journal, WorkflowReservationFailure saved)
+    {
+        if(!saved.Sent&&await WorkflowLegacyPublicationMigration.TryMigrateAsync(RequireEventContext(context),saved.InputHash,saved.Command).ConfigureAwait(false)){journal.MarkSent(saved.Key);return;}
+        if (!saved.Sent)
+            await context.SendAsync<FailTradeSelectionCommand, IntrinsicTimeStrategyWorkflowEntityId>(saved.Command, saved.Command.EntityId).ConfigureAwait(false);
+        journal.MarkSent(saved.Key);
     }
 
     static async ValueTask ExecuteMarketConditionAsync(IEventActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> context, WorkflowStrategyStateUpdatedEvent snapshot)
@@ -253,7 +391,7 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor(IRealtime
         var start = await snapshot.StartPipelineAsync(RequireEventContext(context)).ConfigureAwait(false);
         if (start.Success)
         {
-            await ExecuteAssessmentAsync(context, start.Value!).ConfigureAwait(false);
+            await ExecuteAssessmentAsync(context, start.Value!, snapshot).ConfigureAwait(false);
             return;
         }
 
@@ -281,7 +419,11 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor(IRealtime
                 FailedAtUtc = now
             }
         };
-        await context.SendAsync<FailMarketConditionCommand, IntrinsicTimeStrategyWorkflowEntityId>(fail, fail.EntityId).ConfigureAwait(false);
+        if (RequireEventContext(context).Publications is not null)
+            await WorkflowPublicationDelivery.PublishAsync(RequireEventContext(context), snapshot, fail).ConfigureAwait(false);
+        else if (RequireEventContext(context).MarketConditionFailures is { } journal)
+            await SendMarketConditionFailureAsync(context, journal, journal.Prepare(snapshot.Id, InitializationInputHash(snapshot), () => fail)).ConfigureAwait(false);
+        else await context.SendAsync<FailMarketConditionCommand, IntrinsicTimeStrategyWorkflowEntityId>(fail, fail.EntityId).ConfigureAwait(false);
     }
 
     /// <summary>Builds the deterministic Regime Execute command only from a committed Started/Regime snapshot.</summary>
@@ -350,7 +492,7 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor(IRealtime
         ParameterSetVersion = parameterSetVersion,
         ParameterPayloadSha256 = parameterPayloadSha256
     };
-    static Guid DeterministicPipelineCommandId(StrategyWorkflowId workflowId, StrategyWorkflowStage stage, long revision)
+    internal static Guid DeterministicPipelineCommandId(StrategyWorkflowId workflowId, StrategyWorkflowStage stage, long revision)
     {
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes($"{workflowId}|{stage}|{revision}"));
         return new Guid(hash.AsSpan(0, 16));

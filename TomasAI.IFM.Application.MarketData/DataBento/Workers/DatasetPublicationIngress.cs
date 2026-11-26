@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Application.MarketData.Pricing;
 using MessagePack;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
@@ -17,11 +18,11 @@ public sealed class DatasetPublicationIngress(
     ITickAggregationEventPublisher publisher,
     IMarketDataOperationsRecorder recorder,
     DatasetWorkerCurrentValues? currentValues = null, Pricing.IOptionTradeEvidenceWriter? optionTrades = null, bool evidencePersistedByHost = false,
-    Storage.IRawFuturesEodSink? rawEod = null)
+    Storage.IRawFuturesEodSink? rawEod = null, bool requireDurableCapture = false)
 {
     /// <summary>Creates an independent admission boundary for option-only worker output.</summary>
     public DatasetPublicationIngress ForOptions(DatasetWorkerAdmissionRegistry optionAdmissions)
-        => new(optionAdmissions, publisher, recorder, optionTrades: optionTrades, evidencePersistedByHost: evidencePersistedByHost);
+        => new(optionAdmissions, publisher, recorder, optionTrades: optionTrades, evidencePersistedByHost: evidencePersistedByHost,requireDurableCapture:requireDurableCapture);
 
     readonly System.Threading.Lock holdingGate = new();
     readonly Dictionary<string, CandidateHoldingState> candidateHolding = new(StringComparer.Ordinal);
@@ -170,14 +171,17 @@ public sealed class DatasetPublicationIngress(
                     Record(MarketDataOperationOutcome.Failed, envelope);
                     return false;
                 }
-                holding.LastSequence = envelope.PublicationSequence;
                 var held = holding.Buffer.TryHold(envelope);
+                if(held)holding.LastSequence = envelope.PublicationSequence;
                 Record(held ? MarketDataOperationOutcome.Enqueued : MarketDataOperationOutcome.Failed, envelope);
                 return held;
             }
         }
         CancellationToken generationCancellation;
         var accepted = false;
+        using var pending = envelope.Kind == DatasetPublicationKind.OptionQuoteObservation ? null
+            : await admissions.BeginPublicationAsync(identity,envelope.PublicationSequence,
+                Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(MessagePackSerializer.Serialize(envelope))),cancellationToken).ConfigureAwait(false);
         TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesOptionTickDataV2ReadModel? optionObservation = null;
         if (envelope.Kind == DatasetPublicationKind.OptionQuoteObservation)
         {
@@ -192,20 +196,12 @@ public sealed class DatasetPublicationIngress(
             accepted = admissions.TryAcceptOptionObservation(identity, observation.ContractId, envelope.PublicationSequence,
                 observation.ObservedAtUtc, observation.CalculatedAtUtc, observation.IsPricingUpdate, out generationCancellation);
         }
-        else accepted = admissions.TryAccept(identity, envelope.PublicationSequence, out generationCancellation);
+        else {accepted=pending is not null;generationCancellation=pending?.GenerationCancellation??default;}
         if (!accepted)
         {
             Record(MarketDataOperationOutcome.Failed, envelope);
             return false;
         }
-        // The mirror also verifies identity under its own reset lock. A publication that passed
-        // admission just before Close cannot repopulate cleared dataset values afterward.
-        if (currentValues is not null && !currentValues.AcceptPublication(envelope))
-        {
-            Record(MarketDataOperationOutcome.Failed, envelope);
-            return false;
-        }
-
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -213,7 +209,8 @@ public sealed class DatasetPublicationIngress(
             // The publisher enqueues this token and returns before transmission. A short-lived
             // linked CTS would disconnect reset cancellation at that return boundary. Ownership
             // therefore transfers with the lasting generation token, not the caller's read token.
-            switch (envelope.Kind)
+            if(requireDurableCapture)await PublishRequiredAsync(envelope,generationCancellation).ConfigureAwait(false);
+            else switch (envelope.Kind)
             {
                 case DatasetPublicationKind.OptionTradeEvidence:
                     var evidence = MessagePackSerializer.Deserialize<Pricing.OptionTradeEvidence>(envelope.Payload,cancellationToken:cancellationToken);
@@ -234,7 +231,7 @@ public sealed class DatasetPublicationIngress(
                         generationCancellation).ConfigureAwait(false);
                     break;
                 case DatasetPublicationKind.Quote:
-                    if (AppContext.TryGetSwitch("IFM.RawFuturesDurableStorage", out var rawStorage) && rawStorage) break;
+                    if (!requireDurableCapture&&AppContext.TryGetSwitch("IFM.RawFuturesDurableStorage", out var rawStorage) && rawStorage) break;
                     var quote = MessagePackSerializer.Deserialize<FuturesTickQuoteDataChangedEvent>(envelope.Payload,cancellationToken:cancellationToken) with
                     { SourceDataset = envelope.Dataset, SourceGenerationId = envelope.GenerationId };
                     TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(envelope, quote);
@@ -263,7 +260,7 @@ public sealed class DatasetPublicationIngress(
                         rawEod.Observe(TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(envelope,
                             MessagePackSerializer.Deserialize<FuturesSessionStatisticsUpdatedRealtimeEvent>(envelope.Payload, cancellationToken: cancellationToken) with
                             { SourceDataset = envelope.Dataset, SourceGenerationId = envelope.GenerationId }));
-                        break;
+                        if(!requireDurableCapture)break;
                     }
                     await publisher.PublishAsync(
                         TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(envelope, MessagePackSerializer.Deserialize<FuturesSessionStatisticsUpdatedRealtimeEvent>(envelope.Payload,cancellationToken:cancellationToken) with
@@ -280,10 +277,155 @@ public sealed class DatasetPublicationIngress(
             Record(MarketDataOperationOutcome.Failed, envelope);
             return false;
         }
+        pending?.ConfirmCapture();
+        // Read-view progress is advisory and cannot veto a confirmed required capture.
+        _=currentValues?.AcceptPublication(envelope);
         if (optionObservation is { } delivered)
             admissions.RecordOptionObservation(identity, delivered.ContractId, envelope.PublicationSequence, delivered.ObservedAtUtc, delivered.CalculatedAtUtc, delivered.IsPricingUpdate);
         Record(MarketDataOperationOutcome.Published, envelope);
         return true;
+    }
+
+    /// <summary>Finite original-source group, preserving capture and ITI release order. Replayed confirmed prefixes are separated from fresh suffixes.</summary>
+    public async ValueTask<bool[]> CaptureSourceBatchAsync(IReadOnlyList<DatasetPublicationEnvelope> frames,CancellationToken token=default)
+    {
+        if(!requireDurableCapture||publisher is not IDurableTickPublicationBatch batchPublisher)throw new InvalidOperationException("Confirmed source grouping is unavailable.");
+        if(frames.Count is <1 or >64)throw new InvalidDataException("Source group size exceeds bounds.");
+        var first=frames[0];var identity=new DatasetWorkerAdmission(first.Dataset,first.ValueDate,first.WorkerInstanceId,first.GenerationId,first.ManifestRevision);
+        long previous=0;
+        foreach(var frame in frames)
+        {
+            if(frame.Dataset!=identity.Dataset||frame.ValueDate!=identity.ValueDate||frame.WorkerInstanceId!=identity.WorkerInstanceId||frame.GenerationId!=identity.GenerationId||frame.ManifestRevision!=identity.ManifestRevision||frame.PublicationSequence<=previous||frame.Payload.Length is <1 or >DatasetPublicationFrameCodec.MaximumFrameBytes)
+                throw new InvalidDataException("Source group mixes identity, order or invalid payload bounds.");
+            previous=frame.PublicationSequence;
+        }
+        var live=new bool[frames.Count];var last=admissions.LastConfirmedSequence(identity);
+        var split=last<0?frames.Count:frames.TakeWhile(frame=>frame.PublicationSequence<=last).Count();
+        if(split>0)await PublishGroupRangeAsync(0,split,recovered:true).ConfigureAwait(false);
+        if(split<frames.Count)
+        {
+            var start=frames[split];
+            using var pending=await admissions.BeginPublicationAsync(identity,start.PublicationSequence,Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(MessagePackSerializer.Serialize(start))),token).ConfigureAwait(false);
+            if(pending is null){await PublishGroupRangeAsync(split,frames.Count,recovered:true).ConfigureAwait(false);return live;}
+            await PublishGroupRangeAsync(split,frames.Count,recovered:false).ConfigureAwait(false);
+            pending.ConfirmCaptureThrough(frames[^1].PublicationSequence);
+            for(var index=split;index<frames.Count;index++)
+            {
+                live[index]=true;_=currentValues?.AcceptPublication(frames[index]);Record(MarketDataOperationOutcome.Published,frames[index]);
+                if(frames[index].Kind==DatasetPublicationKind.OptionQuoteObservation)
+                {
+                    var observation=MessagePackSerializer.Deserialize<FuturesTickTradeDataChangedEvent>(frames[index].Payload).OptionMarketPriceObservation!.OptionTickData;
+                    admissions.RecordOptionObservation(identity,observation.ContractId,frames[index].PublicationSequence,observation.ObservedAtUtc,observation.CalculatedAtUtc,observation.IsPricingUpdate);
+                }
+            }
+        }
+        return live;
+
+        async ValueTask PublishGroupRangeAsync(int begin,int end,bool recovered)
+        {
+            var events=new List<IEvent>(64);
+            async ValueTask FlushAsync(){if(events.Count==0)return;await batchPublisher.PublishBatchAsync(events.ToArray(),recovered,token).ConfigureAwait(false);events.Clear();}
+            for(var index=begin;index<end;index++)
+            {
+                var frame=frames[index];var value=await DecodeGroupedSourceAsync(frame,token).ConfigureAwait(false);
+                if(value is FuturesTradeReplayBatchRealtimeEvent||value is FuturesMarketPriceUpdatedRealtimeEvent{VwapCheckpoint:not null})
+                {await FlushAsync().ConfigureAwait(false);await PublishRequiredAsync(frame,token,recovered).ConfigureAwait(false);}
+                else events.Add(value);
+            }
+            await FlushAsync().ConfigureAwait(false);
+        }
+    }
+    async ValueTask<IEvent> DecodeGroupedSourceAsync(DatasetPublicationEnvelope frame,CancellationToken token)
+    {
+        IEvent value;
+        switch(frame.Kind)
+        {
+            case DatasetPublicationKind.OptionTradeEvidence:
+                var evidence=MessagePackSerializer.Deserialize<Pricing.OptionTradeEvidence>(frame.Payload,cancellationToken:token);evidence.Validate();
+                if(evidence.Source.Dataset!=frame.Dataset||evidence.Source.ValueDate!=frame.ValueDate||evidence.Source.GenerationId!=frame.GenerationId)throw new InvalidDataException("Option evidence differs from grouped source.");
+                if(optionTrades is not null)await optionTrades.WriteAsync(evidence,token).ConfigureAwait(false);else if(!evidencePersistedByHost)throw new InvalidOperationException("Original option evidence is not durably owned.");
+                value=evidence.ToRealtimeEvent();break;
+            case DatasetPublicationKind.OptionQuoteObservation:
+            case DatasetPublicationKind.Trade:
+                var trade=MessagePackSerializer.Deserialize<FuturesTickTradeDataChangedEvent>(frame.Payload,cancellationToken:token);
+                if(frame.Kind==DatasetPublicationKind.OptionQuoteObservation&&(trade.OptionMarketPriceObservation?.OptionTickData is not{} option||option.SourceGeneration!=frame.GenerationId||option.ValueDate!=frame.ValueDate))throw new InvalidDataException("Option observation differs from grouped source.");
+                value=trade with{SourceDataset=frame.Dataset,SourceGenerationId=frame.GenerationId};break;
+            case DatasetPublicationKind.Quote:value=MessagePackSerializer.Deserialize<FuturesTickQuoteDataChangedEvent>(frame.Payload,cancellationToken:token) with{SourceDataset=frame.Dataset,SourceGenerationId=frame.GenerationId};break;
+            case DatasetPublicationKind.MarketPrice:value=MessagePackSerializer.Deserialize<FuturesMarketPriceUpdatedRealtimeEvent>(frame.Payload,cancellationToken:token) with{SourceDataset=frame.Dataset,SourceGenerationId=frame.GenerationId};break;
+            case DatasetPublicationKind.TradeReplayBatch:value=MessagePackSerializer.Deserialize<FuturesTradeReplayBatchRealtimeEvent>(frame.Payload,cancellationToken:token) with{SourceDataset=frame.Dataset,SourceGenerationId=frame.GenerationId};break;
+            case DatasetPublicationKind.SessionStatistics:value=MessagePackSerializer.Deserialize<FuturesSessionStatisticsUpdatedRealtimeEvent>(frame.Payload,cancellationToken:token) with{SourceDataset=frame.Dataset,SourceGenerationId=frame.GenerationId};break;
+            default:throw new InvalidDataException("Unsupported grouped source kind.");
+        }
+        return TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(frame,(object)value) as IEvent??throw new InvalidDataException("Grouped source is not an event.");
+    }
+
+    /// <summary>Captures original source bytes, advancing current admission only after ownership succeeds.
+    /// Retired source capture never promotes an obsolete generation into the live read view.</summary>
+    public async ValueTask<bool> CaptureSourceAsync(DatasetPublicationEnvelope envelope,CancellationToken token=default)
+    {
+        var identity=new DatasetWorkerAdmission(envelope.Dataset,envelope.ValueDate,envelope.WorkerInstanceId,envelope.GenerationId,envelope.ManifestRevision);
+        if(admissions.TryGet(envelope.Dataset,out var active)&&active==identity)
+        {
+            if(await AcceptAsync(envelope,token).ConfigureAwait(false))return true;
+            // An ACK may have been lost after commit. Capture and ordered input ownership are idempotent.
+            await CaptureRecoveredAsync(envelope,token).ConfigureAwait(false);return false;
+        }
+        await CaptureRecoveredAsync(envelope,token).ConfigureAwait(false);return false;
+    }
+
+    /// <summary>Replays a source-owned immutable envelope into confirmed capture, without promoting retired live admission or read views.</summary>
+    public async ValueTask CaptureRecoveredAsync(DatasetPublicationEnvelope envelope,CancellationToken token=default)
+    {
+        if(!requireDurableCapture)throw new InvalidOperationException("Required source recovery needs confirmed durable capture.");
+        if(envelope.Payload.Length is <1 or >DatasetPublicationFrameCodec.MaximumFrameBytes||envelope.WorkerInstanceId==Guid.Empty||envelope.GenerationId==Guid.Empty||envelope.PublicationSequence<1||envelope.ManifestRevision<1)
+            throw new InvalidDataException("Invalid retained source publication.");
+        await PublishRequiredAsync(envelope,token,recovered:true).ConfigureAwait(false);
+    }
+
+    /// <summary>Mirrors an archived retired source through Core, preserving original source identity.
+    /// The caller owns its immutable archive and recovery-only actor admission; ordered ITI requires positive original coverage.</summary>
+    public async ValueTask PublishRetainedToCoreAsync(DatasetPublicationEnvelope envelope,CancellationToken token=default)
+    {
+        if(requireDurableCapture)throw new InvalidOperationException("Core recovery cannot replace confirmed durable source capture.");
+        if(envelope.Payload.Length is <1 or >DatasetPublicationFrameCodec.MaximumFrameBytes||envelope.WorkerInstanceId==Guid.Empty
+            ||envelope.GenerationId==Guid.Empty||envelope.PublicationSequence<1||envelope.ManifestRevision<1)
+            throw new InvalidDataException("Invalid original retained Core source.");
+        await PublishRequiredAsync(envelope,token,recovered:true).ConfigureAwait(false);
+    }
+    async ValueTask PublishRequiredAsync(DatasetPublicationEnvelope envelope,CancellationToken token,bool recovered=false)
+    {
+        switch(envelope.Kind)
+        {
+            case DatasetPublicationKind.OptionTradeEvidence:
+                var evidence=MessagePackSerializer.Deserialize<Pricing.OptionTradeEvidence>(envelope.Payload,cancellationToken:token);evidence.Validate();
+                if(evidence.Source.Dataset!=envelope.Dataset||evidence.Source.ValueDate!=envelope.ValueDate||evidence.Source.GenerationId!=envelope.GenerationId)
+                    throw new InvalidDataException("Retained option evidence source differs.");
+                if(optionTrades is not null)await optionTrades.WriteAsync(evidence,token).ConfigureAwait(false);
+                else if(!evidencePersistedByHost)throw new InvalidOperationException("Durable option evidence is unavailable.");
+                await publisher.PublishAsync(TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(envelope,evidence.ToRealtimeEvent()),token).ConfigureAwait(false);break;
+            case DatasetPublicationKind.OptionQuoteObservation:
+            case DatasetPublicationKind.Trade:
+                await publisher.PublishAsync(TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(envelope,MessagePackSerializer.Deserialize<FuturesTickTradeDataChangedEvent>(envelope.Payload,cancellationToken:token) with
+                    {SourceDataset=envelope.Dataset,SourceGenerationId=envelope.GenerationId}),token).ConfigureAwait(false);break;
+            case DatasetPublicationKind.Quote:
+                var quote=MessagePackSerializer.Deserialize<FuturesTickQuoteDataChangedEvent>(envelope.Payload,cancellationToken:token) with{SourceDataset=envelope.Dataset,SourceGenerationId=envelope.GenerationId};
+                TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(envelope,quote);
+                await publisher.PublishAsync(quote,new DeserializedQuoteLease(quote.QuoteData.Buffer,quote.QuoteCount),token).ConfigureAwait(false);break;
+            case DatasetPublicationKind.MarketPrice:
+                var price=TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(envelope,MessagePackSerializer.Deserialize<FuturesMarketPriceUpdatedRealtimeEvent>(envelope.Payload,cancellationToken:token) with
+                    {SourceDataset=envelope.Dataset,SourceGenerationId=envelope.GenerationId});
+                if(recovered)await (publisher as IRecoveredFuturesItiPublisher??throw new InvalidOperationException("Original ITI recovery publisher is unavailable.")).PublishRecoveredAsync(price,token).ConfigureAwait(false);
+                else await publisher.PublishAsync(price,token).ConfigureAwait(false);break;
+            case DatasetPublicationKind.TradeReplayBatch:
+                var replay=TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(envelope,MessagePackSerializer.Deserialize<FuturesTradeReplayBatchRealtimeEvent>(envelope.Payload,cancellationToken:token) with
+                    {SourceDataset=envelope.Dataset,SourceGenerationId=envelope.GenerationId});
+                if(recovered)await (publisher as IRecoveredFuturesItiPublisher??throw new InvalidOperationException("Original ITI replay publisher is unavailable.")).PublishRecoveredAsync(replay,token).ConfigureAwait(false);
+                else await publisher.PublishAsync(replay,token).ConfigureAwait(false);break;
+            case DatasetPublicationKind.SessionStatistics:
+                await publisher.PublishAsync(TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(envelope,MessagePackSerializer.Deserialize<FuturesSessionStatisticsUpdatedRealtimeEvent>(envelope.Payload,cancellationToken:token) with
+                    {SourceDataset=envelope.Dataset,SourceGenerationId=envelope.GenerationId}),token).ConfigureAwait(false);break;
+            default:throw new InvalidDataException("Unsupported retained source publication.");
+        }
     }
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "A diagnostic recorder failure must not abort realtime ingestion or recovery; this boundary isolates the observer.")]

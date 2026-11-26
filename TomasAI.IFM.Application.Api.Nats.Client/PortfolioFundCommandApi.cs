@@ -272,14 +272,18 @@ public sealed class PortfolioFundCommandApi(IActorProducer actorProducer, IPortf
             "Manual-order mutation committed but its projection was not visible before the bounded query timeout.");
     }
 
-    public async Task<ServiceResult<FundCompositionReservationResult>> ReserveCompositionAsync(ReserveFundOrderCompositionRequest request, PortfolioFundStrategySnapshot snapshot, CancellationToken cancellationToken = default)
+    public Task<ServiceResult<FundCompositionReservationResult>> ReserveCompositionAsync(ReserveFundOrderCompositionRequest request,PortfolioFundStrategySnapshot snapshot,CancellationToken cancellationToken=default)
+        => ReserveOrReconcileAsync(request,snapshot,false,cancellationToken);
+    public Task<ServiceResult<FundCompositionReservationResult>> ReconcileCompositionAsync(ReserveFundOrderCompositionRequest request,PortfolioFundStrategySnapshot snapshot,CancellationToken cancellationToken=default)
+        => ReserveOrReconcileAsync(request,snapshot,true,cancellationToken);
+    async Task<ServiceResult<FundCompositionReservationResult>> ReserveOrReconcileAsync(ReserveFundOrderCompositionRequest request, PortfolioFundStrategySnapshot snapshot,bool reconcileOnly, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
         var wasAlreadyProjected = queries is not null && await FindReservationAsync(request, cancellationToken).ConfigureAwait(false) is not null;
-        var command = new ReserveFundOrderCompositionCommand(request, snapshot);
+        var command = new ReserveFundOrderCompositionCommand(request, snapshot) { ReconcileOnly=reconcileOnly?true:null };
         var fund = new PortfolioFundId(request.PortfolioId, request.FundId);
-        var commandId = IdempotentCommandId.Create(request.IdempotencyKey, request);
-        if (!wasAlreadyProjected)
+        var commandId = IdempotentCommandId.Create(reconcileOnly?new Guid(SHA256.HashData(request.IdempotencyKey.ToByteArray().Concat("reconcile"u8.ToArray()).ToArray()).AsSpan(0,16)):request.IdempotencyKey, request);
+        if (!wasAlreadyProjected && !reconcileOnly)
         {
             using var scope = PortfolioAccessScope.Push(WorkflowAccess);
             var orderOperation = FundOrderPreparation.AllocationOperationId(fund, commandId, PortfolioBusinessIdentityKind.Order, 0);

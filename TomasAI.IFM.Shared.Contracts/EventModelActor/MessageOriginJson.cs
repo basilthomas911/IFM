@@ -7,7 +7,7 @@ public static class MessageOriginJson
 {
     /// <summary>Encodes known creation metadata; unknown legacy provenance remains SQL/header null.</summary>
     public static string? Serialize(MessageOrigin? origin)
-        => origin is null ? null : JsonSerializer.Serialize(origin);
+        => origin?.GetJson();
 
     /// <summary>Decodes validated UTC metadata without consulting a clock.</summary>
     public static MessageOrigin? Deserialize(string? json)

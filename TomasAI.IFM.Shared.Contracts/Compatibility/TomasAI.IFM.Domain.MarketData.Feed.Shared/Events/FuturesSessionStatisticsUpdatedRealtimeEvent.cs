@@ -12,8 +12,30 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 /// Non-durable provider-neutral input carrying the latest complete session statistics.
 /// </summary>
 [MessagePackObject(AllowPrivate = true)]
-public sealed record FuturesSessionStatisticsUpdatedRealtimeEvent : IEvent<FuturesEodDataId>, IRealtimeSourceGeneration
+public sealed record FuturesSessionStatisticsUpdatedRealtimeEvent : IEvent<FuturesEodDataId>, IRealtimeSourceGeneration, TomasAI.IFM.Shared.EventModelActor.IMessageOriginOwner
 {
+    [MessagePack.IgnoreMember]
+    TomasAI.IFM.Shared.EventModelActor.MessageOriginSlot originSlot;
+    [MessagePack.IgnoreMember]
+    ref TomasAI.IFM.Shared.EventModelActor.MessageOriginSlot TomasAI.IFM.Shared.EventModelActor.IMessageOriginOwner.MessageOriginSlot => ref originSlot;
+    /// <summary>Copies business fields while leaving nonserialized creation metadata unassociated.</summary>
+    [System.Diagnostics.CodeAnalysis.SetsRequiredMembers]
+    private FuturesSessionStatisticsUpdatedRealtimeEvent(FuturesSessionStatisticsUpdatedRealtimeEvent original)
+    {
+        SourceDataset = original.SourceDataset;
+        SourceGenerationId = original.SourceGenerationId;
+        Subject = original.Subject;
+        Id = original.Id;
+        EntityId = original.EntityId;
+        EventId = original.EventId;
+        CommandId = original.CommandId;
+        AggregateId = original.AggregateId;
+        EventSource = original.EventSource;
+        ReceivedOn = original.ReceivedOn;
+        Statistics = original.Statistics;
+    }
+
+
 
     /// <summary>Creates an empty event for serialization.</summary>
     public FuturesSessionStatisticsUpdatedRealtimeEvent() { }

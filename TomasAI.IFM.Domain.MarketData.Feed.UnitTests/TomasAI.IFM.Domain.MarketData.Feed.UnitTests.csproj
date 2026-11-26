@@ -35,4 +35,8 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
-<ItemGroup><Using Include="TomasAI.IFM.Shared.Identity" /></ItemGroup><ItemGroup><Using Include="TomasAI.IFM.Framework.Messaging.Nats" /></ItemGroup></Project>
+<ItemGroup><Using Include="TomasAI.IFM.Shared.Identity" /></ItemGroup><ItemGroup><Using Include="TomasAI.IFM.Framework.Messaging.Nats" /></ItemGroup>  <ItemGroup><Compile Include="../test-support/EodDeliveryFixture.cs" Link="Support/EodDeliveryFixture.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../test-support/BufferedEodFixture.cs" Link="TestSupport/BufferedEodFixture.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../test-support/OptionTradeDeliveryFixture.cs" Link="Support/OptionTradeDeliveryFixture.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../test-support/TickStorageDeliveryFixture.cs" Link="Support/TickStorageDeliveryFixture.cs" /></ItemGroup>
+</Project>

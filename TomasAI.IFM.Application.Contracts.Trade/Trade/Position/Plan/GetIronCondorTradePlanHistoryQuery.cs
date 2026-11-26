@@ -36,7 +36,7 @@ public sealed record GetIronCondorTradePlanHistoryQuery : IQuery<StrategyTradePl
     [Key(0)] public ActorSubject Subject { get; init; }
     [Key(1)] public IActorEntityId EntityId { get; init; } = ActorEntityId.Default;
     [Key(2)] public IronCondorTradePlanId PlanId { get; init; }
-    [Key(3)] public int PageSize { get; init; } = 100;
+    [Key(3)] public int PageSize { get; init; } = 40;
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public trade model contract.")]
     [Key(4)] public byte[]? PagingState { get; init; }
     [Key(5)] public int? Offset { get; init; }

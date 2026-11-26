@@ -64,12 +64,12 @@ fn events() -> (Vec<String>, Vec<String>) {
             let update = book.apply(7, record, 0).unwrap();
             let output = encoder
                 .process(&Output {
-                    observed: 17931168040000000,
+                    capture_serial: 0, observed: 17931168040000000,
                     lane: Lane::FuturesGlbx,
                     generation: 7,
                     source: OutputSource::Observation(record),
                     state: book.publication_state(42, update),
-                    trade: None,
+                    trade: None, raw: None,
                 })
                 .unwrap();
             assert_eq!(output.len(), if duplicate { 0 } else { 2 });

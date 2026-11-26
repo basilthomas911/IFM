@@ -1,4 +1,4 @@
-using System.Text.Json;
+using System.Text.Json.Serialization;
 using TomasAI.IFM.Framework.TradeBroker.Contracts;
 
 namespace TomasAI.IFM.Framework.TradeBroker.InteractiveBrokers.Emulator.Engine;
@@ -6,4 +6,10 @@ namespace TomasAI.IFM.Framework.TradeBroker.InteractiveBrokers.Emulator.Engine;
 public sealed record EmulatorLedgerCheckpoint(decimal Cash, long Sequence, long Generation,
     EmulatorOrderCheckpoint[] Orders, EmulatorOperationCheckpoint[] Operations,
     FrameworkAccountPosition[] Positions, EmulatorJournalEntry[] Journal,
-    FrameworkBrokerObservation[] Observations);
+    FrameworkBrokerObservation[] Observations,
+    [property:JsonIgnore(Condition=JsonIgnoreCondition.WhenWritingDefault)] long CommitRevision = 0,
+    [property:JsonIgnore(Condition=JsonIgnoreCondition.WhenWritingNull)] EmulatorQuote[]? LatestQuotes = null,
+    [property:JsonIgnore(Condition=JsonIgnoreCondition.WhenWritingNull)] EmulatorQuoteReceipt[]? QuoteReceipts = null,
+    [property:JsonIgnore(Condition=JsonIgnoreCondition.WhenWritingNull)] EmulatorMatchReceipt[]? MatchReceipts = null,
+    [property:JsonIgnore(Condition=JsonIgnoreCondition.WhenWritingDefault)] int PublishedOrderObservationCount = 0,
+    [property:JsonIgnore(Condition=JsonIgnoreCondition.WhenWritingNull)] EmulatorOwnerCheckpointReceipt[]? OwnerCheckpoints = null);

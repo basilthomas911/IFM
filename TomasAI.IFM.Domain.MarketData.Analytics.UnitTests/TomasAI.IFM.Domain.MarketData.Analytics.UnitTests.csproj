@@ -21,6 +21,7 @@
 </ItemGroup>
 
 <ItemGroup>
+  <Compile Include="../test-support/StrictRealtimeCaptureFixture.cs" Link="Support/StrictRealtimeCaptureFixture.cs" />
   <ProjectReference Include="..\TomasAI.IFM.Domain.MarketData\TomasAI.IFM.Domain.MarketData.csproj" />
   <ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Analytics\TomasAI.IFM.Domain.MarketData.Analytics.csproj" />
   <ProjectReference Include="..\TomasAI.IFM.Framework.Messaging.Nats\TomasAI.IFM.Framework.Messaging.Nats.csproj" />
@@ -34,4 +35,8 @@
 
   <ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.EventModelActor/TomasAI.IFM.Application.EventModelActor.csproj" /><Using Include="TomasAI.IFM.Application.EventModelActor" /></ItemGroup>
 <ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.EventSourcing/TomasAI.IFM.Application.EventSourcing.csproj" /><Using Include="TomasAI.IFM.Application.EventSourcing" /></ItemGroup>
+  <ItemGroup><Compile Include="../test-support/RealtimeMailboxSafetyFixture.cs" Link="Support/RealtimeMailboxSafetyFixture.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../test-support/TdiReceiptFixture.cs" Link="Support/TdiReceiptFixture.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../test-support/IndicatorDeliveryFixture.cs" Link="Support/IndicatorDeliveryFixture.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../test-support/ItiDeliveryFixture.cs" Link="Support/ItiDeliveryFixture.cs" /></ItemGroup>
 </Project>

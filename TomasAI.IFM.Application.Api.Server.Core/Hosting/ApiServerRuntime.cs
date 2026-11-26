@@ -204,6 +204,7 @@ public sealed partial class ApiServerLifecycle
         // duplicate API host owns the port), no actor can consume messages from
         // a service provider that is immediately torn down.
         await app.StartAsync();
+        if (HistoricalSessionReplay.Active is null)
         await new NatsJetStreamStartupPurge(
         app.Services.GetRequiredService<INatsJetStreamConsumerOptions>().Url,
         app.Services.GetRequiredService<NatsConnectionManager>(),

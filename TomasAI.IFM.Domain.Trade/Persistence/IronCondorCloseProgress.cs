@@ -63,6 +63,9 @@ public sealed class IronCondorCloseProgress(IDbContextFactory databases, IPostgr
                 }
             }
         }
+        // Route control carries the authoritative position revision, not optional trade-read enrichment.
+        // A later commission update on the trade must not rewrite this revision's captured control body.
+        var routePosition = position;
         if (trade is not null) position = position with { OpeningCommission=position.OpeningCommission ?? trade.OpeningCommission,
             ContractCashMultiplier=position.ContractCashMultiplier ?? (trade.Legs.Length>0 && trade.Legs.All(l=>l.CashMultiplier>0)
                 && trade.Legs.Select(l=>l.CashMultiplier).Distinct().Count()==1 ? trade.Legs[0].CashMultiplier : null) };
@@ -105,17 +108,20 @@ public sealed class IronCondorCloseProgress(IDbContextFactory databases, IPostgr
             if (prepared.Single().Stamp != stamp) return;
         }
         if (!closed || plan is null) return;
+        await CompleteClosedAsync(source, routePosition, position, trade, plan, token).ConfigureAwait(false);
+    }
+
+    /// <summary>Finishes the already-settled close; route capture precedes feed shutdown and terminal finalization.</summary>
+    internal async Task CompleteClosedAsync(IronCondorTradePlanUpdatedEvent source, StrategyPositionSnapshot routePosition,
+        StrategyPositionSnapshot position, EstablishedTradeDefinition? trade, StrategyTradePlanSnapshot plan, CancellationToken token)
+    {
         // Persisted final plan and its publication precede all trade-scoped subscription cleanup.
-        var routes = new OpenPositionRoutesChangedEvent {
-            Subject=new(ActorType.Realtime,FuturesOptionRealtimeActor.ActorName,OpenPositionRoutesChangedEvent.Verb,position.Id.Format()),
-            EntityId=position.Id, Id=TradePlanContractIdentity.DeterministicId($"{source.Id:N}|closed-routes"), Position=position,
-            ReceivedOn=clock.GetUtcNow().UtcDateTime
-        };
+        var routes = ClosedRoutes(source, routePosition);
         await producer.SendAsync<OpenPositionRoutesChangedEvent,StrategyPositionId>(routes.Subject,routes,token).ConfigureAwait(false);
         // Disable all retained dates for this trade, leaving owners for other positions untouched.
         var retainedDates=await transactions.ExecuteOnceAsync((tx,ct)=>tx.QueryAsync(
             "SELECT DISTINCT value_date FROM trade.live_feed_recovery WHERE trade_id=$1;",[position.Id.Trade.Format()],r=>r.GetFieldValue<DateOnly>(0),ct),token).ConfigureAwait(false);
-        foreach (var date in retainedDates.Concat([decision.ValueDate,position.ValueDate]).Distinct())
+        foreach (var date in retainedDates.Concat([source.Plan.ValueDate,position.ValueDate]).Distinct())
             if (!await marketData.DisableTradeFeedRecoveryAsync(position.Id.Trade.Format(),date,token).ConfigureAwait(false))
                 throw new InvalidOperationException("Trade closing-feed cleanup was not confirmed.");
         await PublishAsync(trade,position,plan,"Closed — live feed stopped",token).ConfigureAwait(false);
@@ -123,6 +129,16 @@ public sealed class IronCondorCloseProgress(IDbContextFactory databases, IPostgr
         await transactions.ExecuteOnceAsync((tx,ct)=>tx.ExecuteAsync(
             "UPDATE trade_plan.iron_condor_exit_intent SET finalized=true WHERE positionid=$1;",[position.Id.PositionId],ct),token).ConfigureAwait(false);
     }
+
+    /// <summary>Retains the original close provenance while giving each authoritative closed revision its own control identity.</summary>
+    internal static OpenPositionRoutesChangedEvent ClosedRoutes(IronCondorTradePlanUpdatedEvent source, StrategyPositionSnapshot position)
+        => MessageOrigins.Restore(new OpenPositionRoutesChangedEvent {
+            Subject = new(ActorType.Realtime,FuturesOptionRealtimeActor.ActorName,OpenPositionRoutesChangedEvent.Verb,position.Id.Format()),
+            EntityId = position.Id,
+            Id = TradePlanContractIdentity.DeterministicId($"{source.Id:N}|closed-routes/v2|{position.Id.Format()}|{position.RouteGeneration}|{position.PositionSequence}"),
+            Position = position, ReceivedOn = source.ReceivedOn, CommandId = source.CommandId,
+            EventId = source.EventId, AggregateId = source.AggregateId, EventSource = source.EventSource
+        }, MessageOrigins.Get(source));
 
     async Task PublishAsync(EstablishedTradeDefinition? trade, StrategyPositionSnapshot position, StrategyTradePlanSnapshot plan,
         string status, CancellationToken token)

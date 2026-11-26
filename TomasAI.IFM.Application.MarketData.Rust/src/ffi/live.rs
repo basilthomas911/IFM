@@ -894,7 +894,7 @@ pub(super) fn empty_output() -> crate::dataset::live::Output {
         records::{Header, Observation, Quote},
     };
     Output {
-        observed: 0,
+        capture_serial: 0, observed: 0,
         lane: Lane::FuturesGlbx,
         generation: 0,
         state: Default::default(),

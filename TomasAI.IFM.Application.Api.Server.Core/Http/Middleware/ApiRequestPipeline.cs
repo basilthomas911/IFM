@@ -157,7 +157,7 @@ public static partial class CoreServiceRegistration
                     options.RoutePrefix = string.Empty;
                 });
             }
-            else if (EventLogQualification.Active is null)
+            else if (EventLogQualification.Active is null && HistoricalSessionReplay.Active is null)
             {
                 app.UseHttpsRedirection();
             }

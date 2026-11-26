@@ -13,8 +13,24 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\TomasAI.IFM.Application.Api.Server\TomasAI.IFM.Application.Api.Server.csproj" />
+    <ProjectReference Include="../TomasAI.IFM.Application.MarketData.Rust/managed/TomasAI.IFM.Application.MarketData.Rust.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.IntegrationTesting\TomasAI.IFM.IntegrationTesting.csproj" />
   </ItemGroup>
 <ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.EventModelActor/TomasAI.IFM.Application.EventModelActor.csproj" /><Using Include="TomasAI.IFM.Application.EventModelActor" /></ItemGroup>
 <ItemGroup><Using Include="TomasAI.IFM.Shared.OptionPricing" /></ItemGroup><ItemGroup><Compile Include="../test-support/ResidentPilotInputs.cs" Link="Support/ResidentPilotInputs.cs" /><Compile Include="../test-support/ResidentPilotDatabase.cs" Link="Support/ResidentPilotDatabase.cs" /></ItemGroup>
-</Project>
+  <ItemGroup><Compile Include="../test-support/RealtimeMailboxSafetyFixture.cs" Link="Support/RealtimeMailboxSafetyFixture.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../test-support/TdiReceiptFixture.cs" Link="Support/TdiReceiptFixture.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../test-support/IndicatorDeliveryFixture.cs" Link="Support/IndicatorDeliveryFixture.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../test-support/ItiDeliveryFixture.cs" Link="Support/ItiDeliveryFixture.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../test-support/EodDeliveryFixture.cs" Link="Support/EodDeliveryFixture.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../test-support/BufferedEodFixture.cs" Link="TestSupport/BufferedEodFixture.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../test-support/OptionTradeDeliveryFixture.cs" Link="Support/OptionTradeDeliveryFixture.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../test-support/TickStorageDeliveryFixture.cs" Link="Support/TickStorageDeliveryFixture.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../test-support/IronCondorPositionDeliveryFixture.cs" Link="Support/IronCondorPositionDeliveryFixture.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../test-support/VerticalSpreadPositionDeliveryFixture.cs" Link="Support/VerticalSpreadPositionDeliveryFixture.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../test-support/FuturesPositionDeliveryFixture.cs" Link="Support/FuturesPositionDeliveryFixture.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../test-support/FuturesRoutingDeliveryFixture.cs" Link="Support/FuturesRoutingDeliveryFixture.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../test-support/FuturesOptionRoutingDeliveryFixture.cs" Link="Support/FuturesOptionRoutingDeliveryFixture.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../test-support/BrokerOrderDeliveryFixture.cs" Link="Support/BrokerOrderDeliveryFixture.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../test-support/BrokerEmulatorSettlementFixture.cs" Link="Support/BrokerEmulatorSettlementFixture.cs" /></ItemGroup>
+<ItemGroup><Compile Include="../test-support/BrokerObservationDeliveryFixture.cs" Link="Support/BrokerObservationDeliveryFixture.cs" /></ItemGroup><ItemGroup><Compile Include="../test-support/WorkflowDispatchDeliveryFixture.cs" Link="Support/WorkflowDispatchDeliveryFixture.cs" /></ItemGroup></Project>

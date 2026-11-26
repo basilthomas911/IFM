@@ -264,6 +264,10 @@ public static class Startup
                 services.AddSingleton(siContainer);
                 services.AddSimpleInjector(siContainer);
                 services.AddSingleton(TimeProvider.System);
+                // One owner per isolated host/fixture root; never share the live API's durable directory.
+                var positionIntentRoot=config["IFM_TEST_POSITION_INTENT_ROOT"]
+                    ?? Path.Combine(Path.GetTempPath(),"ifm-actor-integration-intents",Guid.NewGuid().ToString("N"));
+                services.AddSingleton(_=>new TomasAI.IFM.Domain.Trade.Persistence.Realtime.PositionRealtimeIntents(positionIntentRoot));
                 services.AddSingleton<IApplicationStartupStatusStore, ApplicationStartupStatusStore>();
                 services.AddSingleton<IApplicationStartupActivities, IntegrationApplicationStartupActivities>();
                 services.AddSingleton<FuturesMarketSessionAuthority>();

@@ -169,6 +169,12 @@ public sealed class NativeHostState(NativeMarketDataEpochFactory epochs,DatasetW
             output.Add(option);
             for(var i=0;i<output.Count;i++)if(recoveryStates.TryGetValue(output[i].Role+"|"+output[i].Dataset,out var savedState)&&savedState.GenerationId==output[i].GenerationId)output[i]=savedState;
         }
+        var captureConfigured=Environment.GetEnvironmentVariable("IFM_REALTIME_SOURCE_CAPTURE_ENABLED") is{} mode&&(mode=="1"||mode.Equals("true",StringComparison.OrdinalIgnoreCase));
+        for(var index=0;index<output.Count;index++)
+        {
+            var counters=output[index].Counters is{} existing?new Dictionary<string,long>(existing):new Dictionary<string,long>();
+            counters["Configured source capture protocol"]=captureConfigured?2:0;output[index]=output[index] with{Counters=counters};
+        }
         // This registry is used solely for application reference/ownership identity.
         // Native connection recovery does not close an actor mailbox or quarantine
         // data admission; physical native generations fence retired observations.

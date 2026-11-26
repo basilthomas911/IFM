@@ -12,7 +12,7 @@ using TomasAI.IFM.Application.MarketData.Databento;
 namespace TomasAI.IFM.Application.MarketData.Remote;
 
 /// <summary>Preserves the public API while forwarding asynchronous backend work through NATS.</summary>
-public sealed partial class MarketDataReadMirror(IOptionChainCache optionChainCache) : IMarketDataApi
+public sealed partial class MarketDataReadMirror(IOptionChainCache optionChainCache, TimeProvider? clock = null) : IMarketDataApi
 {
     public IOptionChainCache OptionChainCache => optionChainCache;
     public bool CoreFuturesRoutesAreRuntimeOwned => true;

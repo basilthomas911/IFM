@@ -28,6 +28,8 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Realtime.Actor;
 public class FuturesEodDataRealtimeActor(IRealtimeActorContext<FuturesEodDataRealtimeActor> actorContext)
     : BaseEventActor<FuturesEodDataRealtimeActor>(actorContext, actorContext.Logger)
 {
+    protected override bool PropagateHandlerFailures => true;
+
     public const string ActorName = FuturesEodDataInsertedEvent.Actor;
 
     /// <summary>Gets the typed realtime context supplied at construction.</summary>

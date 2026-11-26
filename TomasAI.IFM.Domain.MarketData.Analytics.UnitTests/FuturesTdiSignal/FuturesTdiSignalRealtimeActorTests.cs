@@ -9,6 +9,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -17,6 +18,42 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.FuturesTdiSignal;
 
 public sealed class FuturesTdiSignalRealtimeActorTests
 {
+    [Fact]
+    public async Task Mailbox_receipts_preserve_original_cross_after_confirmation_or_state_replacement()
+    {
+        // Replaying a confirmed window must return the original immutable result.
+        var source = RsiWindow(Guid.NewGuid());
+        source = source with { FuturesRsiSignals = source.FuturesRsiSignals.Select((signal, index) => signal with { RSI = 40d + index }).ToArray() };
+        var configuration = FuturesTdiConfiguration.Standard;
+        var prior = new FuturesTdiSignalReadModel
+        {
+            ContractId = source.EntityId.ContractId, ValueDate = source.EntityId.ValueDate,
+            TimePeriod = source.EntityId.TimePeriod, ConfigurationId = configuration.ConfigurationId,
+            SchemaVersion = FuturesTdiConfiguration.CurrentSchemaVersion, PriceSignalDivergence = -1d
+        };
+        var db = Substitute.For<IMarketDataDbReadContext>();
+        db.GetLastFuturesTdiSignalAsync(source.EntityId.ContractId, source.EntityId.ValueDate, source.EntityId.TimePeriod, configuration.ConfigurationId).Returns(prior);
+        using var receipts = new FuturesTdiResultReceipts();
+        var state = new FuturesTdiSignalRealtimeState(receipts);
+        await state.SeedAsync(source, configuration, db);
+        Assert.True(state.TryEvaluate(source, source.FuturesRsiSignals, configuration, out var original));
+        Assert.Equal(FuturesTdiCrossType.Bullish, original.Signal.Cross);
+        state.Confirm(original);
+        Assert.True(state.TryEvaluate(source, source.FuturesRsiSignals, configuration, out var redelivery));
+        Assert.Equal(FuturesTdiCrossType.Bullish, redelivery.Signal.Cross);
+        Assert.Equal(original.Generated.CommandId, redelivery.Generated.CommandId);
+        Assert.Equal(original.Generated.Id, redelivery.Generated.Id);
+        Assert.Equal(original.Signal.Timestamp, redelivery.Signal.Timestamp);
+
+        // A database commit before completion publication has the same exposure after restart.
+        db.GetLastFuturesTdiSignalAsync(source.EntityId.ContractId, source.EntityId.ValueDate, source.EntityId.TimePeriod, configuration.ConfigurationId).Returns(original.Signal);
+        var restarted = new FuturesTdiSignalRealtimeState(receipts);
+        await restarted.SeedAsync(source, configuration, db);
+        Assert.True(restarted.TryEvaluate(source, source.FuturesRsiSignals, configuration, out var afterRestart));
+        Assert.Equal(FuturesTdiCrossType.Bullish, afterRestart.Signal.Cross);
+        Assert.Equal(original.Generated.Id, afterRestart.Generated.Id);
+    }
+
     [Fact]
     public void ParseMessage_RoutedRsiWindowWithEmptyCommandId_ReturnsConcreteEvent()
     {

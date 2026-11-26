@@ -4,8 +4,24 @@
 **Status:** Approved; Tranches A through D implemented locally, production activation awaiting capacity evidence
 **Priority:** P0
 **Created:** 2026-08-09
-**Last updated:** 2026-08-09
+**Last updated:** 2026-11-24
 **Owner:** IFM engineering
+
+## Realtime scope revision
+
+The target design for `ActorType.Realtime` is now defined in
+[Realtime Actor JetStream Mailbox Design](Realtime-Actor-JetStream-Mailbox-Design-v0.1.md).
+It replaces the proposed shared Realtime backlog rejection boundary with independently consumed
+broker-backed mailboxes identified by `ActorThreadId`. Memory storage is the development qualification
+default; file storage is the comparison. Memory storage does not survive loss of the NATS server.
+
+This revision changes the target design, not the running implementation. The existing Command, Query,
+Function and domain Event admission and replay paths remain outside this revision. The historical
+implementation evidence and decisions below remain as recorded; their shared Realtime admission
+requirements are superseded by the linked design for the new backend.
+
+The staged implementation is tracked in the
+[Realtime mailbox implementation plan](Realtime-Actor-JetStream-Mailbox-Implementation-Plan-v1.0.md).
 
 ## 1. Purpose
 
@@ -620,3 +636,4 @@ The reviewer should explicitly approve or change:
 | 0.3 | 2026-08-09 | Recorded Tranche B atomic runtime enforcement, deterministic tests, microbenchmark gates, and the remaining Tranche C transport-policy boundary. |
 | 0.4 | 2026-08-09 | Recorded Tranche C typed overload replies, Core traffic classification, delayed JetStream NAK/redelivery, ownership tests, transport metrics, and the remaining Tranche D rollout gate. |
 | 0.5 | 2026-08-09 | Recorded Tranche D command-route migration, Supervisor removal, enforced stress and real-network confirmation, complete regression gates, and the remaining production capacity/activation evidence. |
+| 0.6 | 2026-11-24 | Linked the Realtime-only broker-backed mailbox revision, experimental memory default, file comparison, and two-session qualification plan. No runtime configuration or code changed. |

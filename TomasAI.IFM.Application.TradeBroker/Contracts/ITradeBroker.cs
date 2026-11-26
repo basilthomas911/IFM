@@ -15,5 +15,10 @@ public interface ITradeBroker
     ValueTask<BrokerAccountSnapshot> ResynchronizeAccountAsync(CancellationToken cancellationToken = default);
     ValueTask<int> PublishMarketQuoteAsync(BrokerMarketQuote quote, CancellationToken cancellationToken = default);
     IAsyncEnumerable<BrokerObservation> ObserveOrdersAsync(CancellationToken cancellationToken = default);
+    /// <summary>Whether order observations resume from a durable publication cursor.</summary>
+    bool HasRecoverableOrderObservations => false;
+    /// <summary>Advance only after confirmed publication; duplicate acknowledgements are harmless.</summary>
+    ValueTask AcknowledgeOrderObservationAsync(Guid observationId, CancellationToken cancellationToken = default)
+        => ValueTask.FromException(new NotSupportedException("Recoverable broker observations are unavailable."));
     IAsyncEnumerable<BrokerObservation> ObserveAccountAsync(CancellationToken cancellationToken = default);
 }

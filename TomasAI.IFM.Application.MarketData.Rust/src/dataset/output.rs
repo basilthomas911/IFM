@@ -5,16 +5,18 @@ use super::live::{Output, OutputSource};
 use super::records::Observation;
 use std::collections::{BTreeMap, VecDeque};
 
+#[derive(Clone)]
 struct Pending {
     serial: u64,
     value: Output,
 }
-#[derive(Default)]
+#[derive(Default, Clone)]
 struct Slot {
     previous: Option<usize>,
     next: Option<usize>,
     value: Option<Pending>,
 }
+#[derive(Clone)]
 pub(super) struct LaneOutput {
     authoritative: VecDeque<Pending>,
     ordered_quotes: VecDeque<Pending>,
@@ -23,8 +25,11 @@ pub(super) struct LaneOutput {
     head: Option<usize>,
     tail: Option<usize>,
     serial: u64,
+    capture_failed: bool,
 }
 impl LaneOutput {
+    pub(crate) fn checkpoint_empty(&self)->Result<u64,String>{if self.capture_failed||!self.authoritative.is_empty()||!self.ordered_quotes.is_empty()||self.head.is_some(){return Err("Native output must retain and drain its original prefix before checkpoint".into());}Ok(self.serial)}
+    pub(crate) fn restore_empty_checkpoint(&mut self,serial:u64)->Result<(),String>{if !self.authoritative.is_empty()||!self.ordered_quotes.is_empty()||self.head.is_some()||self.serial!=0{return Err("Native checkpoint cannot overwrite pending output".into());}self.serial=serial;self.capture_failed=false;Ok(())}
     /// Samples actual output occupancy and logical limits under the owner's lock.
     pub(super) fn counters(&self) -> BTreeMap<String, i64> {
         [
@@ -46,9 +51,11 @@ impl LaneOutput {
             head: None,
             tail: None,
             serial: 0,
+            capture_failed: false,
         }
     }
     pub(super) fn configure(&mut self, instruments: impl Iterator<Item = u32>) {
+        if self.capture_failed { return; }
         self.clear();
         // LiveData creates three lane descriptors, but a physical options scope
         // activates only one. Reserve the writer buffer only for the active lane.
@@ -60,6 +67,7 @@ impl LaneOutput {
         self.quotes = (0..self.indices.len()).map(|_| Slot::default()).collect();
     }
     pub(super) fn clear(&mut self) {
+        if self.capture_failed { return; }
         self.authoritative.clear();
         self.ordered_quotes.clear();
         for slot in &mut self.quotes {
@@ -70,7 +78,31 @@ impl LaneOutput {
         self.serial = 0;
     }
     pub(super) fn available(&self) -> usize {
-        8192 - self.authoritative.len()
+        8192usize.saturating_sub(self.authoritative.len())
+    }
+    /// Frozen original ordering, without removing work before its required owner accepts it.
+    pub(super) fn ordered_prefix(&self, maximum: usize) -> Vec<Output> {
+        let mut authoritative = self.authoritative.iter().peekable();
+        let mut ordered_quotes = self.ordered_quotes.iter().peekable();
+        let mut head = self.head;
+        let mut result = Vec::with_capacity(maximum.min(self.authoritative.len() + self.ordered_quotes.len() + self.indices.len()));
+        while result.len() < maximum {
+            let next = [authoritative.peek().map(|p| (p.serial, 0)),
+                ordered_quotes.peek().map(|p| (p.serial, 1)),
+                head.and_then(|index| self.quotes[index].value.as_ref()).map(|p| (p.serial, 2))]
+                .into_iter().flatten().min_by_key(|(serial, _)| *serial);
+            match next.map(|(_, kind)| kind) {
+                Some(0) => result.push(authoritative.next().unwrap().value.clone()),
+                Some(1) => result.push(ordered_quotes.next().unwrap().value.clone()),
+                Some(_) => {
+                    let index = head.unwrap();
+                    result.push(self.quotes[index].value.as_ref().unwrap().value.clone());
+                    head = self.quotes[index].next;
+                }
+                None => break,
+            }
+        }
+        result
     }
     fn detach(&mut self, index: usize) {
         let previous = self.quotes[index].previous;
@@ -88,7 +120,8 @@ impl LaneOutput {
         self.quotes[index].previous = None;
         self.quotes[index].next = None;
     }
-    pub(super) fn push_back(&mut self, value: Output) -> Result<(), String> {
+    pub(super) fn push_back(&mut self, mut value: Output) -> Result<(), String> {
+        if self.capture_failed { return Err("Pending required source capture prevents new removable output".into()); }
         let is_quote = matches!(
             value.source,
             OutputSource::Observation(Observation::Quote(_))
@@ -102,12 +135,8 @@ impl LaneOutput {
         if !is_quote && self.available() == 0 {
             return Err("Authoritative application output capacity exhausted".into());
         }
-        let serial = self
-            .serial
-            .checked_add(1)
-            .ok_or("Native output sequence exhausted")?;
-        self.serial = serial;
-        let pending = Pending { serial, value };
+        self.assign_capture_serial(&mut value)?;
+        let pending = Pending { serial: value.capture_serial, value };
         if let Some(index) = index {
             if self.quotes[index].value.is_some() {
                 self.detach(index);
@@ -132,6 +161,21 @@ impl LaneOutput {
         }
         Ok(())
     }
+    pub(super) fn assign_capture_serial(&mut self, value: &mut Output) -> Result<(), String> {
+        if value.capture_serial == 0 {
+            self.serial = self.serial.checked_add(1).ok_or("Native output sequence exhausted")?;
+            value.capture_serial = self.serial;
+        }
+        Ok(())
+    }
+    pub(super) fn retain_failed_capture(&mut self, value: Output) {
+        // One extra authoritative slot owns the current required record when
+        // storage refuses it. The processor stops; no subsequent input enters.
+        self.authoritative.push_back(Pending { serial: value.capture_serial, value });
+        self.capture_failed = true;
+    }
+    pub(super) fn mark_capture_failed(&mut self) { self.capture_failed = true; }
+    pub(super) fn capture_failed(&self) -> bool { self.capture_failed }
     fn next_kind(&self) -> Option<u8> {
         [
             self.authoritative.front().map(|p| (p.serial, 0)),
@@ -146,7 +190,7 @@ impl LaneOutput {
         .map(|(_, kind)| kind)
     }
     pub(super) fn pop_front(&mut self) -> Option<Output> {
-        match self.next_kind()? {
+        let value = match self.next_kind()? {
             0 => self.authoritative.pop_front().map(|p| p.value),
             1 => self.ordered_quotes.pop_front().map(|p| p.value),
             _ => {
@@ -154,7 +198,9 @@ impl LaneOutput {
                 self.detach(head);
                 self.quotes[head].value.take().map(|p| p.value)
             }
-        }
+        };
+        if self.next_kind().is_none() { self.capture_failed = false; }
+        value
     }
     pub(super) fn front(&self) -> Option<&Output> {
         match self.next_kind()? {
@@ -184,7 +230,7 @@ mod tests {
             schema: 0,
         };
         Output {
-            observed: 0,
+            capture_serial: 0, observed: 0,
             lane: Lane::OptionsGlbx,
             generation: 1,
             source: if quote {

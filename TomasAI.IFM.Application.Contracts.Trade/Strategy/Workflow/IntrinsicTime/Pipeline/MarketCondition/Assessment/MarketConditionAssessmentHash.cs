@@ -20,6 +20,13 @@ public static class MarketConditionAssessmentHash
     }
     public static string Serialize<T>(T value) => JsonSerializer.Serialize(value, Options);
 
+    /// <summary>Startup metadata preparation only; never hashes or evaluates a market observation.</summary>
+    public static void PrepareContract(Type contract)
+    {
+        Options.MakeReadOnly(populateMissingResolver: true);
+        _ = Options.GetTypeInfo(contract);
+    }
+
     public static string Compute<T>(T value) => ComputeWithSize(value).Hash;
 
     // The existing serializer options define the bytes and digest for persisted v1 content.

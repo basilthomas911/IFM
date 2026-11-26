@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "checkedOn": "2026-11-25",
+  "sources": [
+    {"url": "https://www.cmegroup.com/trading-hours.html", "supports": "The 2026 Thanksgiving holiday schedule includes Nov 26-28; Nov 30 and Dec 1 are outside that interval."},
+    {"url": "https://www.cmegroup.com/markets/equities/sp-500-and-nasdaq-100-futures.html", "supports": "Normal equity-index futures hours run Sunday-Friday 17:00-16:00 America/Chicago with the daily maintenance break."},
+    {"url": "https://www.cboe.com/about/hours/us-futures/", "supports": "CFE Nov 26 holiday and Nov 27 early-close schedule; Nov 30 and Dec 1 are normal weekdays outside the published holiday entries."},
+    {"url": "https://www.cboe.com/tradable-products/vix/vix-futures/", "supports": "VX normally trades 23 hours per weekday from 17:00 America/Chicago."}
+  ],
+  "timezone": "America/New_York",
+  "utcOffsetAtBothSessions": "-05:00",
+  "sessions": ["2026-11-30", "2026-12-01"],
+  "normalUtcRule": "Previous calendar day 23:00Z to value-date 22:00Z, cash market 14:30Z-21:00Z; capture includes next 23:00Z rollover.",
+  "limitations": ["Exchange schedules can change; recheck product-specific calendars before arming.", "An eligible session manifest must pin the current runtime contract catalogue and its product calendars, not infer every option expiry's last-trading cutoff from ES hours."]
+}

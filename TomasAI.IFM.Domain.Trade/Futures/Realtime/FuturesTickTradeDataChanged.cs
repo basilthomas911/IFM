@@ -20,38 +20,66 @@ public static partial class FuturesTickTradeDataChanged
         {
             ArgumentNullException.ThrowIfNull(changed);
             ArgumentNullException.ThrowIfNull(context);
-            var receivedAtUtc = changed.ReceivedOn.Kind == DateTimeKind.Utc ? changed.ReceivedOn : DateTime.SpecifyKind(changed.ReceivedOn, DateTimeKind.Utc);
-            var tick = new PositionMarketTick(changed.TickDataId.ContractId, changed.TradeData.Price, changed.TradeData.SourceSequence, receivedAtUtc);
-            var outcome = context.RouteIndex.TryRoute(in tick, out var routes);
-            if (outcome != MarketRouteLookupOutcome.Routed)
+            await context.RoutingReceipts.SerializeAsync(changed.TickDataId.ContractId, async () =>
             {
-                LogIgnoredTick(context, changed.TickDataId.ContractId, outcome);
-                return;
-            }
-
-            foreach (var route in routes)
-            {
-                if (route.TradeType != TradeStrategyKind.FuturesOutright)
-                    continue;
-                var positionId = new StrategyPositionId(new TradeEntityId(route.PortfolioId, route.FundId, route.OrderId, route.TradeId), route.StrategyPositionId);
-                var command = new ChangeTradeLegDataCommand
+                await RecoverAsync(context, changed.TickDataId.ContractId).ConfigureAwait(false);
+                var receipt = context.RoutingReceipts.Find(changed);
+                if (receipt?.Completed == true || (receipt is null && context.RoutingReceipts.IsCompletedSequence(changed))) return;
+                if (receipt is null)
                 {
-                    CommandId = TickCommandId(changed.Id, route.StrategyPositionId, route.TradeLegId),
-                    Subject = new ActorSubject(ActorType.Command, FuturesTradePositionCommandActor.ActorName, ChangeTradeLegDataCommand.Verb, positionId.Format()),
-                    EntityId = positionId,
-                    TradeLegId = route.TradeLegId,
-                    ContractId = tick.ContractId,
-                    Price = tick.Price,
-                    SourceSequence = tick.SourceSequence,
-                    RouteGeneration = route.Generation,
-                    EffectiveAtUtc = tick.OccurredAtUtc,
-                    TradeType = route.TradeType
-                };
-                var result = await context.ActorService.SendAsync<ChangeTradeLegDataCommand, StrategyPositionId>(command, positionId).ConfigureAwait(false);
-                if (!result.Success)
-                    RouteSendFailed(context.Logger, tick.ContractId, positionId.Format(), route.TradeLegId, result.ErrorCode, result.ErrorMessage ?? string.Empty);
-            }
+                    if (changed.TradeData.SourceSequence <= 0) throw new InvalidDataException("Missing Futures source sequence.");
+                    var receivedAtUtc = changed.ReceivedOn.Kind == DateTimeKind.Utc ? changed.ReceivedOn : DateTime.SpecifyKind(changed.ReceivedOn, DateTimeKind.Utc);
+                    var tick = new PositionMarketTick(changed.TickDataId.ContractId, changed.TradeData.Price, changed.TradeData.SourceSequence, receivedAtUtc);
+                    var outcome = context.RouteIndex.TryRoute(in tick, out var routes, enforceSequenceOrdering: false);
+                    if (outcome is not (MarketRouteLookupOutcome.Routed or MarketRouteLookupOutcome.NoOpenPosition or MarketRouteLookupOutcome.UnknownInstrument))
+                        throw new InvalidDataException($"Invalid Futures routing input: {outcome}.");
+                    var commands = (routes ?? []).Where(route => route.TradeType == TradeStrategyKind.FuturesOutright).Select(route =>
+                    {
+                        var positionId = new StrategyPositionId(new TradeEntityId(route.PortfolioId, route.FundId, route.OrderId, route.TradeId), route.StrategyPositionId);
+                        var command = new ChangeTradeLegDataCommand
+                        {
+                            CommandId = TickCommandId(changed.Id, route.StrategyPositionId, route.TradeLegId),
+                            Subject = new ActorSubject(ActorType.Command, FuturesTradePositionCommandActor.ActorName, ChangeTradeLegDataCommand.Verb, positionId.Format()),
+                            EntityId = positionId, TradeLegId = route.TradeLegId, ContractId = tick.ContractId,
+                            Price = tick.Price, SourceSequence = tick.SourceSequence, RouteGeneration = route.Generation,
+                            EffectiveAtUtc = tick.OccurredAtUtc, TradeType = route.TradeType
+                        };
+                        MessageOrigins.Capture(command, TimeProvider.System, causationId: changed.Id);
+                        return command;
+                    }).ToArray();
+                    receipt = context.RoutingReceipts.Prepare(changed, commands);
+                    if (outcome != MarketRouteLookupOutcome.Routed) LogIgnoredTick(context, tick.ContractId, outcome);
+                }
+                await DispatchAsync(context, receipt).ConfigureAwait(false);
+            }).ConfigureAwait(false);
         }
+    }
+
+    public static async ValueTask RecoverAsync(IFuturesRealtimeContext context, string? contract = null)
+    {
+        foreach (var receipt in context.RoutingReceipts.Pending(contract))
+            await DispatchAsync(context, receipt).ConfigureAwait(false);
+    }
+
+    static async ValueTask DispatchAsync(IFuturesRealtimeContext context, FuturesRoutingReceipt receipt)
+    {
+        for (var branch = 0; branch < receipt.Commands.Length; branch++)
+        {
+            if (receipt.Stages[branch] != FuturesRouteStage.Pending) continue;
+            var command = receipt.Commands[branch];
+            if (!context.RouteIndex.IsCurrentRoute(command))
+            {
+                if (!context.RouteIndex.IsSuperseded(command))
+                    throw new InvalidOperationException("Futures route generation is missing, behind, or conflicts with the captured target.");
+                context.RoutingReceipts.SetStage(receipt.Source.Id, branch, FuturesRouteStage.Superseded);
+                continue;
+            }
+            var result = await context.ActorService.SendAsync<ChangeTradeLegDataCommand, StrategyPositionId>(command, command.EntityId).ConfigureAwait(false);
+            if (!result.Success || result.Value != command.CommandId)
+                throw new InvalidOperationException($"Futures route {command.EntityId.Format()} was not confirmed: {result.ErrorMessage}");
+            context.RoutingReceipts.SetStage(receipt.Source.Id, branch, FuturesRouteStage.Confirmed);
+        }
+        context.RoutingReceipts.Complete(receipt.Source.Id);
     }
 
     /// <summary>Logs an expected unroutable tick subject to the route index rate limit.</summary>

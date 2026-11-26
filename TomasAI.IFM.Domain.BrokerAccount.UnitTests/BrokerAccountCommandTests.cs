@@ -82,6 +82,18 @@ public sealed class BrokerAccountCommandTests
     }
 
     [Fact]
+    public void Older_same_generation_snapshot_cannot_reopen_a_newer_closed_gate()
+    {
+        var state=AcceptedState();state.AcceptChanges();
+        var latest=Snapshot();latest=latest with{Snapshot=latest.Snapshot with{AsOfUtc=Now.AddMinutes(2),NewRiskAllowed=false}};
+        Assert.True(latest.Execute(state).Success);Assert.Equal(BrokerAccountOperationalGate.Closed,state.BrokerAccountDefinition!.Gate);state.AcceptChanges();
+        var delayed=Snapshot();delayed=delayed with{Snapshot=delayed.Snapshot with{AsOfUtc=Now.AddMinutes(1),NewRiskAllowed=true}};
+        Assert.True(delayed.Execute(state).Success);
+        Assert.Equal(Now.AddMinutes(2),state.BrokerAccountDefinition!.Snapshot!.AsOfUtc);
+        Assert.Equal(BrokerAccountOperationalGate.Closed,state.BrokerAccountDefinition.Gate);Assert.Empty(state.Events);
+    }
+
+    [Fact]
     public void Rejected_change_does_not_mutate_account_or_append_events()
     {
         var state = AcceptedState();
@@ -121,6 +133,40 @@ public sealed class BrokerAccountCommandTests
         Assert.Equal(typeof(BrokerAccountChangedEvent), Type.GetType(
             "TomasAI.IFM.Domain.BrokerAccount.Contracts.BrokerAccountChangedEvent, TomasAI.IFM.Domain.BrokerAccount", throwOnError: true));
     }
+    [Fact]
+    public void Broker_revision_orders_same_time_evidence_and_older_revision_cannot_reopen_risk()
+    {
+        var state=AcceptedState();state.AcceptChanges();
+        var latest=Snapshot() with{Snapshot=Snapshot().Snapshot with{SourceSequence=10,NewRiskAllowed=false}};
+        Assert.True(latest.Execute(state).Success);state.AcceptChanges();
+        var older=Snapshot() with{Snapshot=latest.Snapshot with{SourceSequence=9,AsOfUtc=Now.AddMinutes(10),NewRiskAllowed=true}};
+        Assert.True(older.Execute(state).Success);Assert.Empty(state.Events);Assert.Equal(10,state.BrokerAccountDefinition!.Snapshot!.SourceSequence);
+        var current=Snapshot() with{Snapshot=latest.Snapshot with{SourceSequence=11,NewRiskAllowed=true}};
+        Assert.True(current.Execute(state).Success);Assert.Equal(BrokerAccountOperationalGate.Open,state.BrokerAccountDefinition.Gate);
+    }
+
+    [Fact]
+    public void Equal_authority_conflict_fails_closed_preserving_prior_money_and_manual_holds()
+    {
+        var state=AcceptedState();state.AcceptChanges();
+        var conflict=Snapshot() with{Snapshot=Snapshot().Snapshot with{CashBalance=999,AvailableFunds=999}};
+        Assert.True(conflict.Execute(state).Success);Assert.Equal(100000,state.BrokerAccountDefinition!.Snapshot!.CashBalance);
+        Assert.False(state.BrokerAccountDefinition.Snapshot.NewRiskAllowed);Assert.Equal(BrokerAccountOperationalGate.Closed,state.BrokerAccountDefinition.Gate);state.AcceptChanges();
+        Assert.True(new SetManualTradingHoldCommand{CommandId=Guid.NewGuid(),EntityId=Id(),Subject=Subject(SetManualTradingHoldCommand.Verb),Reason="Keep manual hold",EffectiveAtUtc=Now}.Execute(state).Success);state.AcceptChanges();
+        var fresh=Snapshot() with{Snapshot=Snapshot().Snapshot with{AsOfUtc=Now.AddMinutes(1),SourceSequence=1}};
+        Assert.True(fresh.Execute(state).Success);Assert.True(state.BrokerAccountDefinition.ManualHold);Assert.Equal("Keep manual hold",state.BrokerAccountDefinition.Reason);
+        Assert.Equal(BrokerAccountOperationalGate.Closed,state.BrokerAccountDefinition.Gate);
+    }
+
+    [Fact]
+    public void Same_broker_revision_with_only_clock_refresh_is_a_noop()
+    {
+        var state=AcceptedState();state.AcceptChanges();var initial=Snapshot() with{Snapshot=Snapshot().Snapshot with{SourceSequence=5,AsOfUtc=Now.AddMinutes(1)}};
+        Assert.True(initial.Execute(state).Success);state.AcceptChanges();
+        Assert.True((initial with{CommandId=Guid.NewGuid(),Snapshot=initial.Snapshot with{AsOfUtc=Now.AddMinutes(2)}}).Execute(state).Success);
+        Assert.Empty(state.Events);Assert.Equal(BrokerAccountOperationalGate.Open,state.BrokerAccountDefinition!.Gate);
+    }
+
     private static BrokerAccountCommandState AcceptedState()
     {
         var state = new BrokerAccountCommandState();

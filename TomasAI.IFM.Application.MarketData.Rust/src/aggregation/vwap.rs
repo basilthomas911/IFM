@@ -145,6 +145,16 @@ impl Default for Vwap {
     }
 }
 impl Vwap {
+    pub(crate) fn checkpoint_value(&self)->rmpv::Value{
+        use rmpv::Value as V;use crate::checkpoint::wide;let p=self.checkpoint;
+        V::Array(vec![1.into(),wide(p.epoch),p.ordinal.into(),p.sequence.into(),p.at.into(),V::Array(vec![wide(p.price_volume.coefficient),p.price_volume.scale.into()]),p.volume.into(),p.eligible.into(),p.rejected.into(),V::Array(vec![wide(p.last_price.coefficient),p.last_price.scale.into()]),p.valid.into(),p.replay_complete.into(),wide(p.generation),(p.reason as u8).into()])
+    }
+    pub(crate) fn restore_checkpoint(value:&rmpv::Value)->Result<Self,String>{
+        use crate::checkpoint as c;let f=c::fields(value,14)?;if c::unsigned(&f[0])?!=1{return Err("Unknown VWAP checkpoint".into());}
+        let decimal=|value:&rmpv::Value|->Result<Decimal,String>{let f=c::fields(value,2)?;let coefficient=c::read_wide(&f[0])?;let scale=c::unsigned(&f[1])?.try_into().map_err(|_|"VWAP decimal scale overflow")?;if coefficient>((1u128<<96)-1)||scale>9{return Err("VWAP checkpoint decimal invalid".into());}Ok(Decimal{coefficient,scale})};
+        let reason=match c::unsigned(&f[13])?{0=>InvalidReason::None,1=>InvalidReason::DeliveryGap,2=>InvalidReason::StreamEpochChanged,3=>InvalidReason::UncorrelatableCorrection,4=>InvalidReason::InvalidTrade,5=>InvalidReason::RecoveryIncomplete,_=>return Err("VWAP checkpoint invalidity reason unknown".into())};
+        Ok(Self{checkpoint:Checkpoint{epoch:c::read_wide(&f[1])?,ordinal:c::number(&f[2])?,sequence:c::number(&f[3])?,at:c::number(&f[4])?,price_volume:decimal(&f[5])?,volume:c::number(&f[6])?,eligible:c::number(&f[7])?,rejected:c::number(&f[8])?,last_price:decimal(&f[9])?,valid:c::boolean(&f[10])?,replay_complete:c::boolean(&f[11])?,generation:c::read_wide(&f[12])?,reason}})
+    }
     /// Clears source state and sets the new explicit recovery generation.
     pub fn reset(&mut self, generation: u128) {
         self.checkpoint = Checkpoint {

@@ -1,3 +1,6 @@
+using System.Security.Cryptography;
+using System.Text;
+using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Domain.Trade.Persistence;
 using System.Collections.Immutable;
 using TomasAI.IFM.Application.EventProjector;
@@ -22,9 +25,9 @@ public sealed class IronCondorPositionEventProjector : ConventionalEventProjecto
     {
         context = Typed(actorContext);
         this.exits = exits;
-        descriptors = [DescribeNotification<IronCondorMonitoringInitializedEvent, StrategyPositionId>(source => string.Equals(context.DbFactory.TradeDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? Task.CompletedTask : ProjectMonitoringLimitsAsync(source)).WithReadModelRebuild((source, _) => ProjectMonitoringLimitsAsync((IronCondorMonitoringInitializedEvent)source)), new EventProjectionDescriptor(typeof(IronCondorPositionChangedEvent), EventProjectionIdempotencyStrategy.NaturalKeyMutation, async (source, _) =>
+        descriptors = [DescribeNotification<IronCondorMonitoringInitializedEvent, StrategyPositionId>(source => string.Equals(context.DbFactory.TradeDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? Task.CompletedTask : ProjectMonitoringLimitsAsync(source)).WithReadModelRebuild((source, _) => ProjectMonitoringLimitsAsync((IronCondorMonitoringInitializedEvent)source)), new EventProjectionDescriptor(typeof(IronCondorPositionChangedEvent), EventProjectionIdempotencyStrategy.NaturalKeyMutation, async (source, execution) =>
         {
-            await ProjectAsync((IronCondorPositionChangedEvent)source).ConfigureAwait(false);
+            await ProjectAsync((IronCondorPositionChangedEvent)source,execution).ConfigureAwait(false);
             return new EventProjectionApplyResult(EventProjectionApplyOutcome.Applied);
         }, _ => null, (_, _) => null, publishProcessingEvent: false, publishTerminalEvent: false).WithReadModelRebuild((source, _) => PositionProjectionActions.RebuildReadModelAsync(context.DbFactory, (IronCondorPositionChangedEvent)source)), DescribeSnapshot<IronCondorTradePlanUpdatedEvent, TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.IronCondorTradePlanId>(ProjectTradePlanAsync)];
     }
@@ -43,7 +46,7 @@ public sealed class IronCondorPositionEventProjector : ConventionalEventProjecto
 
     /// <summary>Projects history without replaying market-mark UI/plan notifications; financial boundaries keep their existing lifecycle.</summary>
     /// <param name = "changed">The committed position event.</param><returns>The history or financial projection operation.</returns>
-    async Task ProjectAsync(IronCondorPositionChangedEvent changed)
+    async Task ProjectAsync(IronCondorPositionChangedEvent changed,ProjectionExecutionContext execution)
     {
         // Historical reconciliation was committed with its source event. Never
         // re-dispatch old lifecycle notifications or reopen pricing routes.
@@ -58,9 +61,25 @@ public sealed class IronCondorPositionEventProjector : ConventionalEventProjecto
             return;
         }
 
+        changed=LifecyclePublication(changed,execution);
         await context.SendAsync<IronCondorPositionChangedEvent, StrategyPositionId>(global::TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Copy(changed, changed with { Subject = new(TomasAI.IFM.Shared.EventModelActor.ActorType.Event, "FuturesIronCondorTradePositionEvent", IronCondorPositionChangedEvent.Verb, changed.EntityId.Format()) })).ConfigureAwait(false);
         var deferCleanup = !changed.PositionSnapshot.IsOpen && exits is not null && await exits.HasIntentAsync(changed.EntityId, CancellationToken.None).ConfigureAwait(false);
         await PositionProjectionActions.ProjectAsync(context, context.DbFactory, changed, FuturesIronCondorTradePositionCommandActor.ActorName, FuturesOptionRealtimeActor.ActorName, IronCondorTradePositionRealtimeActor.ActorName, deferCleanup).ConfigureAwait(false);
+    }
+
+    /// <summary>Qualifies a legacy notification from its persisted source, without rewriting the source or consulting a retry clock.</summary>
+    internal static IronCondorPositionChangedEvent LifecyclePublication(IronCondorPositionChangedEvent source,ProjectionExecutionContext execution)
+    {
+        ArgumentNullException.ThrowIfNull(source);ArgumentNullException.ThrowIfNull(execution);
+        if(source.EventId>0 && source.EventId!=execution.EventId)throw new InvalidDataException("Lifecycle notification/source execution mismatch.");
+        var id=source.Id;
+        if(id==Guid.Empty)
+        {
+            var identity=new EventProjectorEffectIdentity(execution.ProjectorName,execution.EventId,EventProjectorEffectKind.ProcessingPublication);
+            id=new Guid(SHA256.HashData(Encoding.UTF8.GetBytes(identity.MessageId)).AsSpan(0,16));
+        }
+        // Explicit unknown provenance remains unknown; publication must not restamp a legacy source.
+        return MessageOrigins.Restore(source with{Id=id,EventId=execution.EventId},MessageOrigins.Get(source));
     }
 
     /// <summary>Rebuilds accepted limit configuration from its recorded source facts; live PostgreSQL notification already skips this write.</summary>

@@ -17,17 +17,25 @@ public static class IronCondorMonitoringInputsChanged
         {
             ArgumentNullException.ThrowIfNull(changed);
             ArgumentNullException.ThrowIfNull(context);
+            string? payloadSha256=null;
             if (!context.IsCurrentMonitoringPosition(changed.PositionSnapshot, changed.MonitoringGenerationId))
-                return;
+            {
+                if(context is not IIronCondorMonitoringReplayEvidence replay)return;
+                payloadSha256=Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(MessagePack.MessagePackSerializer.Serialize(changed)));
+                if(!replay.IsCurrentRecordedMonitoringInput(changed,payloadSha256))return;
+            }
             if (changed.EntityId != changed.PositionSnapshot.Id || changed.ValueDate == default || changed.ReceivedOn.Kind != DateTimeKind.Utc)
                 throw new ArgumentException("IronCondorMonitoring.INPUTS.IDENTITY_INVALID: matching position, session and UTC capture required.");
+            payloadSha256??=Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(MessagePack.MessagePackSerializer.Serialize(changed)));
+            if(context is IIronCondorMonitoringReplayEvidence evidence)await evidence.RecordMonitoringGenerationAcceptanceAsync(changed,payloadSha256).ConfigureAwait(false);
             await new IronCondorPositionChangedEvent
             {
                 Id = changed.Id,
                 EntityId = changed.EntityId,
                 PositionSnapshot = changed.PositionSnapshot,
                 ReceivedOn = changed.ReceivedOn
-            }.CalculateMonitoringPlanAsync(context, changed.ValueDate, changed.IronCondorTradePlanInputs, changed.ReceivedOn).ConfigureAwait(false);
+            }.CalculateMonitoringPlanAsync(context, changed.ValueDate, changed.IronCondorTradePlanInputs, changed.ReceivedOn,
+                payloadSha256).ConfigureAwait(false);
         }
     }
 }

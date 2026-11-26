@@ -19,6 +19,8 @@ public class FuturesMarketPriceRealtimeActor(IRealtimeActorContext<FuturesMarket
     /// <summary>Identifies the primary futures market-price realtime actor.</summary>
     public const string ActorName = FuturesMarketPriceUpdatedRealtimeEvent.Actor;
 
+    protected override bool PropagateHandlerFailures => true;
+
     /// <summary>Gets the typed realtime context supplied at construction.</summary>
     protected IFuturesMarketPriceRealtimeContext RealtimeContext { get; } = IsArgumentNull.Named(actorContext as IFuturesMarketPriceRealtimeContext, nameof(actorContext))!;
 

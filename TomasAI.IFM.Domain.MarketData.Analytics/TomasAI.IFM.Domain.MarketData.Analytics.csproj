@@ -13,6 +13,7 @@
     <InternalsVisibleTo Include="TomasAI.IFM.Domain.MarketData.Analytics.IntegrationTests" />
     <InternalsVisibleTo Include="TomasAI.IFM.Application.Storage.IntegrationTests" />
     <InternalsVisibleTo Include="TomasAI.IFM.Domain.MarketData.Analytics.Benchmarks" />
+    <InternalsVisibleTo Include="TomasAI.IFM.Application.Api.Server.Benchmarks" />
   </ItemGroup>
 
   <ItemGroup>

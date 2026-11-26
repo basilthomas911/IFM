@@ -58,9 +58,11 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor
     }
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "A failed Function request is converted to its explicit assessment failure event; the workflow retains a terminal outcome.")]
-    internal static async ValueTask ExecuteAssessmentAsync(IEventActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> context, WorkflowStrategyStateUpdatedEvent snapshot)
+    internal static async ValueTask ExecuteAssessmentAsync(IEventActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> context, WorkflowStrategyStateUpdatedEvent snapshot, WorkflowStrategyStateUpdatedEvent? originalSource = null)
     {
         var domain = RequireEventContext(context);
+        var source = originalSource ?? snapshot;
+        if (await MarketCondition.Realtime.AssessmentFunctionTerminalDelivery.RecoverAsync(domain, source).ConfigureAwait(false)) return;
         var clock = domain.TimeProvider;
         var execute = CreateAssessmentExecute(snapshot);
         // Configuration was frozen by workflow admission. This stage performs
@@ -133,7 +135,7 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor
                 FundId = 0,
                 TradeSelectionInitializationFailure = selectionFailure
             };
-            await context.SendAsync<CompleteMarketConditionCommand, IntrinsicTimeStrategyWorkflowEntityId>(complete, complete.EntityId).ConfigureAwait(false);
+            await WorkflowPublicationDelivery.PublishAsync(domain, source, complete).ConfigureAwait(false);
         }
         else
         {
@@ -152,7 +154,7 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor
                 CausationId = failed.Id,
                 FailedAtUtc = failed.ErrorDate
             };
-            await context.SendAsync<FailMarketConditionCommand, IntrinsicTimeStrategyWorkflowEntityId>(fail, fail.EntityId).ConfigureAwait(false);
+            await MarketCondition.Realtime.AssessmentFunctionTerminalDelivery.CaptureAsync(domain, source, fail).ConfigureAwait(false);
         }
     }
 }

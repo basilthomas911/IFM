@@ -48,7 +48,7 @@ public sealed partial class TradeDbContext(IDbConnectionSettings connectionSetti
             row.GetFieldValue<byte[]>(4), row.GetGuid(5), row.GetString(6), row.GetInt64(7));
 
     internal static StrategyExecutionHandoffDefinition MapToStrategyHandoff(System.Data.Common.DbDataReader row)
-        => MessagePackBinarySerializer.Shared.Deserialize<StrategyExecutionHandoffDefinition>(row.GetFieldValue<byte[]>(0))!;
+        => PooledPostgresPayload.Deserialize<StrategyExecutionHandoffDefinition>(row, 0)!;
 
 
     /// <summary>Business clock for dated projections; transport and database limits remain physical.</summary>
@@ -1306,9 +1306,9 @@ public sealed partial class TradeDbContext(IDbConnectionSettings connectionSetti
 
     static FundOrderFillsRow MapToFundOrderFillsRow(System.Data.Common.DbDataReader row)
     {
-        var order = MessagePackBinarySerializer.Shared.Deserialize<TradeOrderDefinition>(row.GetFieldValue<byte[]>(0))!;
+        var order = PooledPostgresPayload.Deserialize<TradeOrderDefinition>(row, 0)!;
         var execution = row.IsDBNull(1) ? null :
-            MessagePackBinarySerializer.Shared.Deserialize<OrderExecutionDefinition>(row.GetFieldValue<byte[]>(1));
+            PooledPostgresPayload.Deserialize<OrderExecutionDefinition>(row, 1);
         var tradeId = order.SetupTrade?.TradeId ?? (row.IsDBNull(2) ? (int?)null : row.GetInt32(2));
         var fills = execution?.Fills ?? [];
         var components = execution is { Components.Length: > 0 } ? execution.Components : order.Components;
@@ -1400,7 +1400,7 @@ public sealed partial class TradeDbContext(IDbConnectionSettings connectionSetti
             : [pageSize];
         var rows = await this.NativeTransaction().ExecuteOnceAsync((db, ct) => db.QueryAsync(
             after is null ? TradeDbSql.ReadOpenPositionsForEndOfDay : TradeDbSql.ReadOpenPositionsForEndOfDayAfter,
-            values, row => MessagePackBinarySerializer.Shared.Deserialize<StrategyPositionSnapshot>(row.GetFieldValue<byte[]>(0)), ct), token).ConfigureAwait(false);
+            values, row => PooledPostgresPayload.Deserialize<StrategyPositionSnapshot>(row, 0), ct), token).ConfigureAwait(false);
         return rows.ToArray();
     }
     /// <inheritdoc/>
@@ -1432,7 +1432,7 @@ public sealed partial class TradeDbContext(IDbConnectionSettings connectionSetti
         return this.NativeTransaction().ExecuteOnceAsync((db, ct) => TradeDbContextExtensions.PipelineReadSelectionHistoryAsync(db, portfolioId, fundId, valueDate, pageSize, pagingState, ct), cancellationToken);
     }
 
-internal static (DateTime At, long Sequence, StrategyPositionSnapshot Position) MapToNativePositionHistory(System.Data.Common.DbDataReader r) => (At: r.GetDateTime(0), Sequence: r.GetInt64(1), Position: MessagePackBinarySerializer.Shared.Deserialize<StrategyPositionSnapshot>((byte[])r.GetValue(2)));
+internal static (DateTime At, long Sequence, StrategyPositionSnapshot Position) MapToNativePositionHistory(System.Data.Common.DbDataReader r) => (At: r.GetDateTime(0), Sequence: r.GetInt64(1), Position: PooledPostgresPayload.Deserialize<StrategyPositionSnapshot>(r, 2));
 internal static TradeLimitReadModel MapToNativeTradeLimit(System.Data.Common.DbDataReader r) => new TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradeLimitReadModel { TradeId = r.GetInt32(0), TradeType = Enum.Parse<TradeType>(r.GetString(1)), RiskMargin = r.GetDecimal(2), MaxProfit = r.GetDecimal(3), MaxLoss = r.GetDecimal(4), MaxReturn = r.GetDecimal(5), MaxLossLimit = r.GetDecimal(6), MinProfitLimit = r.GetDecimal(7), MaxProfitLimit = r.GetDecimal(8), MinProfitTarget = r.GetDecimal(9), DailyProfitTarget = r.GetDecimal(10), CreatedOn = r.GetDateTime(11), CreatedBy = r.GetString(12), UpdatedOn = r.GetDateTime(13), UpdatedBy = r.GetString(14) };
 internal static TradeTypeLimitReadModel MapToNativeSpreadLimit(System.Data.Common.DbDataReader r) => new TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradeTypeLimitReadModel { TradeId = r.GetInt32(0), TradeType = Enum.Parse<TradeType>(r.GetString(1)), MaxLossLimit = r.GetDecimal(2), MinProfitLimit = r.GetDecimal(3), MaxProfitLimit = r.GetDecimal(4) };
 internal static (byte[] Payload, string Result, string Input) MapToCompositionEvidence(System.Data.Common.DbDataReader r) => (Payload: r.GetFieldValue<byte[]>(0), Result: r.GetString(1), Input: r.GetString(2));
@@ -1460,5 +1460,5 @@ internal static OpenPositionRouteReadModel MapToNativeRoute(System.Data.Common.D
     private static global::TomasAI.IFM.Domain.Trade.Shared.TradeOrderDefinition MapToGetTradeOrderRow4(global::TomasAI.IFM.Shared.Storage.IObjectDataRecord row) => MessagePackBinarySerializer.Shared.Deserialize<TradeOrderDefinition>(row.GetBytes(0));
 internal static global::TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events.MarketConditionAssessmentCompletedEvent MapToGetMarketConditionAssessmentHistoryCoreBindingRow1(global::System.Data.Common.DbDataReader r) => (r.GetFieldValue<byte[]>(0)).VerifyAssessment(r.GetString(1));
 internal static (object Payload, global::System.DateTime At, int Order, int Trade, int Revision) MapToTradeReadEstablishedHistoryRow2(global::System.Data.Common.DbDataReader row) => (Payload: row.GetValue(0), At: row.GetDateTime(1), Order: row.GetInt32(2), Trade: row.GetInt32(3), Revision: row.GetInt32(4));
-internal static (global::TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RiskManagement.RiskHistoryRow Item, global::System.DateTime AtUtc, global::System.Guid Invocation) MapToRiskReadHistoryRow3(global::System.Data.Common.DbDataReader r) => (Item:MessagePackBinarySerializer.Shared.Deserialize<RiskHistoryRow>(r.GetFieldValue<byte[]>(0)),AtUtc:r.GetDateTime(1),Invocation:r.GetGuid(2));
+internal static (global::TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RiskManagement.RiskHistoryRow Item, global::System.DateTime AtUtc, global::System.Guid Invocation) MapToRiskReadHistoryRow3(global::System.Data.Common.DbDataReader r) => (Item:PooledPostgresPayload.Deserialize<RiskHistoryRow>(r, 0),AtUtc:r.GetDateTime(1),Invocation:r.GetGuid(2));
 }

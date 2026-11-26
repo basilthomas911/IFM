@@ -42,7 +42,7 @@ public sealed class MarketDataHostCompositionTests
         services.AddLogging(); services.AddHttpClient(); services.AddSingleton<IConfiguration>(config);
         var environment = Substitute.For<IHostEnvironment>(); environment.EnvironmentName.Returns("Development"); services.AddSingleton(environment);
         services.AddSingleton<NatsConnectionManager>();
-        services.AddSingleton(p => new MarketDataHostConnection(p.GetRequiredService<NatsConnectionManager>(), "nats://127.0.0.1:4222", "compositiontest"));
+        services.AddSingleton(p => new MarketDataHostConnection(p.GetRequiredService<NatsConnectionManager>(), Harness.ExplicitBrokerUrl.Value, "compositiontest"));
         services.AddMarketDataBackend(config);
         services.AddSingleton<MarketDataWorkerHost>();
         await using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });

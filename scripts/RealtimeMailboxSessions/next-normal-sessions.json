@@ -1,0 +1,138 @@
+{
+  "version": 1,
+  "setupState": "PreparedNotArmed",
+  "eligibleCaptureEnabled": false,
+  "initialOwnerSnapshot": {
+    "state": "NotAcquired",
+    "manifest": null,
+    "sha256": null
+  },
+  "initialClock": {
+    "state": "NotAcquired",
+    "clockDomainId": null,
+    "utcAtSnapshot": null,
+    "monotonicOriginNs": null
+  },
+  "originalSourceManifestSha256": null,
+  "registeredDestinationManifestSha256": null,
+  "requiredDatasetManifest": null,
+  "captureBudgetsCapacityQualified": false,
+  "backendChains": [
+    {
+      "storage": "Memory",
+      "state": "PreparedNotArmed",
+      "initialOwnerSnapshotSha256": null,
+      "sessions": [
+        "2026-11-30",
+        "2026-12-01"
+      ],
+      "restoreOnceThenCarryState": true
+    },
+    {
+      "storage": "File",
+      "state": "PreparedNotArmed",
+      "initialOwnerSnapshotSha256": null,
+      "sessions": [
+        "2026-11-30",
+        "2026-12-01"
+      ],
+      "restoreOnceThenCarryState": true
+    }
+  ],
+  "observer": {
+    "url": "nats://127.0.0.1:4222",
+    "subjects": [
+      "Realtime.>",
+      "development.publications.>",
+      "development.source-capture.>"
+    ]
+  },
+  "boundary": {
+    "statusUrl": null
+  },
+  "nativeSourceRoot": "E:/IFM/SessionQualification/nov30-dec1/native-sources",
+  "nativeBoundary": {
+    "statusUrl": "http://127.0.0.1:22544/internal/session-capture/native/status",
+    "accessTokenEnv": "IFM_SESSION_CAPTURE_ACCESS_TOKEN"
+  },
+  "limits": {
+    "maximumBytes": 34359738368,
+    "segmentBytes": 67108864,
+    "maximumPayloadBytes": 2097152,
+    "maximumSeconds": 176400
+  },
+  "snapshot": {
+    "maximumBytes": 536870912000,
+    "postgres": [],
+    "scylla": [],
+    "fileRoots": []
+  },
+  "sessions": [
+    {
+      "id": "2026-11-30",
+      "kind": "Normal",
+      "startUtc": "2026-11-29T23:00:00Z",
+      "endUtc": "2026-11-30T22:00:00Z",
+      "captureStartUtc": "2026-11-29T22:50:00Z",
+      "captureEndUtc": "2026-11-30T23:10:00Z",
+      "cashOpenUtc": "2026-11-30T14:30:00Z",
+      "cashCloseUtc": "2026-11-30T21:00:00Z",
+      "rolloverUtc": "2026-11-30T23:00:00Z",
+      "calendarEvidence": "calendar-evidence-20261125.json"
+    },
+    {
+      "id": "2026-12-01",
+      "kind": "Normal",
+      "startUtc": "2026-11-30T23:00:00Z",
+      "endUtc": "2026-12-01T22:00:00Z",
+      "captureStartUtc": "2026-11-30T22:50:00Z",
+      "captureEndUtc": "2026-12-01T23:10:00Z",
+      "cashOpenUtc": "2026-12-01T14:30:00Z",
+      "cashCloseUtc": "2026-12-01T21:00:00Z",
+      "rolloverUtc": "2026-12-01T23:00:00Z",
+      "calendarEvidence": "calendar-evidence-20261125.json"
+    }
+  ],
+  "requiredFamilies": [
+    "native-trades",
+    "native-quotes",
+    "native-market-price",
+    "native-statistics",
+    "native-trade-replay",
+    "native-option-trade-evidence",
+    "native-option-observations",
+    "bar-clock",
+    "daily-exit-clock",
+    "option-monitoring",
+    "financial-lifecycle",
+    "workflow-lifecycle",
+    "account-observations"
+  ],
+  "blockers": [
+    "Matching healthy initial owner/clock/config/source-floor snapshot has not been acquired",
+    "Current live Daily ITI source has a sequence gap and API readiness503",
+    "Legacy live emulator/PG SourceSequence0 does not prove an exact positive revision join",
+    "Total capture storage capacity including derived indexes, native journals, snapshots and replay stores is not qualified",
+    "Snapshot provider containers, databases, keyspaces and owner file roots remain unbound until a valid matching boundary is proved",
+    "Core observer is diagnostic, not complete authoritative source ownership or recipient manifest"
+  ],
+  "captureOnlySinkImplemented": true,
+  "workloadPolicy": {
+    "decisionPipeline": {
+      "deadlineMilliseconds": 2000,
+      "scope": "Prepared cached decision operators and local continuation",
+      "bulkUnknownConsumerCreationIncluded": false
+    },
+    "bulkUnknownConsumerCreation": {
+      "classification": "ExplicitTestOnlyStress",
+      "entityIdentities": 1000,
+      "recipientConsumers": 3000,
+      "partOfTwoSecondPipelineGate": false,
+      "preserveRawTimingAndMaxPassFlag": true,
+      "runsInNormalApplication": false,
+      "includedInExplicitFullHarness": true
+    },
+    "defaultMailboxOperation": "Recover durable pending recipients; create other consumers on demand",
+    "explicitRequiredConsumerBarrier": false
+  }
+}

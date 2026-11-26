@@ -10,12 +10,13 @@ using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Serializers;
 using TomasAI.IFM.Shared.Storage;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Application.Api.Server.Core.HostedServices;
 
 /// <summary>Independent storage workers; no raw history enters an optional actor mailbox.</summary>
 public sealed class RawFuturesStorageConsumer(RawFuturesStorageOptions options, RawFuturesStorageTransport transport,
-    IDbContextFactory databases, ILogger<RawFuturesStorageConsumer> logger) : BackgroundService, IHealthCheck
+    IDbContextFactory databases, ILogger<RawFuturesStorageConsumer> logger, IRealtimeSessionRecorder? sessionRecorder = null) : BackgroundService, IHealthCheck
 {
     readonly ConcurrentDictionary<string, string> failures = new(StringComparer.Ordinal);
     volatile bool ready;
@@ -24,6 +25,19 @@ public sealed class RawFuturesStorageConsumer(RawFuturesStorageOptions options, 
     volatile bool failureOverflow;
     INatsJSConsumer? currentConsumer;
     public long StoredRecords => Interlocked.Read(ref stored);
+    /// <summary>Observes real broker write backlog without changing source health or settling a message.</summary>
+    public async ValueTask<RawFuturesStorageDrainStatus> InspectDrainAsync(CancellationToken token=default)
+    {
+        if(!options.Enabled)return new(false,true,0,0,null);
+        if(!ready||currentConsumer is not{} consumer)return new(true,false,null,null,connectionFailure??"Raw consumer has not started.");
+        try
+        {
+            using var deadline=CancellationTokenSource.CreateLinkedTokenSource(token);deadline.CancelAfter(TimeSpan.FromSeconds(1));
+            await consumer.RefreshAsync(deadline.Token).ConfigureAwait(false);
+            return new(true,true,checked((ulong)consumer.Info.NumPending),checked((ulong)consumer.Info.NumAckPending),connectionFailure??failures.Values.FirstOrDefault()??(failureOverflow?"Raw failure evidence overflow":null));
+        }
+        catch(Exception error)when(!token.IsCancellationRequested){return new(true,false,null,null,error.GetType().Name);}
+    }
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         if (!options.Enabled) { ready = true; return; }
@@ -48,6 +62,16 @@ public sealed class RawFuturesStorageConsumer(RawFuturesStorageOptions options, 
                         try
                         {
                             var batch = MessagePackSerializer.Deserialize<RawFuturesStorageBatch>(message.Data ?? throw new InvalidDataException("Missing raw storage payload."), cancellationToken: token);
+                            if (sessionRecorder is { Enabled: true })
+                            {
+                                var receipt = await sessionRecorder.RecordAsync(new()
+                                {
+                                    Kind = "RawFuturesStorage", LogicalSourceKey = key, Subject = options.Subject,
+                                    OriginalWire = message.Data!, GenerationId = batch.SourceEpoch
+                                }, token).ConfigureAwait(false);
+                                if (!string.Equals(receipt.OriginalWireSha256, key, StringComparison.OrdinalIgnoreCase))
+                                    throw new InvalidDataException("Archive did not prove the original raw storage batch.");
+                            }
                             await databases.TradeTickQuoteDb.DbWriter.InsertRawFuturesBatchAsync(batch, token).ConfigureAwait(false);
                             await message.AckAsync(cancellationToken: token).ConfigureAwait(false);
                             failures.TryRemove(key, out _); Interlocked.Add(ref stored, batch.Records.Length);
@@ -92,3 +116,5 @@ public sealed class RawFuturesStorageConsumer(RawFuturesStorageOptions options, 
             : HealthCheckResult.Unhealthy(connectionFailure ?? failures.Values.FirstOrDefault() ?? "Raw storage is starting or has unconfirmed failed deliveries.");
     }
 }
+
+public sealed record RawFuturesStorageDrainStatus(bool Enabled,bool Ready,ulong? Pending,ulong? Unacknowledged,string? Failure);

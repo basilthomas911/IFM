@@ -109,12 +109,12 @@ public sealed partial class WorkflowLocalDispatcher(Func<IIntrinsicTimeStrategyW
     {
         var command = new RedispatchCurrentStrategyPipelineCommand
         {
-            CommandId = Guid.NewGuid(), EntityId = view.EntityId, WorkflowId = view.WorkflowId,
+            CommandId = Realtime.WorkflowPublicationDelivery.Key(view,"local-stop/"+source), EntityId = view.EntityId, WorkflowId = view.WorkflowId,
             ExpectedWorkflowRevision = view.WorkflowRevision, ExpectedStage = view.CurrentStage,
             Subject = new(ActorType.Command, RedispatchCurrentStrategyPipelineCommand.Actor, RedispatchCurrentStrategyPipelineCommand.Verb, view.EntityId.Format()),
-            RequestedAtUtc = context.TimeProvider.GetUtcNow().UtcDateTime, RequestedBy = source
+            RequestedAtUtc = view.UpdatedAtUtc, RequestedBy = source
         };
-        await context.SendAsync<RedispatchCurrentStrategyPipelineCommand, IntrinsicTimeStrategyWorkflowEntityId>(command, view.EntityId).ConfigureAwait(false);
+        await Realtime.WorkflowPublicationDelivery.PublishAsync(context,view,command,"local-stop/"+source).ConfigureAwait(false);
     }
     [LoggerMessage(Level = LogLevel.Warning, Message = "Local workflow dispatch stopped for {WorkflowId}.")]
     static partial void DispatchFailed(ILogger logger, string workflowId, Exception error);

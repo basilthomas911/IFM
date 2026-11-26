@@ -151,7 +151,7 @@ public static partial class CoreServiceRegistration
         {
             CacheUniqueIdentifier = "api-server-cache",
         };
-        if (EventLogQualification.Active is null)
+        if (EventLogQualification.Active is null && HistoricalSessionReplay.Active is null)
         services.AddSingleton<IDistributedCache>(new HazelcastCache(hazelcastOptions, cacheOptions));
         else services.AddDistributedMemoryCache();
 

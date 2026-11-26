@@ -174,6 +174,8 @@ public sealed class FuturesMarketPriceRealtimeActorTests
             var forwarded = context.ReceivedCalls().Single().GetArguments()
                 .OfType<FuturesTickTradeDataChangedEvent>().Single();
             var tickContext = Substitute.For<ITickAggregationRealtimeContext>();
+            tickContext.Projector.ProcessRealtimeEventAsync(Arg.Any<IEvent>(), Arg.Any<CancellationToken>())
+                .Returns(ValueTask.FromResult(true));
             await TomasAI.IFM.Domain.MarketData.Feed.TickAggregation.Realtime.FuturesTickTradeDataChanged
                 .ExecuteAsync(forwarded, tickContext);
             await tickContext.Projector.Received(1).ProcessRealtimeEventAsync(

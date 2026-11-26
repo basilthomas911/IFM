@@ -20,6 +20,8 @@ public sealed record BrokerAccountSnapshotEvidence
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the published broker message storage width and collection contract.")]
     [Key(8)] public BrokerAccountPositionEvidence[] Positions { get; init; } = [];
 
+    [Key(9)] public long SourceSequence { get; init; }
+
     /// <summary>Creates serializable evidence from the application broker contract.</summary>
     public static BrokerAccountSnapshotEvidence From(BrokerAccountSnapshot value) 
     {
@@ -33,6 +35,7 @@ public sealed record BrokerAccountSnapshotEvidence
         Complete = value.Complete,
         NewRiskAllowed = value.NewRiskAllowed,
         Generation = value.Generation,
+        SourceSequence = value.SourceSequence,
         AsOfUtc = value.AsOfUtc,
         Positions = [.. value.Positions
             .OrderBy(static position => position.ContractId, StringComparer.Ordinal)

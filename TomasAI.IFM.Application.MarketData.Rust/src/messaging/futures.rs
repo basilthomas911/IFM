@@ -40,6 +40,26 @@ pub struct Futures {
     instruments: BTreeMap<u32, State>,
 }
 impl Futures {
+    pub(crate) fn checkpoint(&self)->Value{
+        Value::Array(vec![1.into(),(self.lane as u8).into(),(self.capacity as u64).into(),Value::Array(self.instruments.iter().map(|(id,state)|Value::Array(vec![(*id).into(),state.instrument.capture_identity(),state.vwap.into(),state.vx.into(),crate::checkpoint::wide(state.physical),state.sequence.into(),state.last_vwap.into(),state.observed.into(),Value::Array(state.quotes.iter().map(crate::checkpoint::quote).collect())])).collect())])
+    }
+    pub(crate) fn restore_checkpoint(value:&Value)->Result<Self,String>{
+        use crate::checkpoint as c;let f=c::fields(value,4)?;if c::unsigned(&f[0])?!=1{return Err("Unknown futures mapper checkpoint".into());}
+        let lane=c::lane(&f[1])?;let capacity=usize::try_from(c::unsigned(&f[2])?).map_err(|_|"Mapper capacity overflow")?;
+        if lane==Lane::OptionsGlbx||!(1..=4096).contains(&capacity){return Err("Invalid mapper checkpoint bounds".into());}
+        let values=f[3].as_array().filter(|v|!v.is_empty()&&v.len()<=2048).ok_or("Invalid mapper checkpoint registrations")?;
+        let mut instruments=BTreeMap::new();
+        for value in values{let fields=c::fields(value,9)?;let id=u32::try_from(c::unsigned(&fields[0])?).map_err(|_|"Invalid mapper instrument")?;let instrument=Instrument::restore_identity(&fields[1])?;
+            let quotes=fields[8].as_array().filter(|v|v.len()<=capacity).ok_or("Invalid mapper quote capacity")?.iter().map(c::read_quote).collect::<Result<Vec<_>,_>>()?;
+            let identity=instrument.capture_identity();let identity=c::fields(&identity,12)?;
+            let vwap=c::boolean(&fields[2])?;let vx=c::boolean(&fields[3])?;
+            if c::unsigned(&identity[0])?!=u64::from(id)||c::lane(&identity[8])?!=lane||c::boolean(&identity[6])?!=vwap||c::string(&identity[2],256)?.starts_with("VX")!=vx{return Err("Mapper checkpoint registration mismatch".into());}
+            let state=State{instrument,vwap,vx,physical:c::read_wide(&fields[4])?,sequence:c::number(&fields[5])?,last_vwap:c::number(&fields[6])?,observed:c::number(&fields[7])?,quotes};
+            if state.sequence<0||instruments.insert(id,state).is_some(){return Err("Invalid duplicate mapper checkpoint state".into());}
+        }
+        Ok(Self{lane,capacity,instruments})
+    }
+    pub(crate) fn capture_identity(&self)->Value{Value::Array(self.instruments.values().map(|state|state.instrument.capture_identity()).collect())}
     /// Creates exact source mappings and fixed per-instrument quote capacity.
     ///
     /// # Errors

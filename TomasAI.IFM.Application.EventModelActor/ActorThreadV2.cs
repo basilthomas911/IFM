@@ -227,6 +227,38 @@ sealed class ActorThreadV2(
                        && !handlerToken.IsCancellationRequested
                        && scheduled.TryRead(out var message))
                 {
+                    if (threadId.ActorType == ActorType.Realtime && actor is IBatchedRealtimeActor batched)
+                    {
+                        IReadOnlyList<IActorMessage> messages;
+                        Task handling;
+                        if(message is IRealtimeBrokerBatch brokerBatch)
+                        {
+                            messages=brokerBatch.Messages;
+                            handling=ProcessBrokerBatchAsync(actor,batched,brokerBatch,threadId,queue,handlerToken);
+                        }
+                        else
+                        {
+                            var local=new List<IActorMessage>(MaxBatchSize){message!};
+                            long bytes=message!.AdmissionSizeBytes;
+                            // A broker group is already bounded and ordered by its durable owner.
+                            // Never flatten it into a preceding legacy backlog or coalesce separate broker deliveries.
+                            while(message is not IRealtimeBrokerDelivery && local.Count<MaxBatchSize && bytes<64*1024
+                                && scheduled.TryPeek(out var peek) && peek is not IRealtimeBrokerDelivery && scheduled.TryRead(out var next))
+                            {local.Add(next!);bytes+=next!.AdmissionSizeBytes;}
+                            messages=local;
+                            handling=ProcessRealtimeBatchAsync(actor,batched,messages,threadId,queue,handlerToken);
+                        }
+                        try { await handling.WaitAsync(handlerToken).ConfigureAwait(false); }
+                        catch (OperationCanceledException) when (!handling.IsCompleted)
+                        {
+                            // The batch task retains every payload/lease until the real handler finishes.
+                            cancellationTransferred = true;
+                            _ = ObserveRetiredBatchAsync(handling, executionCancellation);
+                            return;
+                        }
+                        processed += messages.Count;
+                        continue;
+                    }
                     using var trace = ActorTrace.Start(message!);
                     var loggingStarted = System.Diagnostics.Stopwatch.GetTimestamp();
                     var handlerStarted = ActorRuntimeMetrics.StartHandler();
@@ -258,6 +290,7 @@ sealed class ActorThreadV2(
                         {
                             if (admitted)
                             {
+                                if(message is IRealtimeBrokerBatch)throw new InvalidOperationException("Broker batches require an opted-in realtime batch actor.");
                                 var handling = actor.HandleMessageAsync(message!, threadId, handlerToken).AsTask();
                                 try
                                 {
@@ -322,7 +355,8 @@ sealed class ActorThreadV2(
                         {
                             try
                             {
-                                await delivery.CompleteDeliveryAsync(deliverySucceeded).ConfigureAwait(false);
+                                if (outcome == "Fenced" && message is IRealtimeBrokerDelivery broker) await broker.CompleteFencedAsync().ConfigureAwait(false);
+                                else await delivery.CompleteDeliveryAsync(deliverySucceeded).ConfigureAwait(false);
                             }
                             catch (Exception acknowledgementFailure)
                             {
@@ -422,6 +456,120 @@ sealed class ActorThreadV2(
             ReleaseOwnership();
             if (!cancellationTransferred) executionCancellation?.Dispose();
         }
+    }
+
+    async Task ProcessBrokerBatchAsync(IActor actor,IBatchedRealtimeActor batched,IRealtimeBrokerBatch wrapper,
+        ActorThreadId threadId,IActorThreadQueue queue,CancellationToken token)
+    {
+        try
+        {
+            var children=wrapper.Messages;
+            if(children.Count is <1 or >64 || children.Any(child=>child is IRealtimeBrokerBatch || child.Subject.ThreadId!=threadId))
+                throw new InvalidDataException("Broker batch children must be bounded and belong to one exact mailbox partition.");
+            await ProcessRealtimeBatchAsync(actor,batched,children,threadId,queue,token).ConfigureAwait(false);
+        }
+        catch(Exception error)
+        {
+            _supervisor.RuntimeContext?.RecordFailure(threadId.MailboxId,threadId,wrapper.Subject.Verb,ActorFailureStage.Execution,error);
+            _logger.LogErrorEvent(threadId.ToString(),error,"Broker realtime batch rejected before settlement.");
+            try{await wrapper.CompleteDeliveryAsync(false).ConfigureAwait(false);}
+            catch(Exception settlement){_logger.LogErrorEvent(threadId.ToString(),settlement,"Rejected broker batch settlement failed.");}
+        }
+        finally
+        {
+            // This task, not the cancellable worker wait, owns pooled wrapper/child storage.
+            try{wrapper.Dispose();}
+            catch(Exception cleanup){_logger.LogErrorEvent(threadId.ToString(),cleanup,"Broker batch payload cleanup failed.");}
+        }
+    }
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "A batch owns every input until its handler and delivery settlement finish; failure is recorded for each input and isolated from unrelated mailboxes.")]
+    async Task ProcessRealtimeBatchAsync(IActor actor, IBatchedRealtimeActor batched,
+        IReadOnlyList<IActorMessage> messages, ActorThreadId threadId, IActorThreadQueue queue, CancellationToken token)
+    {
+        var admitted = new List<IActorMessage>(messages.Count);
+        var leases = new List<IDisposable>(messages.Count);
+        var fenced = new HashSet<IActorMessage>(ReferenceEqualityComparer.Instance);
+        var metrics = (actor.Mailbox.Metrics as ActorMetricsStore)?.GetOrRegister(threadId, queue);
+        var started = ActorRuntimeMetrics.StartHandler();
+        var succeeded = false;
+        Exception? failure = null;
+        _state = ActorThreadState.ProcessingMessage;
+        metrics?.RecordDequeued(messages[0].Subject.Verb);
+        using var trace = ActorTrace.Start(messages[0]);
+        try
+        {
+            foreach (var message in messages)
+            {
+                token.ThrowIfCancellationRequested();
+                IDisposable? lease = null;
+                if (_realtimeSourceAdmission?.TryEnter(message.SourceSubject, message.SourceDataset, message.SourceGenerationId, out lease) == false)
+                    fenced.Add(message);
+                else
+                {
+                    admitted.Add(message);
+                    if (lease is not null) leases.Add(lease);
+                }
+            }
+            if (admitted.Count != 0) await batched.HandleBatchAsync(admitted, threadId, token).ConfigureAwait(false);
+            token.ThrowIfCancellationRequested();
+            succeeded = true;
+        }
+        catch (Exception error)
+        {
+            failure = error;
+            _supervisor.RuntimeContext?.RecordFailure(threadId.MailboxId, threadId, messages[0].Subject.Verb, ActorFailureStage.Execution, error);
+            if (!token.IsCancellationRequested)
+                _logger.LogErrorEvent(threadId.ToString(), error, "Realtime durable batch failed before delivery settlement.");
+        }
+        finally
+        {
+            for (var index = 0; index < messages.Count; index++)
+            {
+                var message = messages[index];
+                var wasFenced = fenced.Contains(message);
+                var complete = wasFenced || succeeded && !token.IsCancellationRequested;
+                if (index != 0) metrics?.RecordDequeued(message.Subject.Verb);
+                if (wasFenced) metrics?.RecordCancelled();
+                else if (complete) { metrics?.RecordSucceeded(); ActorRuntimeMetrics.RecordProcessed(threadId.ActorType); }
+                else if (token.IsCancellationRequested) { metrics?.RecordCancelled(); ActorRuntimeMetrics.RecordCanceled(threadId.ActorType); }
+                else { metrics?.RecordEscapedFailure(failure!); ActorRuntimeMetrics.RecordFailed(threadId.ActorType); }
+                var settled = false;
+                try
+                {
+                    if (message is IActorDeliveryCompletion delivery)
+                        if (wasFenced && message is IRealtimeBrokerDelivery broker) await broker.CompleteFencedAsync().ConfigureAwait(false);
+                        else await delivery.CompleteDeliveryAsync(complete).ConfigureAwait(false);
+                    settled = true;
+                }
+                catch (Exception error)
+                {
+                    _supervisor.RuntimeContext?.RecordFailure(threadId.MailboxId, threadId, message.Subject.Verb, ActorFailureStage.Publication, error);
+                    _logger.LogErrorEvent(threadId.ToString(), error, "Realtime batch delivery settlement failed.");
+                }
+                finally
+                {
+                    try { message.Dispose(); }
+                    catch (Exception error) { settled = false; _logger.LogErrorEvent(threadId.ToString(), error, "Realtime batch payload disposal failed."); }
+                    _metricsState.RecordMessageCompleted();
+                }
+                if (complete && !wasFenced && settled)
+                    _realtimeCompletionEvidence?.Record(message.SourceDataset, message.SourceGenerationId, message.Subject);
+            }
+            foreach (var lease in leases)
+            {
+                try { lease.Dispose(); }
+                catch (Exception error) { _logger.LogErrorEvent(threadId.ToString(), error, "Realtime batch source lease disposal failed."); }
+            }
+            ActorRuntimeMetrics.RecordHandler(started, threadId.ActorType);
+        }
+    }
+
+    async Task ObserveRetiredBatchAsync(Task handling, CancellationTokenSource? cancellation)
+    {
+        try { await handling.ConfigureAwait(false); }
+        catch (Exception error) { SharedActorDiagnosticLog.Write25(_logger, error, nameof(ObserveRetiredBatchAsync), default); }
+        finally { cancellation?.Dispose(); }
     }
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/channel boundary isolates arbitrary handler failures, records the failed outcome, and keeps processing other messages.")]

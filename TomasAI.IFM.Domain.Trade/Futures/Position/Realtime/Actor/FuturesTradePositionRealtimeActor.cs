@@ -1,3 +1,6 @@
+using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan;
+using MessagePack;
+using TomasAI.IFM.Domain.Trade.Persistence.Realtime;
 using Microsoft.Extensions.Logging;
 using System.Collections.Frozen;
 using TomasAI.IFM.Domain.Trade.Shared.Futures.Position;
@@ -9,6 +12,8 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.Trade.Futures.Position.Realtime.Actor;
 public sealed class FuturesTradePositionRealtimeActor(IRealtimeActorContext<FuturesTradePositionRealtimeActor> actorContext) : BaseEventActor<FuturesTradePositionRealtimeActor>(actorContext, Require(actorContext).Logger)
 {
+    protected override bool PropagateHandlerFailures => true;
+
     public const string ActorName = "FuturesTradePositionRealtime";
     readonly IFuturesTradePositionRealtimeContext _context = Require(actorContext);
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap = new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
@@ -20,6 +25,27 @@ public sealed class FuturesTradePositionRealtimeActor(IRealtimeActorContext<Futu
     {
         [typeof(FuturesPositionChangedEvent)] = static (@event, context) => @event.ExecuteAsync(context)
     }.ToFrozenDictionary();
+    protected override async ValueTask OnStartup(IEventActorContext<FuturesTradePositionRealtimeActor> context)
+    {
+        await DailyFuturesExitDispatch.RecoverAsync(_context).ConfigureAwait(false);
+        if(_context.PositionIntents is {} store)
+            foreach(var pending in store.Pending(PositionIntentKind.FuturesPlan))
+            {
+                var request=MessagePackSerializer.Deserialize<UpdateFuturesTradePlanCommand>(pending.Request);
+                if((pending.Flags&PositionIntentFlags.OutputCaptured)==0)
+                {
+                    var actual=await _context.ReadDailyExitRecoveryPositionAsync(request.Position.Id).ConfigureAwait(false);
+                    if(actual is {IsOpen:false} && (actual.RouteGeneration>request.Position.RouteGeneration || actual.RouteGeneration==request.Position.RouteGeneration && actual.PositionSequence>=request.Position.PositionSequence))
+                    {
+                        await store.RetireClosedAsync(actual,request.SourceEventId).ConfigureAwait(false);
+                        continue;
+                    }
+                }
+                await new FuturesPositionChangedEvent {Id=request.SourceEventId,PositionSnapshot=request.Position}.ExecuteAsync(_context).ConfigureAwait(false);
+            }
+    }
+
+
     protected override IEvent ParseMessage(IEventActorContext<FuturesTradePositionRealtimeActor> context, IActorMessage message) => ParseMappedRealtimeEvent(context, message, _parseMap);
     protected override ValueTask ReceiveAsync(IEventActorContext<FuturesTradePositionRealtimeActor> context, IEvent @event)
         => @event is FuturesPositionExitClockEvent clock ? clock.ExecuteAsync(_context)

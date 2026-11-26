@@ -57,6 +57,7 @@ internal sealed partial class NativeMarketDataLibrary
         BindReference(module);
         BindHistorical(module);
         BindOwner(module);
+        BindSessionBoundary(module);
     }
 
     internal static NativeMarketDataLibrary Load(string path)

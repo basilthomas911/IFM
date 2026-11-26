@@ -5,6 +5,7 @@
 //! until its complete operation adapter and parity matrix have been qualified.
 
 pub mod catalog;
+pub mod checkpoint;
 pub mod catalog_query;
 pub mod claims;
 pub mod fmp;

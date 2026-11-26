@@ -1,4 +1,4 @@
-﻿using System.IO.Pipes;
+using System.IO.Pipes;
 using NATS.Client.Core;
 using MessagePack;
 using TomasAI.IFM.Application.MarketData.MarketOutlook;
@@ -25,7 +25,7 @@ public sealed class OptionTradeRetentionTests
     public async Task Host_relay_delivers_quotes_before_slow_evidence_and_preserves_delivery_sequence()
     {
         await using var manager = new TomasAI.IFM.Framework.Messaging.NatsJetStream.NatsConnectionManager();
-        var connection = new MarketDataHostConnection(manager, "nats://127.0.0.1:4222", "retentiontest" + Guid.NewGuid().ToString("N"));
+        var connection = new MarketDataHostConnection(manager, Harness.ExplicitBrokerUrl.Value, "retentiontest" + Guid.NewGuid().ToString("N"));
         var worker = Guid.NewGuid();
         var store = new GatedStore();
         var relay = new TomasAI.IFM.Application.MarketData.Host.WorkerPublicationRelay(connection, "Options", worker, store);

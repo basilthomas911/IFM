@@ -202,3 +202,17 @@ impl Options {
         }
     }
 }
+
+impl Options{
+    pub(crate) fn checkpoint(&self)->rmpv::Value{
+        use rmpv::Value as V;V::Array(vec![1.into(),crate::checkpoint::day(self.date),self.revisions.0.load(Ordering::Acquire).into(),V::Array(self.entries.iter().map(|(id,e)|V::Array(vec![(*id).into(),e.instrument.capture_identity(),crate::checkpoint::wide(e.physical),e.fingerprint.map_or(V::Nil,|v|V::Binary(v.to_vec())),e.raw.as_ref().map_or(V::Nil,|(bytes,at)|V::Array(vec![V::Binary(bytes.clone()),(at.elapsed().as_nanos().min(u64::MAX as u128) as u64).into()]))])).collect())])
+    }
+    pub(crate) fn restore_checkpoint(value:&rmpv::Value)->Result<Self,String>{
+        use crate::checkpoint as c;let f=c::fields(value,4)?;if c::unsigned(&f[0])?!=1{return Err("Option mapper checkpoint version".into());}let mut entries=BTreeMap::new();let rows=f[3].as_array().filter(|v|v.len()<=crate::option_chain::MAX_LIVE_OPTIONS).ok_or("Option mapper count exceeded")?;
+        for row in rows{let e=c::fields(row,5)?;let id=c::unsigned(&e[0])?.try_into().map_err(|_|"Option instrument overflow")?;let instrument=Instrument::restore_identity(&e[1])?;let fingerprint=if e[3].is_nil(){None}else{match &e[3]{rmpv::Value::Binary(b) if b.len()==32=>Some(b.as_slice().try_into().unwrap()),_=>return Err("Option fingerprint invalid".into())}};
+            let raw=if e[4].is_nil(){None}else{let r=c::fields(&e[4],2)?;let bytes=r[0].as_slice().filter(|b|b.len()<=1024*1024).ok_or("Option retained raw bytes invalid")?.to_vec();let at=tokio::time::Instant::now().checked_sub(std::time::Duration::from_nanos(c::unsigned(&r[1])?)).ok_or("Option raw age invalid")?;Some((bytes,at))};
+            if entries.insert(id,Entry{instrument,physical:c::read_wide(&e[2])?,fingerprint,raw}).is_some(){return Err("Duplicate option mapper identity".into());}
+        }
+        let revision=c::number(&f[2])?;if revision<0{return Err("Negative option revision".into());}Ok(Self{date:c::date(&f[1])?,entries,revisions:Arc::new(Revisions(AtomicI64::new(revision)))})
+    }
+}

@@ -44,6 +44,8 @@ public sealed class NativeNatsPublisher(MarketDataHostConnection connection,Date
     public ValueTask DisposeAsync()=>StopAsync();
     async ValueTask ForwardAsync<T>(T value,string role,string dataset,Guid generation,DatasetPublicationKind kind,string? retainedContract=null,CancellationToken token=default)
     {
+        if(Environment.GetEnvironmentVariable("IFM_REALTIME_SOURCE_CAPTURE_ENABLED") is "1" or "true" or "True")
+            throw new InvalidOperationException("The managed compatibility publisher is not qualified for durable source capture. Use the native Rust dataset owner.");
         if(!IsRunning)throw new InvalidOperationException("Native Host publisher is stopped.");
         if(generation==Guid.Empty||dataset is not("GLBX.MDP3" or "XCBF.PITCH")||role=="Options"&&dataset!="GLBX.MDP3")throw new InvalidDataException("Native publication owner is not qualified.");
         using var linked=CancellationTokenSource.CreateLinkedTokenSource(token,lifetime);

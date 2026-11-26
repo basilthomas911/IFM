@@ -51,7 +51,7 @@ public static class IfmMetricsServiceCollectionExtensions
                         new("process.start_time", ProcessGcRunIdentity.StartedUtc.ToString("O", System.Globalization.CultureInfo.InvariantCulture))]))
                 .WithMetrics(metrics =>
                 {
-                    AddMeters(metrics)
+                    AddMeters(metrics).AddIfmBoundedMetricViews()
         .AddOtlpExporter(options => ConfigureExporter(options, endpointText, protocolText));
                 });
 
@@ -68,6 +68,12 @@ public static class IfmMetricsServiceCollectionExtensions
             return services;
         }
     }
+    /// <summary>Right-sizes only instruments with a statically bounded set of dimensions.
+    /// Business/actor instruments keep their existing cardinality and all tag keys.</summary>
+    public static MeterProviderBuilder AddIfmBoundedMetricViews(this MeterProviderBuilder metrics)
+        => metrics.AddView(instrument => instrument.Meter.Name == ProcessGcStatisticsRecorder.MeterName
+            || instrument.Meter.Name == "System.Runtime" && instrument.Name.StartsWith("dotnet.gc.", StringComparison.Ordinal)
+            ? new MetricStreamConfiguration { CardinalityLimit = 32 } : null);
     static MeterProviderBuilder AddMeters(MeterProviderBuilder metrics)
         => metrics
                     .AddMeter("TomasAI.IFM.MarketData.Eod")

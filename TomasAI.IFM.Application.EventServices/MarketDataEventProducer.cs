@@ -1,3 +1,5 @@
+using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
@@ -28,8 +30,9 @@ public class MarketDataEventProducer : NatsEventProducer, IMarketDataEventProduc
     public MarketDataEventProducer(
         INatsProducerOptions options,
         INatsJetStreamProducerOptions jetStreamOptions,
-        ILoggerFactory loggerFactory, TimeProvider? timeProvider = null)
-        : base(options, jetStreamOptions, loggerFactory, timeProvider)
+        ILoggerFactory loggerFactory, TimeProvider? timeProvider = null,
+        IRealtimePublicationCapture? realtimeCapture = null, IRealtimeSessionRecorder? sessionRecorder = null, Func<IActorSupervisor>? sessionSupervisor = null)
+        : base(options, jetStreamOptions, loggerFactory, timeProvider, realtimeCapture, sessionRecorder, sessionSupervisor)
     {
     }
 

@@ -5,6 +5,7 @@ use tokio::time::Instant;
 
 /// Minimum spacing between complete display-cache capture attempts. The first
 /// capture is immediate; continuous updates cannot postpone an already due one.
+#[derive(Clone, Copy)]
 pub struct Cadence {
     next: Option<Instant>,
 }
@@ -36,4 +37,9 @@ impl Cadence {
             std::future::pending::<()>().await;
         }
     }
+}
+
+impl Cadence{
+    pub(crate) fn checkpoint(&self)->rmpv::Value{self.next.map_or(rmpv::Value::Nil,|at|rmpv::Value::from(at.saturating_duration_since(Instant::now()).as_nanos().min(u64::MAX as u128) as u64))}
+    pub(crate) fn restore_checkpoint(value:&rmpv::Value)->Result<Self,String>{let next=if value.is_nil(){None}else{let nanos=crate::checkpoint::unsigned(value)?;if nanos>100_000_000{return Err("Cache cadence exceeds original interval".into());}Some(Instant::now()+Duration::from_nanos(nanos))};Ok(Self{next})}
 }

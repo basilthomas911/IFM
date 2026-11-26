@@ -74,6 +74,7 @@ pub struct MarketData {
     clock: Arc<Clock>,
     notifications: Mutex<Option<crate::messaging::recovery_delivery::Delivery>>,
     audit: Mutex<Option<crate::audit::outbox::Sink>>,
+    source_capture: Mutex<Option<Arc<crate::messaging::source_outbox::Sink>>>,
     closing: std::sync::atomic::AtomicBool,
     host_identity: [u8; 16],
     status_sequence: Mutex<(Vec<u8>, i64)>,
@@ -139,6 +140,7 @@ impl MarketData {
             root,
             clock,
             notifications: Mutex::new(None),
+            source_capture: Mutex::new(None),
             audit: Mutex::new(None),
             closing: std::sync::atomic::AtomicBool::new(false),
             host_identity: rand::random::<u128>().max(1).to_le_bytes(),
@@ -198,6 +200,25 @@ impl MarketData {
                 broker.clone(),
                 scope.into(),
             )?);
+        }
+        if crate::messaging::source_outbox::enabled() {
+            let mut source = self
+                .source_capture
+                .lock()
+                .map_err(|_| "Native source owner interrupted")?;
+            if source.is_none() {
+                *source = Some(crate::messaging::source_outbox::start(
+                    notifications
+                        .as_ref()
+                        .expect("notification owner")
+                        .audit_parent(),
+                    broker.clone(),
+                    scope.into(),
+                )?);
+            }
+            // The accepted factory owns the original startup deadline and waits for this
+            // retained generation before creating a replacement identity/provider. Rejecting
+            // here would cache a failed API Start before that recoverable wait can run.
         }
         // Audit owns copied facts only, outside all dataset resource groups.
         // An unavailable disk/path reports audit health but must not reject live intent.
@@ -541,10 +562,21 @@ impl MarketData {
         self.capture_current_frames(lane, after, maximum, false)
     }
     /// Copies the same fenced page with additive provenance beside each unchanged frame.
-    pub fn current_frames_with_origins(&self, lane: Lane, after: i64, maximum: usize) -> Result<Option<rmpv::Value>, String> {
+    pub fn current_frames_with_origins(
+        &self,
+        lane: Lane,
+        after: i64,
+        maximum: usize,
+    ) -> Result<Option<rmpv::Value>, String> {
         self.capture_current_frames(lane, after, maximum, true)
     }
-    fn capture_current_frames(&self, lane: Lane, after: i64, maximum: usize, origins: bool) -> Result<Option<rmpv::Value>, String> {
+    fn capture_current_frames(
+        &self,
+        lane: Lane,
+        after: i64,
+        maximum: usize,
+        origins: bool,
+    ) -> Result<Option<rmpv::Value>, String> {
         let health = self.health(lane);
         let before = health.status();
         let current = if lane == Lane::OptionsGlbx {
@@ -560,8 +592,16 @@ impl MarketData {
             .iter()
             .map(|frame| {
                 if origins {
-                    Ok(rmpv::Value::Array(vec![frame.value()?, frame.origin_json()?.map(rmpv::Value::from).unwrap_or(rmpv::Value::Nil)]))
-                } else { frame.value() }
+                    Ok(rmpv::Value::Array(vec![
+                        frame.value()?,
+                        frame
+                            .origin_json()?
+                            .map(rmpv::Value::from)
+                            .unwrap_or(rmpv::Value::Nil),
+                    ]))
+                } else {
+                    frame.value()
+                }
             })
             .collect::<Result<Vec<_>, _>>()?;
         let now = health.status();
@@ -621,8 +661,12 @@ impl MarketData {
             }
             match status.phase {
                 Phase::Running => return Ok(()),
-                Phase::Starting if connection_only && health.connection_alive()
-                    || lane == Lane::OptionsGlbx && health.resources_ready() => return Ok(()),
+                Phase::Starting
+                    if connection_only && health.connection_alive()
+                        || lane == Lane::OptionsGlbx && health.resources_ready() =>
+                {
+                    return Ok(());
+                }
                 Phase::Failed => {
                     return Err(status
                         .latest_error
@@ -1073,6 +1117,13 @@ impl MarketData {
             futures[0].control.join(deadline),
             futures[1].control.join(deadline)
         );
+        // Releasing copied runtime/source ownership is explicit, even if a query retains this MarketData.
+        if notification_result.is_ok() {
+            self.source_capture
+                .lock()
+                .map_err(|_| "Native source owner interrupted")?
+                .take();
+        }
         notification_result?;
         claims.map_err(|e| format!("Native claim service join: {e:?}"))?;
         options?;
@@ -1084,5 +1135,51 @@ impl MarketData {
 impl Drop for MarketData {
     fn drop(&mut self) {
         self.cancel();
+    }
+}
+
+#[cfg(test)]
+mod retained_start_tests{
+    use super::*;
+    use crate::{dataset::{live::{Start,Registration,Evidence},lanes::Gateway,transport::{SessionPlan,SubscriptionSpec}},messaging::{publisher::BrokerSettings,source_outbox,wire::Frame},latest::Asset};
+    #[tokio::test(flavor="multi_thread",worker_threads=2)]
+    async fn actual_owner_accepts_start_then_waits_for_original_retained_receipt_before_new_identity(){
+        if std::env::var("IFM_OWNER_RETAINED_START_CHILD").as_deref()!=Ok("1"){
+            let directory=std::env::temp_dir().join(format!("ifm-owned-retained-start-{:032x}",rand::random::<u128>()));
+            let output=std::process::Command::new(std::env::current_exe().unwrap())
+                .args(["--exact","api::owner::retained_start_tests::actual_owner_accepts_start_then_waits_for_original_retained_receipt_before_new_identity","--nocapture"])
+                .env("IFM_OWNER_RETAINED_START_CHILD","1").env("IFM_REALTIME_SOURCE_CAPTURE_ENABLED","1")
+                .env("IFM_REALTIME_SOURCE_DIRECTORY",directory.join("source"))
+                .env("IFM_RAW_FUTURES_STORAGE_ROOT",directory.join("raw"))
+                .env("IFM_MARKETDATA_RECOVERY_OUTBOX",directory.join("audit")).output().unwrap();
+            assert!(output.status.success(),"{}\n{}",String::from_utf8_lossy(&output.stdout),String::from_utf8_lossy(&output.stderr));
+            assert!(String::from_utf8_lossy(&output.stdout).contains("1 passed; 0 failed"));
+            if directory.exists(){std::fs::remove_dir_all(directory).unwrap();}return;
+        }
+        let root=Arc::new(Owner::default());let date=time::Date::from_calendar_date(2026,time::Month::November,26).unwrap();
+        let market=MarketData::new_session(root.clone(),Arc::new(Clock::new(0,false).unwrap()),date).unwrap();
+        let broker=BrokerSettings::new("nats://127.0.0.1:9".into(),vec!["127.0.0.1:9".parse().unwrap()]).unwrap();
+        market.notification_date(Lane::FuturesGlbx,date,broker.clone(),"owned-start-test").unwrap();
+        let sink=market.source_capture.lock().unwrap().clone().unwrap();
+        let original=Frame{lane:Lane::FuturesGlbx,value_date:date.to_julian_day()-1721426,worker:[7;16],generation:[8;16],manifest_revision:1,sequence:17,kind:4,payload:vec![0x91,1],origin_ticks:None};
+        let subject=original.subject("owned-start-test").unwrap();let bytes=original.encode().unwrap();
+        sink.capture(&subject,&bytes,None,source_outbox::key(&original,&subject),source_outbox::Tracker::new(tokio::sync::watch::channel(crate::messaging::publisher::Status::default()).0)).unwrap();
+        assert!(sink.ensure_drained(Lane::FuturesGlbx).is_err());
+        let intent=Arc::new(FuturesIntent{bootstrap:None,date,definition:date,scope:"owned-start-test".into(),revision:1,broker,
+            source:Start{plan:SessionPlan{lane:Lane::FuturesGlbx,subscriptions:vec![SubscriptionSpec{symbols:vec!["42".into()],symbology:databento::dbn::SType::InstrumentId,schema:databento::dbn::Schema::Mbp1,replay_start_ns:None}]},
+                registrations:vec![Registration{instrument:42,publisher:3,contract:"ES20261218".into(),source:"42".into(),asset:Asset::Futures,tick:Some(250_000_000),vwap:false,required:true}],
+                key:"x".repeat(32),gateway:Gateway{host:"127.0.0.1".into(),port:9,resolver:Arc::new(crate::dns::Resolver::new(vec!["127.0.0.1:9".parse().unwrap()]).unwrap())},evidence:Evidence::ControlOnly}});
+        let receipt=market.start_futures(intent.clone()).unwrap();assert!(receipt.revision>0);
+        let factory=market.futures.get(&Lane::FuturesGlbx).unwrap();
+        tokio::time::timeout(std::time::Duration::from_secs(2),async{while market.health(Lane::FuturesGlbx).status().deadline.is_none(){tokio::task::yield_now().await;}}).await.unwrap();
+        let remaining=market.health(Lane::FuturesGlbx).status().deadline.unwrap().remaining();
+        tokio::time::sleep(std::time::Duration::from_millis(40)).await;
+        assert!(factory.factory.identity().is_none());assert_eq!(sink.pending_wire_for_test().unwrap(),vec![bytes]);
+        let mut wrong=(*intent).clone();wrong.date=date.next_day().unwrap();assert!(market.start_futures(Arc::new(wrong)).is_err());
+        sink.confirm_original_for_test(&original).unwrap();
+        tokio::time::timeout(std::time::Duration::from_secs(2),async{while factory.factory.identity().is_none(){tokio::task::yield_now().await;}}).await.unwrap();
+        assert!(market.health(Lane::FuturesGlbx).status().deadline.unwrap().remaining()<=remaining);
+        assert!(Arc::ptr_eq(&factory.control.intent().unwrap(),&intent));assert!(sink.pending_wire_for_test().unwrap().is_empty());
+        market.shutdown(Deadline::recovery()).await.unwrap();root.stop().unwrap();root.wait_idle(&tokio_util::sync::CancellationToken::new(),Deadline::recovery()).await.unwrap();drop(sink);
     }
 }

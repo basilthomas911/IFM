@@ -13,6 +13,9 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Realtime.Acto
 public class FuturesAtrSignalRealtimeActor(IRealtimeActorContext<FuturesAtrSignalRealtimeActor> actorContext)
     : BaseEventActor<FuturesAtrSignalRealtimeActor>(actorContext, actorContext.Logger)
 {
+    /// <inheritdoc />
+    protected override bool PropagateHandlerFailures => true;
+
     /// <summary>Identifies the ATR realtime mailbox.</summary>
     public const string ActorName = "FuturesAtrSignal";
 
@@ -66,7 +69,8 @@ public class FuturesAtrSignalRealtimeActor(IRealtimeActorContext<FuturesAtrSigna
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);
         var handler = ResolveMappedEventHandler(@event, _receiveMap);
-        _ = await handler(@event, FuturesAtrSignalRealtimeContext, _logger).ConfigureAwait(false);
+        if (!await handler(@event, FuturesAtrSignalRealtimeContext, _logger).ConfigureAwait(false))
+            throw new IOException("ATR required downstream delivery failed.");
     }
 
     /// <summary>Publishes the standard actor error event.</summary>

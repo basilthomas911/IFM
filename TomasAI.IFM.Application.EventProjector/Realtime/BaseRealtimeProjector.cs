@@ -208,7 +208,7 @@ public abstract class BaseRealtimeProjector<TActor>(ILogger logger)
     }
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Projector boundary records an isolated projection failure or cleanup error; failures must not silently stop unrelated projection processing.")]
-    async ValueTask PublishFailureAsync(
+    protected async ValueTask PublishFailureAsync(
         IEventActorContext context,
         RealtimeProjectionDescriptor descriptor,
         IEvent sourceEvent,

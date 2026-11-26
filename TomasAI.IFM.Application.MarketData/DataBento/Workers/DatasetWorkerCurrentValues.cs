@@ -62,7 +62,7 @@ public sealed class DatasetWorkerCurrentValues : IDisposable
             var admission = state?.Admission;
             return new(lastPrices is not null, lastPrices is not null && admission.HasValue && state!.Healthy,
                 admission is { } id ? $"{id.Dataset}|{id.WorkerInstanceId:N}|{id.GenerationId:N}|{id.ManifestRevision}" : string.Empty,
-                lastPrices?.ValueDate, DateTimeOffset.UtcNow, state?.LastSequence ?? 0);
+                lastPrices?.ValueDate, businessClock.GetUtcNow(), state?.LastSequence ?? 0);
         }
     }
 

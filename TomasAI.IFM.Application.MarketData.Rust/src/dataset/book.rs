@@ -566,3 +566,90 @@ fn vwap_input(v: super::records::Trade) -> VwapInput {
         conditions: normalization::conditions(v.header.flags, v.dbn_flags),
     }
 }
+
+pub(crate) fn statistics_checkpoint(s:&crate::option_chain::statistics::Statistics)->rmpv::Value{
+    use rmpv::Value as V;V::Array(vec![s.volume.map_or(V::Nil,Into::into),s.open_interest.map_or(V::Nil,Into::into),s.statistics_at.map_or(V::Nil,Into::into),s.official.into(),s.volume_date.map_or(V::Nil,crate::checkpoint::day),s.open_interest_date.map_or(V::Nil,crate::checkpoint::day),s.volume_at.map_or(V::Nil,Into::into),s.open_interest_at.map_or(V::Nil,Into::into),s.observed.into(),s.last_event_ns.into(),s.last_sequence.into(),s.replay_complete.into()])
+}
+pub(crate) fn restore_statistics(v:&rmpv::Value)->Result<crate::option_chain::statistics::Statistics,String>{
+    use crate::checkpoint as c;let f=c::fields(v,12)?;let n=|v:&rmpv::Value|if v.is_nil(){Ok(None)}else{c::number(v).map(Some)};let d=|v:&rmpv::Value|if v.is_nil(){Ok(None)}else{c::date(v).map(Some)};
+    Ok(crate::option_chain::statistics::Statistics{volume:n(&f[0])?,open_interest:n(&f[1])?,statistics_at:n(&f[2])?,official:c::boolean(&f[3])?,volume_date:d(&f[4])?,open_interest_date:d(&f[5])?,volume_at:n(&f[6])?,open_interest_at:n(&f[7])?,observed:c::number(&f[8])?,last_event_ns:c::number(&f[9])?,last_sequence:c::unsigned(&f[10])?.try_into().map_err(|_|"Statistics sequence overflow")?,replay_complete:c::boolean(&f[11])?})
+}
+impl Book<crate::pricing::Values>{
+    /// Captures exact private latest/book/session/VWAP state under the enclosing source freeze.
+    pub(crate) fn checkpoint(&self)->Result<rmpv::Value,String>{
+        use rmpv::Value as V;
+        let entries=self.entries.iter().map(|(instrument,e)|Ok(V::Array(vec![(*instrument).into(),e.id.clone().into(),(if e.asset==Asset::Futures{1}else{2}).into(),e.reader.checkpoint()?,e.sessions.checkpoint(),e.market.checkpoint(),e.ordinal.into(),crate::checkpoint::wide(e.stream_epoch),e.vwap.as_ref().map_or(V::Nil,Vwap::checkpoint_value),e.replay_started.into(),e.option_statistics.as_ref().map_or(V::Nil,statistics_checkpoint)]))).collect::<Result<Vec<_>,String>>()?;
+        let bank=match &self.option_statistics{None=>V::Nil,Some(bank)=>V::Array(bank.lock().map_err(|_|"Statistics writer interrupted")?.iter().map(|(id,s)|V::Array(vec![(*id).into(),statistics_checkpoint(s)])).collect())};
+        Ok(V::Array(vec![1.into(),self.active.into(),crate::checkpoint::day(self.date),crate::checkpoint::wide(self.generation),(self.capacity as u64).into(),V::Array(entries),bank]))
+    }
+    /// Rebuilds new detached reader handles from complete original private state, without source publication.
+    pub(crate) fn restore_checkpoint(value:&rmpv::Value,stop:tokio_util::sync::CancellationToken)->Result<Self,String>{
+        use crate::checkpoint as c;let f=c::fields(value,7)?;
+        let capacity=usize::try_from(c::unsigned(&f[4])?).map_err(|_|"Book capacity overflow")?;
+        if c::unsigned(&f[0])?!=1||capacity==0||capacity>65536{return Err("Book checkpoint version/capacity invalid".into());}
+        let rows=f[5].as_array().filter(|v|v.len()<=capacity).ok_or("Book entries exceed bounds")?;
+        let mut book=Self::with_stop(c::date(&f[2])?,c::read_wide(&f[3])?,capacity,stop).map_err(|_|"Book owner identity invalid")?;
+        for row in rows{
+            let e=c::fields(row,11)?;let instrument=c::unsigned(&e[0])?.try_into().map_err(|_|"Book instrument overflow")?;
+            let id=c::string(&e[1],256)?;let asset=match c::unsigned(&e[2])?{1=>Asset::Futures,2=>Asset::Option,_=>return Err("Book asset unknown".into())};
+            if instrument==0||id.trim().is_empty()||book.entries.contains_key(&instrument)||!book.ids.insert(id.clone()){return Err("Duplicate/invalid book registration".into());}
+            let reader=book.latest.register(&id,asset).map_err(|_|"Book latest registration invalid")?;reader.restore_checkpoint(&e[3])?;
+            let vwap=if e[8].is_nil(){None}else{Some(Vwap::restore_checkpoint(&e[8])?)};
+            if asset==Asset::Option&&vwap.is_some(){return Err("Option VWAP policy invalid".into());}
+            book.entries.insert(instrument,Entry{id,asset,reader,sessions:Sessions::restore_checkpoint(&e[4])?,market:Market::restore_checkpoint(&e[5])?,ordinal:c::number(&e[6])?,stream_epoch:c::read_wide(&e[7])?,vwap,replay_started:c::boolean(&e[9])?,option_statistics:if e[10].is_nil(){None}else{Some(restore_statistics(&e[10])?)}});
+        }
+        if !f[6].is_nil(){let mut bank=BTreeMap::new();for row in f[6].as_array().filter(|v|v.len()<=capacity).ok_or("Statistics bank exceeds bound")?{let s=c::fields(row,2)?;let id=c::unsigned(&s[0])?.try_into().map_err(|_|"Bank instrument overflow")?;if !book.entries.get(&id).is_some_and(|e|e.asset==Asset::Option)||bank.insert(id,restore_statistics(&s[1])?).is_some(){return Err("Invalid statistics bank registration".into());}}book.option_statistics=Some(Arc::new(std::sync::Mutex::new(bank)));}
+        book.active=c::boolean(&f[1])?;if !book.active{book.latest.retire().map_err(|_|"Book retirement failed")?;}Ok(book)
+    }
+}
+
+#[cfg(test)]
+mod checkpoint_tests {
+    use super::*;
+    #[test]
+    fn checkpoint_restores_exact_private_book_and_continuation(){
+        let date=Date::from_calendar_date(2026,time::Month::October,1).unwrap();
+        let mut book=Book::<crate::pricing::Values>::new(date,17,4).unwrap();
+        let future=book.register_with_policy(1,"ESZ6",Asset::Futures,3,Some(250_000_000),true).unwrap();
+        let option=book.register(2,"ESZ6C6000",Asset::Option,3).unwrap();
+        let trade=Tick{sequence:81,event_ticks:900,receive_ticks:901,value:TradeValue{price:6_000_000_000_000,size:3}};
+        future.update_trade(trade).unwrap();
+        let quote=Tick{sequence:82,event_ticks:902,receive_ticks:903,value:QuoteValue{bid:None,ask:None,bid_size:0,ask_size:0,bid_count:0,ask_count:0,local_received_ticks:904}};
+        option.update_quote(quote).unwrap();
+        option.update_quote_risk(crate::latest::Priced{tick:quote,greeks:Arc::new(crate::pricing::Values{price:1.2,volatility:0.25,delta:-0.0,gamma:0.003,vega:4.0,theta:-3.0,rho:0.1})}).unwrap();
+        let entry=book.entries.get_mut(&1).unwrap();entry.ordinal=47;entry.stream_epoch=18;entry.replay_started=true;
+        let market_trade=Tick{sequence:80,event_ticks:890,receive_ticks:891,value:MarketTrade{value:trade.value,action:2,side:1,conditions:7,epoch:18,ordinal:46}};
+        entry.market.trade(date,market_trade);let mut next=market_trade;next.sequence=81;next.value.ordinal=47;next.value.value.price+=1;entry.market.trade(date,next);
+        let mut stats=crate::option_chain::statistics::Statistics::default();stats.accumulate(5,50,6,date).unwrap();
+        let bank=Arc::new(std::sync::Mutex::new(BTreeMap::from([(2,stats)])));book.bind_option_statistics(bank).unwrap();
+        let encoded=book.checkpoint().unwrap();let bytes=crate::checkpoint::encode(&encoded).unwrap();
+        let mut restored=Book::<crate::pricing::Values>::restore_checkpoint(&crate::checkpoint::decode(&bytes).unwrap(),tokio_util::sync::CancellationToken::new()).unwrap();
+        assert_eq!(encoded,restored.checkpoint().unwrap());assert_eq!(restored.market_price(1).unwrap().trade.unwrap().sequence,80);
+        assert_eq!(restored.entries.get(&1).unwrap().market.execution_snapshot().unwrap().trade.unwrap().sequence,81);
+        assert!(!restored.reader("ESZ6").unwrap().unwrap().update_trade(trade).unwrap());
+        let mut newer=trade;newer.sequence+=1;assert!(future.update_trade(newer).unwrap());assert!(restored.reader("ESZ6").unwrap().unwrap().update_trade(newer).unwrap());
+        assert_eq!(book.checkpoint().unwrap(),restored.checkpoint().unwrap());
+        restored.retire().unwrap();let retired=restored.checkpoint().unwrap();let cold=Book::<crate::pricing::Values>::restore_checkpoint(&retired,tokio_util::sync::CancellationToken::new()).unwrap();assert_eq!(retired,cold.checkpoint().unwrap());assert!(cold.reader("ESZ6").unwrap().is_none());
+    }
+    #[test]
+    fn checkpoint_cannot_resurrect_cancelled_latest_readers(){
+        let date=Date::from_calendar_date(2026,time::Month::October,1).unwrap();let stop=tokio_util::sync::CancellationToken::new();let mut book=Book::<crate::pricing::Values>::with_stop(date,17,1,stop.clone()).unwrap();let reader=book.register(1,"ESZ6",Asset::Futures,2).unwrap();reader.update_trade(Tick{sequence:1,event_ticks:2,receive_ticks:3,value:TradeValue{price:5000,size:1}}).unwrap();stop.cancel();assert!(reader.trade().unwrap().is_none());let image=book.checkpoint().unwrap();let restored=Book::<crate::pricing::Values>::restore_checkpoint(&image,tokio_util::sync::CancellationToken::new()).unwrap();assert!(restored.raw_trade(1).unwrap().is_none());assert_eq!(image,restored.checkpoint().unwrap());
+    }
+    #[test]
+    fn malformed_book_checkpoint_is_rejected_before_exposure(){
+        let date=Date::from_calendar_date(2026,time::Month::October,1).unwrap();let mut book=Book::<crate::pricing::Values>::new(date,17,4).unwrap();book.register(1,"ESZ6",Asset::Futures,2).unwrap();let mut value=book.checkpoint().unwrap();
+        let duplicate=value.as_array().unwrap()[5].as_array().unwrap()[0].clone();if let rmpv::Value::Array(fields)=&mut value {if let rmpv::Value::Array(rows)=&mut fields[5]{rows.push(duplicate);}}
+        assert!(Book::<crate::pricing::Values>::restore_checkpoint(&value,tokio_util::sync::CancellationToken::new()).is_err());
+    }
+}
+
+impl Book<crate::pricing::Values>{
+    /// Reattaches the restored logical statistics authority without overwriting a divergent owner.
+    pub(crate) fn rebind_checkpoint_statistics(&mut self,bank:crate::option_chain::statistics::Bank)->Result<(),String>{
+        let Some(restored)=self.option_statistics.as_ref() else {return Err("Checkpoint has no logical option-statistics authority".into());};
+        if Arc::ptr_eq(restored,&bank){return Ok(());}
+        let snapshot=restored.lock().map_err(|_|"Restored statistics writer interrupted")?.clone();
+        {let mut target=bank.lock().map_err(|_|"Original statistics writer interrupted")?;if !target.is_empty()&&*target!=snapshot{return Err("Original logical statistics differs from checkpoint".into());}*target=snapshot;}
+        self.option_statistics=Some(bank);Ok(())
+    }
+}

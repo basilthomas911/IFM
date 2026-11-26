@@ -36,6 +36,19 @@ public sealed class BrokerAccountSnapshotIdentityTests
             BrokerAccountSnapshotIdentity.Create(BrokerEnvironment.Emulator, reverse));
     }
 
+    [Fact]
+    public void Legacy_zero_revision_keeps_the_original_nine_field_identity_and_positive_revision_is_versioned()
+    {
+        var value=Evidence(new DateTime(2026,9,16,14,0,0,DateTimeKind.Utc),[new("ESZ6",1,6000m)]);
+        var bytes=MessagePack.MessagePackSerializer.Serialize(value);var reader=new MessagePack.MessagePackReader(bytes);Assert.Equal(10,reader.ReadArrayHeader());
+        for(var field=0;field<9;field++)reader.Skip();var legacy=bytes.AsSpan(0,(int)reader.Consumed).ToArray();legacy[0]=0x99;
+        using var hash=System.Security.Cryptography.IncrementalHash.CreateHash(System.Security.Cryptography.HashAlgorithmName.SHA256);
+        hash.AppendData("broker-account-snapshot-v1"u8);hash.AppendData(new byte[]{(byte)BrokerEnvironment.Emulator});hash.AppendData(legacy);
+        Assert.Equal(new Guid(hash.GetHashAndReset().AsSpan(0,16)),BrokerAccountSnapshotIdentity.Create(BrokerEnvironment.Emulator,value));
+        var ordered=value with{SourceSequence=1};Assert.NotEqual(BrokerAccountSnapshotIdentity.Create(BrokerEnvironment.Emulator,value),BrokerAccountSnapshotIdentity.Create(BrokerEnvironment.Emulator,ordered));
+        Assert.Equal(1,MessagePack.MessagePackSerializer.Deserialize<BrokerAccountSnapshotEvidence>(MessagePack.MessagePackSerializer.Serialize(ordered)).SourceSequence);
+    }
+
     private static BrokerAccountSnapshotEvidence Evidence(
         DateTime observedAt,
         BrokerAccountPosition[] positions) =>

@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Application.MarketData.Pricing;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Commands;
@@ -52,7 +53,7 @@ public static class ExecuteOrderComposition
                         FailedAtUtc = now
                     }
                 };
-                await context.SendAsync<FailOrderCompositionCommand, IntrinsicTimeStrategyWorkflowEntityId>(command, view.EntityId).ConfigureAwait(false);
+                await IntrinsicTimeStrategyWorkflowRealtimeActor.FreezeCompositionFailureAsync(context, snapshot, command).ConfigureAwait(false);
             }
         }
     }
@@ -60,6 +61,7 @@ public static class ExecuteOrderComposition
     static async ValueTask PrepareOrDispatchAsync(WorkflowStrategyStateUpdatedEvent snapshot, IIntrinsicTimeStrategyWorkflowRealtimeContext context)
     {
         var view = snapshot.State;
+        if(await WorkflowPublicationDelivery.RecoverAsync(context,view,"composition-prepare").ConfigureAwait(false))return;
         using var preparationTrace = WorkflowTrace.Start("composer.prepare_or_dispatch", view);
         if (view.CompositionExecution is { } execution)
         {
@@ -150,7 +152,7 @@ public static class ExecuteOrderComposition
         if (MessagePackBinarySerializer.MeasureEncoded(command) >= TradeSelectionContracts.MaximumTransportBytes)
             throw new CompositionMarketSourceException("CompositionPreparationPayloadTooLarge");
         using var timing_composer_acceptance_send = WorkflowTrace.Start("composer.acceptance.send", view);
-        await context.SendAsync<AcceptOrderCompositionPreparationCommand, IntrinsicTimeStrategyWorkflowEntityId>(command, view.EntityId).ConfigureAwait(false);
+        await WorkflowPublicationDelivery.PublishAsync(context,view,command,"composition-prepare").ConfigureAwait(false);
         timing_composer_acceptance_send?.Stop();
     }
 }

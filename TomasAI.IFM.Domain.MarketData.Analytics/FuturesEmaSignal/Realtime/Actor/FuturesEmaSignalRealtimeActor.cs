@@ -12,6 +12,9 @@ public sealed class FuturesEmaSignalRealtimeActor(IRealtimeActorContext<FuturesE
     : BaseEventActor<FuturesEmaSignalRealtimeActor>(actorContext,
         ((IFuturesEmaSignalRealtimeContext)actorContext).Logger)
 {
+    /// <inheritdoc />
+    protected override bool PropagateHandlerFailures => true;
+
     /// <summary>Gets the realtime mailbox name.</summary>
     public const string ActorName = "FuturesEmaSignal";
     static readonly ActorTypeId Route = new(ActorType.Realtime,
@@ -46,7 +49,8 @@ public sealed class FuturesEmaSignalRealtimeActor(IRealtimeActorContext<FuturesE
     {
         ArgumentNullException.ThrowIfNull(context);
         var handler = ResolveMappedEventHandler(@event, _receiveMap);
-        _ = await handler(@event, typedContext).ConfigureAwait(false);
+        if (!await handler(@event, typedContext).ConfigureAwait(false))
+            throw new IOException("EMA required downstream delivery failed.");
     }
     /// <inheritdoc />
     protected override async ValueTask OnExceptionAsync(IEventActorContext<FuturesEmaSignalRealtimeActor> context,

@@ -220,3 +220,8 @@ impl Calendar {
         Ok((until - from) as i32)
     }
 }
+
+impl Zone{pub(crate) fn checkpoint_name(self)->&'static str{self.0.name()}}
+impl Calendar{
+ pub(crate) fn restore_checkpoint(value:&rmpv::Value)->Result<Self,String>{use crate::checkpoint as c;let f=c::fields(value,6)?;let dates=f[5].as_array().filter(|v|v.len()<=2000).ok_or("Calendar checkpoint count exceeded")?.iter().map(c::date).collect::<Result<Vec<_>,_>>()?;Self::new(c::string(&f[0],512)?,&c::string(&f[1],256)?,c::date(&f[2])?,c::date(&f[3])?,c::unsigned(&f[4])?,dates).map_err(|_|"Original calendar checkpoint invalid".into())}
+}

@@ -22,6 +22,8 @@ public static class PortfolioErrorCodes
     public const int DraftDeletionNotAllowed = 34015;
     public const int Unauthorized = 34016;
     public const int OperationallyDisabled = 34017;
+    public const int ReservationExpiredWithoutEffects = 34018;
+    public const int ReservationNotYetSettled = 34019;
 
     public static bool IsReserved(int code) => code is >= RangeStart and <= RangeEnd;
 }

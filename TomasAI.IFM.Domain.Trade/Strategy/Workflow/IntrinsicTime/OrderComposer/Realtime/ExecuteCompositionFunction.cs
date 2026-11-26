@@ -25,6 +25,7 @@ public static class ExecuteCompositionFunction
         {
             ArgumentNullException.ThrowIfNull(context);
             ArgumentNullException.ThrowIfNull(execute);
+            if(await CompositionFunctionTerminalDelivery.RecoverAsync(context,execute).ConfigureAwait(false))return;
             var current = await context.ReadActiveWorkflowAsync(execute.WorkflowEntityId).ConfigureAwait(false);
             if (current is not { Status: WorkflowStrategyMachineStatus.Started, CurrentStage: StrategyWorkflowStage.OrderComposition } || current.WorkflowId != execute.WorkflowId || current.WorkflowRevision != execute.InputWorkflowRevision || !string.Equals(current.CompositionExecution?.InputSha256, execute.InputSha256, StringComparison.Ordinal))
                 return;
@@ -81,7 +82,7 @@ public static class ExecuteCompositionFunction
                     CompletedAtUtc = completed.CompletedAtUtc,
                     SelectedContracts = result.Candidate is null ? null : new(execute.MarketSnapshot.ScopeId, result.Candidate.Legs.Select(x => x.InstrumentId).Order(StringComparer.Ordinal).ToImmutableArray())
                 };
-                await context.SendAsync<CompleteOrderCompositionCommand, IntrinsicTimeStrategyWorkflowEntityId>(command, command.EntityId).ConfigureAwait(false);
+                await TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.WorkflowPublicationDelivery.PublishAsync(context,current,command).ConfigureAwait(false);
             }
             else
             {
@@ -99,7 +100,7 @@ public static class ExecuteCompositionFunction
                         TimeoutId = execute.CommandId,
                         TimedOutAtUtc = failure.ErrorDate
                     };
-                    await context.SendAsync<TimeoutOrderCompositionCommand, IntrinsicTimeStrategyWorkflowEntityId>(timeout, timeout.EntityId).ConfigureAwait(false);
+                    await CompositionFunctionTerminalDelivery.CaptureAsync(context,execute,timeout).ConfigureAwait(false);
                     return;
                 }
 
@@ -123,7 +124,7 @@ public static class ExecuteCompositionFunction
                         FailedAtUtc = failure.ErrorDate
                     }
                 };
-                await context.SendAsync<FailOrderCompositionCommand, IntrinsicTimeStrategyWorkflowEntityId>(command, command.EntityId).ConfigureAwait(false);
+                await CompositionFunctionTerminalDelivery.CaptureAsync(context,execute,command).ConfigureAwait(false);
             }
         }
     }

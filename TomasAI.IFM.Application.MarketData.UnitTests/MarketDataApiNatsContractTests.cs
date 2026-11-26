@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using FluentAssertions;
 using NATS.Client.Core;
 using NSubstitute;
 using TomasAI.IFM.Application.MarketData.Contracts;
@@ -13,7 +13,7 @@ namespace TomasAI.IFM.Application.MarketData.UnitTests;
 
 public sealed class MarketDataApiNatsContractTests
 {
-    private static string BrokerUrl => Environment.GetEnvironmentVariable("IFM_MARKETDATA_TEST_NATS_URL") ?? "nats://127.0.0.1:4222";
+    private static string BrokerUrl => Harness.ExplicitBrokerUrl.Value;
 
     [Fact(Timeout = 15000)]
     public async Task Existing_API_supports_nullable_owner_and_polymorphic_result_over_real_NATS()

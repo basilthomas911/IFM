@@ -148,6 +148,18 @@ public sealed class TradeRealtimeHotCache
         if (order.Count > 128) generations.Remove(order.Dequeue());
     }
 
+    /// <summary>Builds publication evidence without mutating cache or lifecycle state.</summary>
+    public TradeRealtimeSnapshot PreparePositionPublication(StrategyPositionSnapshot position)
+    {
+        ArgumentNullException.ThrowIfNull(position);
+        lock(gate)
+        {
+            if(retired || !Matches(position)) throw new InvalidOperationException("Position publication does not match the active cache.");
+            if(current.Position is {} old && (position.RouteGeneration<old.RouteGeneration || position.RouteGeneration==old.RouteGeneration && position.PositionSequence<old.PositionSequence)) return current;
+            return PreparePublication(WithPosition(current,position));
+        }
+    }
+
     public bool Apply(StrategyPositionSnapshot position)
     {
         using var mutation = TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.EnterMutation();
@@ -291,7 +303,7 @@ public sealed class TradeRealtimeHotCache
             OtmProbability = spread.OtmProbability ?? prior.OtmProbability, ForwardPrice = spread.ForwardPrice ?? prior.ForwardPrice };
     }).ToImmutableArray();
 
-    void Publish(TradeRealtimeSnapshot next)
+    TradeRealtimeSnapshot PreparePublication(TradeRealtimeSnapshot next)
     {
         next = RetainValues(Qualify(next), current);
         var spreads = TradeRealtimeSnapshotCalculations.CalculateSpreads(next);
@@ -299,6 +311,12 @@ public sealed class TradeRealtimeHotCache
             QualityRevision = remote is null ? 0 : current.QualityRevision + 1,
             Summary = next.Summary with { NetSpread = spreads[0].NetSpread is {} put && spreads[1].NetSpread is {} call ? put + call : SamePositionQuantities(next, current) ? next.Summary.NetSpread : null },
             PublishedAtUtc = clock.GetUtcNow(), Spreads = RetainSpreads(spreads, SamePositionQuantities(next, current) ? current.Spreads : []) };
+        return published;
+    }
+
+    void Publish(TradeRealtimeSnapshot next)
+    {
+        var published=PreparePublication(next);
         ScheduleQualityCheck(published);
         Volatile.Write(ref current, published);
     }

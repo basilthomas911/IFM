@@ -34,6 +34,12 @@ public static class CompositionSemanticHash
         using (var writer = new Utf8JsonWriter(buffer)) Write(document.RootElement, writer);
         return Convert.ToHexStringLower(SHA256.HashData(buffer.GetBuffer().AsSpan(0, checked((int)buffer.Length))));
     }
+    /// <summary>Initializes this hash protocol's own immutable contract metadata before decision admission.</summary>
+    public static void PrepareContract(Type contract)
+    {
+        Options.MakeReadOnly();
+        _=Options.GetTypeInfo(contract);
+    }
 
     // MessagePack timestamps deserialize as UTC, including optional/default DateTime values.
     // Semantic identity must not depend on DateTime.Kind for the same clock value.

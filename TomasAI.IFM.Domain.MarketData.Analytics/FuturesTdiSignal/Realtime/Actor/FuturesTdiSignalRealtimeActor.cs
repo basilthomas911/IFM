@@ -22,7 +22,11 @@ public class FuturesTdiSignalRealtimeActor(
         IsArgumentNull.Named(actorContext as IFuturesTdiSignalRealtimeContext, nameof(actorContext))!;
 
     public const string ActorName = "FuturesTdiSignal";
-    readonly FuturesTdiSignalRealtimeState _state = new();
+    readonly FuturesTdiSignalRealtimeState _state = new((actorContext as IFuturesTdiSignalRealtimeContext)?.Receipts);
+    CancellationTokenSource? recovering;
+    Task recoveryLoop = Task.CompletedTask;
+    /// <inheritdoc/>
+    protected override bool PropagateHandlerFailures => true;
     static readonly ActorTypeId RsiSignalsRoute = new(
         ActorType.Realtime,
         FuturesRsiSignalRealtimeActor.ActorName,
@@ -63,12 +67,21 @@ public class FuturesTdiSignalRealtimeActor(
         ArgumentNullException.ThrowIfNull(context);
         await actorContext.Projector.StartAsync(context).ConfigureAwait(false);
         context.AddRealtimeRouter(RsiSignalsRoute, Id);
+        recovering = new();
+        recoveryLoop = RecoverPendingAsync(recovering.Token);
     }
 
     protected override async ValueTask OnShutdown(IEventActorContext<FuturesTdiSignalRealtimeActor> context)
     {
         ArgumentNullException.ThrowIfNull(context);
         context.RemoveRealtimeRouter(RsiSignalsRoute, Id);
+        if (recovering is { } stopping)
+        {
+            await stopping.CancelAsync().ConfigureAwait(false);
+            try { await recoveryLoop.ConfigureAwait(false); }
+            catch (OperationCanceledException) when (stopping.IsCancellationRequested) { }
+            finally { stopping.Dispose(); recovering = null; recoveryLoop = Task.CompletedTask; }
+        }
         await actorContext.Projector.StopAsync().ConfigureAwait(false);
     }
 
@@ -79,7 +92,26 @@ public class FuturesTdiSignalRealtimeActor(
     {
         ArgumentNullException.ThrowIfNull(context);
         var handler = ResolveMappedEventHandler(@event, _receiveMap);
-        _ = await handler(@event, context, ActorContext, _state).ConfigureAwait(false);
+        if (!await handler(@event, context, ActorContext, _state).ConfigureAwait(false))
+            throw new IOException("TDI result/publication is incomplete; input must not be acknowledged.");
+    }
+
+    async Task RecoverPendingAsync(CancellationToken token)
+    {
+        await Task.Yield();
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+        while (await timer.WaitForNextTickAsync(token).ConfigureAwait(false))
+        {
+            if (!IsRunning) continue;
+            try
+            {
+                using var generation = RealtimeGeneration.Enter();
+                if (!await _state.RecoverAsync(ActorContext.Projector, token).ConfigureAwait(false))
+                    ActorContext.Logger.LogError("TDI result recovery remains pending.");
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested || RealtimeGeneration.Token.IsCancellationRequested) { return; }
+            catch (Exception error) { ActorContext.Logger.LogError(error, "TDI durable result recovery failed; pending receipts retained."); }
+        }
     }
 
     protected override async ValueTask OnExceptionAsync(

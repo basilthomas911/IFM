@@ -18,14 +18,14 @@ internal static class VxFuturesEodDataEventFactory
         FuturesSessionStatisticsSnapshot? sessionStatistics = null)
     {
         var entityId = new FuturesEodDataId(tickData.ContractId, tickData.ValueDate);
-        return new VixFuturesEodDataInsertedEvent
+        return MessageOrigins.Restore(new VixFuturesEodDataInsertedEvent
         {
             Subject = new ActorSubject(
                 ActorType.Realtime,
                 FuturesEodDataRealtimeActor.ActorName,
                 VixFuturesEodDataInsertedEvent.Verb,
                 entityId.Format()),
-            Id = Guid.NewGuid(),
+            Id = EodProjectionIdentity.For(source, "vx"),
             EntityId = entityId,
             CommandId = source.CommandId,
             AggregateId = source.AggregateId,
@@ -35,6 +35,6 @@ internal static class VxFuturesEodDataEventFactory
             SessionStatistics = sessionStatistics,
             CreatedOn = DateTime.UtcNow,
             CreatedBy = source.UserName
-        };
+        }, MessageOrigins.Get(source));
     }
 }

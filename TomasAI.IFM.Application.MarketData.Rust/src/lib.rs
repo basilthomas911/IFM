@@ -35,3 +35,6 @@ pub mod subscriptions;
 
 /// Durable recovery observation, independent of provider ownership.
 pub mod audit;
+
+/// Original-state binary checkpoints for isolated restart and matched-session qualification.
+pub(crate) mod checkpoint;

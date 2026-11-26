@@ -9,6 +9,7 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using Microsoft.Extensions.Logging;
+using System.Diagnostics;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Runtime;
 
@@ -19,10 +20,15 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Runtime;
 public sealed class WorkflowDecisionBatchRunner(Func<IIntrinsicTimeStrategyWorkflowRealtimeContext> contextFactory,
     ILogger<WorkflowDecisionBatchRunner>? logger = null)
 {
+    // The externally visible stage budget includes applying its terminal state.
+    // Stop waiting for calculation early enough to settle that state before the
+    // unchanged two-second acceptance deadline; late calculator replies remain fenced.
+    internal static readonly TimeSpan TerminalSettlementReserve = TimeSpan.FromMilliseconds(100);
     internal sealed record Evidence(RedispatchCurrentStrategyPipelineCommand Command, IReadOnlyList<ICommand> Commands);
     internal async Task<Evidence> RunAsync(
         ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> owner, IntrinsicTimeStrategyWorkflowCommandState state)
     {
+        var batchStarted=Stopwatch.GetTimestamp();
         var initial = state.DecisionView ?? throw new InvalidOperationException("WF.DECISION.STATE_NOT_READY");
         var services = contextFactory();
         var context = new LocalContext(services, state);
@@ -34,16 +40,20 @@ public sealed class WorkflowDecisionBatchRunner(Func<IIntrinsicTimeStrategyWorkf
             {
                 var current = state.DecisionView!;
                 if (current.Status != WorkflowStrategyMachineStatus.Started || current.EntryCommit is not null) break;
-                if (services.TimeProvider.GetUtcNow().UtcDateTime >= WorkflowCalculationRuntime.EffectiveDeadline(current))
+                var stageDeadline=WorkflowCalculationRuntime.EffectiveDeadline(current);
+                var stageRemaining=stageDeadline-services.TimeProvider.GetUtcNow().UtcDateTime;
+                var batchRemaining=WorkflowDecisionExecutor.MaximumStageDuration-Stopwatch.GetElapsedTime(batchStarted);
+                var remaining=stageRemaining<batchRemaining?stageRemaining:batchRemaining;
+                if (remaining <= TerminalSettlementReserve)
                 {
-                    await ApplyOwnedAsync(Stop(current, WorkflowLocalDispatcher.DeadlineSource)).ConfigureAwait(false);
+                    await ApplyOwnedAsync(Stop(current, services.TimeProvider.GetUtcNow().UtcDateTime>=stageDeadline
+                        ? WorkflowLocalDispatcher.DeadlineSource : WorkflowLocalDispatcher.InterruptedSource)).ConfigureAwait(false);
                     WorkflowDecisionTelemetry.RecordBoundary(current, state.DecisionView!, services.TimeProvider.GetUtcNow().UtcDateTime);
                     break;
                 }
                 var source = state.LatestSource ?? throw new InvalidOperationException("WF.DECISION.SOURCE_NOT_READY");
-                var remaining = WorkflowCalculationRuntime.EffectiveDeadline(current) - services.TimeProvider.GetUtcNow().UtcDateTime;
                 await IntrinsicTimeStrategyWorkflowRealtimeActor.DispatchCommittedStateAsync(context, source).AsTask()
-                    .WaitAsync(remaining, services.TimeProvider).ConfigureAwait(false);
+                    .WaitAsync(remaining-TerminalSettlementReserve, services.TimeProvider).ConfigureAwait(false);
                 while (context.Commands.TryDequeue(out var command))
                     await ApplyOwnedAsync(command).ConfigureAwait(false);
                 if (state.DecisionView!.CurrentStage != current.CurrentStage || state.DecisionView.Status != WorkflowStrategyMachineStatus.Started
@@ -60,7 +70,11 @@ public sealed class WorkflowDecisionBatchRunner(Func<IIntrinsicTimeStrategyWorkf
             // A failed attempt is terminal; neither the operator nor its input capture is retried.
             logger?.LogWarning(error, "Decision batch stopped for workflow {WorkflowId} at {Stage}.", initial.WorkflowId, state.DecisionView!.CurrentStage);
             context.Close();
+            // A reserved-budget timeout precedes the authoritative expiry. Use
+            // interruption in that case; the owner's expiry guard must not be
+            // weakened merely to settle early.
             await ApplyOwnedAsync(Stop(state.DecisionView!, error is TimeoutException
+                && services.TimeProvider.GetUtcNow().UtcDateTime >= WorkflowCalculationRuntime.EffectiveDeadline(state.DecisionView!)
                 ? WorkflowLocalDispatcher.DeadlineSource : WorkflowLocalDispatcher.InterruptedSource)).ConfigureAwait(false);
         }
         finally { context.Close(); }

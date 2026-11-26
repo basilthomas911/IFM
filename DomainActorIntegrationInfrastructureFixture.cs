@@ -83,6 +83,14 @@ public static class DomainActorIntegrationInfrastructureFixture
             ? connection
             : throw new InvalidOperationException("The domain actor integration fixture has not started.");
 
+    /// <summary>Every local recovery owner must be isolated before eager API registration.</summary>
+    public static IReadOnlyDictionary<string,string?> IsolatedRecoveryDirectories(string root)
+        => new[]{"TradeSessionBarRecovery","ItiIngressRecovery","TdiResultRecovery","IronCondorPositionRecovery",
+            "FuturesOptionRoutingRecovery","FuturesRoutingRecovery","DailyFuturesExitRecovery",
+            "WorkflowInitializationRecovery","WorkflowCompositionRecovery","WorkflowMarketConditionRecovery","WorkflowReservationRecovery",
+            "WorkflowCompositionFunctionRecovery","WorkflowSelectionFunctionRecovery","WorkflowAssessmentFunctionRecovery","WorkflowRegimeFunctionRecovery","WorkflowPublicationRecovery"}
+            .ToDictionary(name=>"AppSettings__"+name+"__Directory",name=>(string?)Path.Combine(root,name),StringComparer.Ordinal);
+
     internal static async Task InitializeAsync(string testAssemblyName)
     {
         var isTradeIntegration = testAssemblyName.Contains("TomasAI.IFM.Domain.Trade.IntegratedTests", StringComparison.Ordinal);
@@ -188,6 +196,10 @@ public static class DomainActorIntegrationInfrastructureFixture
         var artifactDirectory = Path.Combine(AppContext.BaseDirectory, "qualification", $"acceptance-{infrastructure.RunId}");
         Directory.CreateDirectory(artifactDirectory);
         SetEnvironment("IFM_QUALIFICATION_ARTIFACT_DIRECTORY", artifactDirectory);
+        foreach(var (key,value) in IsolatedRecoveryDirectories(Path.Combine(artifactDirectory,"recovery")))SetEnvironment(key,value);
+        SetEnvironment("TradeBroker__Emulator__LedgerPath", Path.Combine(artifactDirectory,"emulator","ledger.json"));
+        SetEnvironment("Actors__RealtimeMailboxes__Directory", Path.Combine(artifactDirectory,"realtime-mailboxes"));
+        SetEnvironment("IFM_TEST_POSITION_INTENT_ROOT", Path.Combine(artifactDirectory,"actor-position-intents"));
         if (testAssemblyName.Contains("MarketData.Feed.IntegrationTests", StringComparison.Ordinal))
             SetEnvironment("MarketData__FuturesEodHistorySpoolPath", Path.Combine(artifactDirectory, "eod-history"));
 

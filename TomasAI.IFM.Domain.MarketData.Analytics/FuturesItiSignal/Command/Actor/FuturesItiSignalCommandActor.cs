@@ -73,6 +73,10 @@ public class FuturesItiSignalCommandActor(ICommandActorContext<FuturesItiSignalC
                 await ResidentRepository.OpenResidentWriterAsync(context, CancellationToken.None).ConfigureAwait(false);
                 InputWal = new(Path.Combine(journalDirectory, ResidentStore!.JournalNamespace));
                 _ = await ResidentStore.BindJournalRootAsync(InputWal.RootId).ConfigureAwait(false);
+                await TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Realtime.FuturesItiCausalPrefixImport.ApplyConfiguredAsync(
+                    ResidentStore, InputWal, PrepareInputsAsync, CancellationToken.None).ConfigureAwait(false);
+                await TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Realtime.FuturesItiCausalContinuationImport.ApplyConfiguredAsync(
+                    ResidentStore, InputWal, PrepareInputsAsync, CancellationToken.None).ConfigureAwait(false);
                 await ImportWalAsync(CancellationToken.None).ConfigureAwait(false);
                 await RecoverInputsAsync(CancellationToken.None).ConfigureAwait(false);
                 FuturesItiLocalCommandEndpoint.Register(this);
@@ -144,7 +148,7 @@ public class FuturesItiSignalCommandActor(ICommandActorContext<FuturesItiSignalC
             }
             return ValueTask.FromResult<ServiceResult<GuidResult>>(new ServiceOk<GuidResult>(new GuidResult(batch.CommandId)));
         }
-        if (command is GenerateFuturesItiSignalCommand { TimePeriod: TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType.Daily } generate)
+        if (command is GenerateFuturesItiSignalCommand { TimePeriod: TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType.Daily, InputsFrozen: false } generate)
         {
             TomasAI.IFM.Domain.MarketData.Analytics.Shared.DailyItiAtrThreshold? input = null;
             if (atrReader.TryGetLatest(generate.ContractId, TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType.FiveMinutes, out var atr)
@@ -418,14 +422,16 @@ public class FuturesItiSignalCommandActor(ICommandActorContext<FuturesItiSignalC
     async Task ImportWalAsync(CancellationToken token)
     {
         var pending = new List<GenerateFuturesItiSignalCommand>(64);
+        var retainedPreparation=false;
         TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Realtime.FuturesItiInputWal.Position last = default;
         await foreach (var row in InputWal!.ReplayAsync(token).ConfigureAwait(false))
         {
             var input = FuturesItiJournalEnvelope.Decode(row.Payload, 0);
+            if(!InputWal.IsSourceReleased(input)){retainedPreparation=true;continue;}
             if (pending.Count == 64 || pending.Count > 0 && pending[0].StreamId != input.StreamId)
             {
                 _ = await PrepareInputsAsync(pending.ToArray(), token).ConfigureAwait(false);
-                await InputWal.AcknowledgeAsync(last).ConfigureAwait(false);
+                if(!retainedPreparation)await InputWal.AcknowledgeAsync(last).ConfigureAwait(false);
                 pending.Clear();
             }
             pending.Add(input);
@@ -434,7 +440,7 @@ public class FuturesItiSignalCommandActor(ICommandActorContext<FuturesItiSignalC
         if (pending.Count > 0)
         {
             _ = await PrepareInputsAsync(pending.ToArray(), token).ConfigureAwait(false);
-            await InputWal.AcknowledgeAsync(last).ConfigureAwait(false);
+            if(!retainedPreparation)await InputWal.AcknowledgeAsync(last).ConfigureAwait(false);
         }
     }
 
@@ -443,6 +449,34 @@ public class FuturesItiSignalCommandActor(ICommandActorContext<FuturesItiSignalC
         if (retiredSources.TryGetValue((stream,cursor.Epoch), out var sealedOrdinal)) return cursor.Ordinal <= sealedOrdinal;
         return processedSources.TryGetValue(stream, out var current) && current.Cursor.Epoch == cursor.Epoch
             && cursor.Ordinal <= current.Cursor.Ordinal;
+    }
+
+    /// <summary>Positive original-source proof used only to settle retained upstream recovery deliveries.</summary>
+    public async ValueTask<bool> ProveProcessedOriginalAsync(
+        TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events.FuturesMarketPriceUpdatedRealtimeEvent source,
+        CancellationToken token = default)
+    {
+        if (source.VwapCheckpoint is not null || source.Price.Trade is not { } trade
+            || source.EntityId.ContractId != source.Price.ContractId || source.EntityId.ValueDate != source.Price.ValueDate
+            || trade.StreamEpochId == Guid.Empty || trade.TradeOrdinal < 1) return false;
+        var dataset = string.IsNullOrWhiteSpace(source.SourceDataset) ? source.SourceTrade?.Dataset : source.SourceDataset;
+        if (string.IsNullOrWhiteSpace(dataset)) return false;
+        var cursor = new TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesItiSourceCursor(dataset,
+            source.Price.PublisherId, source.Price.InstrumentId, trade.StreamEpochId, trade.TradeOrdinal,
+            trade.SourceSequence, trade.EventTimestamp.UtcDateTime, trade.ReceiveTimestamp.UtcDateTime);
+        var descriptor = new GenerateFuturesItiSignalCommand(source.Price.ContractId, source.Price.ValueDate,
+            TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType.Daily, trade.EventTimestamp.UtcDateTime, (double)trade.LastPrice, 0);
+        descriptor = descriptor with { Subject = new(ActorType.Command, GenerateFuturesItiSignalCommand.Actor,
+            GenerateFuturesItiSignalCommand.Verb, descriptor.EntityId.Format()) };
+        if (!IsProcessedSource(descriptor.StreamId, cursor)) return false;
+        var rows = await ResidentStore!.ReadOriginalSourceAsync(descriptor.StreamId, cursor.Epoch, cursor.Ordinal, token).ConfigureAwait(false);
+        if (rows.Count == 0) return false;
+        if (rows.Count != 1) throw new InvalidDataException("Original ITI recovery cursor has conflicting durable input identities.");
+        var frozen = FuturesItiJournalEnvelope.Decode(rows[0].Payload, rows[0].Id);
+        if (frozen.SourceCursor != cursor || frozen.Timestamp != trade.EventTimestamp.UtcDateTime
+            || frozen.FuturesPrice != (double)trade.LastPrice || !frozen.InputsFrozen)
+            throw new InvalidDataException("Retained original source differs from the committed frozen ITI input.");
+        return true;
     }
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")]
     protected override async ValueTask<ServiceResult<GuidResult>> HandleCommandExceptionAsync(ICommandActorContext<FuturesItiSignalCommandActor> context, ActorThreadId threadId, ICommand command, Exception ex)

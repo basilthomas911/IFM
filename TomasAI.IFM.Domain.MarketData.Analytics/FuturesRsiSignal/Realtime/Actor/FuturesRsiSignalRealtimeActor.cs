@@ -13,6 +13,9 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Realtime.Acto
 public class FuturesRsiSignalRealtimeActor(IRealtimeActorContext<FuturesRsiSignalRealtimeActor> actorContext)
     : BaseEventActor<FuturesRsiSignalRealtimeActor>(actorContext, actorContext.Logger)
 {
+    /// <inheritdoc />
+    protected override bool PropagateHandlerFailures => true;
+
     /// <summary>Identifies the RSI realtime mailbox.</summary>
     public const string ActorName = "FuturesRsiSignal";
     /// <summary>Gets the typed context supplied to this actor.</summary>
@@ -61,7 +64,8 @@ public class FuturesRsiSignalRealtimeActor(IRealtimeActorContext<FuturesRsiSigna
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);
         var handler = ResolveMappedEventHandler(@event, _receiveMap);
-        _ = await handler(@event, FuturesRsiSignalRealtimeContext, _logger).ConfigureAwait(false);
+        if (!await handler(@event, FuturesRsiSignalRealtimeContext, _logger).ConfigureAwait(false))
+            throw new IOException("RSI required downstream delivery failed.");
     }
 
     /// <summary>Publishes the standard actor error event.</summary>

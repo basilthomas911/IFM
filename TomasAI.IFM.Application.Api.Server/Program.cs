@@ -6,11 +6,11 @@ using TomasAI.IFM.Application.Api.Server;
 try
 {
     var builder = WebApplication.CreateBuilder(args);
+    Startup.ConfigureRunMode(builder, args);
     using var gcHistory = ApiServerProcess.RecordGc(builder.Configuration);
     if (!await ApiServerModes.RunBeforeBuildAsync(builder, args))
     {
         builder.ConfigureApiServer(out var logger);
-        Startup.ConfigureRunMode(builder, args);
         builder.Services.RegisterServices(builder.Configuration, logger, builder.Environment);
         await using var app = builder.Build();
         await app.Services.GetRequiredService<IApiServerLifecycle>().RunAsync(app, args, logger);

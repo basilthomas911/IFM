@@ -8,7 +8,7 @@ using TomasAI.IFM.Framework.TradeBroker.Contracts;
 namespace TomasAI.IFM.Framework.TradeBroker.InteractiveBrokers.Emulator.Engine;
 
 /// <summary>One synchronized synthetic ledger shared by order execution and account ports.</summary>
-public sealed class EmulatorLedger
+public sealed partial class EmulatorLedger
 {
     private static readonly EmulatorFaultProfile NoFaults = new();
     private readonly System.Threading.Lock _sync = new();
@@ -21,8 +21,12 @@ public sealed class EmulatorLedger
     private readonly Dictionary<string, EmulatorQuote> _latestQuotes = new(StringComparer.Ordinal);
     private readonly List<EmulatorJournalEntry> _journal = [];
     private readonly List<FrameworkBrokerObservation> _observations = [];
-    private readonly Channel<FrameworkBrokerObservation> _orderEvents = CreateCriticalObservationChannel();
-    private readonly Channel<FrameworkBrokerObservation> _accountEvents = CreateCriticalObservationChannel();
+    // Hints may coalesce; the committed observation journal is the authoritative pending queue.
+    private readonly Channel<bool> _orderEvents = Channel.CreateBounded<bool>(new BoundedChannelOptions(1)
+    { SingleReader = true, FullMode = BoundedChannelFullMode.DropWrite, AllowSynchronousContinuations = false });
+    // Account observations are latest-state wakeups; every money/order fact remains in the committed journal.
+    private readonly Channel<bool> _accountEvents = Channel.CreateBounded<bool>(new BoundedChannelOptions(1)
+    { SingleReader = true, FullMode = BoundedChannelFullMode.DropWrite, AllowSynchronousContinuations = false });
     private decimal _cash;
     private long _sequence;
     private long _generation = 1;
@@ -42,48 +46,25 @@ public sealed class EmulatorLedger
         _scenario = scenario;
         _clock = clock;
         _store = store;
+        _cash = scenario.StartingCash;
         var checkpoint = store.Load();
-        if (checkpoint is null)
-        {
-            _cash = scenario.StartingCash;
-            return;
-        }
-        _cash = checkpoint.Cash;
-        _sequence = checkpoint.Sequence;
-        _generation = checkpoint.Generation;
-        foreach (var item in checkpoint.Orders)
-        {
-            var totalUnits = Math.Abs(item.Request.Legs[0].SignedQuantity);
-            _orders.Add(item.Request.BrokerOrderId, new OrderState(item.Request)
-            {
-                Limit = item.Limit,
-                Revision = item.Revision,
-                Filled = item.Filled,
-                Cancelled = item.Cancelled,
-                FilledStrategyUnits = item switch
-                {
-                    { FilledStrategyUnits: > 0 } => item.FilledStrategyUnits,
-                    { Filled: true } => totalUnits,
-                    _ => 0
-                }
-            });
-        }
-        foreach (var item in checkpoint.Operations) _operations.Add(item.OperationId, (item.Hash, item.Receipt));
-        foreach (var item in checkpoint.Positions) _positions.Add(item.ContractId, item);
-        _journal.AddRange(checkpoint.Journal);
-        _observations.AddRange(checkpoint.Observations);
+        if (checkpoint is not null) RestoreCheckpoint(checkpoint);
+        _committed = CreateCheckpoint();
     }
 
     public string AccountAlias => _scenario.AccountAlias;
-    public long Generation { get { lock (_sync) return _generation; } }
-    public ImmutableArray<EmulatorJournalEntry> Journal { get { lock (_sync) return [.. _journal]; } }
+    public long Generation { get { lock (_sync) { RequireCommitted(); return _generation; } } }
+    public ImmutableArray<EmulatorJournalEntry> Journal { get { lock (_sync) { RequireCommitted(); return [.. _journal]; } } }
     public string LedgerHash
     {
         get
         {
             lock (_sync)
+            {
+                RequireCommitted();
                 return Convert.ToHexString(SHA256.HashData(
                     JsonSerializer.SerializeToUtf8Bytes(CreateCheckpoint())));
+            }
         }
     }
 
@@ -92,28 +73,31 @@ public sealed class EmulatorLedger
         ArgumentNullException.ThrowIfNull(request);
         lock (_sync)
         {
-            var hash = Fingerprint(request);
-            if (_operations.TryGetValue(request.OperationId, out var prior))
-                return string.Equals(prior.Hash,hash,StringComparison.Ordinal) ? prior.Receipt : Receipt(request.OperationId, request.BrokerOrderId, FrameworkDispatchOutcome.RejectedLocally, "EM.OPERATION.CONFLICT", "Operation ID was reused with different content.");
-            var failure = Validate(request);
-            if (failure is not null)
-                return StoreAndPersist(request.OperationId, hash, Receipt(request.OperationId, request.BrokerOrderId, FrameworkDispatchOutcome.RejectedLocally, failure.Value.Code, failure.Value.Detail));
-            if (_orders.TryGetValue(request.BrokerOrderId, out var existing))
-                return StoreAndPersist(request.OperationId, hash, Receipt(request.OperationId, request.BrokerOrderId, FrameworkDispatchOutcome.RejectedLocally, "EM.ORDER.EXISTS", $"Order already exists at revision {existing.Revision}."));
-            _orders.Add(request.BrokerOrderId, new OrderState(request));
-            Append("Place", request.BrokerOrderId, request.OperationId);
-            var receipt = Faults.PlaceDispatchOutcomeUnknown
-                ? Store(request.OperationId, hash, Receipt(request.OperationId, request.BrokerOrderId,
-                    FrameworkDispatchOutcome.OutcomeUnknown, "EM.DISPATCH.UNKNOWN",
-                    "Synthetic order was accepted, but the local dispatch outcome is deliberately ambiguous."))
-                : Store(request.OperationId, hash, Receipt(request.OperationId, request.BrokerOrderId,
-                    FrameworkDispatchOutcome.AcceptedForDispatch, "EM.DISPATCHED",
-                    "Synthetic order accepted for matching; no fill implied."));
-            if (Faults.SuppressAcknowledgement)
-                Persist();
-            else
-                CommitAndPublish(new FrameworkBrokerObservation { Kind = FrameworkObservationKind.Acknowledged, ObservationId = ObservationId("ack", request.BrokerOrderId, _sequence), AccountAlias = AccountAlias, BrokerOrderId = request.BrokerOrderId, OperationId = request.OperationId, ComponentId = request.ComponentId, OrderRevision = 1, SourceEpoch = _generation, SourceSequence = _sequence, OccurredAtUtc = _clock.UtcNow });
-            return receipt;
+            return Transact(() =>
+            {
+                var hash = Fingerprint(request);
+                if (_operations.TryGetValue(request.OperationId, out var prior))
+                    return string.Equals(prior.Hash,hash,StringComparison.Ordinal) ? prior.Receipt : Receipt(request.OperationId, request.BrokerOrderId, FrameworkDispatchOutcome.RejectedLocally, "EM.OPERATION.CONFLICT", "Operation ID was reused with different content.");
+                var failure = Validate(request);
+                if (failure is not null)
+                    return StoreAndPersist(request.OperationId, hash, Receipt(request.OperationId, request.BrokerOrderId, FrameworkDispatchOutcome.RejectedLocally, failure.Value.Code, failure.Value.Detail));
+                if (_orders.TryGetValue(request.BrokerOrderId, out var existing))
+                    return StoreAndPersist(request.OperationId, hash, Receipt(request.OperationId, request.BrokerOrderId, FrameworkDispatchOutcome.RejectedLocally, "EM.ORDER.EXISTS", $"Order already exists at revision {existing.Revision}."));
+                _orders.Add(request.BrokerOrderId, new OrderState(request));
+                Append("Place", request.BrokerOrderId, request.OperationId);
+                var receipt = Faults.PlaceDispatchOutcomeUnknown
+                    ? Store(request.OperationId, hash, Receipt(request.OperationId, request.BrokerOrderId,
+                        FrameworkDispatchOutcome.OutcomeUnknown, "EM.DISPATCH.UNKNOWN",
+                        "Synthetic order was accepted, but the local dispatch outcome is deliberately ambiguous."))
+                    : Store(request.OperationId, hash, Receipt(request.OperationId, request.BrokerOrderId,
+                        FrameworkDispatchOutcome.AcceptedForDispatch, "EM.DISPATCHED",
+                        "Synthetic order accepted for matching; no fill implied."));
+                if (Faults.SuppressAcknowledgement)
+                    Persist();
+                else
+                    CommitAndPublish(new FrameworkBrokerObservation { Kind = FrameworkObservationKind.Acknowledged, ObservationId = ObservationId("ack", request.BrokerOrderId, _sequence), AccountAlias = AccountAlias, BrokerOrderId = request.BrokerOrderId, OperationId = request.OperationId, ComponentId = request.ComponentId, OrderRevision = 1, SourceEpoch = _generation, SourceSequence = _sequence, OccurredAtUtc = _clock.UtcNow });
+                return receipt;
+            });
         }
     }
 
@@ -122,39 +106,42 @@ public sealed class EmulatorLedger
         ArgumentNullException.ThrowIfNull(request);
         lock (_sync)
         {
-            var hash = Fingerprint(request);
-            if (_operations.TryGetValue(request.OperationId, out var prior))
-                return string.Equals(prior.Hash,hash,StringComparison.Ordinal) ? prior.Receipt : Receipt(request.OperationId, request.BrokerOrderId, FrameworkDispatchOutcome.RejectedLocally, "EM.OPERATION.CONFLICT", "Operation ID was reused with different content.");
-            if (!string.Equals(request.AccountAlias,AccountAlias,StringComparison.Ordinal) || !_orders.TryGetValue(request.BrokerOrderId, out var order) || order.Cancelled || order.Filled)
-                return StoreAndPersist(request.OperationId, hash, Receipt(request.OperationId, request.BrokerOrderId, FrameworkDispatchOutcome.RejectedLocally, "EM.ORDER.UNAVAILABLE", "Working order/account was not found."));
-            if (request.ExpectedRevision != order.Revision || !ValidLimit(request.NewSignedNetDebitLimit, order.Request))
-                return StoreAndPersist(request.OperationId, hash, Receipt(request.OperationId, request.BrokerOrderId, FrameworkDispatchOutcome.RejectedLocally, "EM.LIMIT.INVALID", "Expected revision or approved price envelope is invalid."));
-            order.Revision++;
-            order.Limit = request.NewSignedNetDebitLimit;
-            // Later authoritative fills belong to the most recently accepted mutation. Keeping
-            // this operation identity current lets the durable BrokerOrder stream correlate a
-            // fill that follows a price change without weakening its operation guard.
-            order.Request = order.Request with
+            return Transact(() =>
             {
-                OperationId = request.OperationId,
-                SignedNetDebitLimit = request.NewSignedNetDebitLimit
-            };
-            Append("Modify", request.BrokerOrderId, request.OperationId);
-            var receipt = Store(request.OperationId, hash, Receipt(request.OperationId, request.BrokerOrderId, FrameworkDispatchOutcome.AcceptedForDispatch, "EM.MODIFIED", "Price-only change accepted."));
-            CommitAndPublish(new FrameworkBrokerObservation
-            {
-                Kind = FrameworkObservationKind.Acknowledged,
-                ObservationId = ObservationId("modified", request.BrokerOrderId, _sequence),
-                AccountAlias = AccountAlias,
-                BrokerOrderId = request.BrokerOrderId,
-                OperationId = request.OperationId,
-                ComponentId = order.Request.ComponentId,
-                OrderRevision = order.Revision,
-                SourceEpoch = _generation,
-                SourceSequence = _sequence,
-                OccurredAtUtc = _clock.UtcNow
+                var hash = Fingerprint(request);
+                if (_operations.TryGetValue(request.OperationId, out var prior))
+                    return string.Equals(prior.Hash,hash,StringComparison.Ordinal) ? prior.Receipt : Receipt(request.OperationId, request.BrokerOrderId, FrameworkDispatchOutcome.RejectedLocally, "EM.OPERATION.CONFLICT", "Operation ID was reused with different content.");
+                if (!string.Equals(request.AccountAlias,AccountAlias,StringComparison.Ordinal) || !_orders.TryGetValue(request.BrokerOrderId, out var order) || order.Cancelled || order.Filled)
+                    return StoreAndPersist(request.OperationId, hash, Receipt(request.OperationId, request.BrokerOrderId, FrameworkDispatchOutcome.RejectedLocally, "EM.ORDER.UNAVAILABLE", "Working order/account was not found."));
+                if (request.ExpectedRevision != order.Revision || !ValidLimit(request.NewSignedNetDebitLimit, order.Request))
+                    return StoreAndPersist(request.OperationId, hash, Receipt(request.OperationId, request.BrokerOrderId, FrameworkDispatchOutcome.RejectedLocally, "EM.LIMIT.INVALID", "Expected revision or approved price envelope is invalid."));
+                order.Revision++;
+                order.Limit = request.NewSignedNetDebitLimit;
+                // Later authoritative fills belong to the most recently accepted mutation. Keeping
+                // this operation identity current lets the durable BrokerOrder stream correlate a
+                // fill that follows a price change without weakening its operation guard.
+                order.Request = order.Request with
+                {
+                    OperationId = request.OperationId,
+                    SignedNetDebitLimit = request.NewSignedNetDebitLimit
+                };
+                Append("Modify", request.BrokerOrderId, request.OperationId);
+                var receipt = Store(request.OperationId, hash, Receipt(request.OperationId, request.BrokerOrderId, FrameworkDispatchOutcome.AcceptedForDispatch, "EM.MODIFIED", "Price-only change accepted."));
+                CommitAndPublish(new FrameworkBrokerObservation
+                {
+                    Kind = FrameworkObservationKind.Acknowledged,
+                    ObservationId = ObservationId("modified", request.BrokerOrderId, _sequence),
+                    AccountAlias = AccountAlias,
+                    BrokerOrderId = request.BrokerOrderId,
+                    OperationId = request.OperationId,
+                    ComponentId = order.Request.ComponentId,
+                    OrderRevision = order.Revision,
+                    SourceEpoch = _generation,
+                    SourceSequence = _sequence,
+                    OccurredAtUtc = _clock.UtcNow
+                });
+                return receipt;
             });
-            return receipt;
         }
     }
 
@@ -163,18 +150,21 @@ public sealed class EmulatorLedger
         ArgumentNullException.ThrowIfNull(request);
         lock (_sync)
         {
-            var hash = Fingerprint(request);
-            if (_operations.TryGetValue(request.OperationId, out var prior))
-                return string.Equals(prior.Hash,hash,StringComparison.Ordinal) ? prior.Receipt : Receipt(request.OperationId, request.BrokerOrderId, FrameworkDispatchOutcome.RejectedLocally, "EM.OPERATION.CONFLICT", "Operation ID was reused with different content.");
-            if (!string.Equals(request.AccountAlias,AccountAlias,StringComparison.Ordinal) || !_orders.TryGetValue(request.BrokerOrderId, out var order) || request.ExpectedRevision != order.Revision)
-                return StoreAndPersist(request.OperationId, hash, Receipt(request.OperationId, request.BrokerOrderId, FrameworkDispatchOutcome.RejectedLocally, "EM.CANCEL.INVALID", "Order/account or revision is invalid."));
-            if (!order.Filled && !order.Cancelled)
+            return Transact(() =>
             {
-                order.Cancelled = true;
-                Append("Cancel", request.BrokerOrderId, request.OperationId);
-                CommitAndPublish(new FrameworkBrokerObservation { Kind = FrameworkObservationKind.Cancelled, ObservationId = ObservationId("cancel", request.BrokerOrderId, _sequence), AccountAlias = AccountAlias, BrokerOrderId = request.BrokerOrderId, OperationId = request.OperationId, ComponentId = order.Request.ComponentId, OrderRevision = order.Revision, SourceEpoch = _generation, SourceSequence = _sequence, OccurredAtUtc = _clock.UtcNow, ExecutionFinal = !Faults.AllowFillsAfterCancel });
-            }
-            return StoreAndPersist(request.OperationId, hash, Receipt(request.OperationId, request.BrokerOrderId, FrameworkDispatchOutcome.AcceptedForDispatch, "EM.CANCELLED", "Synthetic order cancelled or already final."));
+                var hash = Fingerprint(request);
+                if (_operations.TryGetValue(request.OperationId, out var prior))
+                    return string.Equals(prior.Hash,hash,StringComparison.Ordinal) ? prior.Receipt : Receipt(request.OperationId, request.BrokerOrderId, FrameworkDispatchOutcome.RejectedLocally, "EM.OPERATION.CONFLICT", "Operation ID was reused with different content.");
+                if (!string.Equals(request.AccountAlias,AccountAlias,StringComparison.Ordinal) || !_orders.TryGetValue(request.BrokerOrderId, out var order) || request.ExpectedRevision != order.Revision)
+                    return StoreAndPersist(request.OperationId, hash, Receipt(request.OperationId, request.BrokerOrderId, FrameworkDispatchOutcome.RejectedLocally, "EM.CANCEL.INVALID", "Order/account or revision is invalid."));
+                if (!order.Filled && !order.Cancelled)
+                {
+                    order.Cancelled = true;
+                    Append("Cancel", request.BrokerOrderId, request.OperationId);
+                    CommitAndPublish(new FrameworkBrokerObservation { Kind = FrameworkObservationKind.Cancelled, ObservationId = ObservationId("cancel", request.BrokerOrderId, _sequence), AccountAlias = AccountAlias, BrokerOrderId = request.BrokerOrderId, OperationId = request.OperationId, ComponentId = order.Request.ComponentId, OrderRevision = order.Revision, SourceEpoch = _generation, SourceSequence = _sequence, OccurredAtUtc = _clock.UtcNow, ExecutionFinal = !Faults.AllowFillsAfterCancel });
+                }
+                return StoreAndPersist(request.OperationId, hash, Receipt(request.OperationId, request.BrokerOrderId, FrameworkDispatchOutcome.AcceptedForDispatch, "EM.CANCELLED", "Synthetic order cancelled or already final."));
+            });
         }
     }
 
@@ -184,33 +174,44 @@ public sealed class EmulatorLedger
         ArgumentNullException.ThrowIfNull(quote);
         lock (_sync)
         {
-            if (string.IsNullOrWhiteSpace(quote.ContractId) || quote.MarketTimeUtc.Kind != DateTimeKind.Utc ||
-                quote.SourceEpoch <= 0 || quote.SourceSequence <= 0 || quote.Bid <= 0 || quote.Ask < quote.Bid)
-                return 0;
-            _latestQuotes[quote.ContractId] = quote;
-            var candidates = _orders.Values
-                .Where(order => (!order.Cancelled || Faults.AllowFillsAfterCancel) && !order.Filled &&
-                    order.Request.Legs.Any(leg => string.Equals(leg.ContractId,quote.ContractId,StringComparison.Ordinal)))
-                .Select(order => order.Request.BrokerOrderId)
-                .ToArray();
-            var matched = 0;
-            foreach (var brokerOrderId in candidates)
+            return Transact(() =>
             {
-                var order = _orders[brokerOrderId];
-                var quotes = new EmulatorQuote[order.Request.Legs.Length];
-                var complete = true;
-                for (var index = 0; index < order.Request.Legs.Length; index++)
+                if (string.IsNullOrWhiteSpace(quote.ContractId) || quote.MarketTimeUtc.Kind != DateTimeKind.Utc ||
+                    quote.SourceEpoch <= 0 || quote.SourceSequence <= 0 || quote.Bid <= 0 || quote.Ask < quote.Bid)
+                    return 0;
+                var identity = QuoteIdentity(quote);
+                if (_quoteReceipts.TryGetValue(identity, out var completed))
                 {
-                    if (!_latestQuotes.TryGetValue(order.Request.Legs[index].ContractId, out var found))
-                    {
-                        complete = false;
-                        break;
-                    }
-                    quotes[index] = found;
+                    if (completed.Quote != quote) throw new InvalidDataException("Emulator quote identity reused with another book.");
+                    return 0;
                 }
-                if (complete && TryMatch(brokerOrderId, quotes)) matched++;
-            }
-            return matched;
+                _latestQuotes[quote.ContractId] = quote;
+                var candidates = _orders.Values
+                    .Where(order => (!order.Cancelled || Faults.AllowFillsAfterCancel) && !order.Filled &&
+                        order.Request.Legs.Any(leg => string.Equals(leg.ContractId,quote.ContractId,StringComparison.Ordinal)))
+                    .Select(order => order.Request.BrokerOrderId)
+                    .ToArray();
+                var matched = 0;
+                foreach (var brokerOrderId in candidates)
+                {
+                    var order = _orders[brokerOrderId];
+                    var quotes = new EmulatorQuote[order.Request.Legs.Length];
+                    var complete = true;
+                    for (var index = 0; index < order.Request.Legs.Length; index++)
+                    {
+                        if (!_latestQuotes.TryGetValue(order.Request.Legs[index].ContractId, out var found))
+                        {
+                            complete = false;
+                            break;
+                        }
+                        quotes[index] = found;
+                    }
+                    if (complete && TryMatch(brokerOrderId, quotes)) matched++;
+                }
+                _quoteReceipts.Add(identity, new(quote, matched));
+                Persist();
+                return matched;
+            });
         }
     }
 
@@ -221,111 +222,124 @@ public sealed class EmulatorLedger
         ArgumentNullException.ThrowIfNull(quotes);
         lock (_sync)
         {
-            if (Faults.DisconnectMarketMatching ||
-                !_orders.TryGetValue(brokerOrderId, out var order) ||
-                order.Cancelled && !Faults.AllowFillsAfterCancel || order.Filled ||
-                _clock.UtcNow > order.Request.ValidUntilUtc) return false;
-            var legs = order.Request.Legs;
-            if (quotes.Count != legs.Length || quotes.Count == 0) return false;
-            var epoch = quotes[0].SourceEpoch;
-            var earliestMarketTime = quotes.Min(quote => quote.MarketTimeUtc);
-            var latestMarketTime = quotes.Max(quote => quote.MarketTimeUtc);
-            if (latestMarketTime - earliestMarketTime > _scenario.MaximumQuoteAge) return false;
-            decimal netDebit = 0;
-            var availableStrategyUnits = int.MaxValue;
-            for (var i = 0; i < legs.Length; i++)
+            return Transact(() =>
             {
-                var leg = legs[i];
-                var quote = quotes[i];
-                if (!string.Equals(leg.ContractId,quote.ContractId,StringComparison.Ordinal) || quote.SourceEpoch <= 0 || quote.SourceSequence <= 0 || quote.SourceEpoch != epoch ||
-                    quote.MarketTimeUtc.Kind != DateTimeKind.Utc || quote.MarketTimeUtc > _clock.UtcNow ||
-                    _clock.UtcNow - quote.MarketTimeUtc > _scenario.MaximumQuoteAge || quote.Bid <= 0 ||
-                    quote.Ask < quote.Bid) return false;
-                var executableSize = leg.SignedQuantity > 0 ? quote.AskSize : quote.BidSize;
-                if (executableSize <= 0) return false;
-                availableStrategyUnits = Math.Min(availableStrategyUnits, executableSize);
-                netDebit += (leg.SignedQuantity > 0 ? quote.Ask : -quote.Bid) * Math.Abs(leg.SignedQuantity);
-            }
-            // Combo limits are quoted per balanced strategy unit, not per total order quantity.
-            var totalUnits = Math.Abs(legs[0].SignedQuantity);
-            var remainingUnits = totalUnits - order.FilledStrategyUnits;
-            var fillUnits = Math.Min(remainingUnits,
-                Math.Min(availableStrategyUnits, _scenario.MaximumStrategyUnitsPerFill));
-            if (fillUnits <= 0) return false;
-            var netDebitPerUnit = netDebit / totalUnits;
-            if (order.Request.OrderType == FrameworkOrderType.Limit && netDebitPerUnit > order.Limit) return false;
-            var fee = _scenario.PerLegCommission * legs.Length * fillUnits;
-            var cashMovement = netDebitPerUnit * fillUnits * legs[0].CashMultiplier;
-            order.FilledStrategyUnits += fillUnits;
-            order.Filled = order.FilledStrategyUnits == totalUnits;
-            _cash -= cashMovement + fee;
-            var executionFacts = new List<FrameworkBrokerObservation>(legs.Length);
-            var commissionFacts = new List<FrameworkBrokerObservation>(legs.Length);
-            var pendingFacts = new List<FrameworkBrokerObservation>(legs.Length * 2 + 2);
-            foreach (var leg in legs)
-            {
-                var quote = quotes[Array.FindIndex(legs, x => x.LegId == leg.LegId)];
-                var price = leg.SignedQuantity > 0 ? quote.Ask : quote.Bid;
-                var previous = _positions.GetValueOrDefault(leg.ContractId);
-                var filledQuantity = Math.Sign(leg.SignedQuantity) * fillUnits;
-                var quantity = (previous?.SignedQuantity ?? 0) + filledQuantity;
-                if (quantity == 0) _positions.Remove(leg.ContractId);
-                else _positions[leg.ContractId] = new FrameworkAccountPosition(leg.ContractId, quantity, price);
-                Append("Execution", brokerOrderId, order.Request.OperationId);
-                var execId = $"EM-{brokerOrderId}-{leg.LegId:N}-{_sequence}";
-                executionFacts.Add(new FrameworkBrokerObservation { Kind = FrameworkObservationKind.Execution, ObservationId = ObservationId("exec", brokerOrderId, _sequence), AccountAlias = AccountAlias, BrokerOrderId = brokerOrderId, OperationId = order.Request.OperationId, ComponentId = order.Request.ComponentId, LegId = leg.LegId, ContractId = leg.ContractId, ExternalExecutionId = execId, SignedQuantity = filledQuantity, Price = price, OrderRevision = order.Revision, SourceEpoch = epoch, SourceSequence = quote.SourceSequence, OccurredAtUtc = _clock.UtcNow });
-                Append("Commission", brokerOrderId, order.Request.OperationId);
-                commissionFacts.Add(new FrameworkBrokerObservation { Kind = FrameworkObservationKind.Commission, ObservationId = ObservationId("fee", brokerOrderId, _sequence), AccountAlias = AccountAlias, BrokerOrderId = brokerOrderId, OperationId = order.Request.OperationId, ComponentId = order.Request.ComponentId, LegId = leg.LegId, ContractId = leg.ContractId, ExternalExecutionId = execId, Commission = _scenario.PerLegCommission * fillUnits, OrderRevision = order.Revision, SourceEpoch = epoch, SourceSequence = quote.SourceSequence, OccurredAtUtc = _clock.UtcNow });
-            }
-            if (Faults.PublishCommissionBeforeExecution)
-            {
-                pendingFacts.AddRange(commissionFacts);
-                pendingFacts.AddRange(executionFacts);
-            }
-            else
-            {
-                pendingFacts.AddRange(executionFacts);
-                pendingFacts.AddRange(commissionFacts);
-            }
-            if (order.Filled)
-            {
-                Append("OrderCompleted", brokerOrderId, order.Request.OperationId);
-                pendingFacts.Add(new FrameworkBrokerObservation
+                if (Faults.DisconnectMarketMatching ||
+                    !_orders.TryGetValue(brokerOrderId, out var order) ||
+                    order.Cancelled && !Faults.AllowFillsAfterCancel || order.Filled ||
+                    _clock.UtcNow > order.Request.ValidUntilUtc) return false;
+                var matchKey = MatchIdentity(brokerOrderId, order.Revision, quotes);
+                if (_matchReceipts.TryGetValue(matchKey, out var completedMatch))
                 {
-                    Kind = FrameworkObservationKind.OrderCompleted,
-                    ObservationId = ObservationId("completed", brokerOrderId, _sequence),
-                    AccountAlias = AccountAlias,
-                    BrokerOrderId = brokerOrderId,
-                    OperationId = order.Request.OperationId,
-                    ComponentId = order.Request.ComponentId,
-                    OrderRevision = order.Revision,
-                    SourceEpoch = epoch,
-                    SourceSequence = _sequence,
-                    OccurredAtUtc = _clock.UtcNow
-                });
-            }
-            _generation++;
-            Append("Account", brokerOrderId, order.Request.OperationId);
-            pendingFacts.Add(new FrameworkBrokerObservation { Kind = FrameworkObservationKind.AccountSnapshot, ObservationId = ObservationId("account", brokerOrderId, _sequence), AccountAlias = AccountAlias, BrokerOrderId = brokerOrderId, OperationId = order.Request.OperationId, SourceEpoch = _generation, SourceSequence = _sequence, OccurredAtUtc = _clock.UtcNow });
-            CommitAndPublish([.. pendingFacts]);
-            return true;
+                    // Offline simulation can cap executable size without changing the source quote identity.
+                    // An accepted quote set cannot execute twice; raw publication receipts still validate the full book.
+                    if (!completedMatch.Quotes.Zip(quotes).All(pair => pair.First.Bid == pair.Second.Bid && pair.First.Ask == pair.Second.Ask))
+                        throw new InvalidDataException("Emulator match identity reused with another price.");
+                    return false;
+                }
+                var legs = order.Request.Legs;
+                if (quotes.Count != legs.Length || quotes.Count == 0) return false;
+                var epoch = quotes[0].SourceEpoch;
+                var earliestMarketTime = quotes.Min(quote => quote.MarketTimeUtc);
+                var latestMarketTime = quotes.Max(quote => quote.MarketTimeUtc);
+                if (latestMarketTime - earliestMarketTime > _scenario.MaximumQuoteAge) return false;
+                decimal netDebit = 0;
+                var availableStrategyUnits = int.MaxValue;
+                for (var i = 0; i < legs.Length; i++)
+                {
+                    var leg = legs[i];
+                    var quote = quotes[i];
+                    if (!string.Equals(leg.ContractId,quote.ContractId,StringComparison.Ordinal) || quote.SourceEpoch <= 0 || quote.SourceSequence <= 0 || quote.SourceEpoch != epoch ||
+                        quote.MarketTimeUtc.Kind != DateTimeKind.Utc || quote.MarketTimeUtc > _clock.UtcNow ||
+                        _clock.UtcNow - quote.MarketTimeUtc > _scenario.MaximumQuoteAge || quote.Bid <= 0 ||
+                        quote.Ask < quote.Bid) return false;
+                    var executableSize = leg.SignedQuantity > 0 ? quote.AskSize : quote.BidSize;
+                    if (executableSize <= 0) return false;
+                    availableStrategyUnits = Math.Min(availableStrategyUnits, executableSize);
+                    netDebit += (leg.SignedQuantity > 0 ? quote.Ask : -quote.Bid) * Math.Abs(leg.SignedQuantity);
+                }
+                // Combo limits are quoted per balanced strategy unit, not per total order quantity.
+                var totalUnits = Math.Abs(legs[0].SignedQuantity);
+                var remainingUnits = totalUnits - order.FilledStrategyUnits;
+                var fillUnits = Math.Min(remainingUnits,
+                    Math.Min(availableStrategyUnits, _scenario.MaximumStrategyUnitsPerFill));
+                if (fillUnits <= 0) return false;
+                var netDebitPerUnit = netDebit / totalUnits;
+                if (order.Request.OrderType == FrameworkOrderType.Limit && netDebitPerUnit > order.Limit) return false;
+                var fee = _scenario.PerLegCommission * legs.Length * fillUnits;
+                var cashMovement = netDebitPerUnit * fillUnits * legs[0].CashMultiplier;
+                order.FilledStrategyUnits += fillUnits;
+                order.Filled = order.FilledStrategyUnits == totalUnits;
+                _cash -= cashMovement + fee;
+                var executionFacts = new List<FrameworkBrokerObservation>(legs.Length);
+                var commissionFacts = new List<FrameworkBrokerObservation>(legs.Length);
+                var pendingFacts = new List<FrameworkBrokerObservation>(legs.Length * 2 + 2);
+                foreach (var leg in legs)
+                {
+                    var quote = quotes[Array.FindIndex(legs, x => x.LegId == leg.LegId)];
+                    var price = leg.SignedQuantity > 0 ? quote.Ask : quote.Bid;
+                    var previous = _positions.GetValueOrDefault(leg.ContractId);
+                    var filledQuantity = Math.Sign(leg.SignedQuantity) * fillUnits;
+                    var quantity = (previous?.SignedQuantity ?? 0) + filledQuantity;
+                    if (quantity == 0) _positions.Remove(leg.ContractId);
+                    else _positions[leg.ContractId] = new FrameworkAccountPosition(leg.ContractId, quantity, price);
+                    Append("Execution", brokerOrderId, order.Request.OperationId);
+                    var execId = $"EM-{brokerOrderId}-{leg.LegId:N}-{_sequence}";
+                    executionFacts.Add(new FrameworkBrokerObservation { Kind = FrameworkObservationKind.Execution, ObservationId = ObservationId("exec", brokerOrderId, _sequence), AccountAlias = AccountAlias, BrokerOrderId = brokerOrderId, OperationId = order.Request.OperationId, ComponentId = order.Request.ComponentId, LegId = leg.LegId, ContractId = leg.ContractId, ExternalExecutionId = execId, SignedQuantity = filledQuantity, Price = price, OrderRevision = order.Revision, SourceEpoch = epoch, SourceSequence = quote.SourceSequence, OccurredAtUtc = _clock.UtcNow });
+                    Append("Commission", brokerOrderId, order.Request.OperationId);
+                    commissionFacts.Add(new FrameworkBrokerObservation { Kind = FrameworkObservationKind.Commission, ObservationId = ObservationId("fee", brokerOrderId, _sequence), AccountAlias = AccountAlias, BrokerOrderId = brokerOrderId, OperationId = order.Request.OperationId, ComponentId = order.Request.ComponentId, LegId = leg.LegId, ContractId = leg.ContractId, ExternalExecutionId = execId, Commission = _scenario.PerLegCommission * fillUnits, OrderRevision = order.Revision, SourceEpoch = epoch, SourceSequence = quote.SourceSequence, OccurredAtUtc = _clock.UtcNow });
+                }
+                if (Faults.PublishCommissionBeforeExecution)
+                {
+                    pendingFacts.AddRange(commissionFacts);
+                    pendingFacts.AddRange(executionFacts);
+                }
+                else
+                {
+                    pendingFacts.AddRange(executionFacts);
+                    pendingFacts.AddRange(commissionFacts);
+                }
+                if (order.Filled)
+                {
+                    Append("OrderCompleted", brokerOrderId, order.Request.OperationId);
+                    pendingFacts.Add(new FrameworkBrokerObservation
+                    {
+                        Kind = FrameworkObservationKind.OrderCompleted,
+                        ObservationId = ObservationId("completed", brokerOrderId, _sequence),
+                        AccountAlias = AccountAlias,
+                        BrokerOrderId = brokerOrderId,
+                        OperationId = order.Request.OperationId,
+                        ComponentId = order.Request.ComponentId,
+                        OrderRevision = order.Revision,
+                        SourceEpoch = epoch,
+                        SourceSequence = _sequence,
+                        OccurredAtUtc = _clock.UtcNow
+                    });
+                }
+                _generation++;
+                Append("Account", brokerOrderId, order.Request.OperationId);
+                pendingFacts.Add(new FrameworkBrokerObservation { Kind = FrameworkObservationKind.AccountSnapshot, ObservationId = ObservationId("account", brokerOrderId, _sequence), AccountAlias = AccountAlias, BrokerOrderId = brokerOrderId, OperationId = order.Request.OperationId, SourceEpoch = _generation, SourceSequence = _sequence, OccurredAtUtc = _clock.UtcNow });
+                _matchReceipts.Add(matchKey, new(matchKey, brokerOrderId, order.Revision, quotes.ToArray(), fillUnits));
+                CommitAndPublish([.. pendingFacts]);
+                return true;
+            });
         }
     }
 
     public bool HasFreshMarketQuotes(string brokerOrderId)
     {
-        lock (_sync) return _orders.TryGetValue(brokerOrderId, out var order) &&
+        lock (_sync) { RequireCommitted(); return _orders.TryGetValue(brokerOrderId, out var order) &&
             order.Request.Legs.All(leg => _latestQuotes.TryGetValue(leg.ContractId, out var quote) &&
                 quote.MarketTimeUtc.Kind == DateTimeKind.Utc && quote.MarketTimeUtc <= _clock.UtcNow
                 && _clock.UtcNow - quote.MarketTimeUtc <= _scenario.MaximumQuoteAge
                 && quote.Bid > 0 && quote.Ask >= quote.Bid
-                && (leg.SignedQuantity > 0 ? quote.AskSize : quote.BidSize) > 0);
+                && (leg.SignedQuantity > 0 ? quote.AskSize : quote.BidSize) > 0); }
     }
 
     public int RemainingStrategyUnits(string brokerOrderId)
     {
-        lock (_sync) return _orders.TryGetValue(brokerOrderId, out var order) && !order.Cancelled && !order.Filled
-            ? Math.Abs(order.Request.Legs[0].SignedQuantity) - order.FilledStrategyUnits : 0;
+        lock (_sync) { RequireCommitted(); return _orders.TryGetValue(brokerOrderId, out var order) && !order.Cancelled && !order.Filled
+            ? Math.Abs(order.Request.Legs[0].SignedQuantity) - order.FilledStrategyUnits : 0; }
     }
 
     /// <summary>Attempts a quote-backed fill without fabricating prices, liquidity or quote timestamps.</summary>
@@ -333,16 +347,19 @@ public sealed class EmulatorLedger
     {
         lock (_sync)
         {
-            if (strategyUnits <= 0 || !_orders.TryGetValue(brokerOrderId, out var order) || order.Cancelled || order.Filled)
-                return false;
-            var legs = order.Request.Legs;
-            var quotes = new EmulatorQuote[legs.Length];
-            for (var i=0;i<legs.Length;i++) {
-                if (!_latestQuotes.TryGetValue(legs[i].ContractId,out var quote)) return false;
-                quotes[i]=quote with { BidSize=Math.Min(quote.BidSize,strategyUnits), AskSize=Math.Min(quote.AskSize,strategyUnits) };
-            }
-            // TryMatch enforces freshness, coherent epochs, executable depth and the approved limit.
-            return TryMatch(brokerOrderId, quotes);
+            return Transact(() =>
+            {
+                if (strategyUnits <= 0 || !_orders.TryGetValue(brokerOrderId, out var order) || order.Cancelled || order.Filled)
+                    return false;
+                var legs = order.Request.Legs;
+                var quotes = new EmulatorQuote[legs.Length];
+                for (var i=0;i<legs.Length;i++) {
+                    if (!_latestQuotes.TryGetValue(legs[i].ContractId,out var quote)) return false;
+                    quotes[i]=quote with { BidSize=Math.Min(quote.BidSize,strategyUnits), AskSize=Math.Min(quote.AskSize,strategyUnits) };
+                }
+                // TryMatch enforces freshness, coherent epochs, executable depth and the approved limit.
+                return TryMatch(brokerOrderId, quotes);
+            });
         }
     }
 
@@ -357,9 +374,10 @@ public sealed class EmulatorLedger
                 Currency = _scenario.Currency,
                 CashBalance = _cash,
                 AvailableFunds = available,
-                Complete = true,
-                NewRiskAllowed = available >= 0,
+                Complete = _pendingCommit is null,
+                NewRiskAllowed = _pendingCommit is null && available >= 0,
                 Generation = _generation,
+                SourceSequence = _commitRevision,
                 AsOfUtc = _clock.UtcNow,
                 Positions = [.. _positions.Values]
             };
@@ -368,7 +386,7 @@ public sealed class EmulatorLedger
 
     public FrameworkBrokerObservation[] Reconcile(string brokerOrderId)
     {
-        lock (_sync) return [.. _observations.Where(x => string.Equals(x.BrokerOrderId,brokerOrderId,StringComparison.Ordinal))];
+        lock (_sync) { RequireCommitted(); return [.. _observations.Where(x => string.Equals(x.BrokerOrderId,brokerOrderId,StringComparison.Ordinal))]; }
     }
 
     /// <summary>Applies an audited price-only correction once, retaining the original broker observations.</summary>
@@ -381,37 +399,39 @@ public sealed class EmulatorLedger
             throw new ArgumentException("Identified four-leg price correction with a source hash is required.");
         lock (_sync)
         {
-            var hash = Fingerprint(new { brokerOrderId, evidenceSha256,
-                Prices = verifiedPrices.OrderBy(x => x.Key, StringComparer.Ordinal).ToArray() });
-            if (_operations.TryGetValue(correctionId, out var prior))
-                return prior.Hash == hash ? prior.Receipt : throw new InvalidOperationException("Correction identity conflicts with prior evidence.");
-            if (!_orders.TryGetValue(brokerOrderId, out var order) || !order.Filled
-                || order.Request.Shape != FrameworkOrderShape.IronCondor)
-                throw new InvalidOperationException("A completed four-leg order is required.");
-            var originals = _observations.Where(x => x.BrokerOrderId == brokerOrderId
-                && x.Kind == FrameworkObservationKind.Execution).ToArray();
-            if (originals.Length != 4 || originals.Any(x => x.Price != 1m)
-                || originals.Select(x => x.ContractId).Distinct(StringComparer.Ordinal).Count() != 4)
-                throw new InvalidOperationException("Correction requires the complete original synthetic one-point fill set.");
-            decimal cashDelta = 0;
-            foreach (var leg in order.Request.Legs)
+            return Transact(() =>
             {
-                var fill = originals.Single(x => x.LegId == leg.LegId && x.ContractId == leg.ContractId);
-                if (fill.SignedQuantity != leg.SignedQuantity || !verifiedPrices.TryGetValue(leg.ContractId, out var price)
-                    || _positions.TryGetValue(leg.ContractId, out var position) && position.SignedQuantity != 0)
-                    throw new InvalidOperationException("Correction must preserve fully closed quantities.");
-                cashDelta -= (price - fill.Price) * fill.SignedQuantity * leg.CashMultiplier;
-            }
-            _cash += cashDelta;
-            _generation++;
-            Append("VerifiedClosingPriceCorrection", brokerOrderId, correctionId);
-            return StoreAndPersist(correctionId, hash, Receipt(correctionId, brokerOrderId,
-                FrameworkDispatchOutcome.AcceptedForDispatch, "EM.PRICE_CORRECTED", evidenceSha256));
+                var hash = Fingerprint(new { brokerOrderId, evidenceSha256,
+                    Prices = verifiedPrices.OrderBy(x => x.Key, StringComparer.Ordinal).ToArray() });
+                if (_operations.TryGetValue(correctionId, out var prior))
+                    return prior.Hash == hash ? prior.Receipt : throw new InvalidOperationException("Correction identity conflicts with prior evidence.");
+                if (!_orders.TryGetValue(brokerOrderId, out var order) || !order.Filled
+                    || order.Request.Shape != FrameworkOrderShape.IronCondor)
+                    throw new InvalidOperationException("A completed four-leg order is required.");
+                var originals = _observations.Where(x => x.BrokerOrderId == brokerOrderId
+                    && x.Kind == FrameworkObservationKind.Execution).ToArray();
+                if (originals.Length != 4 || originals.Any(x => x.Price != 1m)
+                    || originals.Select(x => x.ContractId).Distinct(StringComparer.Ordinal).Count() != 4)
+                    throw new InvalidOperationException("Correction requires the complete original synthetic one-point fill set.");
+                decimal cashDelta = 0;
+                foreach (var leg in order.Request.Legs)
+                {
+                    var fill = originals.Single(x => x.LegId == leg.LegId && x.ContractId == leg.ContractId);
+                    if (fill.SignedQuantity != leg.SignedQuantity || !verifiedPrices.TryGetValue(leg.ContractId, out var price)
+                        || _positions.TryGetValue(leg.ContractId, out var position) && position.SignedQuantity != 0)
+                        throw new InvalidOperationException("Correction must preserve fully closed quantities.");
+                    cashDelta -= (price - fill.Price) * fill.SignedQuantity * leg.CashMultiplier;
+                }
+                _cash += cashDelta;
+                _generation++;
+                Append("VerifiedClosingPriceCorrection", brokerOrderId, correctionId);
+                return StoreAndPersist(correctionId, hash, Receipt(correctionId, brokerOrderId,
+                    FrameworkDispatchOutcome.AcceptedForDispatch, "EM.PRICE_CORRECTED", evidenceSha256));
+            });
         }
     }
 
-    public IAsyncEnumerable<FrameworkBrokerObservation> ObserveOrders(CancellationToken token) => _orderEvents.Reader.ReadAllAsync(token);
-    public IAsyncEnumerable<FrameworkBrokerObservation> ObserveAccount(CancellationToken token) => _accountEvents.Reader.ReadAllAsync(token);
+    public IAsyncEnumerable<FrameworkBrokerObservation> ObserveAccount(CancellationToken token) => ObserveLatestAccount(token);
 
     private (string Code, string Detail)? Validate(FrameworkOrderRequest r)
     {
@@ -472,32 +492,28 @@ public sealed class EmulatorLedger
     private void CommitAndPublish(params FrameworkBrokerObservation[] facts)
     {
         _observations.AddRange(facts);
+        foreach (var fact in facts) _observationIndexes.Add(fact.ObservationId, _observationIndexes.Count);
         Persist();
+        _pendingFacts.AddRange(facts);
+    }
+
+    private void PublishFacts(IEnumerable<FrameworkBrokerObservation> facts)
+    {
         foreach (var fact in facts)
         {
-            var channel = fact.Kind == FrameworkObservationKind.AccountSnapshot ? _accountEvents : _orderEvents;
-            channel.Writer.WriteAsync(fact).AsTask().GetAwaiter().GetResult();
-            if (Faults.DuplicateExecutionCallbacks &&
-                fact.Kind is FrameworkObservationKind.Execution or FrameworkObservationKind.Commission)
-                channel.Writer.WriteAsync(fact).AsTask().GetAwaiter().GetResult();
+            if (fact.Kind == FrameworkObservationKind.AccountSnapshot)
+                _accountEvents.Writer.TryWrite(true);
+            else _orderEvents.Writer.TryWrite(true);
         }
     }
 
-    private static Channel<FrameworkBrokerObservation> CreateCriticalObservationChannel() =>
-        Channel.CreateBounded<FrameworkBrokerObservation>(new BoundedChannelOptions(4096)
-        {
-            SingleReader = true,
-            SingleWriter = false,
-            FullMode = BoundedChannelFullMode.Wait,
-            AllowSynchronousContinuations = false
-        });
-    private void Persist() => _store.Save(CreateCheckpoint());
+    private void Persist() => _dirty = true;
 
     private EmulatorLedgerCheckpoint CreateCheckpoint() => new(_cash, _sequence, _generation,
         [.. _orders.Values.Select(x => new EmulatorOrderCheckpoint(
             x.Request, x.Limit, x.Revision, x.Filled, x.Cancelled, x.FilledStrategyUnits))],
         [.. _operations.Select(x => new EmulatorOperationCheckpoint(x.Key, x.Value.Hash, x.Value.Receipt))],
-        [.. _positions.Values], [.. _journal], [.. _observations]);
+        [.. _positions.Values], [.. _journal], [.. _observations], _commitRevision, [.. _latestQuotes.Values], [.. _quoteReceipts.Values], [.. _matchReceipts.Values], _publishedOrderObservationCount, _ownerCheckpoints.Count==0?null:[.. _ownerCheckpoints.Values]);
     private static Guid ObservationId(string kind, string id, long seq) => new(SHA256.HashData(Encoding.UTF8.GetBytes($"{kind}|{id}|{seq}"))[..16]);
 
     private sealed class OrderState(FrameworkOrderRequest request)

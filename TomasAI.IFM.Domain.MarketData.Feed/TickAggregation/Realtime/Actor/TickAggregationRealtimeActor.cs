@@ -19,6 +19,8 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.TickAggregation.Realtime.Actor;
 public sealed class TickAggregationRealtimeActor(IRealtimeActorContext<TickAggregationRealtimeActor> actorContext)
     : BaseEventActor<TickAggregationRealtimeActor>(actorContext, actorContext.Logger)
 {
+    protected override bool PropagateHandlerFailures => true;
+
     public const string ActorName = "TickAggregationRealtime";
 
     /// <summary>Gets the typed realtime context supplied at construction.</summary>

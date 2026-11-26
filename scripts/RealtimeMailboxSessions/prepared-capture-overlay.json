@@ -1,0 +1,37 @@
+{
+  "PreparedOnly_NotApplied": true,
+  "Actors": {
+    "RealtimeMailboxes": {
+      "Enabled": false,
+      "CapacityQualified": false
+    },
+    "SessionCapture": {
+      "Enabled": true,
+      "Directory": "D:/IFM/SessionQualification/nov30-dec1/source-archive",
+      "SessionId": "normal-20261130-20261201-original-flow",
+      "MaximumWireBytes": 1048576,
+      "MaximumArchiveBytes": 137438953472,
+      "MaximumReceiptBytes": 17179869184
+    }
+  },
+  "SessionCapture": {
+    "Enabled": true,
+    "AccessToken": null,
+    "Boundary": {
+      "Enabled": true
+    },
+    "OwnerCheckpoints": {
+      "Enabled": true
+    }
+  },
+  "ProtectedExternalEnvironmentRequired": [
+    "SessionCapture__AccessToken",
+    "IFM_SESSION_CAPTURE_ACCESS_TOKEN"
+  ],
+  "PreparedNativeEnvironment_NotApplied": {
+    "IFM_REALTIME_SOURCE_CAPTURE_ENABLED": "1",
+    "IFM_REALTIME_SOURCE_DIRECTORY": "C:\\Users\\basil\\AppData\\Local\\IFM\\RealtimeSourceCapture",
+    "IFM_RAW_FUTURES_STORAGE_ROOT": "C:\\Users\\basil\\AppData\\Local\\IFM\\RawFuturesStorage",
+    "IFM_SESSION_CAPTURE_BOUNDARY_ENABLED": "1"
+  }
+}

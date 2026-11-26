@@ -1,0 +1,75 @@
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Realtime;
+// Frozen pre-fix delivery behaviour from HEAD; benchmark reference only.
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Realtime.Actor;
+using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Realtime.Extensions;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
+using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Shared.Extensions;
+
+namespace TomasAI.IFM.Application.Api.Server.Benchmarks.RealtimeMailboxes.Baselines;
+
+/// <summary>Routes closed observations to the event-sourced RSI command actor without retaining realtime state.</summary>
+/// <param name="actorContext">The typed RSI realtime context.</param>
+public class LegacyFuturesRsiSignalRealtimeActor(IRealtimeActorContext<FuturesRsiSignalRealtimeActor> actorContext)
+    : BaseEventActor<FuturesRsiSignalRealtimeActor>(actorContext, actorContext.Logger)
+{
+    /// <summary>Identifies the RSI realtime mailbox.</summary>
+    public const string ActorName = "FuturesRsiSignal";
+    /// <summary>Gets the typed context supplied to this actor.</summary>
+    protected IFuturesRsiSignalRealtimeContext FuturesRsiSignalRealtimeContext { get; } = IsArgumentNull.Named(actorContext as IFuturesRsiSignalRealtimeContext, nameof(actorContext))!;
+
+    static readonly ActorTypeId ObservationRoute = new(ActorType.Realtime,
+        FuturesTradeSessionBarClosedRealtimeEvent.Actor,
+        FuturesTradeSessionBarClosedRealtimeEvent.Verb);
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap =
+        new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
+        {
+            [FuturesTradeSessionBarClosedRealtimeEvent.Verb] =
+                message => message.AsEvent<FuturesTradeSessionBarClosedRealtimeEvent>()!
+        };
+    readonly ILogger<FuturesRsiSignalRealtimeActor> _logger = IsArgumentNull.Set(actorContext.Logger);
+    readonly IReadOnlyDictionary<Type, Func<IEvent, IFuturesRsiSignalRealtimeContext, ILogger, ValueTask<bool>>> _receiveMap =
+        new Dictionary<Type, Func<IEvent, IFuturesRsiSignalRealtimeContext, ILogger, ValueTask<bool>>>
+        {
+            [typeof(FuturesTradeSessionBarClosedRealtimeEvent)] = async (@event, context, logger) =>
+                await ((FuturesTradeSessionBarClosedRealtimeEvent)@event).ExecuteAsync(context, logger).ConfigureAwait(false)
+        };
+
+    /// <summary>Registers the shared observation route.</summary>
+    protected override ValueTask OnStartup(IEventActorContext<FuturesRsiSignalRealtimeActor> context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        context.AddRealtimeRouter(ObservationRoute, Id);
+        return ValueTask.CompletedTask;
+    }
+
+    /// <summary>Removes the shared observation route.</summary>
+    protected override ValueTask OnShutdown(IEventActorContext<FuturesRsiSignalRealtimeActor> context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        context.RemoveRealtimeRouter(ObservationRoute, Id);
+        return ValueTask.CompletedTask;
+    }
+
+    /// <summary>Parses a routed closed-observation event.</summary>
+    protected override IEvent ParseMessage(IEventActorContext<FuturesRsiSignalRealtimeActor> context, IActorMessage message) =>
+        ParseMappedRealtimeEvent(context, message, _parseMap);
+
+    /// <summary>Dispatches a routed event to its dedicated extension handler.</summary>
+    protected override async ValueTask ReceiveAsync(IEventActorContext<FuturesRsiSignalRealtimeActor> context, IEvent @event)
+    {
+        IsArgumentNull.Check(context);
+        IsArgumentNull.Check(@event);
+        var handler = ResolveMappedEventHandler(@event, _receiveMap);
+        _ = await handler(@event, FuturesRsiSignalRealtimeContext, _logger).ConfigureAwait(false);
+    }
+
+    /// <summary>Publishes the standard actor error event.</summary>
+    protected override async ValueTask OnExceptionAsync(IEventActorContext<FuturesRsiSignalRealtimeActor> context,
+        ActorThreadId threadId, IEvent @event, Exception ex) =>
+        await ex.SendErrorEventAsync<TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent,
+            ActorEntityId>(ErrorType.EventService, context).ConfigureAwait(false);
+}

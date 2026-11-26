@@ -1,0 +1,645 @@
+{
+  "date": "2026-11-25",
+  "scope": "Complete remaining-known-work inventory for the enumerated current repository scope; no claim of exhaustive future runtime fault proof",
+  "totalWorkPackages": 24,
+  "coreMailboxWorkPackages": 22,
+  "adjacentAccountSafetyPackages": 2,
+  "workflowBoundaryRows": 33,
+  "realtimeDestinations": 25,
+  "targetedCounterexampleTestsPassed": 12,
+  "targetedTestProjects": 4,
+  "applicationCodeChanged": false,
+  "liveRestarted": false,
+  "benchmarkRerunRequiredForAudit": false,
+  "items": [
+    {
+      "id": "W1",
+      "group": "Workflow",
+      "title": "Freeze all time/evidence-bearing workflow outputs together",
+      "evidenceStatus": "reproduced + static",
+      "scopeCondition": "MC completion; prepared/legacy Risk failure, preparation, entry-commit confirmation and financial advance variants",
+      "completionCriterion": "Original command/result/parameter/provenance survives lost replies and startup; owner audit accepts/reconciles exact bytes without deadline relaxation",
+      "evidence": "full-audit-workflows.md#W1",
+      "dependsOn": [],
+      "state": "open"
+    },
+    {
+      "id": "W2",
+      "group": "Workflow",
+      "title": "Separate Risk calculation failure from uncertain success delivery",
+      "evidenceStatus": "reproduced",
+      "scopeCondition": "PreparedPortfolioRisk.EvaluateAsync currently catches CompleteRiskManagement send failure",
+      "completionCriterion": "Accepted/lost approval never becomes a contradictory failure; original result and unknown outcome remain recoverable",
+      "evidence": "full-audit-workflows.md#W2",
+      "dependsOn": [
+        "W1",
+        "W7"
+      ],
+      "state": "open"
+    },
+    {
+      "id": "W3",
+      "group": "Workflow",
+      "title": "Freeze legacy Portfolio request before financial evaluation",
+      "evidenceStatus": "reproduced",
+      "scopeCondition": "Legacy EvaluatePortfolioAsync rebuilds RequestedAt/hash under same operation",
+      "completionCriterion": "Exact request/op/hash is reused; real Portfolio store resolves accepted/lost response without new effects",
+      "evidence": "full-audit-workflows.md#W3",
+      "dependsOn": [
+        "W1"
+      ],
+      "state": "open"
+    },
+    {
+      "id": "W4",
+      "group": "Workflow",
+      "title": "Canonicalize reservation receipt completion",
+      "evidenceStatus": "reproduced",
+      "scopeCondition": "Legacy Fund receipt returns Committed first, IdempotentReplay later",
+      "completionCriterion": "Same immutable completion bytes retain original receipt semantics; no duplicate allocation",
+      "evidence": "full-audit-workflows.md#W4",
+      "dependsOn": [
+        "W1"
+      ],
+      "state": "open"
+    },
+    {
+      "id": "W5",
+      "group": "Workflow",
+      "title": "Durably own late reservation and stopped cleanup",
+      "evidenceStatus": "code-confirmed failure paths",
+      "scopeCondition": "Detached late callback logs failure; pending cleanup skips failed order read",
+      "completionCriterion": "Recover until authoritative reservation/expiry settled, including crash after timeout and required read failure",
+      "evidence": "full-audit-workflows.md#W5",
+      "dependsOn": [
+        "W1",
+        "W4"
+      ],
+      "state": "open"
+    },
+    {
+      "id": "W6",
+      "group": "Workflow",
+      "title": "Define cold recovery for unaccepted local composition preparation",
+      "evidenceStatus": "recovery-policy gap",
+      "scopeCondition": "Resident Lazy preparation can be lost before owner accepts it",
+      "completionCriterion": "Persist exact preparation or intentionally interrupt/retire it with durable settlement; no recapture under old authority",
+      "evidence": "full-audit-workflows.md#W6",
+      "dependsOn": [
+        "W7"
+      ],
+      "state": "open"
+    },
+    {
+      "id": "W7",
+      "group": "Workflow",
+      "title": "Reconcile durable outputs with local proof/session lifetimes",
+      "evidenceStatus": "architecture/qualification gap",
+      "scopeCondition": "MC/TS/OC MatchesResult is resident; Risk approval also uses reference identity; old decisions intentionally interrupt",
+      "completionCriterion": "Actual owners can reconcile original acceptance or safely retire interrupted output; never bypass proof/expiry or resume stale eligibility",
+      "evidence": "full-audit-workflows.md#W7",
+      "dependsOn": [],
+      "state": "open"
+    },
+    {
+      "id": "W8",
+      "group": "Workflow",
+      "title": "Accept legitimate redispatch aliases without losing input integrity",
+      "evidenceStatus": "reproduced",
+      "scopeCondition": "Regime/Assessment key WF+stage+revision but hash full outer notification; explicit redispatch changes outer ID/time",
+      "completionCriterion": "Same accepted view/dispatch aliases recover original pending/sent terminal; changed accepted content still fails closed",
+      "evidence": "full-audit-workflows.md#W8",
+      "dependsOn": [
+        "W1"
+      ],
+      "state": "open"
+    },
+    {
+      "id": "P1",
+      "group": "Producer",
+      "title": "Commit ingress replay watermark after durable capture",
+      "evidenceStatus": "reproduced",
+      "scopeCondition": "Non-option admission advances LastSequence before publication; a failure fences exact retry",
+      "completionCriterion": "Retain/serialize pending admission and commit progress after durable ownership; exact retry and successor order survive restart/fan-out",
+      "evidence": "full-audit-producers.md#P01",
+      "dependsOn": [
+        "INF2"
+      ],
+      "state": "open"
+    },
+    {
+      "id": "D1",
+      "group": "Destination",
+      "title": "Resolve option lifecycle snapshot/cleanup retry ownership",
+      "evidenceStatus": "reproduced; lifecycle/display scope",
+      "scopeCondition": "Open/close route/cache mutation can suppress failed snapshot send; separate IronCondor final close publications exist",
+      "completionCriterion": "Recover required lifecycle/cleanup or prove allowed display/read-repair semantics; preserve final feed-off/control contract, no route resurrection",
+      "evidence": "full-audit-destinations.md#D-D1",
+      "dependsOn": [
+        "INF2"
+      ],
+      "state": "open"
+    },
+    {
+      "id": "D2",
+      "group": "Destination",
+      "title": "Make legacy market-price failure settlement metrics-independent",
+      "evidenceStatus": "reproduced; conditional legacy mode",
+      "scopeCondition": "IFM.RawFuturesDurableStorage=false and optional metrics absent; default durable raw mode bypasses forward",
+      "completionCriterion": "Required failure is not ACKed in every supported mode, or unqualified legacy configuration is explicitly disabled",
+      "evidence": "full-audit-destinations.md#D-D2",
+      "dependsOn": [],
+      "state": "open"
+    },
+    {
+      "id": "D3",
+      "group": "Destination",
+      "title": "Specify parameter-version compatibility for pending position plans",
+      "evidenceStatus": "reproduced conditional upgrade; not active hot-reload defect",
+      "scopeCondition": "VerticalSpread/pre-intent Futures contexts currently immutable; changed Version during pending replay conflicts",
+      "completionCriterion": "Capture original versioned plan input or explicitly retire incompatible pending work under tested upgrade policy",
+      "evidence": "full-audit-destinations.md#Q-D7",
+      "dependsOn": [
+        "INF4"
+      ],
+      "state": "open"
+    },
+    {
+      "id": "A1",
+      "group": "Adjacent account safety",
+      "title": "Recover latest account convergence and supervise callback reader",
+      "evidenceStatus": "code-confirmed failure paths; outside 25 Realtime destinations",
+      "scopeCondition": "BrokerAccount Event bridge can lose last snapshot, remain faulted, and leave bounded synchronous channel blocking financial callers",
+      "completionCriterion": "Last failed snapshot converges without another callback; startup fault restarts or surfaces readiness; dead reader cannot stall financial progress",
+      "evidence": "full-audit-producers.md#P02",
+      "dependsOn": [],
+      "state": "open"
+    },
+    {
+      "id": "A2",
+      "group": "Adjacent account safety",
+      "title": "Fence stale same-generation account evidence",
+      "evidenceStatus": "reproduced; outside Realtime transport",
+      "scopeCondition": "Older account AsOf can overwrite newer NewRiskAllowed=false evidence and reopen gate",
+      "completionCriterion": "Monotonic authoritative evidence/order plus equal-time conflict rule; preserve manual/qualification holds",
+      "evidence": "full-audit-producers.md#P03",
+      "dependsOn": [],
+      "state": "open"
+    },
+    {
+      "id": "INF1",
+      "group": "Unimplemented infrastructure",
+      "title": "Realtime backend/options, canonical envelope and durable mailbox registry",
+      "evidenceStatus": "missing implementation / qualification",
+      "scopeCondition": "ActorType/Name/EntityId is key; all verbs share one consumer. No production backend is registered",
+      "completionCriterion": "Realtime-only Memory/File backend behind current APIs; binary origin envelope, stable registry, cached async lifecycle; other actor categories unchanged",
+      "evidence": "full-audit-infrastructure.md#INF-01",
+      "dependsOn": [],
+      "state": "open"
+    },
+    {
+      "id": "INF2",
+      "group": "Unimplemented infrastructure",
+      "title": "Confirmed source-to-destination publication and frozen fan-out manifest",
+      "evidenceStatus": "missing implementation / qualification",
+      "scopeCondition": "Core sends/local enqueue/flush are not durable destination acceptance; raw trade/quote WAL excludes statistics/control families",
+      "completionCriterion": "Every required native/managed/domain/clock source and recipient has original identity plus confirmed capture or recoverable outbox; partial/unknown publishes reconcile",
+      "evidence": "full-audit-infrastructure.md#INF-02",
+      "dependsOn": [
+        "INF1"
+      ],
+      "state": "open"
+    },
+    {
+      "id": "INF3",
+      "group": "Unimplemented infrastructure",
+      "title": "Broker scheduling, ordered retries, ACKs and independent progress",
+      "evidenceStatus": "missing implementation / qualification",
+      "scopeCondition": "Current ActorThreadV2 consumes local queues; shared admission/stripes remain; a completion hook alone is not an adapter",
+      "completionCriterion": "Bounded byte/message pulls, one owner/mailbox, no overtaking on fail/ACK uncertainty, idle pull/self-send/cycle safety; migrated Realtime bypasses old shared rejection",
+      "evidence": "full-audit-infrastructure.md#INF-03",
+      "dependsOn": [
+        "INF1",
+        "INF2"
+      ],
+      "state": "open"
+    },
+    {
+      "id": "INF4",
+      "group": "Unimplemented infrastructure",
+      "title": "Generation, rollover, consumer eviction and restart lifecycle",
+      "evidenceStatus": "missing implementation / qualification",
+      "scopeCondition": "Local eviction sees local count only; source fences can settle as success; obsolete and required ownership need explicit policy",
+      "completionCriterion": "Retain pending consumers independent of local objects; fence old execution/ACKs and qualify contract/attachment generation plus wakeup envelope aliases",
+      "evidence": "full-audit-infrastructure.md#INF-04",
+      "dependsOn": [
+        "INF1",
+        "INF3"
+      ],
+      "state": "open"
+    },
+    {
+      "id": "INF5",
+      "group": "Unimplemented infrastructure",
+      "title": "Measured finite capacity, overflow ownership, storage guarantees and retention",
+      "evidenceStatus": "missing implementation / qualification",
+      "scopeCondition": "No complete numeric capacity worksheet; pending journals bounded but sent history unpruned; Memory does not survive broker loss",
+      "completionCriterion": "Per-subject/stream/account/fetch budgets; no TTL/DiscardOld for required work; owned refused publications; safe pruning; tested disk-full and declared Memory/File failure limits",
+      "evidence": "full-audit-infrastructure.md#INF-05",
+      "dependsOn": [
+        "INF1",
+        "INF2",
+        "INF3"
+      ],
+      "state": "open"
+    },
+    {
+      "id": "INF6",
+      "group": "Unimplemented infrastructure",
+      "title": "Broker-aware Actor Health, metrics and readiness",
+      "evidenceStatus": "missing implementation / qualification",
+      "scopeCondition": "Current local queue counters cannot describe authoritative broker backlog or stalled consumers",
+      "completionCriterion": "Show pending bytes/messages/age, in-flight/ACK/refusal/cursors and source gaps; incident counters survive eviction and health stays truthful",
+      "evidence": "full-audit-infrastructure.md#INF-06",
+      "dependsOn": [
+        "INF3",
+        "INF4"
+      ],
+      "state": "open"
+    },
+    {
+      "id": "VAL1",
+      "group": "Qualification/rollout",
+      "title": "Actual-owner end-to-end failure/restart and non-Realtime regression",
+      "evidenceStatus": "evidence gate; not an asserted defect",
+      "scopeCondition": "Synthetic terminal receipts do not prove actual workflow/Fund/Portfolio/financial/projector acceptance",
+      "completionCriterion": "Real owners and schemas through before/after commit/ACK, fan-out, source/generation changes, pool disposal and no duplicate financial effects; deadline/proof rules intact",
+      "evidence": "full-audit-infrastructure.md#VAL-01",
+      "dependsOn": [
+        "W1",
+        "W2",
+        "W3",
+        "W4",
+        "W5",
+        "W6",
+        "W7",
+        "W8",
+        "P1",
+        "D1",
+        "D2",
+        "D3",
+        "INF1",
+        "INF2",
+        "INF3",
+        "INF4",
+        "INF5",
+        "INF6"
+      ],
+      "state": "open"
+    },
+    {
+      "id": "VAL2",
+      "group": "Qualification/rollout",
+      "title": "Matched complete-backend BenchmarkDotNet and burst qualification",
+      "evidenceStatus": "evidence gate; not an asserted defect",
+      "scopeCondition": "Existing component probes exclude parts of real transport, financial owners and NATS RAM",
+      "completionCriterion": "Predeclared capacity/latency gates; local vs Memory vs File under recorded rates/cardinality; p50/p95/p99/max, drain, API+NATS RAM, LOH/Gen2/CPU/IO; two-second decisions separately from queue age",
+      "evidence": "full-audit-infrastructure.md#VAL-02",
+      "dependsOn": [
+        "VAL1"
+      ],
+      "state": "open"
+    },
+    {
+      "id": "VAL3",
+      "group": "Qualification/rollout",
+      "title": "Two complete matched exchange-session trials per backend",
+      "evidenceStatus": "evidence gate; not an asserted defect",
+      "scopeCondition": "No completed two-session Memory/File qualification exists",
+      "completionCriterion": "Same authoritative captured sessions, overnight/open/close/EOD/rollover; isolated financial effects and complete identity/result reconciliation",
+      "evidence": "full-audit-infrastructure.md#VAL-03",
+      "dependsOn": [
+        "VAL1",
+        "VAL2"
+      ],
+      "state": "open"
+    },
+    {
+      "id": "VAL4",
+      "group": "Qualification/rollout",
+      "title": "Controlled activation, migration and rollback",
+      "evidenceStatus": "evidence gate; not an asserted defect",
+      "scopeCondition": "Core/local live path remains active; cutover epoch/drain/double-route exclusion unimplemented",
+      "completionCriterion": "Retain pending ownership across both directions; no Core+JS double execution; qualify profile restart/UI/readiness, keep old backend rollback",
+      "evidence": "full-audit-infrastructure.md#VAL-04",
+      "dependsOn": [
+        "VAL1",
+        "VAL2",
+        "VAL3"
+      ],
+      "state": "open"
+    }
+  ],
+  "testLogs": {
+    "trade": 9,
+    "feed": 1,
+    "ingress": 1,
+    "account": 1
+  },
+  "sourceAuditReports": [
+    "full-audit-workflows.md",
+    "full-audit-producers.md",
+    "full-audit-destinations.md",
+    "full-audit-infrastructure.md"
+  ],
+  "destinationInventory": {
+    "auditedUtc": "2026-11-25T14:43:21.265064+00:00",
+    "baselineObservedUtc": "2026-11-24T15:36:25.7720318Z",
+    "scope": "Static current production actor source inventory, not a new live actor-health census",
+    "count": 25,
+    "destinations": [
+      {
+        "destination": "FuturesAdxSignal",
+        "actorFile": "C:/repos/IFM/TomasAI.IFM.Domain.MarketData.Analytics/FuturesAdxSignal/Realtime/Actor/FuturesAdxSignalRealtimeActor.cs",
+        "acceptedNominalEvents": [
+          "FuturesTradeSessionBarClosedRealtimeEvent"
+        ],
+        "effects": "Closed bar \u2192 attached ADX Generate commands",
+        "verifiedScope": "Scoped repair: metrics-independent failure propagation; command rejects duplicate/older observation",
+        "remaining": "Q-D1: real receiver/projector/transport fan-out recovery; attachment manifest changes"
+      },
+      {
+        "destination": "FuturesAtrSignal",
+        "actorFile": "C:/repos/IFM/TomasAI.IFM.Domain.MarketData.Analytics/FuturesAtrSignal/Realtime/Actor/FuturesAtrSignalRealtimeActor.cs",
+        "acceptedNominalEvents": [
+          "FuturesTradeSessionBarClosedRealtimeEvent"
+        ],
+        "effects": "Closed bar \u2192 attached ATR Generate commands",
+        "verifiedScope": "Scoped repair: failure propagates; command observation replay/no-change guard",
+        "remaining": "Q-D1: real command/projector/transport; attachment manifest changes"
+      },
+      {
+        "destination": "FuturesEmaSignal",
+        "actorFile": "C:/repos/IFM/TomasAI.IFM.Domain.MarketData.Analytics/FuturesEmaSignal/Realtime/Actor/FuturesEmaSignalRealtimeActor.cs",
+        "acceptedNominalEvents": [
+          "FuturesTradeSessionBarClosedRealtimeEvent"
+        ],
+        "effects": "Closed bar \u2192 attached EMA Generate commands",
+        "verifiedScope": "Scoped repair: false/throw becomes delivery failure",
+        "remaining": "Q-D1: real command/projector/transport and attachment transitions"
+      },
+      {
+        "destination": "FuturesItiSignalRealtime",
+        "actorFile": "C:/repos/IFM/TomasAI.IFM.Domain.MarketData.Analytics/FuturesItiSignal/Realtime/Actor/FuturesItiSignalRealtimeActor.cs",
+        "acceptedNominalEvents": [
+          "FuturesMarketPriceUpdatedRealtimeEvent"
+        ],
+        "effects": "Ordered ES trades \u2192 ITI commands, original VX/ATR/source cursor",
+        "verifiedScope": "Scoped repair: active WAL/fallback request journals, startup recovery and frozen inputs",
+        "remaining": "Q-D2: real retained-source/native/JS fan-out and restart authority across modes"
+      },
+      {
+        "destination": "FuturesMacdSignal",
+        "actorFile": "C:/repos/IFM/TomasAI.IFM.Domain.MarketData.Analytics/FuturesMacdSignal/Realtime/Actor/FuturesMacdSignalRealtimeActor.cs",
+        "acceptedNominalEvents": [
+          "FuturesTradeSessionBarClosedRealtimeEvent"
+        ],
+        "effects": "Closed bar \u2192 attached MACD Generate commands",
+        "verifiedScope": "Scoped repair: false/throw becomes delivery failure",
+        "remaining": "Q-D1: real command/projector/transport and attachment transitions"
+      },
+      {
+        "destination": "FuturesRsiSignal",
+        "actorFile": "C:/repos/IFM/TomasAI.IFM.Domain.MarketData.Analytics/FuturesRsiSignal/Realtime/Actor/FuturesRsiSignalRealtimeActor.cs",
+        "acceptedNominalEvents": [
+          "FuturesTradeSessionBarClosedRealtimeEvent"
+        ],
+        "effects": "Closed bar \u2192 attached RSI Generate commands",
+        "verifiedScope": "Scoped repair: false/throw becomes delivery failure",
+        "remaining": "Q-D1: real command/projector/transport and downstream RSI\u2192TDI fan-out"
+      },
+      {
+        "destination": "FuturesTdiSignal",
+        "actorFile": "C:/repos/IFM/TomasAI.IFM.Domain.MarketData.Analytics/FuturesTdiSignal/Realtime/Actor/FuturesTdiSignalRealtimeActor.cs",
+        "acceptedNominalEvents": [
+          "FuturesRsiSignalsGeneratedEvent",
+          "FuturesTdiSignalGeneratedCompleteEvent",
+          "FuturesTdiSignalGeneratedEvent",
+          "FuturesTdiSignalGeneratedFailEvent"
+        ],
+        "effects": "RSI result \u2192 TDI result receipt \u2192 DB/projected/publication callbacks",
+        "verifiedScope": "Scoped repair: result identity/cross frozen; stages recover; failure propagates",
+        "remaining": "Q-D2: production source/transport/domain fan-out; capacity/retention"
+      },
+      {
+        "destination": "FuturesTradeSessionBarSignal",
+        "actorFile": "C:/repos/IFM/TomasAI.IFM.Domain.MarketData.Analytics/FuturesTradeSessionBarSignal/Realtime/Actor/FuturesTradeSessionBarSignalRealtimeActor.cs",
+        "acceptedNominalEvents": [
+          "FuturesMarketPriceUpdatedRealtimeEvent",
+          "FuturesTradeSessionBarSignalBarrierRealtimeEvent"
+        ],
+        "effects": "Ordered trades + server interval barriers \u2192 durable bar/open-state results",
+        "verifiedScope": "Scoped repair: open bar/pending output recovery and bounded group commits",
+        "remaining": "Q-D2/Q-D3: durable barrier ownership and real downstream acceptance across restart"
+      },
+      {
+        "destination": "FuturesVwapSignal",
+        "actorFile": "C:/repos/IFM/TomasAI.IFM.Domain.MarketData.Analytics/FuturesVwapSignal/Realtime/Actor/FuturesVwapSignalRealtimeActor.cs",
+        "acceptedNominalEvents": [
+          "FuturesMarketPriceUpdatedRealtimeEvent"
+        ],
+        "effects": "VWAP checkpoints \u2192 durable VWAP updates for current ES contract",
+        "verifiedScope": "Scoped repair: required failures propagate",
+        "remaining": "Q-D1/Q-D4: actual command/transport; backlog across on-the-run contract rollover"
+      },
+      {
+        "destination": "FuturesVxTermStructureSignal",
+        "actorFile": "C:/repos/IFM/TomasAI.IFM.Domain.MarketData.Analytics/FuturesVxTermStructureSignal/Realtime/Actor/FuturesVxTermStructureSignalRealtimeActor.cs",
+        "acceptedNominalEvents": [
+          "FuturesMarketPriceUpdatedRealtimeEvent"
+        ],
+        "effects": "Eligible VX trades \u2192 durable term-structure leg updates",
+        "verifiedScope": "Scoped repair: required failures propagate",
+        "remaining": "Q-D1/Q-D4: current front/back pair changes during retained replay"
+      },
+      {
+        "destination": "MarketOutlook",
+        "actorFile": "C:/repos/IFM/TomasAI.IFM.Domain.MarketData.Analytics/MarketOutlookSnapshot/Realtime/Actor/MarketOutlookSnapshotRealtimeActor.cs",
+        "acceptedNominalEvents": [
+          "FuturesMarketPriceUpdatedRealtimeEvent",
+          "FuturesSessionStatisticsUpdatedRealtimeEvent",
+          "MarketOutlookComponentChangedRealtimeEvent",
+          "MarketOutlookEodUpdatedRealtimeEvent",
+          "MarketOutlookSnapshotInsertedEvent"
+        ],
+        "effects": "Market/indicator/EOD observations \u2192 volatile coalescing local channel \u2192 cache/UI/periodic restart snapshot",
+        "verifiedScope": "Known intentionally lossy/coalescing lane; actor ACK ends at local submission",
+        "remaining": "P-D1: explicitly classify all verbs display-only; final restart persistence/control semantics"
+      },
+      {
+        "destination": "FuturesEodDataEvent",
+        "actorFile": "C:/repos/IFM/TomasAI.IFM.Domain.MarketData.Feed/FuturesEodData/Realtime/Actor/FuturesEodDataRealtimeActor.cs",
+        "acceptedNominalEvents": [
+          "FuturesEodDataInsertedCompleteEvent",
+          "FuturesEodDataInsertedEvent",
+          "FuturesEodDataInsertedFailEvent",
+          "FuturesEodDataUpdatedEvent",
+          "FuturesEodSessionStatisticsUpdatedEvent",
+          "FuturesEodTradeBatchRealtimeEvent",
+          "FuturesMarketPriceUpdatedRealtimeEvent",
+          "FuturesSessionStatisticsUpdatedRealtimeEvent",
+          "FuturesTickTradeDataInsertedEvent",
+          "VixFuturesEodDataInsertedCompleteEvent",
+          "VixFuturesEodDataInsertedEvent",
+          "VixFuturesEodDataInsertedFailEvent"
+        ],
+        "effects": "Cumulative/raw trades/statistics \u2192 EOD mutation and projection publication; completion/error callbacks",
+        "verifiedScope": "Scoped repair: caller/worker ACK, frozen buffered results, recoverable publication",
+        "remaining": "Q-D2/Q-D3: raw pre-capture replay/cutover, actual Core/JS fan-out; display callbacks explicitly best-effort"
+      },
+      {
+        "destination": "FuturesMarketPrice",
+        "actorFile": "C:/repos/IFM/TomasAI.IFM.Domain.MarketData.Feed/FuturesMarketPrice/Realtime/Actor/FuturesMarketPriceRealtimeActor.cs",
+        "acceptedNominalEvents": [
+          "FuturesMarketPriceUpdatedRealtimeEvent"
+        ],
+        "effects": "Legacy trade notifications \u2192 storage forward; durable raw mode bypasses forward",
+        "verifiedScope": "Existing exception test covers metrics-present only; current actor has no PropagateHandlerFailures override",
+        "remaining": "D-D2: metrics-free false success in legacy storage-forward branch; audit repro added"
+      },
+      {
+        "destination": "FuturesOptionTickDataRealtime",
+        "actorFile": "C:/repos/IFM/TomasAI.IFM.Domain.MarketData.Feed/FuturesOptionTickData/Realtime/Actor/FuturesOptionTickDataRealtimeActor.cs",
+        "acceptedNominalEvents": [
+          "FuturesTickTradeDataInsertedEvent"
+        ],
+        "effects": "Option trade insert \u2192 current quote/risk cache \u2192 external Notify",
+        "verifiedScope": "Scoped repair: failures propagate independently of metrics; Notify remains best-effort",
+        "remaining": "P-D1/Q-D5: cache changes rebuild notification with new GUID, inactive-feed skips; classify as display and verify catch-up"
+      },
+      {
+        "destination": "TickAggregationRealtime",
+        "actorFile": "C:/repos/IFM/TomasAI.IFM.Domain.MarketData.Feed/TickAggregation/Realtime/Actor/TickAggregationRealtimeActor.cs",
+        "acceptedNominalEvents": [
+          "FuturesSessionStatisticsUpdatedRealtimeEvent",
+          "FuturesTickQuoteDataChangedEvent",
+          "FuturesTickQuoteDataInsertedCompleteEvent",
+          "FuturesTickQuoteDataInsertedEvent",
+          "FuturesTickQuoteDataInsertedFailEvent",
+          "FuturesTickTradeDataChangedEvent",
+          "FuturesTickTradeDataInsertedCompleteEvent",
+          "FuturesTickTradeDataInsertedEvent",
+          "FuturesTickTradeDataInsertedFailEvent"
+        ],
+        "effects": "Raw trade/quote changes \u2192 Scylla projection; inserted/completion/statistics/error callbacks",
+        "verifiedScope": "Scoped repair: true projection success required; pooled lease lifetime/disposal; callback handlers mostly observation-only",
+        "remaining": "Q-D2/Q-D3: real durable publication chain/native handoff and schema-write recovery end to end"
+      },
+      {
+        "destination": "IronCondorTradePositionRealtime",
+        "actorFile": "C:/repos/IFM/TomasAI.IFM.Domain.Trade/Futures/Option/Position/IronCondor/Realtime/Actor/IronCondorTradePositionRealtimeActor.cs",
+        "acceptedNominalEvents": [
+          "IronCondorMonitoringInputsChangedEvent",
+          "IronCondorPositionChangedEvent"
+        ],
+        "effects": "Position/monitoring-input changes \u2192 frozen Function request, plan and publication journal",
+        "verifiedScope": "Scoped repair: original request/result publication, independent settlement and startup recovery",
+        "remaining": "Q-D3/Q-D6: actual financial/projector effects, generation and expired deadlines; receipt retention/throughput"
+      },
+      {
+        "destination": "IronCondorExitPositionWorkflowRealtime",
+        "actorFile": "C:/repos/IFM/TomasAI.IFM.Domain.Trade/Futures/Option/Position/IronCondor/Workflow/Realtime/Actor/IronCondorExitPositionWorkflowRealtimeActor.cs",
+        "acceptedNominalEvents": [
+          "ExitPositionWorkflowStartedEvent"
+        ],
+        "effects": "Exit workflow started notification",
+        "verifiedScope": "Registered handler validates arguments then returns CompletedTask; no financial execution here",
+        "remaining": "Q-D6: authoritative exit executor is outside this no-op destination"
+      },
+      {
+        "destination": "VerticalSpreadTradePositionRealtime",
+        "actorFile": "C:/repos/IFM/TomasAI.IFM.Domain.Trade/Futures/Option/Position/VerticalSpread/Realtime/Actor/VerticalSpreadTradePositionRealtimeActor.cs",
+        "acceptedNominalEvents": [
+          "VerticalSpreadPositionChangedEvent"
+        ],
+        "effects": "Position change \u2192 plan Function \u2192 conditional exit-workflow command",
+        "verifiedScope": "Scoped repair: required exceptions/failed Function terminals fail settlement; same-parameter receipt replay",
+        "remaining": "Q-D6/Q-D7: real financial close, upgrade/changed-parameter replay and command ownership"
+      },
+      {
+        "destination": "VerticalSpreadExitPositionWorkflowRealtime",
+        "actorFile": "C:/repos/IFM/TomasAI.IFM.Domain.Trade/Futures/Option/Position/VerticalSpread/Workflow/Realtime/Actor/VerticalSpreadExitPositionWorkflowRealtimeActor.cs",
+        "acceptedNominalEvents": [
+          "ExitPositionWorkflowStartedEvent"
+        ],
+        "effects": "Exit workflow started notification",
+        "verifiedScope": "No-op notification handler; no close execution here",
+        "remaining": "Q-D6: qualify separate authoritative financial exit execution"
+      },
+      {
+        "destination": "FuturesOptionRealtime",
+        "actorFile": "C:/repos/IFM/TomasAI.IFM.Domain.Trade/Futures/Option/Realtime/Actor/FuturesOptionRealtimeActor.cs",
+        "acceptedNominalEvents": [
+          "FuturesTickTradeDataChangedEvent",
+          "OpenPositionRoutesChangedEvent"
+        ],
+        "effects": "Captured option ticks \u2192 per-position command branches and immutable snapshot outbox; route lifecycle changes",
+        "verifiedScope": "Tick-path scoped repair: per-branch confirmation/ordering/frozen inputs; lifecycle bypasses that outbox",
+        "remaining": "D-D1: route/cache mutation suppresses failed lifecycle publication retry; Q-D6 actual receiver effects"
+      },
+      {
+        "destination": "FuturesTradePositionRealtime",
+        "actorFile": "C:/repos/IFM/TomasAI.IFM.Domain.Trade/Futures/Position/Realtime/Actor/FuturesTradePositionRealtimeActor.cs",
+        "acceptedNominalEvents": [
+          "FuturesPositionChangedEvent",
+          "FuturesPositionExitClockEvent"
+        ],
+        "effects": "Futures position changes + Daily flatten clock \u2192 plan/exit workflow; first-authority exit journal",
+        "verifiedScope": "Daily exit intent scoped repair with original command, startup position/entry guards and matching owner reply",
+        "remaining": "Q-D3/Q-D6/Q-D7: clock-source ownership, authoritative close effects, legacy no-intent and upgrade parameters"
+      },
+      {
+        "destination": "FuturesExitPositionWorkflowRealtime",
+        "actorFile": "C:/repos/IFM/TomasAI.IFM.Domain.Trade/Futures/Position/Workflow/Realtime/Actor/FuturesExitPositionWorkflowRealtimeActor.cs",
+        "acceptedNominalEvents": [
+          "ExitPositionWorkflowStartedEvent"
+        ],
+        "effects": "Exit workflow started notification",
+        "verifiedScope": "No-op notification handler; no close execution here",
+        "remaining": "Q-D6: separate financial executor remains unqualified"
+      },
+      {
+        "destination": "FuturesRealtime",
+        "actorFile": "C:/repos/IFM/TomasAI.IFM.Domain.Trade/Futures/Realtime/Actor/FuturesRealtimeActor.cs",
+        "acceptedNominalEvents": [
+          "FuturesTickTradeDataChangedEvent",
+          "OpenPositionRoutesChangedEvent"
+        ],
+        "effects": "Captured futures ticks \u2192 fixed per-position branches; open/closed route lifecycle changes",
+        "verifiedScope": "Scoped repair: binary fan-out receipts, confirmed siblings, durable ordered cursor, startup recovery",
+        "remaining": "Q-D3/Q-D6: actual financial owner, legacy uncaptured observations, multi-host and measured high-rate drain"
+      },
+      {
+        "destination": "BrokerOrderRealtime",
+        "actorFile": "C:/repos/IFM/TomasAI.IFM.Domain.Trade/Order/Broker/Realtime/Actor/BrokerOrderRealtimeActor.cs",
+        "acceptedNominalEvents": [
+          "FuturesTickQuoteDataChangedEvent",
+          "FuturesTickTradeDataChangedEvent"
+        ],
+        "effects": "Trade/quote observations \u2192 broker/emulator fills and recoverable order callbacks",
+        "verifiedScope": "Scoped repair: financial checkpoint + order publication cursor; failures propagate",
+        "remaining": "Q-D3/Q-D6: account callbacks, full domain receiver/projector effects, cursor batching and retention"
+      },
+      {
+        "destination": "IntrinsicTimeStrategyWorkflowRealtime",
+        "actorFile": "C:/repos/IFM/TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/Realtime/Actor/IntrinsicTimeStrategyWorkflowRealtimeActor.cs",
+        "acceptedNominalEvents": [
+          "WorkflowStrategyStateUpdatedEvent"
+        ],
+        "effects": "Committed workflow snapshots \u2192 decision preparation/Functions/reservations/terminals",
+        "verifiedScope": "Recent Regime failure+completion scoped repair; see workflow audit for complete edge inventory",
+        "remaining": "Delegated to full-audit-workflows.md; current confirmed Market Condition completion timestamp drift"
+      }
+    ]
+  }
+}

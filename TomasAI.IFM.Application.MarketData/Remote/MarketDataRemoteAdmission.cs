@@ -28,6 +28,12 @@ public sealed class MarketDataRemoteAdmission : IRealtimeSourceAdmission
             await changed.WaitAsync(deadline.Token).ConfigureAwait(false);
         }
     }
+    internal async ValueTask WaitForSourceAsync(DatasetPublicationEnvelope frame,bool option,CancellationToken token)
+    {
+        var registry=option?Options:Futures;
+        bool Matches()=>registry.TryGet(frame.Dataset,out var current)&&current.WorkerInstanceId==frame.WorkerInstanceId&&current.GenerationId==frame.GenerationId&&current.ValueDate==frame.ValueDate&&current.ManifestRevision==frame.ManifestRevision;
+        while(!Matches()){var changed=Volatile.Read(ref futuresChanged).Task;if(Matches())return;await changed.WaitAsync(token).ConfigureAwait(false);}
+    }
     public DatasetWorkerAdmissionRegistry Futures { get; } = new();
     public DatasetWorkerAdmissionRegistry Options { get; } = new();
     public bool TryEnter(ActorSubject subject, string? dataset, Guid generation, out IDisposable? lease)
@@ -35,6 +41,7 @@ public sealed class MarketDataRemoteAdmission : IRealtimeSourceAdmission
         if (dataset is null || generation == Guid.Empty) return Futures.TryEnter(subject, dataset, generation, out lease);
         if (Options.TryGet(dataset, out var option) && option.GenerationId == generation) return Options.TryEnter(subject, dataset, generation, out lease);
         if (Futures.TryGet(dataset, out var future) && future.GenerationId == generation) return Futures.TryEnter(subject, dataset, generation, out lease);
-        lease = null; return false;
+        if(Options.TryEnterDurableRecovery(dataset,generation,out lease))return true;
+        return Futures.TryEnterDurableRecovery(dataset,generation,out lease);
     }
 }

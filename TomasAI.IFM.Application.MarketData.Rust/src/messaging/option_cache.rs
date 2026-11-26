@@ -30,6 +30,81 @@ pub struct Publication {
     digest: String,
 }
 impl Publication {
+    pub(crate) fn checkpoint(&self) -> Result<rmpv::Value, String> {
+        use rmpv::Value as V;
+        if self.bytes.is_empty() || self.bytes.len() > MAXIMUM {
+            return Err("Original option cache bytes exceed bound".into());
+        }
+        Ok(V::Array(vec![
+            1.into(),
+            self.snapshot.checkpoint(),
+            self.date.into(),
+            self.configuration.clone().into(),
+            V::Binary(self.generation.to_vec()),
+            self.scope.clone().into(),
+            self.version.into(),
+            self.until.into(),
+            V::Binary(self.bytes.clone()),
+            self.digest.clone().into(),
+        ]))
+    }
+    pub(crate) fn restore_checkpoint(value: &rmpv::Value) -> Result<Self, String> {
+        use crate::checkpoint as c;
+        use rmpv::Value as V;
+        let f = c::fields(value, 10)?;
+        if c::unsigned(&f[0])? != 1 {
+            return Err("Option publication checkpoint version invalid".into());
+        }
+        let snapshot = std::sync::Arc::new(Snapshot::restore_checkpoint(&f[1])?);
+        let generation = match &f[4] {
+            V::Binary(bytes) if bytes.len() == 16 => bytes.as_slice().try_into().unwrap(),
+            _ => return Err("Option publication UUID invalid".into()),
+        };
+        let bytes = match &f[8] {
+            V::Binary(bytes) if !bytes.is_empty() && bytes.len() <= MAXIMUM => bytes.clone(),
+            _ => return Err("Option publication bytes invalid".into()),
+        };
+        let result = Self {
+            snapshot,
+            date: c::number(&f[2])?
+                .try_into()
+                .map_err(|_| "Option publication date overflow")?,
+            configuration: c::string(&f[3], 128)?,
+            generation,
+            scope: c::string(&f[5], 2048)?,
+            version: c::number(&f[6])?,
+            until: c::number(&f[7])?,
+            bytes,
+            digest: c::string(&f[9], 64)?,
+        };
+        if result.generation != result.snapshot.generation
+            || result.until != result.snapshot.until
+            || result.version <= 0
+            || result.scope.trim().is_empty()
+            || result.scope.encode_utf16().count() > 512
+            || !(0..=3652058).contains(&result.date)
+            || result.configuration.trim().is_empty()
+            || format!("{:X}", Sha256::digest(&result.bytes)) != result.digest
+        {
+            return Err("Original option publication identity/digest differs".into());
+        }
+        // Verify the bytes name exactly the retained immutable snapshot/metadata; do not call new(), seal() or any pricer.
+        let mut expected = Vec::new();
+        rmp::encode::write_array_len(&mut expected, 5).map_err(|e| e.to_string())?;
+        result
+            .snapshot
+            .encode_into(&mut expected)
+            .map_err(str::to_owned)?;
+        rmp::encode::write_sint(&mut expected, i64::from(result.date))
+            .map_err(|e| e.to_string())?;
+        rmp::encode::write_str(&mut expected, &result.configuration).map_err(|e| e.to_string())?;
+        rmp::encode::write_sint(&mut expected, result.version).map_err(|e| e.to_string())?;
+        rmp::encode::write_str(&mut expected, &result.scope).map_err(|e| e.to_string())?;
+        if expected != result.bytes {
+            return Err("Original option publication bytes and snapshot differ".into());
+        }
+        Ok(result)
+    }
     /// Encodes an already sealed complete snapshot; no financial calculation or
     /// provider I/O happens during publication framing.
     ///
@@ -145,5 +220,53 @@ impl Publication {
         })();
         encoded.map_err(|_| "Event encoding failed")?;
         codec::compress(output)
+    }
+}
+
+#[cfg(test)]
+mod checkpoint_tests {
+    use super::*;
+    use rmpv::Value as V;
+    #[test]
+    fn cache_checkpoint_restores_original_content_chunks_and_digest_and_rejects_crossed_metadata() {
+        let at = 638_000_000_000_000_000;
+        let mut snapshot = Snapshot {
+            ranking: None,
+            schema: 2,
+            id: [7; 16],
+            scope: "original-scope".into(),
+            token: "original-token".into(),
+            horizon: "Monthly".into(),
+            generation: [8; 16],
+            at,
+            until: at + 1234,
+            instruments: vec![],
+            digest: String::new(),
+        };
+        snapshot.seal().unwrap();
+        let publication =
+            Publication::owned(snapshot, 738000, "original-config-v7", 9, &"原".repeat(256))
+                .unwrap();
+        let checkpoint = publication.checkpoint().unwrap();
+        let restored = Publication::restore_checkpoint(&checkpoint).unwrap();
+        assert_eq!(publication.content(), restored.content());
+        assert_eq!(publication.digest, restored.digest);
+        assert_eq!(publication.frame(0).unwrap(), restored.frame(0).unwrap());
+        assert_eq!(checkpoint, restored.checkpoint().unwrap());
+        let mut changed = checkpoint.clone();
+        let V::Array(ref mut fields) = changed else {
+            panic!()
+        };
+        fields[6] = 10.into();
+        assert!(Publication::restore_checkpoint(&changed).is_err());
+        let mut changed = checkpoint;
+        let V::Array(ref mut fields) = changed else {
+            panic!()
+        };
+        let V::Binary(bytes) = &mut fields[8] else {
+            panic!()
+        };
+        bytes[0] ^= 1;
+        assert!(Publication::restore_checkpoint(&changed).is_err());
     }
 }

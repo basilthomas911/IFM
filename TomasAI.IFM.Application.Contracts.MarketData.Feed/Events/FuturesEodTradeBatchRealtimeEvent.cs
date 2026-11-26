@@ -7,9 +7,31 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 
 /// <summary>Cumulative session extrema and final authentic trade; no raw history is replaced by this view.</summary>
-[MessagePackObject]
-public sealed record FuturesEodTradeBatchRealtimeEvent : IEvent<FuturesEodDataId>
+[MessagePackObject(AllowPrivate = true)]
+public sealed record FuturesEodTradeBatchRealtimeEvent : IEvent<FuturesEodDataId>, TomasAI.IFM.Shared.EventModelActor.IMessageOriginOwner
 {
+    [MessagePack.IgnoreMember]
+    TomasAI.IFM.Shared.EventModelActor.MessageOriginSlot originSlot;
+    [MessagePack.IgnoreMember]
+    ref TomasAI.IFM.Shared.EventModelActor.MessageOriginSlot TomasAI.IFM.Shared.EventModelActor.IMessageOriginOwner.MessageOriginSlot => ref originSlot;
+    /// <summary>Copies business fields while leaving nonserialized creation metadata unassociated.</summary>
+    [System.Diagnostics.CodeAnalysis.SetsRequiredMembers]
+    private FuturesEodTradeBatchRealtimeEvent(FuturesEodTradeBatchRealtimeEvent original)
+    {
+        Subject = original.Subject;
+        Id = original.Id;
+        EntityId = original.EntityId;
+        EventId = original.EventId;
+        CommandId = original.CommandId;
+        AggregateId = original.AggregateId;
+        EventSource = original.EventSource;
+        ReceivedOn = original.ReceivedOn;
+        High = original.High;
+        Low = original.Low;
+        Last = original.Last;
+    }
+
+
     public const string Actor = "FuturesEodDataEvent";
     public const string Verb = "CumulativeTradeBatch";
     [Key(0)] public ActorSubject Subject { get; init; }

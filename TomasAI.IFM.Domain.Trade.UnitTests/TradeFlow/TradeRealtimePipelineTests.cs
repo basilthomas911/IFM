@@ -188,6 +188,7 @@ public sealed class TradeRealtimePipelineTests
         var registry = new TradeRealtimeCacheRegistry();
         registry.Register(trade, date);
         var context = Substitute.For<IFuturesOptionRealtimeContext>();
+        context.RoutingReceipts.Returns(new TomasAI.IFM.Domain.Trade.Futures.Option.Realtime.FuturesOptionRoutingReceipts());
         context.RealtimeCache.Returns(registry);
         context.Logger.Returns(Substitute.For<ILogger<FuturesOptionRealtimeActor>>());
         context.RouteIndex.Returns(new TomasAI.IFM.Domain.Trade.Futures.Realtime.Model.ContractIdRouteIndex(4096));

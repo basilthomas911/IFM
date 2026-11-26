@@ -52,15 +52,8 @@ public static class FuturesRsiSignalsGenerated
                 return true;
             }
 
-            await state.SeedAsync(source, configuration, marketDataDb).ConfigureAwait(false);
-            if (!state.TryEvaluate(source, signals, configuration, out var evaluation))
-            {
-                global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write44(logger, null, source.EntityId.ContractId);
-                return true;
-            }
-            if (!await projector.ProcessRealtimeEventAsync(evaluation.Generated).ConfigureAwait(false))
+            if (!await state.ProcessAsync(source, signals, configuration, marketDataDb, projector).ConfigureAwait(false))
                 return false;
-            state.Confirm(evaluation);
             global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write45(logger, null, source.EntityId.TimePeriod, source.EntityId.ContractId);
             return true;
         }

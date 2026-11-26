@@ -116,14 +116,14 @@ public static class FuturesSessionStatisticsUpdated
         FuturesEodDataV2ReadModel current, FuturesEodDataV2ReadModel updated)
     {
         var entityId = new FuturesEodDataId(current.ContractId, current.ValueDate);
-        return new FuturesEodSessionStatisticsUpdatedEvent
+        return MessageOrigins.Restore(new FuturesEodSessionStatisticsUpdatedEvent
         {
             Subject = new ActorSubject(
                 ActorType.Realtime,
                 FuturesEodDataRealtimeActor.ActorName,
                 FuturesEodSessionStatisticsUpdatedEvent.Verb,
                 entityId.Format()),
-            Id = Guid.NewGuid(),
+            Id = EodProjectionIdentity.For(source, "statistics"),
             EntityId = entityId,
             CommandId = source.CommandId,
             AggregateId = source.AggregateId,
@@ -132,7 +132,7 @@ public static class FuturesSessionStatisticsUpdated
             FuturesEodData = updated,
             CreatedOn = DateTime.UtcNow,
             CreatedBy = source.UserName
-        };
+        }, MessageOrigins.Get(source));
     }
 
 }

@@ -645,9 +645,9 @@ async fn run_lane<P>(
                     () = stop.cancelled() => { status.send_modify(|s| s.phase = Phase::Stopped); return; }
                     _ = reset.changed() => break Err(Failure::Provider(reset.borrow().reason.as_ref().map_or_else(
                         ||"Explicit session reset requested".into(),|reason|format!("Native asynchronous processing failed: {reason}")))),
-                    _ = group_commit.tick() => match processor(generation, &Event::Flush) {
-                        Ok(ready) => workload_ready = ready,
-                        Err(error) => break Err(Failure::Provider(format!("Raw storage group commit: {error}"))),
+                    _ = group_commit.tick() => {
+                        let _production=match crate::messaging::source_production::enter(stop).await{Ok(value)=>value,Err(_)=>{status.send_modify(|s|s.phase=Phase::Stopped);return;}};
+                        match processor(generation,&Event::Flush){Ok(ready)=>workload_ready=ready,Err(error)=>break Err(Failure::Provider(format!("Raw storage group commit: {error}")))}
                     },
                     result = &mut read => break result,
                 }
@@ -655,6 +655,7 @@ async fn run_lane<P>(
             };
             let error = match received {
                 Ok(Some(event)) => {
+                    let _production=match crate::messaging::source_production::enter(stop).await{Ok(value)=>value,Err(_)=>{status.send_modify(|s|s.phase=Phase::Stopped);return;}};
                     // Do authoritative processing before replacing latest views.
                     let processed = std::panic::catch_unwind(AssertUnwindSafe(|| {
                         processor(generation, &event)

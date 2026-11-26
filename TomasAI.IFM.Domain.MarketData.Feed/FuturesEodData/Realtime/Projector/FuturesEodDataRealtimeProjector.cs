@@ -17,8 +17,8 @@ using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Realtime.Projector;
 
 /// <summary>
-/// Applies rolling futures and VIX EOD observations once, without event-log or
-/// projection replay infrastructure.
+/// Applies rolling futures and VIX EOD observations. Buffered mode durably owns
+/// frozen results and resumes required publication and idempotent persistence.
 /// </summary>
 public sealed class FuturesEodDataRealtimeProjector(
     IDbContextFactory dbFactory, ISequenceIdGenerator sequences,
@@ -26,218 +26,219 @@ public sealed class FuturesEodDataRealtimeProjector(
     : BaseRealtimeProjector<FuturesEodDataRealtimeActor>(logger), IAsyncDisposable
 {
     readonly bool buffered = bool.TryParse(configuration?["MarketData:FuturesEodMinuteBatchWriter"], out var enabled) && enabled;
-    readonly SemaphoreSlim wake = new(0, 1);
+    readonly SemaphoreSlim wake = new(0, 1), captureGate = new(1, 1);
     readonly System.Threading.Lock disposalGate = new();
-    Task? disposal;
+    Task? disposal, writer;
+    EodCaptureJournal? journal;
+    int stopping;
+    readonly TimeSpan retryDelay = TimeSpan.FromSeconds(2);
+    internal int PendingCaptures => journal?.Pending ?? 0;
 
-    /// <summary>Completes the final writer shutdown once and releases its wake semaphore.</summary>
     public ValueTask DisposeAsync()
     {
         lock (disposalGate) return new ValueTask(disposal ??= DisposeCoreAsync());
     }
-
     async Task DisposeCoreAsync()
     {
         try { await StopAsync().ConfigureAwait(false); }
-        finally
-        {
-            spool?.Dispose();
-            spool = null;
-            wake.Dispose();
-        }
+        finally { journal?.Dispose(); journal = null; wake.Dispose(); captureGate.Dispose(); }
     }
-    EodHistorySpool? spool;
-    Task? writer;
-    int stopping;
-    readonly TimeSpan retryDelay = TimeSpan.FromSeconds(2);
-[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")] 
-    /// <summary>Starts the independent history writer. Pending disk records survive actor/process restart.</summary>
     public override async ValueTask StartAsync(IEventActorContext context, CancellationToken cancellationToken = default)
     {
-        await (base.StartAsync(context, cancellationToken)).ConfigureAwait(false);
-        if (buffered && writer is null)
+        await base.StartAsync(context, cancellationToken).ConfigureAwait(false);
+        if (!buffered || writer is not null) return;
+        try
         {
+            var directory = configuration?["MarketData:FuturesEodHistorySpoolPath"] ?? Path.Combine(AppContext.BaseDirectory, "History", "FuturesEod");
+            journal = new(directory);
+            // Upgrade old history records before admitting fresh results. Each new receipt is durable before retiring its old owner.
+            using (var legacy = new EodHistorySpool(directory))
+            {
+                while (legacy.Pending > 0)
+                {
+                    var batch = await legacy.ReadBatchAsync(512).ConfigureAwait(false);
+                    if (batch.Count == 0) throw new InvalidDataException("EOD legacy spool cannot advance.");
+                    foreach (var item in batch)
+                    {
+                        FreezeCompletion(item);
+                        var legacyEntry = new EodHistoryEntry { FileName = item.FileName, Segment = item.Segment, SegmentIndex = item.SegmentIndex };
+                        if (await journal.FindAsync(item.Event.Id).ConfigureAwait(false) is null) await journal.PrepareAsync(item).ConfigureAwait(false);
+                        legacy.Acknowledge(legacyEntry);
+                    }
+                }
+            }
+            foreach (var item in journal.Batch(4096)) PublishCache(item);
             Volatile.Write(ref stopping, 0);
-            try
-            {
-                spool = new(configuration?["MarketData:FuturesEodHistorySpoolPath"]
-                    ?? Path.Combine(AppContext.BaseDirectory, "History", "FuturesEod"));
-                using var persistenceScope = TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.EnterIndependentPersistence();
-                writer = WriteBatchesAsync();
-                if (spool.Pending > 0) SignalWriter();
-            }
-            catch (Exception exception)
-            {
-                global::TomasAI.IFM.Domain.MarketData.Feed.ActorLifecycleDiagnosticLog.Write3(logger, exception, nameof(StartAsync));
-            }
+            using var persistenceScope = TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.EnterIndependentPersistence();
+            writer = WriteBatchesAsync();
+            if (journal.Pending > 0) SignalWriter();
+        }
+        catch
+        {
+            journal?.Dispose(); journal = null;
+            await base.StopAsync(CancellationToken.None).ConfigureAwait(false);
+            throw; // A projector without a durable capture owner must not start successfully.
         }
     }
-
-    /// <summary>Attempts the final history flush; outages retain disk records instead of preventing shutdown.</summary>
     public override async ValueTask StopAsync(CancellationToken cancellationToken = default)
     {
+        if (!buffered) { await base.StopAsync(cancellationToken).ConfigureAwait(false); return; }
+        await captureGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try { Volatile.Write(ref stopping, 1); }
+        finally { captureGate.Release(); }
         if (writer is not null)
         {
-            Volatile.Write(ref stopping, 1);
             SignalWriter();
-            await (writer.WaitAsync(cancellationToken)).ConfigureAwait(false);
-            writer = null;
+            // Never dispose ownership while a database mutation/publication is still running.
+            await writer.ConfigureAwait(false); writer = null;
         }
-        spool?.Dispose();
-        spool = null;
-        await (base.StopAsync(cancellationToken)).ConfigureAwait(false);
+        journal?.Dispose(); journal = null;
+        await base.StopAsync(CancellationToken.None).ConfigureAwait(false);
     }
-[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")] 
-    /// <summary>Updates the live cache before any history work; database failure cannot block live publication.</summary>
     public override async ValueTask<bool> ProcessRealtimeEventAsync(IEvent domainEvent, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(domainEvent);
-        if (!buffered) return await (base.ProcessRealtimeEventAsync(domainEvent, cancellationToken)).ConfigureAwait(false);
+        if (!buffered) return await base.ProcessRealtimeEventAsync(domainEvent, cancellationToken).ConfigureAwait(false);
         _ = Context;
-        BufferedFuturesEodRow? row = domainEvent switch
-        {
-            FuturesEodDataInsertedEvent e => new(e.FuturesEodData, true),
-            FuturesEodSessionStatisticsUpdatedEvent e => new(e.FuturesEodData, false),
-            VixFuturesEodDataInsertedEvent => null,
-            _ => throw new InvalidOperationException($"Unsupported EOD event: {domainEvent.GetType().Name}")
-        };
-        var version = row is null ? 0 : CurrentFuturesEodCache.Shared.Publish(row.Snapshot);
-        VixFuturesEodDataReadModel? vx = null;
-        if (domainEvent is VixFuturesEodDataInsertedEvent vix)
-        {
-            var tick = vix.VixFuturesTickData;
-            // A cold VX observation starts from its tick/statistics; storage is never consulted on this path.
-            CurrentVixEodCache.Shared.TryGet(tick.ContractId, tick.ValueDate, out var previous);
-            var statistics = vix.SessionStatistics;
-            var prices = statistics is { HasPriceStatistics: true };
-            vx = new(tick.ContractId, tick.ValueDate,
-                prices ? statistics!.Value.OpenPrice : previous?.OpenPrice ?? tick.Price,
-                prices ? statistics!.Value.HighPrice : Math.Max(previous?.HighPrice ?? tick.Price, tick.Price),
-                prices ? statistics!.Value.LowPrice : Math.Min(previous?.LowPrice ?? tick.Price, tick.Price),
-                tick.Price, statistics is { HasVolume: true } ? statistics.Value.Volume : checked((previous?.Volume ?? 0) + tick.Size));
-            CurrentVixEodCache.Shared.Publish(vx);
-        }
-        try { await (PublishRealtimeEventAsync(Context, domainEvent, ActorName, cancellationToken)).ConfigureAwait(false); }
-        catch (Exception exception)
-        {
-            global::TomasAI.IFM.Domain.MarketData.Feed.ActorLifecycleDiagnosticLog.Write4(logger, exception, nameof(ProcessRealtimeEventAsync), domainEvent.Id);
-        }
+        cancellationToken.ThrowIfCancellationRequested();
+        if (domainEvent.Id == Guid.Empty || domainEvent.CommandId == Guid.Empty) throw new InvalidDataException("EOD capture requires stable event and command identities.");
+        await captureGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (spool is null) throw new IOException("EOD history spool is unavailable.");
-            await (spool.AppendAsync(EodHistoryEntry.Create(domainEvent, row, vx, version))).ConfigureAwait(false);
-            if (spool.Pending >= 512) SignalWriter();
+            if (Volatile.Read(ref stopping) != 0 || journal is null) throw new InvalidOperationException("EOD capture intake is unavailable.");
+            var existing = await journal.FindAsync(domainEvent.Id).ConfigureAwait(false);
+            if (existing is not null)
+            {
+                var original = existing.Event;
+                if (original.GetType() != domainEvent.GetType() || original.CommandId != domainEvent.CommandId || original.Subject.EntityId != domainEvent.Subject.EntityId)
+                    throw new InvalidDataException("EOD capture identity conflicts with its frozen result.");
+                if (existing.Stage < 3 && existing.CacheVersion == 0) PublishCache(existing);
+                return true; // The original frozen result already owns any unfinished work.
+            }
+            BufferedFuturesEodRow? row = domainEvent switch
+            {
+                FuturesEodDataInsertedEvent e => new(e.FuturesEodData, true),
+                FuturesEodSessionStatisticsUpdatedEvent e => new(e.FuturesEodData, false),
+                VixFuturesEodDataInsertedEvent => null,
+                _ => throw new InvalidOperationException($"Unsupported EOD event: {domainEvent.GetType().Name}")
+            };
+            VixFuturesEodDataReadModel? vx = null;
+            if (domainEvent is VixFuturesEodDataInsertedEvent vix)
+            {
+                var tick = vix.VixFuturesTickData;
+                CurrentVixEodCache.Shared.TryGet(tick.ContractId, tick.ValueDate, out var previous);
+                var statistics = vix.SessionStatistics;
+                var prices = statistics is { HasPriceStatistics: true };
+                vx = new(tick.ContractId, tick.ValueDate,
+                    prices ? statistics!.Value.OpenPrice : previous?.OpenPrice ?? tick.Price,
+                    prices ? statistics!.Value.HighPrice : Math.Max(previous?.HighPrice ?? tick.Price, tick.Price),
+                    prices ? statistics!.Value.LowPrice : Math.Min(previous?.LowPrice ?? tick.Price, tick.Price),
+                    tick.Price, statistics is { HasVolume: true } ? statistics.Value.Volume : checked((previous?.Volume ?? 0) + tick.Size));
+            }
+            var entry = EodHistoryEntry.Create(domainEvent, row, vx, 0);
+            FreezeCompletion(entry);
+            await journal.PrepareAsync(entry).ConfigureAwait(false);
+            PublishCache(entry); // Never advance cache/no-change state before durable ownership.
+            if (journal.Pending >= 512) SignalWriter();
+            return true; // Durable handoff, not a claim that database/publication already completed.
         }
-        catch (Exception exception)
-        {
-            EodHistoryMetrics.Failures.Add(1, new KeyValuePair<string, object?>("stage", "capture"));
-            // History is secondary. Explicitly report local disk failure without stopping trading.
-            global::TomasAI.IFM.Domain.MarketData.Feed.ActorLifecycleDiagnosticLog.Write5(logger, exception, nameof(ProcessRealtimeEventAsync), domainEvent.Id);
-        }
-        return true;
+        finally { captureGate.Release(); }
     }
-
-    void SignalWriter()
+    void FreezeCompletion(EodHistoryEntry entry)
     {
-        try { wake.Release(); } catch (SemaphoreFullException)
+        if (entry.CompletionBytes is { Length: > 0 }) return;
+        var source = RestoreOrigin(entry.Event, entry.SourceOrigin);
+        var completed = ProjectionDescriptors.Single(value => value.SourceEventType == source.GetType()).CompletedEventFactory(source)!;
+        entry.CompletionBytes = completed switch
         {
-            // A writer wakeup is already pending; another signal is unnecessary.
-        }
+            FuturesEodDataInsertedCompleteEvent e => MessagePack.MessagePackSerializer.Serialize(e),
+            VixFuturesEodDataInsertedCompleteEvent e => MessagePack.MessagePackSerializer.Serialize(e),
+            _ => throw new InvalidDataException("Unsupported EOD completion event.")
+        };
+        // Origin sidecars are not part of MessagePack event payloads.
+        entry.SourceOrigin ??= TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Get(source) is { } origin ? TomasAI.IFM.Shared.EventModelActor.MessageOriginBinary.Serialize(origin) : null;
+        entry.CompletionOrigin = TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Get(completed) is { } completionOrigin ? TomasAI.IFM.Shared.EventModelActor.MessageOriginBinary.Serialize(completionOrigin) : entry.SourceOrigin;
     }
-[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")] 
+    static void PublishCache(EodHistoryEntry entry)
+    {
+        if (entry.Row is not null) entry.CacheVersion = CurrentFuturesEodCache.Shared.Publish(entry.Row.Snapshot);
+        if (entry.Vx is not null) CurrentVixEodCache.Shared.Publish(entry.Vx);
+    }
+    void SignalWriter() { try { wake.Release(); } catch (SemaphoreFullException) { } }
+    async Task AdvanceAsync(IReadOnlyList<EodHistoryEntry> items, int stage)
+    {
+        await captureGate.WaitAsync().ConfigureAwait(false);
+        try { await journal!.AdvanceAsync(items, stage).ConfigureAwait(false); }
+        finally { captureGate.Release(); }
+    }
+    static IEvent RestoreOrigin(IEvent source, string? wire)
+    {
+        if (wire is not null) TomasAI.IFM.Shared.EventModelActor.MessageOrigins.Restore(source, TomasAI.IFM.Shared.EventModelActor.MessageOriginBinary.Deserialize(wire));
+        return source;
+    }
     async Task WriteBatchesAsync()
     {
-        var history = spool!;
+        var lastFlush = journal!.Pending > 0 ? Stopwatch.GetTimestamp() - Stopwatch.Frequency * 60 : Stopwatch.GetTimestamp();
         while (true)
         {
-            await (wake.WaitAsync(TimeSpan.FromMinutes(1))).ConfigureAwait(false);
-            List<EodHistoryEntry> batch;
-            try { batch = await (history.ReadBatchAsync(512)).ConfigureAwait(false); }
-            catch (Exception exception)
-            {
-                global::TomasAI.IFM.Domain.MarketData.Feed.ActorLifecycleDiagnosticLog.Write6(logger, exception, nameof(WriteBatchesAsync));
-                if (Volatile.Read(ref stopping) != 0) return;
-                await DelayRetryAsync().ConfigureAwait(false);
-                continue;
-            }
-            if (batch.Count == 0)
-            {
-                if (Volatile.Read(ref stopping) != 0) return;
-                continue;
-            }
-            var started = Stopwatch.GetTimestamp();
-            EodHistoryMetrics.OldestAge.Record(Math.Max(0, (DateTime.UtcNow - batch.Min(item => item.ObservedAtUtc)).TotalSeconds));
+            await wake.WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
             try
             {
-                await PersistBatchAsync(batch).ConfigureAwait(false);
+                EodHistoryEntry[] batch;
+                await captureGate.WaitAsync().ConfigureAwait(false);
+                try { batch = journal!.Batch(512).ToArray(); }
+                finally { captureGate.Release(); }
+                if (batch.Length == 0) { if (Volatile.Read(ref stopping) != 0) return; continue; }
+                var unpublished = batch.Where(item => item.Stage < 1).ToArray();
+                foreach (var item in unpublished)
+                {
+                    await PublishRealtimeEventAsync(Context, RestoreOrigin(item.Event, item.SourceOrigin), ActorName, CancellationToken.None).ConfigureAwait(false);
+                }
+                await AdvanceAsync(unpublished, 1).ConfigureAwait(false);
+                if (batch.Length < 512 && Volatile.Read(ref stopping) == 0 && Stopwatch.GetElapsedTime(lastFlush) < TimeSpan.FromMinutes(1)) continue;
+                var unapplied = batch.Where(item => item.Stage < 2).ToArray();
+                var rows = unapplied.Where(item => item.Row is not null).Select(item => item.Row!).ToArray();
+                foreach (var item in unapplied)
+                {
+                    if (item.Row is { AppendHistory: true, HistorySequenceId: null } row)
+                        row.HistorySequenceId = await sequences.GetSequenceIdAsync(SequenceName.FuturesIntraDay_SequenceId).ConfigureAwait(false);
+                    // Freeze allocated IDs before an uncertain database response.
+
+                }
+                await AdvanceAsync(unapplied, 1).ConfigureAwait(false);
+                if (rows.Length > 0) await dbFactory.MarketDataDb.PersistRealtimeFuturesEodBatchAsync(rows).ConfigureAwait(false);
+                var vxRows = unapplied.Where(item => item.Vx is not null).GroupBy(item => (item.Vx!.ContractId, item.Vx.ValueDate)).Select(group => group.Last().Vx!).ToArray();
+                if (vxRows.Length > 0) await dbFactory.MarketDataDb.PersistRealtimeVixEodBatchAsync(vxRows).ConfigureAwait(false);
+                await AdvanceAsync(unapplied, 2).ConfigureAwait(false);
+                foreach (var item in batch)
+                {
+                    if (item.Stage < 3)
+                    {
+                        await PublishRealtimeEventAsync(Context, RestoreOrigin(item.Completion, item.CompletionOrigin), ActorName, CancellationToken.None).ConfigureAwait(false);
+                        item.Stage = 3;
+                    }
+                    await captureGate.WaitAsync().ConfigureAwait(false);
+                    try
+                    {
+                        await journal!.CompleteAsync(item).ConfigureAwait(false);
+                        if (item.Row is not null && CurrentFuturesEodCache.Shared.TryGet(item.Row.Snapshot.ContractId, item.Row.Snapshot.ValueDate, out var current) && current == item.Row.Snapshot)
+                            CurrentFuturesEodCache.Shared.MarkPersisted(item.Row.Snapshot.ContractId, item.Row.Snapshot.ValueDate, item.CacheVersion);
+                    }
+                    finally { captureGate.Release(); }
+                }
+                lastFlush = Stopwatch.GetTimestamp();
+                if (Volatile.Read(ref stopping) != 0 || journal!.Pending >= 512) SignalWriter();
             }
-            catch (Exception exception)
+            catch (Exception error)
             {
-                EodHistoryMetrics.Failures.Add(1, new KeyValuePair<string, object?>("stage", "persist"));
-                global::TomasAI.IFM.Domain.MarketData.Feed.ActorLifecycleDiagnosticLog.Write7(logger, exception, nameof(WriteBatchesAsync), batch.Count, history.Pending);
+                EodHistoryMetrics.Failures.Add(1, new KeyValuePair<string, object?>("stage", "recovery"));
+                logger.LogError(error, "EOD durable recovery remains pending");
                 if (Volatile.Read(ref stopping) != 0) return;
-                await DelayRetryAsync().ConfigureAwait(false);
-                continue;
+                await Task.Delay(retryDelay).ConfigureAwait(false);
+                if (Volatile.Read(ref stopping) != 0) return;
+                SignalWriter();
             }
-            foreach (var item in batch)
-            {
-                var source = item.Event;
-                // Process-local versions from a recovered spool must not mark a new process's cache as persisted.
-                if (item.CacheOwnerId == CurrentFuturesEodCache.Shared.OwnerId && item.Row is not null && CurrentFuturesEodCache.Shared.TryGet(item.Row.Snapshot.ContractId,
-                    item.Row.Snapshot.ValueDate, out var current) && current == item.Row.Snapshot)
-                    CurrentFuturesEodCache.Shared.MarkPersisted(item.Row.Snapshot.ContractId, item.Row.Snapshot.ValueDate, item.CacheVersion);
-                try
-                {
-                    var descriptor = ProjectionDescriptors.Single(value => value.SourceEventType == source.GetType());
-                    await (PublishRealtimeEventAsync(Context, descriptor.CompletedEventFactory(source)!, ActorName, CancellationToken.None)).ConfigureAwait(false);
-                }
-                catch (Exception exception)
-                {
-                    EodHistoryMetrics.Failures.Add(1, new KeyValuePair<string, object?>("stage", "notification"));
-                    global::TomasAI.IFM.Domain.MarketData.Feed.ActorLifecycleDiagnosticLog.Write8(logger, exception, nameof(WriteBatchesAsync), source.Id);
-                }
-                try { history.Acknowledge(item); }
-                catch (Exception exception)
-                {
-                    global::TomasAI.IFM.Domain.MarketData.Feed.ActorLifecycleDiagnosticLog.Write9(logger, exception, nameof(WriteBatchesAsync), source.Id);
-                }
-            }
-            RecordBatchCompletion(history, batch.Count, started);
-            if (history.Pending >= 512 || Volatile.Read(ref stopping) != 0) SignalWriter();
         }
-    }
-
-    /// <summary>Waits the configured failed-batch delay and wakes the existing history writer.</summary>
-    async Task DelayRetryAsync()
-    {
-        await Task.Delay(retryDelay).ConfigureAwait(false);
-        SignalWriter();
-    }
-
-    /// <summary>Records the completed history batch count, pending backlog and elapsed persistence/publication duration.</summary>
-    void RecordBatchCompletion(EodHistorySpool history, int count, long started)
-    {
-            EodHistoryMetrics.BatchDuration.Record(Stopwatch.GetElapsedTime(started).TotalMilliseconds);
-            global::TomasAI.IFM.Domain.MarketData.Feed.ActorLifecycleDiagnosticLog.Write10(logger, null, nameof(WriteBatchesAsync), count, history.Pending, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
-    }
-
-    /// <summary>Persists allocated ES history IDs before row mutations and coalesces VX observations by contract and value date.</summary>
-    async Task PersistBatchAsync(List<EodHistoryEntry> batch)
-    {
-                var rows = batch.Where(item => item.Row is not null).Select(item => item.Row!).ToArray();
-                if (rows.Length > 0)
-                {
-                    foreach (var row in rows)
-                        if (row.AppendHistory && row.HistorySequenceId is null)
-                            row.HistorySequenceId = await sequences.GetSequenceIdAsync(SequenceName.FuturesIntraDay_SequenceId)
-                                .ConfigureAwait(false);
-                    // Persist allocated IDs before submitting mutations, including before an uncertain response.
-                    foreach (var item in batch.Where(item => item.Row is not null)) await (EodHistorySpool.SaveAsync(item)).ConfigureAwait(false);
-                    await (dbFactory.MarketDataDb.PersistRealtimeFuturesEodBatchAsync(rows)).ConfigureAwait(false);
-                }
-                var vxRows = batch.Where(item => item.Vx is not null)
-                    .GroupBy(item => (item.Vx!.ContractId, item.Vx.ValueDate)).Select(group => group.Last().Vx!).ToArray();
-                if (vxRows.Length > 0) await (dbFactory.MarketDataDb.PersistRealtimeVixEodBatchAsync(vxRows)).ConfigureAwait(false);
     }
 
     readonly ImmutableArray<RealtimeProjectionDescriptor> _descriptors =

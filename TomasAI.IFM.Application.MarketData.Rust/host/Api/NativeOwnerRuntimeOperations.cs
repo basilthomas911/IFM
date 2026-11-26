@@ -9,8 +9,19 @@ public sealed class NativeOwnerRuntimeOperations(NativeDatasetBackend backend,
     NativeOwnerTradeRecovery trades, IServiceProvider services)
 {
     bool Ready=>services.GetRequiredService<NativeMarketDataNatsService>().IsReady;
-    MarketDataBackendStatus Business(MarketDataBackendStatus status)=>status with{
-        EnabledOptionTrades=status.ValueDate is{} date?trades.EnabledTrades(date):[]};
+    MarketDataBackendStatus Business(MarketDataBackendStatus status)=>WithSourceProtocol(status with{
+        EnabledOptionTrades=status.ValueDate is{} date?trades.EnabledTrades(date):[]},
+        Environment.GetEnvironmentVariable("IFM_REALTIME_SOURCE_CAPTURE_ENABLED") is{} configured &&
+        (configured=="1"||configured.Equals("true",StringComparison.OrdinalIgnoreCase)));
+    /// <summary>Reports the configured native protocol on the authoritative owner observation path.
+    /// Negotiation and original source receipts are still independently required by the API.</summary>
+    public static MarketDataBackendStatus WithSourceProtocol(MarketDataBackendStatus status,bool enabled)=>status with{
+        Datasets=status.Datasets.Select(dataset=>
+        {
+            var counters=dataset.Counters is{} existing?new Dictionary<string,long>(existing):new Dictionary<string,long>();
+            counters["Configured source capture protocol"]=enabled?2:0;
+            return dataset with{Counters=counters};
+        }).ToArray()};
     /// <summary>Copies native status and detached enabled business identities.</summary>
     public Task<MarketDataBackendStatus> GetBackendStatusAsync(CancellationToken token=default)
     {token.ThrowIfCancellationRequested();return Task.FromResult(Business(backend.Runtime.ReadDatasetOwnerBackendStatus(Ready)));}

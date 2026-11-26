@@ -1,3 +1,5 @@
+using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
@@ -28,8 +30,9 @@ public class TradePlacementEventProducer : NatsEventProducer, ITradePlacementEve
     public TradePlacementEventProducer(
         INatsProducerOptions options,
         INatsJetStreamProducerOptions jetStreamOptions,
-        ILoggerFactory loggerFactory, TimeProvider? timeProvider = null)
-        : base(options, jetStreamOptions, loggerFactory, timeProvider)
+        ILoggerFactory loggerFactory, TimeProvider? timeProvider = null,
+        IRealtimePublicationCapture? realtimeCapture = null, IRealtimeSessionRecorder? sessionRecorder = null, Func<IActorSupervisor>? sessionSupervisor = null)
+        : base(options, jetStreamOptions, loggerFactory, timeProvider, realtimeCapture, sessionRecorder, sessionSupervisor)
     {
     }
 

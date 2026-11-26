@@ -131,7 +131,7 @@ public sealed class MarketDataHostNatsRecoveryIntegrationTests
             ["MarketDataHost:WorkerDirectory"] = Harness.WorkerTestProcess.WorkerDirectory,
             ["MarketDataHost:DeploymentProfile"] = "SyntheticCi", ["MarketDataHost:DataSource"] = "Synthetic" }).Build();
         await using var manager = new NatsConnectionManager();
-        var connection = new MarketDataHostConnection(manager, Environment.GetEnvironmentVariable("IFM_MARKETDATA_TEST_NATS_URL") ?? "nats://127.0.0.1:4222", "retrytest" + Guid.NewGuid().ToString("N"));
+        var connection = new MarketDataHostConnection(manager, Harness.ExplicitBrokerUrl.Value, "retrytest" + Guid.NewGuid().ToString("N"));
         var attempts = 0;
         var firstAttempt = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var releaseAttempt = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -649,7 +649,7 @@ public sealed class MarketDataHostNatsRecoveryIntegrationTests
             ["MarketDataHost:DeploymentProfile"] = "SyntheticCi", ["MarketDataHost:DataSource"] = "Synthetic"
         }).Build();
         await using var manager = new NatsConnectionManager();
-        var connection = new MarketDataHostConnection(manager, Environment.GetEnvironmentVariable("IFM_MARKETDATA_TEST_NATS_URL") ?? "nats://127.0.0.1:4222", "ownershiptest" + Guid.NewGuid().ToString("N"));
+        var connection = new MarketDataHostConnection(manager, Harness.ExplicitBrokerUrl.Value, "ownershiptest" + Guid.NewGuid().ToString("N"));
         await using var host = new TomasAI.IFM.Application.MarketData.Host.MarketDataWorkerHost(configuration,
             NullLogger<TomasAI.IFM.Application.MarketData.Host.MarketDataWorkerHost>.Instance, connection);
         await host.StartAsync(default);
@@ -742,7 +742,7 @@ public sealed class MarketDataHostNatsRecoveryIntegrationTests
             var root = Harness.WorkerTestProcess.RepositoryRoot();
             var output = Harness.WorkerTestProcess.HostDirectory;
             var scope = "recoverytest" + Guid.NewGuid().ToString("N");
-            var natsUrl = Environment.GetEnvironmentVariable("IFM_MARKETDATA_TEST_NATS_URL") ?? "nats://127.0.0.1:4222";
+            var natsUrl = Harness.ExplicitBrokerUrl.Value;
             value.Connection = new(value.connections, natsUrl, scope);
             var start = new ProcessStartInfo(Path.Combine(output, "TomasAI.IFM.Application.MarketData.Host.exe"))
             {

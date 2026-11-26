@@ -103,6 +103,22 @@ pub struct Sessions {
     capacity: usize,
 }
 impl Sessions {
+    pub(crate) fn checkpoint(&self)->rmpv::Value{
+        use rmpv::Value as V;V::Array(vec![1.into(),(self.capacity as u64).into(),V::Array(self.order.iter().map(|date|crate::checkpoint::day(*date)).collect()),V::Array(self.dates.iter().map(|(date,state)|V::Array(vec![crate::checkpoint::day(*date),V::Array(state.prices.iter().copied().map(Into::into).collect()),V::Array(state.sequences.iter().copied().map(Into::into).collect()),state.trade.map_or(V::Nil,Into::into),state.volume.into(),(state.quality as u8).into(),state.event_ns.into()])).collect())])
+    }
+    pub(crate) fn restore_checkpoint(value:&rmpv::Value)->Result<Self,String>{
+        use crate::checkpoint as c;let f=c::fields(value,4)?;let capacity=usize::try_from(c::unsigned(&f[1])?).map_err(|_|"Session capacity overflow")?;
+        if c::unsigned(&f[0])?!=1||!(1..=4096).contains(&capacity){return Err("Session checkpoint version/capacity invalid".into());}
+        let rows=f[3].as_array().filter(|rows|rows.len()<=capacity).ok_or("Session checkpoint dates exceed bounds")?;let mut dates=BTreeMap::new();
+        for row in rows{let p=c::fields(row,7)?;let date=c::date(&p[0])?;let prices=c::fields(&p[1],3)?.iter().map(c::number).collect::<Result<Vec<_>,_>>()?.try_into().unwrap();let sequences=c::fields(&p[2],3)?.iter().map(|value|c::unsigned(value)?.try_into().map_err(|_|"Session source sequence overflow".to_owned())).collect::<Result<Vec<u32>,_>>()?.try_into().unwrap();
+            let trade=if p[3].is_nil(){None}else{Some(c::unsigned(&p[3])?.try_into().map_err(|_|"Session trade sequence overflow")?)};
+            let quality=match c::unsigned(&p[5])?{0=>VolumeQuality::Unknown,1=>VolumeQuality::Bootstrapping,2=>VolumeQuality::ObservedComplete,3=>VolumeQuality::OfficialFinal,_=>return Err("Session quality invalid".into())};
+            if dates.insert(date,State{prices,sequences,trade,volume:c::number(&p[4])?,quality,event_ns:c::number(&p[6])?}).is_some(){return Err("Duplicate checkpoint session date".into());}
+        }
+        let order=f[2].as_array().filter(|rows|rows.len()==dates.len()).ok_or("Session checkpoint date ordering differs")?.iter().map(c::date).collect::<Result<Vec<_>,_>>()?;
+        if order.iter().copied().collect::<std::collections::BTreeSet<_>>()!=dates.keys().copied().collect(){return Err("Session checkpoint date identity differs".into());}
+        Ok(Self{dates,order,capacity})
+    }
     /// Creates a bounded owner; zero capacity is rejected before admission.
     pub fn new(capacity: usize) -> Result<Self, Failure> {
         if capacity == 0 {

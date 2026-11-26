@@ -35,16 +35,31 @@ public static class StrategyPositionHistoryProjection
     {
         var valued = history.Select(position => EnrichPosition(position, trade)).ToArray();
         decimal? previous = EnrichTrade(trade).OpeningHistoryValuation?.NetPnl;
-        var result = new Dictionary<StrategyPositionSnapshot,StrategyPositionSnapshot>();
-        foreach (var position in valued.OrderBy(p=>p.ValueDate).ThenBy(p=>p.AsOfUtc).ThenBy(p=>p.PositionSequence)) {
+        static int Compare(StrategyPositionSnapshot left, StrategyPositionSnapshot right)
+        {
+            var value = left.ValueDate.CompareTo(right.ValueDate);
+            if (value == 0) value = left.AsOfUtc.CompareTo(right.AsOfUtc);
+            return value != 0 ? value : left.PositionSequence.CompareTo(right.PositionSequence);
+        }
+        int[]? order = null;
+        for (var index = 1; index < valued.Length; index++)
+            if (Compare(valued[index - 1], valued[index]) > 0)
+            {
+                order = Enumerable.Range(0, valued.Length).ToArray();
+                Array.Sort(order, (left, right) => Compare(valued[left], valued[right]) is var comparison && comparison != 0 ? comparison : left.CompareTo(right));
+                break;
+            }
+        for (var ordinal = 0; ordinal < valued.Length; ordinal++) {
+            var index = order is null ? ordinal : order[ordinal];
+            var position = valued[index];
             var current = position.HistoryValuation?.NetPnl;
             var change = position.Phase == StrategyPositionPhase.Open ? current
                 : current is not null && previous is not null ? current - previous : null;
-            result[position] = position.HistoryValuation is { } valuation
-                ? position with { HistoryValuation = valuation with { PeriodPnl=change } } : position;
+            if (position.HistoryValuation is { } valuation && valuation.PeriodPnl != change)
+                valued[index] = position with { HistoryValuation = valuation with { PeriodPnl=change } };
             previous = current;
         }
-        return valued.Select(position=>result[position]).ToArray();
+        return valued;
     }
 
     public static StrategyPositionSnapshot EnrichPosition(StrategyPositionSnapshot position, EstablishedTradeDefinition trade)

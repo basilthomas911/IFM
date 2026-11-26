@@ -257,14 +257,14 @@ public static class FuturesTickTradeDataInserted
         string contractId, DateOnly valueDate, FuturesEodDataV2ReadModel eodData)
     {
         var entityId = new FuturesEodDataId(contractId, valueDate);
-        return new FuturesEodDataInsertedEvent
+        return MessageOrigins.Restore(new FuturesEodDataInsertedEvent
         {
             Subject = new ActorSubject(
                 ActorType.Realtime,
                 FuturesEodDataRealtimeActor.ActorName,
                 FuturesEodDataInsertedEvent.Verb,
                 entityId.Format()),
-            Id = Guid.NewGuid(),
+            Id = EodProjectionIdentity.For(source, "trade"),
             EntityId = entityId,
             CommandId = source.CommandId,
             AggregateId = source.AggregateId,
@@ -273,7 +273,7 @@ public static class FuturesTickTradeDataInserted
             FuturesEodData = eodData,
             CreatedOn = DateTime.UtcNow,
             CreatedBy = source.UserName
-        };
+        }, MessageOrigins.Get(source));
     }
 
     static void LogSlowStage(ILogger logger, FuturesTickTradeDataInsertedEvent source,

@@ -101,7 +101,7 @@ public sealed class ServerLauncherContext : IAsyncDisposable
         _application.Exit += OnApplicationExit;
         if (enableDevelopmentProcessOwnership)
         {
-            _developmentControlPipe = new DevelopmentControlPipe(RequestExitFromDevelopmentControlPipe);
+            _developmentControlPipe = new DevelopmentControlPipe(RequestExitFromDevelopmentControlPipe, CaptureControlAsync);
         }
 
         _ = StartProcessesAsync();
@@ -245,6 +245,20 @@ public sealed class ServerLauncherContext : IAsyncDisposable
 
     private void RequestExitFromDevelopmentControlPipe()
         => _application.Dispatcher.BeginInvoke(new Action(() => _ = ExitAsync()));
+
+    async Task<string> CaptureControlAsync(string command, CancellationToken token)
+    {
+        var fields = command.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var result = fields switch
+        {
+            ["capture-status"] => _supervisor.CaptureStatus(),
+            ["capture-hold", var lease] => await _supervisor.HoldCaptureAsync(lease, token).ConfigureAwait(false),
+            ["capture-stop-native", var lease] => await _supervisor.StopCaptureNativeAsync(lease, token).ConfigureAwait(false),
+            ["capture-release", var lease] => await _supervisor.ReleaseCaptureAsync(lease, token).ConfigureAwait(false),
+            _ => throw new ArgumentException("Unknown capture lifecycle command.", nameof(command))
+        };
+        return System.Text.Json.JsonSerializer.Serialize(result);
+    }
 
     private void OnApplicationExit(object? sender, ExitEventArgs e)
     {

@@ -462,6 +462,12 @@ impl Coalesced {
         manifests: &BTreeMap<u32, Arc<super::manifest::Manifest>>,
         references: &BTreeMap<u32, Arc<super::context::Context>>,
     ) -> Result<(), &'static str> {
+        let _checkpoint=crate::checkpoint::transaction().map_err(|_|"Checkpoint reference owner interrupted")?;
+        self.refresh_references_in_transaction(updates,manifests,references)
+    }
+    pub(crate) fn refresh_references_in_transaction(
+        &self,updates:&[Refresh],manifests:&BTreeMap<u32,Arc<super::manifest::Manifest>>,references:&BTreeMap<u32,Arc<super::context::Context>>,
+    )->Result<(),&'static str>{
         if updates.is_empty() || updates.len() > self.maximum {
             return Err("Invalid context refresh batch");
         }
@@ -1155,6 +1161,11 @@ impl Coalesced {
             timer.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
             loop {
                 tokio::select! {biased;()=token.cancelled()=>return Ok(()),_=timer.tick()=>{}}
+                let _production = match crate::messaging::source_production::enter(token).await {
+                    Ok(permit) => permit,
+                    Err(_) if token.is_cancelled() => return Ok(()),
+                    Err(_) => return Err("Option pricing production interrupted"),
+                };
                 match self
                     .sweep_checked(risk, &at, &underlying, token, Deadline::recovery())
                     .await
@@ -1253,6 +1264,7 @@ impl Coalesced {
             .await
             .map_err(|_| "Option pricing interrupted")?;
         {
+            let _checkpoint=crate::checkpoint::transaction().map_err(|_|"Checkpoint pricing owner interrupted")?;
             let mut state = self
                 .state
                 .lock()
@@ -1409,6 +1421,7 @@ impl Coalesced {
             {
                 return Err("Option pricing interrupted");
             }
+            let _checkpoint=crate::checkpoint::transaction().map_err(|_|"Checkpoint pricing owner interrupted")?;
             let mut state = self
                 .state
                 .lock()
@@ -1597,6 +1610,56 @@ mod parallel_tier_tests {
             .unwrap();
         engine.observe(1, 100, quote(100)).unwrap();
         engine
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn production_pause_parks_actual_pricing_scheduler_without_blocking_runtime() {
+        if std::env::var("IFM_OPTION_PRICING_PAUSE_CHILD").as_deref() != Ok("1") {
+            let status = std::process::Command::new(std::env::current_exe().unwrap())
+                .args(["--exact", "option_chain::coalesced::parallel_tier_tests::production_pause_parks_actual_pricing_scheduler_without_blocking_runtime", "--nocapture"])
+                .env("IFM_OPTION_PRICING_PAUSE_CHILD", "1")
+                .env("IFM_SESSION_CAPTURE_BOUNDARY_ENABLED", "1")
+                .output().unwrap();
+            assert!(status.status.success() && String::from_utf8_lossy(&status.stdout).contains("1 passed; 0 failed"),
+                "{}\n{}", String::from_utf8_lossy(&status.stdout), String::from_utf8_lossy(&status.stderr));
+            return;
+        }
+        let engine = Arc::new(engine());
+        let calls = Arc::new(std::sync::atomic::AtomicU64::new(0));
+        let stop = CancellationToken::new();
+        let running = engine.clone();
+        let counted = calls.clone();
+        let stopping = stop.clone();
+        let task = tokio::spawn(async move {
+            running.run_checked(10, 10, move || {
+                counted.fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+                Ok(AT)
+            }, |_| Ok(Some(quote(5000))), &stopping).await
+        });
+        tokio::time::timeout(Duration::from_secs(2), async {
+            while calls.load(std::sync::atomic::Ordering::Acquire) < 4 {
+                tokio::task::yield_now().await;
+            }
+        }).await.unwrap();
+        let paused = tokio::task::spawn_blocking(||
+            crate::messaging::source_production::pause_for_test(817, Duration::from_secs(2)))
+            .await.unwrap();
+        assert_eq!(paused, 0);
+        let before = calls.load(std::sync::atomic::Ordering::Acquire);
+        let version = *engine.updates().borrow();
+        tokio::time::sleep(Duration::from_millis(60)).await;
+        assert_eq!(calls.load(std::sync::atomic::Ordering::Acquire), before);
+        assert_eq!(*engine.updates().borrow(), version);
+        assert_eq!(tokio::time::timeout(Duration::from_secs(1), tokio::spawn(async { 93 })).await.unwrap().unwrap(), 93);
+        assert_eq!(crate::messaging::source_production::resume_for_test(818), 4);
+        assert_eq!(crate::messaging::source_production::resume_for_test(817), 0);
+        tokio::time::timeout(Duration::from_secs(2), async {
+            while calls.load(std::sync::atomic::Ordering::Acquire) == before {
+                tokio::task::yield_now().await;
+            }
+        }).await.unwrap();
+        stop.cancel();
+        task.await.unwrap().unwrap();
     }
 
     /// Compare actual scheduler completion rates and timer delay; run explicitly in Release without competing builds.
@@ -1815,3 +1878,6 @@ mod parallel_tier_tests {
         .unwrap();
     }
 }
+
+#[path = "coalesced_checkpoint.rs"]
+mod checkpoint_state;

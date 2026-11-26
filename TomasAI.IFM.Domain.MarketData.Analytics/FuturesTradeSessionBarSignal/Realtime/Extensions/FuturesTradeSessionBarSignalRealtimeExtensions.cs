@@ -39,7 +39,7 @@ public static class FuturesTradeSessionBarSignalRealtimeExtensions
             var entityId = new FuturesTradeSessionBarEntityId(bar.MarketSeriesIdentity, bar.TimeFrame);
             var command = new PublishFuturesTradeSessionBarCommand
             {
-                CommandId = Guid.NewGuid(),
+                CommandId = bar.ObservationId.Value,
                 Subject = new(
                     ActorType.Command,
                     PublishFuturesTradeSessionBarCommand.Actor,

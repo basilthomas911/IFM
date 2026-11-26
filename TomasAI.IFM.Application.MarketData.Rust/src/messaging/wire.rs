@@ -76,6 +76,14 @@ pub(crate) fn control_origin_json() -> Result<String, &'static str> {
 }
 
 impl Frame {
+    pub(crate) fn checkpoint(&self)->Value{Value::Array(vec![(self.lane as u8).into(),self.value_date.into(),Value::Binary(self.worker.to_vec()),Value::Binary(self.generation.to_vec()),self.manifest_revision.into(),self.sequence.into(),self.kind.into(),Value::Binary(self.payload.clone()),self.origin_ticks.map_or(Value::Nil,Into::into)])}
+    pub(crate) fn restore_checkpoint(value:&Value)->Result<Self,String>{
+        use crate::checkpoint as c;let f=c::fields(value,9)?;
+        fn id(value:&Value)->Result<[u8;16],String>{match value{Value::Binary(bytes) if bytes.len()==16=>Ok(bytes.as_slice().try_into().unwrap()),_=>Err("Checkpoint frame UUID invalid".into())}}
+        let payload=match &f[7]{Value::Binary(bytes) if !bytes.is_empty()&&bytes.len()<=MAX_PAYLOAD_BYTES=>bytes.clone(),_=>return Err("Checkpoint frame payload invalid".into())};
+        let result=Self{lane:c::lane(&f[0])?,value_date:c::number(&f[1])?.try_into().map_err(|_|"Frame ValueDate overflow")?,worker:id(&f[2])?,generation:id(&f[3])?,manifest_revision:c::number(&f[4])?,sequence:c::number(&f[5])?,kind:c::unsigned(&f[6])?.try_into().map_err(|_|"Frame kind overflow")?,payload,origin_ticks:if f[8].is_nil(){None}else{Some(c::number(&f[8])?)}};
+        result.validate().map_err(str::to_owned)?;Ok(result)
+    }
     /// Encodes the shared version-one UTC origin header from the original application clock.
     /// No wall clock is consulted during queuing, retry or publication.
     ///

@@ -6,6 +6,14 @@ using static TomasAI.IFM.Application.MarketData.UnitTests.OrderCompositionPricin
 namespace TomasAI.IFM.Application.MarketData.UnitTests;
 public sealed class MarketDataReadMirrorTests
 {
+    [Fact]
+    public void Health_observation_uses_shared_business_clock_without_changing_feed_health()
+    {
+        var clock=new Clock();using var cache=new Cache(clock);
+        var mirror=new MarketDataReadMirror(cache,clock);
+        var health=mirror.GetFuturesMarketHealth("ES20261218");
+        Assert.Equal(At,health.ObservedAtUtc);Assert.False(health.Healthy);Assert.False(health.Running);
+    }
     [Theory]
     [InlineData(MarketDataRecoveryOwnership.Process)]
     [InlineData(MarketDataRecoveryOwnership.TokioDatasetOwner)]

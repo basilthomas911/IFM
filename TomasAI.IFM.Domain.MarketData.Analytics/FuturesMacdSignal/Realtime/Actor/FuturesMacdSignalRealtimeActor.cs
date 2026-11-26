@@ -13,6 +13,9 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Realtime.Act
 public class FuturesMacdSignalRealtimeActor(IRealtimeActorContext<FuturesMacdSignalRealtimeActor> actorContext)
     : BaseEventActor<FuturesMacdSignalRealtimeActor>(actorContext, actorContext.Logger)
 {
+    /// <inheritdoc />
+    protected override bool PropagateHandlerFailures => true;
+
     /// <summary>Identifies the MACD realtime mailbox.</summary>
     public const string ActorName = "FuturesMacdSignal";
     /// <summary>Gets the typed context supplied to this actor.</summary>
@@ -61,7 +64,8 @@ public class FuturesMacdSignalRealtimeActor(IRealtimeActorContext<FuturesMacdSig
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);
         var handler = ResolveMappedEventHandler(@event, _receiveMap);
-        _ = await handler(@event, FuturesMacdSignalRealtimeContext, _logger).ConfigureAwait(false);
+        if (!await handler(@event, FuturesMacdSignalRealtimeContext, _logger).ConfigureAwait(false))
+            throw new IOException("MACD required downstream delivery failed.");
     }
 
     /// <summary>Publishes the standard actor error event.</summary>

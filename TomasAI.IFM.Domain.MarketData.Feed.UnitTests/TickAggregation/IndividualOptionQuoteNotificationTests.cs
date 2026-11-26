@@ -1,4 +1,6 @@
 using NSubstitute;
+using TomasAI.IFM.Application.EventProjector.Realtime.Contracts;
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
@@ -17,6 +19,9 @@ public sealed class IndividualOptionQuoteNotificationTests
     public async Task Option_observation_notifies_ui_and_only_actual_trades_enter_trade_storage(OptionMarketPriceBasis basis, bool persisted)
     {
         var context = Substitute.For<ITickAggregationRealtimeContext>();
+        var projector = Substitute.For<IRealtimeProjector<TickAggregationRealtimeActor>>();
+        context.Projector.Returns(projector);
+        projector.ProcessRealtimeEventAsync(Arg.Any<IEvent>()).Returns(ValueTask.FromResult(true));
         var data = new FuturesOptionTickDataV2ReadModel { ContractId = "ES20261120C8450", ValueDate = new(2026,10,7), TickId = 42, OptionPrice = 10, GreeksAvailable = false };
         var changed = new FuturesTickTradeDataChangedEvent
         {

@@ -21,6 +21,51 @@ pub struct Selection {
     digest: String,
 }
 impl Selection {
+    pub(crate) fn checkpoint(&self) -> Value {
+        use super::composition::checkpoint::quote;
+        Value::Array(vec![
+            1.into(),
+            self.price.to_bits().into(),
+            self.delta.to_bits().into(),
+            self.volatility.to_bits().into(),
+            quote(&self.underlying),
+            quote(&self.option),
+            self.iv_at.into(),
+            self.at.into(),
+            self.until.into(),
+            self.policy.clone().into(),
+            self.digest.clone().into(),
+        ])
+    }
+    pub(crate) fn restore_checkpoint(value: &Value) -> Result<Self, String> {
+        use super::composition::checkpoint::read_quote;
+        use crate::checkpoint as c;
+        let f = c::fields(value, 11)?;
+        if c::unsigned(&f[0])? != 1 {
+            return Err("Selection checkpoint version invalid".into());
+        }
+        let result = Self {
+            price: f64::from_bits(c::unsigned(&f[1])?),
+            delta: f64::from_bits(c::unsigned(&f[2])?),
+            volatility: f64::from_bits(c::unsigned(&f[3])?),
+            underlying: read_quote(&f[4])?,
+            option: read_quote(&f[5])?,
+            iv_at: c::number(&f[6])?,
+            at: c::number(&f[7])?,
+            until: c::number(&f[8])?,
+            policy: c::string(&f[9], 1024)?,
+            digest: c::string(&f[10], 4096)?,
+        };
+        if [result.price, result.delta, result.volatility]
+            .iter()
+            .any(|v| !v.is_finite())
+            || result.policy.trim().is_empty()
+        {
+            return Err("Original selection numeric/policy invalid".into());
+        }
+        result.value().map_err(str::to_owned)?;
+        Ok(result)
+    }
     /// Maps a qualified complete selection. Financial/cache unavailability is
     /// None; malformed identities, nonfinite values and overflow are errors.
     /// This does no pricing, reference lookup, resource acquisition or IO.
@@ -173,5 +218,56 @@ impl Selection {
     /// Earliest original quote/context/IV expiry, in authoritative API UTC ticks.
     pub fn valid_until(&self) -> i64 {
         self.until
+    }
+}
+
+#[cfg(test)]
+mod checkpoint_tests {
+    use super::*;
+    #[test]
+    fn selection_checkpoint_preserves_original_iv_quotes_times_and_signed_zero() {
+        let at = 638_000_000_000_000_000;
+        let decimal = |v| crate::reference::decimal::parse(v).unwrap();
+        let quote = Quote {
+            contract: "ESZ2-C-4000".into(),
+            quote: super::super::qualification::Quote {
+                generation_low: 99,
+                generation_high: 12,
+                event: at,
+                received: at + 7,
+                sequence: 987654321,
+                bid: decimal("12.25"),
+                ask: decimal("12.50"),
+                bid_size: decimal("7"),
+                ask_size: decimal("9"),
+                ..Default::default()
+            },
+        };
+        let selection = Selection {
+            price: 12.375,
+            delta: -0.0,
+            volatility: 0.2225,
+            underlying: quote.clone(),
+            option: quote,
+            iv_at: at - 7,
+            at: at + 15,
+            until: at + 123456,
+            policy: "original-policy-v19".into(),
+            digest: "original-digest".into(),
+        };
+        let checkpoint = selection.checkpoint();
+        let restored = Selection::restore_checkpoint(&checkpoint).unwrap();
+        assert_eq!(checkpoint, restored.checkpoint());
+        assert_eq!(
+            crate::messaging::codec::encode(&selection.value().unwrap()).unwrap(),
+            crate::messaging::codec::encode(&restored.value().unwrap()).unwrap()
+        );
+        assert_eq!(restored.delta.to_bits(), (-0.0f64).to_bits());
+        let mut corrupted = checkpoint;
+        let Value::Array(ref mut fields) = corrupted else {
+            panic!()
+        };
+        fields[2] = f64::NAN.to_bits().into();
+        assert!(Selection::restore_checkpoint(&corrupted).is_err());
     }
 }

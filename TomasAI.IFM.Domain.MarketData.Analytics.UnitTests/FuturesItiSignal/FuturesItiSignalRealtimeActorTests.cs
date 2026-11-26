@@ -18,6 +18,63 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.FuturesItiSignal;
 
 public sealed class FuturesItiSignalRealtimeActorTests
 {
+    [Fact]
+    public async Task Rejected_ITI_command_is_not_ACKed_by_the_real_scheduler()
+    {
+        // Required command refusal must reach failed settlement independently of optional metrics.
+        var logger = Microsoft.Extensions.Logging.Abstractions.NullLogger<FuturesItiSignalRealtimeActor>.Instance;
+        var context = Context(out _, out _);
+        var id = new ActorMailboxId(ActorType.Realtime, FuturesItiSignalRealtimeActor.ActorName);
+        context.ActorId.Returns(id);
+        var supervisor = Substitute.For<IActorSupervisor>();
+        var container = Substitute.For<IContainerInstance>();
+        container.Resolve<IActorThreadQueue>().Returns(_ => new ActorThreadQueueV2(16));
+        supervisor.Container.Returns(container);
+        supervisor.GetProducer(Arg.Any<ActorMailboxId>()).Returns(Substitute.For<IActorProducer>());
+        await using var pool = new ActorThreadPoolV2(supervisor, Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance);
+        pool.Initialize(1); supervisor.ThreadPool.Returns(pool);
+        supervisor.GetThread(Arg.Any<ActorThreadId>()).Returns(call => pool.GetThread(call.Arg<ActorThreadId>()));
+        supervisor.GetThreadAsync(Arg.Any<ActorThreadId>(), Arg.Any<CancellationToken>())
+            .Returns(call => pool.GetThreadAsync(call.Arg<ActorThreadId>(), call.Arg<CancellationToken>()));
+        var mailbox = new ActorMailbox(supervisor, id);
+        supervisor.CreateMailbox(Arg.Any<ActorMailboxId>()).Returns(mailbox);
+        var actor = new FuturesItiSignalRealtimeActor(context);
+        supervisor.Children.Returns(new Dictionary<ActorMailboxId, IActor> { [id] = actor });
+
+        var closed = Event();
+        var message = Substitute.For<IActorMessage, IActorDeliveryCompletion>();
+        message.Subject.Returns(new ActorSubject(ActorType.Realtime, id.Name, closed.Subject.Verb, closed.EntityId.Format()));
+        message.AsEvent<FuturesMarketPriceUpdatedRealtimeEvent>().Returns(closed);
+        var settlement = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        ((IActorDeliveryCompletion)message).CompleteDeliveryAsync(Arg.Any<bool>()).Returns(call =>
+        { settlement.TrySetResult(call.Arg<bool>()); return ValueTask.CompletedTask; });
+        context.RequestAsync<GenerateFuturesItiSignalCommand, FuturesItiSignalEntityId>(Arg.Any<GenerateFuturesItiSignalCommand>())
+            .Returns(new ServiceFailed<GuidResult>(-429, "Injected required command refusal; nothing persisted."));
+        try
+        {
+            await actor.StartAsync(supervisor);
+            Assert.True(await mailbox.ThreadQueues.WriteAsync(message));
+            Assert.False(await settlement.Task.WaitAsync(TimeSpan.FromSeconds(5)));
+            await context.Received(1).RequestAsync<GenerateFuturesItiSignalCommand, FuturesItiSignalEntityId>(Arg.Any<GenerateFuturesItiSignalCommand>());
+        }
+        finally { await actor.StopAsync(); }
+    }
+
+    [Fact]
+    public void Parser_restores_original_source_headers_without_mutating_the_deserialized_event()
+    {
+        var source = Event(); var generation = Guid.NewGuid();
+        var message = Substitute.For<IActorMessage>();
+        message.Subject.Returns(new ActorSubject(ActorType.Realtime, FuturesItiSignalRealtimeActor.ActorName,
+            FuturesMarketPriceUpdatedRealtimeEvent.Verb, source.EntityId.Format()));
+        message.AsEvent<FuturesMarketPriceUpdatedRealtimeEvent>().Returns(source);
+        message.SourceDataset.Returns("GLBX.MDP3"); message.SourceGenerationId.Returns(generation);
+        var parsed = (FuturesMarketPriceUpdatedRealtimeEvent)Actor().Parse(Substitute.For<IEventActorContext<FuturesItiSignalRealtimeActor>>(), message);
+        Assert.Equal("GLBX.MDP3", parsed.SourceDataset); Assert.Equal(generation, parsed.SourceGenerationId);
+        Assert.Equal(string.Empty, source.SourceDataset); Assert.Equal(Guid.Empty, source.SourceGenerationId);
+        Assert.Equal(source.Price, parsed.Price); Assert.Equal(source.Id, parsed.Id);
+    }
+
     const string EsContractId = "ES20260918";
     const string VxContractId = "VX20260916";
     static readonly DateOnly ValueDate = new(2026, 9, 14);
@@ -202,7 +259,7 @@ public sealed class FuturesItiSignalRealtimeActorTests
 
         var handled = await Event().ExecuteAsync(context);
 
-        handled.Should().BeTrue();
+        handled.Should().BeFalse();
         telemetry.GetSnapshot().Failures.Should().Be(1);
         telemetry.GetSnapshot().LastReason.Should().Be("rejected");
     }
@@ -240,9 +297,9 @@ public sealed class FuturesItiSignalRealtimeActorTests
         using var cancellation = new CancellationTokenSource();
         var processing = Event().ExecuteAsync(context, cancellation.Token).AsTask();
         cancellation.Cancel();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => processing.WaitAsync(TimeSpan.FromSeconds(2)));
+        processing.IsCompleted.Should().BeFalse(); // Ownership remains until the actual request settles.
         completion.SetResult(new ServiceOk<GuidResult>(new GuidResult(Guid.NewGuid())));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => processing);
         telemetry.GetSnapshot().AcceptedCommands.Should().Be(0);
         telemetry.GetSnapshot().Failures.Should().Be(0);
     }
@@ -256,7 +313,7 @@ public sealed class FuturesItiSignalRealtimeActorTests
             .Returns(_ => ValueTask.FromException<ServiceResult<GuidResult>>(
                 new InvalidOperationException("request failed")));
 
-        (await Event().ExecuteAsync(context)).Should().BeTrue();
+        (await Event().ExecuteAsync(context)).Should().BeFalse();
         telemetry.GetSnapshot().Failures.Should().Be(1);
         telemetry.GetSnapshot().LastReason.Should().Be("request failed");
     }

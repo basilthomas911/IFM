@@ -26,6 +26,7 @@ builder.Services.AddHostedService(p => p.GetRequiredService<TomasAI.IFM.Applicat
 builder.Services.AddSingleton(p=>new MarketDataHostConnection(p.GetRequiredService<NatsConnectionManager>(),builder.Configuration["MarketDataHost:NatsUrl"]??"nats://127.0.0.1:4222",builder.Configuration["MarketDataHost:Scope"]??"development",p.GetRequiredService<TimeProvider>(),p.GetRequiredService<TomasAI.IFM.Shared.Time.PhysicalTime>()));
 builder.Services.AddNativeMarketDataBackend(builder.Configuration);
 await using var app=builder.Build();
+app.MapNativeSessionCaptureBoundary();
 app.MapGet("/health/live",()=>Results.Ok(new{Status="Healthy",Implementation="RustFFI"}));
 app.MapGet("/health/ready",(NativeMarketDataNatsService service,NativeColdBackend cold,TomasAI.IFM.Application.MarketData.Storage.RawFuturesStoragePublisher raw)=>service.IsReady&&cold.IsHealthy&&raw.Ready?Results.Ok(new{Status="Ready",Implementation="RustFFI",RawStorageRecords=raw.PublishedRecords}):Results.StatusCode(503));
 if(builder.Configuration.GetValue<bool>("MarketDataHost:StdinShutdown"))app.Lifetime.ApplicationStarted.Register(()=>_=Task.Run(async()=>

@@ -17,6 +17,9 @@ public class FuturesAdxSignalRealtimeActor(
     IRealtimeActorContext<FuturesAdxSignalRealtimeActor> actorContext)
     : BaseEventActor<FuturesAdxSignalRealtimeActor>(actorContext, actorContext.Logger)
 {
+    /// <inheritdoc />
+    protected override bool PropagateHandlerFailures => true;
+
     /// <summary>Identifies the ADX realtime actor mailbox.</summary>
     public const string ActorName = "FuturesAdxSignal";
 
@@ -80,9 +83,10 @@ public class FuturesAdxSignalRealtimeActor(
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);
         var receiveHandler = ResolveMappedEventHandler(@event, _receiveMap);
-        _ = await receiveHandler
+        if (!await receiveHandler
             .Invoke(@event, FuturesAdxSignalRealtimeContext, _logger)
-            .ConfigureAwait(false);
+            .ConfigureAwait(false))
+            throw new IOException("ADX required downstream delivery failed.");
     }
 
     /// <summary>Publishes the standard actor error event for an unhandled realtime exception.</summary>

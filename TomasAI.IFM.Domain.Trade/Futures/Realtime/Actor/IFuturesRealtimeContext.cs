@@ -7,6 +7,8 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 namespace TomasAI.IFM.Domain.Trade.Futures.Realtime.Actor;
 public interface IFuturesRealtimeContext : IRealtimeActorContext<FuturesRealtimeActor>
 {
+    FuturesRoutingReceipts RoutingReceipts { get; }
+
     IDbContextFactory DbFactory { get; }
 
     IActorService ActorService { get; }

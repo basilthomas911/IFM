@@ -15,6 +15,9 @@ public interface IPortfolioFundCommandApi
     Task<ServiceResult<Guid>> ChangeFundStateAsync(PortfolioFundId fundId, long expectedVersion, FundOperatingState state, string reason, CancellationToken cancellationToken = default);
     Task<ServiceResult<Guid>> AssignTradeTemplateAsync(FundTradeTemplateAssignmentReadModel assignment, long expectedVersion, CancellationToken cancellationToken = default);
     Task<ServiceResult<FundCompositionReservationResult>> ReserveCompositionAsync(ReserveFundOrderCompositionRequest request, PortfolioFundStrategySnapshot snapshot, CancellationToken cancellationToken = default);
+    /// <summary>Resolves the original request on its serialized owner without allocating or creating a new reservation.</summary>
+    Task<ServiceResult<FundCompositionReservationResult>> ReconcileCompositionAsync(ReserveFundOrderCompositionRequest request,PortfolioFundStrategySnapshot snapshot,CancellationToken cancellationToken=default)
+        => throw new NotSupportedException("Reservation authority reconciliation is unavailable.");
     Task<ServiceResult<FundCompositionReservationResult>> CreateManualOrderAsync(CreateManualFundOrderRequest request, CancellationToken cancellationToken = default);
     /// <summary>Adds one operator-authored trade to an existing manual Portfolio Fund order.</summary>
     Task<ServiceResult<FundCompositionReservationResult>> AddManualTradeAsync(

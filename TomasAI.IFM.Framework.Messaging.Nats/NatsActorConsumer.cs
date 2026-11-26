@@ -1,4 +1,5 @@
 using System.Threading.Channels;
+using TomasAI.IFM.Framework.Messaging.NatsJetStream.RealtimeMailboxes;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NATS.Net;
@@ -25,7 +26,8 @@ public class NatsActorConsumer(
     INatsConsumerOptions options,
     ILogger logger,
     NatsConnectionManager? connectionManager = null,
-    ActorAdmissionOptions? admissionOptions = null, TimeProvider? timeProvider = null)
+    ActorAdmissionOptions? admissionOptions = null, TimeProvider? timeProvider = null,
+    DurableRealtimeMailboxHub? realtimeHub = null)
     : IActorConsumer, IAsyncDisposable
 {
     readonly INatsConsumerOptions _options = IsArgumentNull.Set(options);
@@ -150,6 +152,12 @@ public class NatsActorConsumer(
                 return;
             }
 
+            if (actorType == ActorType.Realtime && realtimeHub?.Enabled == true)
+            {
+                await realtimeHub.StartAsync(supervisor, cancellationToken).ConfigureAwait(false);
+                _isRunning = true;
+                return;
+            }
             _nc = await _connectionManager.GetClientAsync(_options.Url, cancellationToken).ConfigureAwait(false);
             _cts = new CancellationTokenSource();
             var ctsRequestToken = _cts.Token;
@@ -301,6 +309,12 @@ public class NatsActorConsumer(
     {
         try
         {
+            if (_actorType == ActorType.Realtime && realtimeHub?.Enabled == true)
+            {
+                await realtimeHub.DisposeAsync().ConfigureAwait(false);
+                _isRunning = false;
+                return;
+            }
             if (_nc is null)
             {
                 global::TomasAI.IFM.Framework.Messaging.NatsJetStream.PersistenceDiagnosticLog.Write24(_logger, null, nameof(NatsActorConsumer), nameof(StopCoreAsync), _actorType);

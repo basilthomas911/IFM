@@ -118,3 +118,17 @@ impl Market {
         self.last_accepted = None;
     }
 }
+
+impl Market {
+    pub(crate) fn checkpoint(&self)->rmpv::Value{
+        use rmpv::Value as V;let trade=|v:&Trade|V::Array(vec![super::checkpoint_trade(&v.value),v.action.into(),v.side.into(),v.conditions.into(),crate::checkpoint::wide(v.epoch),v.ordinal.into()]);
+        let current=self.current.map_or(V::Nil,|s|V::Array(vec![crate::checkpoint::day(s.date),s.quote.as_ref().map_or(V::Nil,|v|super::checkpoint_tick(v,super::checkpoint_quote)),s.trade.as_ref().map_or(V::Nil,|v|super::checkpoint_tick(v,trade))]));
+        V::Array(vec![1.into(),current,self.last_accepted.as_ref().map_or(V::Nil,|v|super::checkpoint_tick(v,trade)),self.tick_size.map_or(V::Nil,Into::into)])
+    }
+    pub(crate) fn restore_checkpoint(value:&rmpv::Value)->Result<Self,String>{
+        use crate::checkpoint as c;let f=c::fields(value,4)?;if c::unsigned(&f[0])?!=1{return Err("Market checkpoint version".into());}
+        let trade=|v:&rmpv::Value|->Result<Trade,String>{let p=c::fields(v,6)?;Ok(Trade{value:super::restore_trade(&p[0])?,action:c::unsigned(&p[1])?.try_into().map_err(|_|"Market action overflow")?,side:c::unsigned(&p[2])?.try_into().map_err(|_|"Market side overflow")?,conditions:c::unsigned(&p[3])?.try_into().map_err(|_|"Market conditions overflow")?,epoch:c::read_wide(&p[4])?,ordinal:c::number(&p[5])?})};
+        let current=if f[1].is_nil(){None}else{let s=c::fields(&f[1],3)?;Some(Snapshot{date:c::date(&s[0])?,quote:if s[1].is_nil(){None}else{Some(super::restore_tick(&s[1],super::restore_quote)?)},trade:if s[2].is_nil(){None}else{Some(super::restore_tick(&s[2],trade)?)}})};
+        Ok(Self{current,last_accepted:if f[2].is_nil(){None}else{Some(super::restore_tick(&f[2],trade)?)},tick_size:if f[3].is_nil(){None}else{Some(c::number(&f[3])?)}})
+    }
+}

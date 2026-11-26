@@ -11,6 +11,7 @@ pub mod live;
 pub mod counters;
 mod output;
 pub mod raw_capture;
+pub(crate) mod required_capture;
 pub mod records;
 pub mod transport;
 
@@ -22,6 +23,7 @@ pub mod supervisor;
 
 /// Concrete native futures dataset resources for the persistent supervisor.
 pub mod futures_owner;
+pub(crate) mod futures_recipe_checkpoint;
 
 /// Concrete native options resources, preparation and direct publication.
 pub mod options_owner;

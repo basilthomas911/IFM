@@ -15,6 +15,9 @@ public sealed class FuturesVxTermStructureSignalRealtimeActor(
     : BaseEventActor<FuturesVxTermStructureSignalRealtimeActor>(actorContext,
         ((IFuturesVxTermStructureSignalRealtimeContext)actorContext).Logger)
 {
+    /// <inheritdoc />
+    protected override bool PropagateHandlerFailures => true;
+
     /// <summary>Identifies the VX term-structure realtime mailbox.</summary>
     public const string ActorName = "FuturesVxTermStructureSignal";
     static readonly ActorTypeId Route = new(ActorType.Realtime,
@@ -66,7 +69,8 @@ public sealed class FuturesVxTermStructureSignalRealtimeActor(
             || !contracts.IsValid)
             throw new FuturesContractRolloverConfigurationException(
                 "The front and second VX contracts are not available in the startup registry.");
-        _ = await handler(@event, TypedContext, contracts, TypedContext.Logger).ConfigureAwait(false);
+        if (!await handler(@event, TypedContext, contracts, TypedContext.Logger).ConfigureAwait(false))
+            throw new IOException("VXTERMSTRUCTURE required downstream delivery failed.");
     }
     /// <inheritdoc />
     protected override async ValueTask OnExceptionAsync(

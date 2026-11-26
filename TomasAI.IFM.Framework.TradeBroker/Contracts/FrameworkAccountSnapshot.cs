@@ -10,6 +10,7 @@ public sealed record FrameworkAccountSnapshot
     public bool Complete { get; init; }
     public bool NewRiskAllowed { get; init; }
     public long Generation { get; init; }
+    public long SourceSequence { get; init; }
     public DateTime AsOfUtc { get; init; }
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized message/configuration contract, including enum widths, numeric values, and collection shape.")]
     public FrameworkAccountPosition[] Positions { get; init; } = [];

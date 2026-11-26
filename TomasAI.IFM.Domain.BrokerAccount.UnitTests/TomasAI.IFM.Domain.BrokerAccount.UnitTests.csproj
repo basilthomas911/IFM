@@ -13,4 +13,5 @@
     <ProjectReference Include="../TomasAI.IFM.Domain.BrokerAccount/TomasAI.IFM.Domain.BrokerAccount.csproj" />
 
   </ItemGroup>
+<ItemGroup><PackageReference Include="NSubstitute" Version="6.0.0" /></ItemGroup>
 </Project>
